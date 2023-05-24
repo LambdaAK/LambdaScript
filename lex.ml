@@ -1,4 +1,8 @@
-type token_type = Integer of int | Boolean of bool | StringToken of string | Nothing
+type token_type = 
+| Integer of int 
+| Boolean of bool 
+| StringToken of string 
+| Nothing
 type token = {token_type: token_type; line: int}
 
 
