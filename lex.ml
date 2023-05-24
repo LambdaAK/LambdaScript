@@ -4,11 +4,13 @@ type token_type =
 | StringToken of string 
 | Nothing
 | Id of string
+| Assign
+| Lam
+| Arrow
+| Let
 type token = {token_type: token_type; line: int}
 
-
 let list_of_string (s: string) = s |> String.to_seq |> List.of_seq
-
 
 let is_num: char -> bool = function
 | '0'
@@ -84,6 +86,23 @@ let rec lex (lst: char list): token list =
   | 'f' :: 'a' :: 'l' :: 's' :: 'e' :: t ->
 
       {token_type = (Boolean false); line = 0} :: (lex t)
+  
+  | 'l' :: 'e' :: 't' :: t ->
+    let new_token: token = {token_type = Let; line = 0} in
+      new_token :: (lex t)
+
+
+  | 'l' :: 'a' :: 'm' :: t ->
+      let new_token: token = {token_type = Lam; line = 0} in
+      new_token :: (lex t)
+
+  | '-' :: '>' :: t ->
+    let new_token: token = {token_type = Arrow; line = 0} in
+      new_token :: (lex t)
+
+  | '<' :: '-' :: '-' :: t ->
+    let new_token: token = {token_type = Assign; line = 0} in
+      new_token :: (lex t)
 
 
   | n :: _ when is_num n ->
@@ -107,8 +126,7 @@ let rec lex (lst: char list): token list =
   | '(' :: ')' :: t ->
     let new_token: token = {token_type = Nothing; line = 0} in
     new_token :: (lex t)
-    
-      
+
 
   | _ -> failwith "no token matched"
 
@@ -125,4 +143,8 @@ let string_of_token: token -> string = function
 | {token_type = StringToken s; line = _} -> "<string: " ^ s ^ ">"
 | {token_type = Nothing; line = _} -> "<nothing>"
 | {token_type = Id s; line = _} -> "<id: " ^ s ^ ">"
+| {token_type = Lam; line = _} -> "<lam>"
+| {token_type = Arrow; line = _} -> "<arrow>"
+| {token_type = Assign; line = _} -> "<assign>"
+| {token_type = Let; line = _} -> "<let>"
 
