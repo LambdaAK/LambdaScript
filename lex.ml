@@ -150,7 +150,6 @@ let rec lex (lst: char list): token list =
     let id_token, tail = lex_id lst "" in id_token :: (lex tail)
 
 
-
   | '"' :: c :: t ->
     
     if c = '"' then 
