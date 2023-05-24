@@ -1,4 +1,7 @@
-let () =
-  for i = 0 to Array.length Sys.argv - 1 do
-    Printf.printf "[%i] %s\n" i Sys.argv.(i)
-  done
+let main (): unit = 
+  let dir: string = Sys.argv.(1) in
+  let contents: string = Reader.read dir in
+  print_endline contents
+
+
+let () = main ()
