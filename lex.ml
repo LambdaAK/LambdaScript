@@ -168,6 +168,13 @@ let rec lex (lst: char list): token list =
 
 
 
+let rec remove_line_numbers (tokens: token list): token_type list = match tokens with
+| [] -> []
+| h :: t -> h.token_type :: (remove_line_numbers t)
+
+
+
+
 let string_of_token: token -> string = fun (tok: token) -> match tok.token_type with
 | Boolean b -> let s: string = string_of_bool b in
 

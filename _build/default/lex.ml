@@ -150,7 +150,6 @@ let rec lex (lst: char list): token list =
     let id_token, tail = lex_id lst "" in id_token :: (lex tail)
 
 
-
   | '"' :: c :: t ->
     
     if c = '"' then 
@@ -169,26 +168,32 @@ let rec lex (lst: char list): token list =
 
 
 
-let string_of_token: token -> string = function
-| {token_type = Boolean b; line = _} -> let s: string = string_of_bool b in
+let rec remove_line_numbers (tokens: token list): token_type list = match tokens with
+| [] -> []
+| h :: t -> h.token_type :: (remove_line_numbers t)
+
+
+
+
+let string_of_token: token -> string = fun (tok: token) -> match tok.token_type with
+| Boolean b -> let s: string = string_of_bool b in
 
 "<boolean: " ^ s ^ ">"
 
 
-| {token_type = Integer n; line = _} -> let s: string = string_of_int n in
+| Integer n -> let s: string = string_of_int n in
 "<integer: " ^ s ^ ">"
-| {token_type = StringToken s; line = _} -> "<string: " ^ s ^ ">"
-| {token_type = Nothing; line = _} -> "<nothing>"
-| {token_type = Id s; line = _} -> "<id: " ^ s ^ ">"
-| {token_type = Lam; line = _} -> "<lam>"
-| {token_type = Arrow; line = _} -> "<arrow>"
-| {token_type = Assign; line = _} -> "<assign>"
-| {token_type = Let; line = _} -> "<let>"
-| {token_type = If; line = _} -> "<if>"
-| {token_type = Then; line = _} -> "<then>"
-| {token_type = Else; line = _} -> "<else>"
-| {token_type = LParen; line = _} -> "<lparen>"
-| {token_type = RParen; line = _} -> "<rparen>"
-| {token_type = Colon; line = _} -> "<colon>"
-| {token_type = InArrow; line = _} -> "<InArrow>"
-
+| StringToken s -> "<string: " ^ s ^ ">"
+| Nothing -> "<nothing>"
+| Id s -> "<id: " ^ s ^ ">"
+| Lam -> "<lam>"
+| Arrow -> "<arrow>"
+| Assign -> "<assign>"
+| Let -> "<let>"
+| If -> "<if>"
+| Then -> "<then>"
+| Else -> "<else>"
+| LParen -> "<lparen>"
+| RParen -> "<rparen>"
+| Colon-> "<colon>"
+| InArrow -> "<in arrow>"

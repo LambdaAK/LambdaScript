@@ -1,10 +1,12 @@
 open Lex
+open Expr
 let rec print_tokens_list: Lex.token list -> unit = function
 | [] -> ()
 | token :: tail ->
   token |> Lex.string_of_token |> print_endline; print_tokens_list tail
 
 
+let () = ignore print_tokens_list
 
 let main (): unit = 
   if Array.length Sys.argv = 1 then
@@ -16,7 +18,8 @@ let main (): unit =
   let contents: string = Reader.read dir in
   let tokens: token list = contents |> Lex.list_of_string |> Lex.lex in
 
-  print_tokens_list tokens
+  let ast, _ = parse_expr tokens in
+  ast |> string_of_expr |> print_endline
 
 
   
