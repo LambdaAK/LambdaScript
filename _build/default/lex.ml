@@ -13,6 +13,8 @@ type token_type =
 | Else
 | LParen
 | RParen
+| Colon
+| InArrow
 
 type token = {token_type: token_type; line: int}
 
@@ -123,6 +125,9 @@ let rec lex (lst: char list): token list =
     let new_token: token = {token_type = RParen; line = 0} in
         new_token :: (lex t)
 
+  | '=' :: '>' :: t ->
+    let new_token: token = {token_type = InArrow; line = 0} in
+    new_token :: (lex t)
   
   | '-' :: '>' :: t ->
     let new_token: token = {token_type = Arrow; line = 0} in
@@ -130,6 +135,10 @@ let rec lex (lst: char list): token list =
 
   | '<' :: '-' :: '-' :: t ->
     let new_token: token = {token_type = Assign; line = 0} in
+      new_token :: (lex t)
+  
+  | ':' :: t ->
+    let new_token: token = {token_type = Colon; line = 0} in
       new_token :: (lex t)
 
 
@@ -180,4 +189,6 @@ let string_of_token: token -> string = function
 | {token_type = Else; line = _} -> "<else>"
 | {token_type = LParen; line = _} -> "<lparen>"
 | {token_type = RParen; line = _} -> "<rparen>"
+| {token_type = Colon; line = _} -> "<colon>"
+| {token_type = InArrow; line = _} -> "<InArrow>"
 
