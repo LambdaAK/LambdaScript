@@ -8,6 +8,10 @@ type token_type =
 | Lam
 | Arrow
 | Let
+| If
+| Then
+| Else
+
 type token = {token_type: token_type; line: int}
 
 let list_of_string (s: string) = s |> String.to_seq |> List.of_seq
@@ -96,6 +100,20 @@ let rec lex (lst: char list): token list =
       let new_token: token = {token_type = Lam; line = 0} in
       new_token :: (lex t)
 
+  | 'i' :: 'f' :: t ->
+    let new_token: token = {token_type = If; line = 0} in
+      new_token :: (lex t)
+
+  | 't' :: 'h' :: 'e' :: 'n' :: t ->
+      let new_token: token = {token_type = Then; line = 0} in
+        new_token :: (lex t)
+
+  | 'e' :: 'l' :: 's' :: 'e' :: t ->
+      let new_token: token = {token_type = Else; line = 0} in
+        new_token :: (lex t)
+
+
+            
   | '-' :: '>' :: t ->
     let new_token: token = {token_type = Arrow; line = 0} in
       new_token :: (lex t)
@@ -147,4 +165,7 @@ let string_of_token: token -> string = function
 | {token_type = Arrow; line = _} -> "<arrow>"
 | {token_type = Assign; line = _} -> "<assign>"
 | {token_type = Let; line = _} -> "<let>"
+| {token_type = If; line = _} -> "<if>"
+| {token_type = Then; line = _} -> "<then>"
+| {token_type = Else; line = _} -> "<else>"
 
