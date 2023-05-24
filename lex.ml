@@ -3,6 +3,7 @@ type token_type =
 | Boolean of bool 
 | StringToken of string 
 | Nothing
+| Id of string
 type token = {token_type: token_type; line: int}
 
 
@@ -38,8 +39,15 @@ let int_from_char: char -> int = function
 | _ -> failwith "not an int passed to int_from_char"
 
 
-let string_of_char (c: char) = String.make 1 c
+let is_letter: char -> bool = fun (c: char) ->
+  let code: int = Char.code c in
+  if (code >= 65) && (code <= 122) then true else false
 
+
+let string_of_char = String.make 1 
+
+
+let ( ^^ ) (s: string) (c: char) = s ^ (string_of_char c)
 
 
 let rec lex_int (lst: char list) (acc: int): token * char list = match lst with
@@ -58,7 +66,10 @@ let rec lex_string (lst: char list) (acc: string): token * char list = match lst
 
 | [] -> failwith "expected closing double quote in lexing string"
 
-
+let rec lex_id (lst: char list) (acc: string): token * char list = match lst with
+| c :: t when is_letter c -> lex_id t (acc ^^ c)
+| _ -> ({token_type = Id acc; line = 0}, lst)
+  
 
 
 let rec lex (lst: char list): token list =
@@ -77,6 +88,11 @@ let rec lex (lst: char list): token list =
 
   | n :: _ when is_num n ->
     let int_token, tail = lex_int lst 0 in int_token :: (lex tail)
+
+
+  | c :: _ when is_letter c ->
+    let id_token, tail = lex_id lst "" in id_token :: (lex tail)
+
 
 
   | '"' :: c :: t ->
@@ -108,3 +124,5 @@ let string_of_token: token -> string = function
 "<integer: " ^ s ^ ">"
 | {token_type = StringToken s; line = _} -> "<string: " ^ s ^ ">"
 | {token_type = Nothing; line = _} -> "<nothing>"
+| {token_type = Id s; line = _} -> "<id: " ^ s ^ ">"
+
