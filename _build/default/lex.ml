@@ -4,6 +4,46 @@ type token = {token_type: token_type; line: int}
 
 let list_of_string (s: string) = s |> String.to_seq |> List.of_seq
 
+
+let is_num: char -> bool = function
+| '0'
+| '1'
+| '2'
+| '3'
+| '4'
+| '5'
+| '6'
+| '7'
+| '8'
+| '9'
+-> true
+| _ -> false
+
+
+let int_from_char: char -> int = function
+| '0' -> 0
+| '1' -> 1
+| '2' -> 2
+| '3' -> 3
+| '4' -> 4
+| '5' -> 5
+| '6' -> 6
+| '7' -> 7
+| '8' -> 8
+| '9' -> 9
+| _ -> failwith "not an int passed to int_from_char"
+
+
+
+let rec lex_int (lst: char list) (acc: int): token * char list = match lst with
+| n :: t when is_num n ->
+  let n_int: int = int_from_char n in
+  lex_int t (acc * 10 + n_int)
+| _ -> ({token_type = (Integer acc); line = 0}, lst)
+
+
+
+
 let rec lex (lst: char list): token list =
 
   match lst with
@@ -18,10 +58,14 @@ let rec lex (lst: char list): token list =
       {token_type = (Boolean false); line = 0} :: (lex t)
 
 
+  | n :: _ when is_num n ->
+    let int_token, tail = lex_int lst 0 in int_token :: (lex tail)
+  
+
   | _ -> failwith "no token matched"
 
 
 
 let string_of_token: token -> string = function
 | {token_type = Boolean b; line = _} -> string_of_bool b
-| _ -> failwith "string of token match failure"
+| {token_type = Integer n; line = _} -> string_of_int n
