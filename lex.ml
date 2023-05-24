@@ -1,4 +1,4 @@
-type token_type = Integer of int | Boolean of bool | StringToken of string
+type token_type = Integer of int | Boolean of bool | StringToken of string | Nothing
 type token = {token_type: token_type; line: int}
 
 
@@ -83,6 +83,10 @@ let rec lex (lst: char list): token list =
   else
     let new_token, remainder = lex_string (c :: t) "" in
     new_token :: (lex remainder)
+
+  | '(' :: ')' :: t ->
+    let new_token: token = {token_type = Nothing; line = 0} in
+    new_token :: (lex t)
     
       
 
@@ -99,3 +103,4 @@ let string_of_token: token -> string = function
 | {token_type = Integer n; line = _} -> let s: string = string_of_int n in
 "<integer: " ^ s ^ ">"
 | {token_type = StringToken s; line = _} -> "<string: " ^ s ^ ">"
+| {token_type = Nothing; line = _} -> "<nothing>"
