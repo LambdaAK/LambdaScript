@@ -8,7 +8,8 @@ let rec print_tokens_list: Lex.token list -> unit = function
 
 let () = ignore print_tokens_list
 
-let main (): unit = 
+let main (): unit =
+  print_newline ();
   if Array.length Sys.argv = 1 then
     print_endline "a directory must be provided"
   else
@@ -22,7 +23,7 @@ let main (): unit =
   ast |> string_of_expr |> print_endline
 
 
-  
+  ;print_newline ()
 
 
 let () = main ()

@@ -1,1 +1,5 @@
-f if true then 0 else 1
+lam a ->
+lam b ->
+lam c ->
+lam d ->
+a b c d
