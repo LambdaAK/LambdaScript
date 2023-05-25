@@ -8,6 +8,7 @@ type expr =
 | IdExpr of string
 | AppExpr of expr * expr
 | TernaryExpr of expr * expr * expr
+| Function of expr * expr
 
 
 let rec string_of_expr (e: expr): string = match e with
@@ -25,21 +26,28 @@ let rec string_of_expr (e: expr): string = match e with
 
   "<ternary: if " ^ e1_string ^ " then " ^ e2_string ^ " else " ^ e3_string ^ ">"
 
+| AppExpr (e1, e2) ->
+  let e1_string: string = string_of_expr e1 in
+  let e2_string: string = string_of_expr e2 in
 
+  "<app: " ^ e1_string ^ " " ^ e2_string ^ ">"
 
 | _ -> failwith "impossible"
-
-
 
 
 let remove_head: 'a list -> 'a list = function
 | [] -> failwith "cannot remove head from empty list"
 | _ :: t -> t
 
+let remove_last (lst: 'a list): 'a * 'a list =
+  match List.rev lst with
+  | [] -> failwith "cannot remove the last element of an empty list"
+  | last :: rest ->
+    last, List.rev rest
 
 
-let rec parse_expr (tokens: token list): expr * token list = 
-  match tokens with
+let rec parse_expr ?can_be_app:(can_be_app=true) (tokens: token list) : expr * token list = 
+  let expr, remaining_tokens = (match tokens with
   | {token_type = Integer n; line = _} :: t -> IntegerExpr n, t
   | {token_type = Boolean b; line = _} :: t -> BooleanExpr b, t
   | {token_type = StringToken s; line = _} :: t -> StringExpr s, t
@@ -55,8 +63,43 @@ let rec parse_expr (tokens: token list): expr * token list =
     TernaryExpr (e1, e2, e3), tokens_after_e3
     
 
+    
+  | _ -> failwith "parsing error: no pattern matched"
+  ) in 
+  
+  if not can_be_app then expr, remaining_tokens else
 
+  match remaining_tokens with
+  | [] -> expr, []
+  | {token_type = Then; line = _} :: _ 
+  | {token_type = Else; line = _} :: _ -> 
+    expr, remaining_tokens
+  | _ :: _ ->
+    parse_app tokens
+
+
+and get_expr_list (tokens: token list) (acc: expr list): expr list * token list =
+match tokens with
+| []
+| {token_type = Then; line = _} :: _
+| {token_type = Else; line = _} :: _ -> List.rev acc, tokens (* return no new exprs *)
+| _ ->
+  (* parse one more expr *)
+  let new_expr, remaining_tokens = parse_expr ~can_be_app:false tokens in
+  get_expr_list remaining_tokens (new_expr :: acc)
+
+
+and construct_app_chain_from_expr_list (expressions: expr list): expr =
+  match expressions with
+  | [] -> failwith "impossible"
+  | e :: [] -> e
+  | expressions ->
+
+    let last, expressions_without_last = remove_last expressions in
+    AppExpr (construct_app_chain_from_expr_list expressions_without_last, last)
 
 
     
-  | _ -> failwith "parsing error: no pattern matched"
+and parse_app (tokens: token list): expr * token list =
+  let expressions, remaining_tokens = get_expr_list tokens [] in
+  construct_app_chain_from_expr_list expressions, remaining_tokens
