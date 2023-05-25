@@ -69,6 +69,14 @@ let rec parse_expr ?can_be_app:(can_be_app=true) (tokens: token list) : expr * t
   | {token_type = StringToken s; line = _} :: t -> StringExpr s, t
   | {token_type = Nothing; line = _} :: t -> NothingExpr, t
   | {token_type = Id s; line = _} :: t -> IdExpr s, t
+  | {token_type = LParen; line = _} :: _ ->
+
+    (* split *)
+    let a, b = split_tokens_list_by_parens tokens in
+
+    fst (parse_expr a), b
+
+
   | {token_type = If; line = _} :: t ->
     (* parse a ternary expression *)
 
@@ -139,7 +147,55 @@ and construct_app_chain_from_expr_list (expressions: expr list): expr =
     AppExpr (construct_app_chain_from_expr_list expressions_without_last, last)
 
 
-
 and parse_app (tokens: token list): expr * token list =
   let expressions, remaining_tokens = get_expr_list tokens [] in
   construct_app_chain_from_expr_list expressions, remaining_tokens
+
+
+(**
+[split_tokens_list_by_parens t] is a tuple (a, b) where
+
+a is a list of tokens between a pair of corresponding parenthesis
+b is the list of tokens that comes after a
+
+a @ b = t, except the two parenthesis are removed
+
+Requires: the first token in t is a LParen, and there is a corresponding RParen in t
+
+*)
+
+and split_tokens_list_by_parens (tokens: token list): token list * token list =
+
+  let balance: int ref = ref 0 in
+  let tokens_list: token list ref = ref tokens in
+  let accumulated_tokens: token list ref = ref [] in
+  let active: bool ref = ref true in
+
+  while !active do
+    (match !tokens_list with
+    | {token_type = LParen; line} :: remaining_tokens ->
+
+      balance := !balance + 1;
+      tokens_list := remaining_tokens;
+      accumulated_tokens := !accumulated_tokens @ [{token_type = LParen; line}]
+
+    | {token_type = RParen; line} :: remaining_tokens ->
+
+      balance := ! balance - 1;
+      tokens_list := remaining_tokens;
+      accumulated_tokens := !accumulated_tokens @ [{token_type = LParen; line}]
+
+    | h :: remaining_tokens ->
+      tokens_list := remaining_tokens;
+      accumulated_tokens := !accumulated_tokens @ [h]
+
+    | [] -> active := false
+    );
+    if !balance = 0 then active := false
+
+  done;
+  (* at this point, accumulated tokens has both the opening and closing parens *)
+  (* we need to remove them *)
+  let a: token list = !accumulated_tokens |> remove_head |> remove_last |> snd in
+  let b: token list = !tokens_list in
+  a, b

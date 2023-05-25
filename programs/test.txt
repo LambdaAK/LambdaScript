@@ -1,5 +1,0 @@
-lam a ->
-lam b ->
-lam c ->
-lam d ->
-a b c d

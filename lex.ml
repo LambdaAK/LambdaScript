@@ -119,7 +119,7 @@ let rec lex (lst: char list): token list =
 
   | '(' :: c :: t when c <> ')' ->
     let new_token: token = {token_type = LParen; line = 0} in
-        new_token :: (lex t)
+        new_token :: (lex (c :: t))
 
   | ')' :: t ->
     let new_token: token = {token_type = RParen; line = 0} in
@@ -197,3 +197,9 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | RParen -> "<rparen>"
 | Colon-> "<colon>"
 | InArrow -> "<in arrow>"
+
+
+let rec print_tokens_list: token list -> unit = function
+| [] -> ()
+| token :: tail ->
+  token |> string_of_token |> print_endline; print_tokens_list tail
