@@ -19,36 +19,68 @@ type expr =
 
 let string_of_pat: pat -> string =
   function
-  | NothingPat -> "<pattern: ()>"
-  | IdPat s -> "<pattern: " ^ s ^ ">"
+  | NothingPat -> "Nothing Pattern"
+  | IdPat s -> "Id Pattern (" ^ s ^ ")"
 
 
-let rec string_of_expr (e: expr): string = match e with
-| IntegerExpr n -> "<integer: " ^ (string_of_int n) ^ ">"
-| BooleanExpr b -> "<boolean: " ^ (string_of_bool b) ^ ">"
-| StringExpr s -> "<string: " ^ s ^ ">"
-| NothingExpr -> "<()>"
-| IdExpr s -> "<id: " ^ s ^ ">"
+let indentations (level: int) = String.make (2 * level) ' '
+
+let indentations_with_newline (level: int) = "\n" ^ (indentations level)
+
+let rec string_of_expr (e: expr) (level: int): string = match e with
+| IntegerExpr n -> 
+  "Integer (" ^ (string_of_int n) ^ ")"
+| BooleanExpr b ->
+  "Boolean (" ^ (string_of_bool b) ^ ")"
+| StringExpr s ->
+  "String (" ^ s ^ ")"
+| NothingExpr -> "Nothing"
+| IdExpr s ->
+  "Id (" ^ s ^ ")"
 | TernaryExpr (e1, e2, e3) ->
 
-  let e1_string: string = string_of_expr e1 in
-  let e2_string: string = string_of_expr e2 in
-  let e3_string: string = string_of_expr e3 in
+  let e1_string: string = string_of_expr e1 (level + 1) in
+  let e2_string: string = string_of_expr e2 (level + 1) in
+  let e3_string: string = string_of_expr e3 (level + 1) in
 
 
-  "<ternary: if " ^ e1_string ^ " then " ^ e2_string ^ " else " ^ e3_string ^ ">"
+  "Ternary ("
+  ^ indentations_with_newline (level + 1)
+  ^ e1_string
+  ^ ","
+  ^ indentations_with_newline (level + 1)
+  ^ e2_string
+  ^ ","
+  ^ indentations_with_newline (level + 1)
+  ^ e3_string
+  ^ indentations_with_newline level
+  ^ ")"
 
 | AppExpr (e1, e2) ->
-  let e1_string: string = string_of_expr e1 in
-  let e2_string: string = string_of_expr e2 in
+  let e1_string: string = string_of_expr e1 (level + 1) in
+  let e2_string: string = string_of_expr e2 (level + 1) in
 
-  "<app: " ^ e1_string ^ " " ^ e2_string ^ ">"
+  "App ("
+  ^ indentations_with_newline (level + 1)
+  ^ e1_string
+  ^ ","
+  ^ indentations_with_newline (level + 1)
+  ^ e2_string
+  ^ indentations_with_newline level
+  ^ ")"
 
 | Function (pattern, body) ->
   let pattern_string: string = string_of_pat pattern in
-  let body_string: string = string_of_expr body in
-  "<function: " ^ pattern_string ^ ", " ^ body_string ^ ">"
-
+  let body_string: string = string_of_expr body (level + 1) in
+  
+  "Function ("
+  ^ indentations_with_newline (level + 1)
+  ^ pattern_string
+  ^ ","
+  ^ indentations_with_newline (level + 1)
+  ^ body_string
+  ^ indentations_with_newline level
+  ^ ")"
 
 
 let remove_head: 'a list -> 'a list = function

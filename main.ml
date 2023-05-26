@@ -2,7 +2,6 @@ open Lex
 open Expr
 
 
-
 let () = ignore print_tokens_list
 
 type action = Run of string | REPL
@@ -30,7 +29,7 @@ let rec repl_loop (): unit =
   let input_string: string = read_line () in
   let e: expr = input_string |> list_of_string |> lex |> parse_expr |> fst in
   
-  print_endline "[Printing AST]\n"; e |> string_of_expr |> print_endline; print_endline "\n[End AST]\n";
+  print_endline "[Printing AST]\n"; string_of_expr e 0|> print_endline; print_endline "\n[End AST]\n";
 
   repl_loop ()
 
@@ -48,7 +47,7 @@ let run_run (dir: string): unit =
   print_tokens_list tokens;
   print_endline "[END TOKENS]";
   let ast, _ = parse_expr tokens in
-  ast |> string_of_expr |> print_endline
+  string_of_expr ast 0 |> print_endline
   ;print_newline ()
 
 let main (): unit =
