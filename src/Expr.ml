@@ -90,7 +90,6 @@ let indentations (level: int) = String.make (2 * level) ' '
 let indentations_with_newline (level: int) = "\n" ^ (indentations level)
 
 
-
 let rec string_of_expr (e: expr) (level: int): string = match e with
 | Ternary (e1, e2, e3) ->
 

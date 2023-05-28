@@ -2,16 +2,43 @@
 
 # precedence
 
-high -> low precedence
+Grouping symbols (Highest precedence)
+  1. (
+  2. )
 
-( )
-function application (f x)
-* /
-+ -
-relational operators
-equality operators
+Function application
+  1. f x
+    - f is applied to x
+
+multiplicative arithmetic operators
+  1. *
+  2. /
+
+Additive arithmetic operators
+  1. +
+  2. -
+
+Relational operators
+  1. <
+  2. >
+  3. <=
+  4. >=
+
+Equality operators
+  1. ==
+  2. !=
+
+Logical "and"
+  1. &&
+
+Logical "or"
+  1. ||
+
 Ternary conditional operator (if then else statement)
-function arrow
+  1. if e1 then e2 else e3
+  
+Function literal (lowest precedence)
+  1. lam pat -> e
 
 
 # grammar
