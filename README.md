@@ -51,8 +51,3 @@ factor ::=
   | ID
   | '(' expr ')'
   | factor factor (* function appliaction*)
-
-
-  # todo
-
-  implement function application parsing
