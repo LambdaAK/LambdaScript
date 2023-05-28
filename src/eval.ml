@@ -16,8 +16,7 @@ let get_value (name: string) (env: env): value option =
     Some (List.assoc name env)
   with
     | Not_found -> None
-
-
+  
 let string_of_value: value -> string =
   function
   | IntegerValue n -> string_of_int n
@@ -25,6 +24,14 @@ let string_of_value: value -> string =
   | BooleanValue b -> string_of_bool b
   | NothingValue -> "()"
   | FunctionClosure _ -> "<function closure>"
+
+
+
+let rec string_of_env: env -> string =
+  function
+  | [] -> ""
+  | (k, v) :: t ->
+    "(" ^ k ^ ", " ^ (string_of_value v) ^ ")" ^ (string_of_env t)
 
 
 
@@ -162,7 +169,10 @@ and eval_factor (f: factor) (env: env) =
   | Id s ->
     (
     match get_value s env with
-      | None -> failwith "no value found in env in eval_factor"
+      | None -> 
+        print_endline "no value found in env";
+        print_endline s;
+        exit 1
       | Some v -> v
     )
   | Nothing -> NothingValue
@@ -179,7 +189,7 @@ and eval_factor (f: factor) (env: env) =
     (* v1 needs to be a function closure *)
     (
       match v1 with
-      | FunctionClosure (env, p, _, body) ->
+      | FunctionClosure (env_closure, p, _, body) ->
         (* evaluate the argument to a value *)
         let v2: value = eval_factor f2 env in
         (* create the binding *)
@@ -189,12 +199,9 @@ and eval_factor (f: factor) (env: env) =
           | None -> failwith "no bindings produced in function closure eval_factor"
           | Some b_lst ->
             (* add the new bindings to the environment *)
-            let new_env: env = b_lst @ env in
+            let new_env: env = b_lst @ env_closure in
             (* then, evaluate the body with the new binding *)
             eval_expr body new_env
         )
       | _ -> failwith "function closure expected in eval_factor"
     )
-
-
-

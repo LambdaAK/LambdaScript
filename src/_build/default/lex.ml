@@ -35,6 +35,9 @@ type token_type =
 | NothingType
 | LBracket
 | RBracket
+| Bind
+| In
+| BindArrow
 
 type token = {token_type: token_type; line: int}
 
@@ -131,6 +134,13 @@ let rec lex (lst: char list): token list =
       let new_token: token = {token_type = NothingType; line = 0} in
       new_token :: (lex t)
 
+  | 'i' :: 'n' :: t ->
+    let new_token: token = {token_type = In; line = 0} in
+    new_token :: (lex t)
+
+  | 'b' :: 'i' :: 'n' :: 'd' :: t ->
+    let new_token: token = {token_type = Bind; line = 0} in
+    new_token :: (lex t)
   
   | 'l' :: 'e' :: 't' :: t ->
     let new_token: token = {token_type = Let; line = 0} in
@@ -170,8 +180,8 @@ let rec lex (lst: char list): token list =
     let new_token: token = {token_type = Arrow; line = 0} in
       new_token :: (lex t)
 
-  | '<' :: '-' :: '-' :: t ->
-    let new_token: token = {token_type = Assign; line = 0} in
+  | '<' :: '-' :: t ->
+    let new_token: token = {token_type = BindArrow; line = 0} in
       new_token :: (lex t)
   
   | ':' :: t ->
@@ -323,6 +333,9 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | NothingType -> "<nothing type>"
 | LBracket -> "<left bracket>"
 | RBracket -> "<right bracket>"
+| Bind -> "<bind>"
+| BindArrow -> "<bind arrow>"
+| In -> "<in>"
 
 
 let rec print_tokens_list: token list -> unit = function

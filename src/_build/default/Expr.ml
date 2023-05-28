@@ -394,10 +394,10 @@ and parse_factor_type (tokens: token list): factor_type * token list =
 
 and parse_expr (tokens: token list) : expr * token list =
   match tokens with
-  | {token_type = Lam; line = _} :: t ->
+  | {token_type = Lam; line = _} :: t -> (* anonymous function *)
     parse_function t
     
-  | {token_type = If; line = _} :: t ->
+  | {token_type = If; line = _} :: t -> (* ternary *)
     (* parse the guard *)
     let guard, tokens_after_guard = parse_expr t in
     (* the next token should be a Then *)
@@ -405,6 +405,12 @@ and parse_expr (tokens: token list) : expr * token list =
     (* the next token should be a Else *)
     let e2, tokens_after_e2 = parse_expr (remove_head tokens_after_e1) in
     Ternary (guard, e1, e2), tokens_after_e2
+  
+  | {token_type = Bind; line = _} :: t -> (* bind expression *)
+    parse_bind t
+
+
+
   | _ ->
     (* parse an arith_expr *)
     let (e, t): disjunction * token list = parse_disjunction tokens in
@@ -427,6 +433,85 @@ and parse_function (tokens_without_lam: token list): expr * token list =
       let body_tokens: token list = remove_head tokens_after_pattern in
       let body, tokens_after_body = parse_expr body_tokens in
       Function (pattern, None, body), tokens_after_body
+
+
+and parse_bind (tokens_without_bind: token list): expr * token list =
+  let pattern, tokens_after_pattern = parse_pat tokens_without_bind in
+  (* check if there is a left bracket for a type annotation *)
+  match tokens_after_pattern with
+  | {token_type = LBracket; line = _} :: tokens_after_l_bracket ->
+    let ct, tokens_after_ct = parse_compound_type tokens_after_l_bracket in
+    (* disregard the next r bracket and bind arrow *)
+    let tokens_after_bind_arrow = tokens_after_ct |> remove_head |> remove_head in
+    let e1, tokens_after_e1 = parse_expr tokens_after_bind_arrow in
+    (* the next token should be in *)
+    (* remove it *)
+    let tokens_after_in = remove_head tokens_after_e1 in
+    let e2, tokens_after_e2 = parse_expr tokens_after_in in
+
+    
+    DisjunctionExpr (
+      ConjunctionUnderDisjunction (
+        EqualityUnderConjunction (
+          RelationUnderEqExpr (
+            ArithmeticUnderRelExpr (
+              Term (
+                Factor (
+                  App (
+                    ParenFactor (
+                      Function (
+                        pattern,
+                        Some ct,
+                        e2
+                      )
+                    ),
+                    ParenFactor (e1)
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    ), tokens_after_e2
+
+
+  | _ ->
+    (* there is no type annotation *)
+    (* the next token should be the bind arrow *)
+    let tokens_after_bind_arrow: token list = remove_head tokens_after_pattern in
+    let e1, tokens_after_e1 = parse_expr tokens_after_bind_arrow in
+    (* the next token should be in *)
+    (* remove it *)
+    let tokens_after_in = remove_head tokens_after_e1 in
+    let e2, tokens_after_e2 = parse_expr tokens_after_in in
+
+    DisjunctionExpr (
+      ConjunctionUnderDisjunction (
+        EqualityUnderConjunction (
+          RelationUnderEqExpr (
+            ArithmeticUnderRelExpr (
+              Term (
+                Factor (
+                  App (
+                    ParenFactor (
+                      Function (
+                        pattern,
+                        None,
+                        e2
+                      )
+                    ),
+                    ParenFactor (e1)
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    ), tokens_after_e2
+    
+
 
 
 
