@@ -69,8 +69,11 @@ factor_type ::=
 ## Binding pattern
 
 pat ::=
+
   | '()'
+
   | ID
+  
 <br><br>
 ## General expression
 expr ::= 
