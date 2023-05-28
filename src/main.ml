@@ -37,7 +37,7 @@ let rec repl_loop (): unit =
 
   print_endline "\n";
 
-  e |> eval_expr |> string_of_value |> print_endline;
+  (eval_expr e []) |> string_of_value |> print_endline;
 
 
   repl_loop ()
@@ -52,12 +52,8 @@ let run_repl (): unit =
 let run_run (dir: string): unit = 
   let contents: string = Reader.read dir in
   let tokens: token list = contents |> Lex.list_of_string |> Lex.lex in
-  print_endline "[TOKENS]";
-  print_tokens_list tokens;
-  print_endline "[END TOKENS]";
   let ast, _ = parse_expr tokens in
-  string_of_expr ast 0 |> print_endline
-  ;print_newline ()
+  (eval_expr ast []) |> string_of_value |> print_endline; print_newline ()
   
 
 let main (): unit =

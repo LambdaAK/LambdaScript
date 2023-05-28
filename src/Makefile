@@ -3,7 +3,7 @@ build:
 
 run:
 	dune build main.exe
-	dune exec ./main.exe "run" "programs/test.txt"
+	dune exec ./main.exe "run" "./../programs/test.txt"
 
 test:
 	dune build test/test.exe

@@ -7,9 +7,15 @@ type value =
   | StringValue of string
   | BooleanValue of bool
   | NothingValue
-  | FunctionClosure of env * pat * compound_type * expr
+  | FunctionClosure of env * pat * compound_type option * expr
 
 and env = (string * value) list
+
+let get_value (name: string) (env: env): value option = 
+  try
+    Some (List.assoc name env)
+  with
+    | Not_found -> None
 
 
 let string_of_value: value -> string =
@@ -20,64 +26,75 @@ let string_of_value: value -> string =
   | NothingValue -> "()"
   | FunctionClosure _ -> "<function closure>"
 
-let rec eval_expr: expr -> value =
-  function
-  | DisjunctionExpr d -> eval_disjunction d
+
+
+let bind_pat (p: pat) (v: value): env option =
+  match p, v with
+  | NothingPat, NothingValue -> Some []
+  | IdPat s, _ -> Some [(s, v)]
+  | _ -> None (* no pattern matched *)
+
+
+
+let rec eval_expr (e: expr) (env: env) =
+  match e with
+  | DisjunctionExpr d -> eval_disjunction d env
   | Ternary (e1, e2, e3) ->
-    let v1: value = eval_expr e1 in
+    let v1: value = eval_expr e1 env in
     (
       match v1 with
-      | BooleanValue true -> eval_expr e2
-      | BooleanValue false -> eval_expr e3
+      | BooleanValue true -> eval_expr e2 env
+      | BooleanValue false -> eval_expr e3 env
       | _ -> failwith "unimplemented ternary eval_expr"
     )
+  | Function (p, cto, e) ->
+    FunctionClosure (env, p, cto, e)
 
-  | _ -> failwith "unimplemented eval_expr"
 
 
-and eval_disjunction: disjunction -> value =
-  function
+and eval_disjunction (d: disjunction) (env: env) =
+  match d with
   | Disjunction (c, d) ->
-    let v1: value = eval_conjunction c in
+    let v1: value = eval_conjunction c env in
     (
     match v1 with
     | BooleanValue true -> BooleanValue true
-    | _ -> eval_disjunction d
+    | _ -> eval_disjunction d env
     )
-  | ConjunctionUnderDisjunction c -> eval_conjunction c
+  | ConjunctionUnderDisjunction c -> eval_conjunction c env
       
 
 
-and eval_conjunction: conjunction -> value =
-  function
+and eval_conjunction (c: conjunction) (env: env) =
+  match c with
   | Conjunction (ee, c) ->
-    let v1: value = eval_eq_expr ee in
+    let v1: value = eval_eq_expr ee env in
     (
     match v1 with
     | BooleanValue false -> BooleanValue false
-    | _ -> eval_conjunction c
+    | _ -> eval_conjunction c env
     )
   | EqualityUnderConjunction ee ->
-    eval_eq_expr ee
+    eval_eq_expr ee env
 
-and eval_eq_expr: eq_expr -> value =
-  function
+and eval_eq_expr (ee: eq_expr) (env: env) =
+  match ee with
   | Equality (op, re, ee) ->
-    let v1: value = eval_rel_expr re in
-    let v2: value = eval_eq_expr ee in
+    let v1: value = eval_rel_expr re env in
+    let v2: value = eval_eq_expr ee env in
     (
     match op, v1, v2 with
     | EQ, IntegerValue a, IntegerValue b -> BooleanValue (a = b)
     | NE, IntegerValue a, IntegerValue b -> BooleanValue (a <> b)
     | _ -> failwith "unimplemented eval_eq_expr"
     )
-  | RelationUnderEqExpr r -> eval_rel_expr r
+  | RelationUnderEqExpr r -> eval_rel_expr r env
 
-and eval_rel_expr: rel_expr -> value =
-  function
+and eval_rel_expr (re: rel_expr) (env: env) =
+  match re with
   | Relation (op, ae, re) ->
-    let v1: value = eval_arith_expr ae in
-    let v2: value = eval_rel_expr re in
+    let v1: value = eval_arith_expr ae env in
+    let v2: value = eval_rel_expr re env in
     (
     match op, v1, v2 with
     | LT, IntegerValue a, IntegerValue b -> BooleanValue (a < b)
@@ -86,42 +103,42 @@ and eval_rel_expr: rel_expr -> value =
     | GE, IntegerValue a, IntegerValue b -> BooleanValue (a >= b)
     | _ -> failwith "unimplemented eval_rel_expr"
     )
-  | ArithmeticUnderRelExpr ae -> eval_arith_expr ae
+  | ArithmeticUnderRelExpr ae -> eval_arith_expr ae env
 
-and eval_arith_expr: arith_expr -> value =
-  function
-  | Term t -> eval_term t
+and eval_arith_expr (ae: arith_expr) (env: env) =
+  match ae with
+  | Term t -> eval_term t env
   | Plus (t, ae) ->
-    let v1: value = eval_term t in
-    let v2: value = eval_arith_expr ae in
+    let v1: value = eval_term t env in
+    let v2: value = eval_arith_expr ae env in
     (
       match v1, v2 with
       | IntegerValue a, IntegerValue b -> IntegerValue (a + b)
       | _ -> failwith "plus implemented in eval_arith_expr"
     )
   | Minus (t, ae) ->
-    let v1: value = eval_term t in
-    let v2: value = eval_arith_expr ae in
+    let v1: value = eval_term t env in
+    let v2: value = eval_arith_expr ae env in
     (
       match v1, v2 with
       | IntegerValue a, IntegerValue b -> IntegerValue (a - b)
       | _ -> failwith "minus unimplemented in eval_arith_expr"
     )
 
-and eval_term: term -> value =
-  function
-  | Factor f -> eval_factor f
+and eval_term (t: term) (env: env) =
+  match t with
+  | Factor f -> eval_factor f env 
   | Mul (f, t) ->
-    let v1: value = eval_factor f in
-    let v2: value = eval_term t in
+    let v1: value = eval_factor f env in
+    let v2: value = eval_term t env in
     (
     match v1, v2 with
     | IntegerValue a, IntegerValue b -> IntegerValue (a * b)
     | _ -> failwith "mul unimplemented in eval_term"
     )
   | Div (f, t) ->
-    let v1: value = eval_factor f in
-    let v2: value = eval_term t in
+    let v1: value = eval_factor f env in
+    let v2: value = eval_term t env in
     (
     match v1, v2 with
     | IntegerValue a, IntegerValue b -> IntegerValue (a / b)
@@ -129,8 +146,8 @@ and eval_term: term -> value =
     )
 
   | Mod (f, t) ->
-    let v1: value = eval_factor f in
-    let v2: value = eval_term t in
+    let v1: value = eval_factor f env in
+    let v2: value = eval_term t env in
     (
     match v1, v2 with
     | IntegerValue a, IntegerValue b -> IntegerValue (a mod b)
@@ -138,17 +155,46 @@ and eval_term: term -> value =
     )
 
 
-and eval_factor: factor -> value =
-  function
+and eval_factor (f: factor) (env: env) =
+  match f with
   | Boolean b -> BooleanValue b
   | String s -> StringValue s
+  | Id s ->
+    (
+    match get_value s env with
+      | None -> failwith "no value found in env in eval_factor"
+      | Some v -> v
+    )
   | Nothing -> NothingValue
   | Integer n -> IntegerValue n
-  | ParenFactor e -> eval_expr e
+  | ParenFactor e -> eval_expr e env
   | Opposite f ->
     (
-    match eval_factor f with
+    match eval_factor f env with
     | IntegerValue n -> IntegerValue (0 - n)
     | _ -> failwith "opposite unimplemented in eval_factor"
     )
-  | _ -> failwith "unimplemented eval_factor"
+  | App (f1, f2) ->
+    let v1: value = eval_factor f1 env in
+    (* v1 needs to be a function closure *)
+    (
+      match v1 with
+      | FunctionClosure (env, p, _, body) ->
+        (* evaluate the argument to a value *)
+        let v2: value = eval_factor f2 env in
+        (* create the binding *)
+        let new_bindings_option: env option = bind_pat p v2 in
+        (
+          match new_bindings_option with
+          | None -> failwith "no bindings produced in function closure eval_factor"
+          | Some b_lst ->
+            (* add the new bindings to the environment *)
+            let new_env: env = b_lst @ env in
+            (* then, evaluate the body with the new binding *)
+            eval_expr body new_env
+        )
+      | _ -> failwith "function closure expected in eval_factor"
+    )
+
+
+
