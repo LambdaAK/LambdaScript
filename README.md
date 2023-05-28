@@ -1,19 +1,5 @@
 # LambdaScript
 
-Currently in the early stages
-
-Supports lexing for integers, booleans, and strings
-
-expr ::= INT
-| BOOL
-| STRING
-| NOTHING
-| ID
-| expr expr
-| 'if' expr 'then' expr else 'expr'
-| 'lam' pat '->' expr
-| '(' expr ')'
-
 # precedence
 
 high -> low precedence
@@ -22,6 +8,8 @@ high -> low precedence
 function application (f x)
 * /
 + -
+relational operators
+equality operators
 Ternary conditional operator (if then else statement)
 function arrow
 
@@ -31,6 +19,18 @@ function arrow
 expr ::= 
   | 'lam' pat '->' expr (* function *)
   | 'if' expr 'then' expr 'else' expr
+  | arith_expr
+
+eq_expr ::=
+  | rel_expr '==' eq_expr
+  | rel_expr '!=' eq_expr
+  | rel_expr
+
+rel_expr ::=
+  | arith_expr '<' rel_expr
+  | arith_expr '>' rel_expr
+  | arith_expr '<=' rel_expr
+  | arith_expr '>=' rel_expr
   | arith_expr
 
 arith_expr ::= 

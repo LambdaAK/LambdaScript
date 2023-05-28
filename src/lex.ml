@@ -19,6 +19,14 @@ type token_type =
 | Minus
 | Times
 | Divide
+| LT
+| GT
+| LE
+| GE
+| EQ
+| NE
+| AND
+| OR
 
 type token = {token_type: token_type; line: int}
 
@@ -183,6 +191,37 @@ let rec lex (lst: char list): token list =
       let new_token: token = {token_type = Divide; line = 0} in
       new_token :: (lex t)
 
+  | '<' :: '=' :: t ->
+    let new_token: token = {token_type = LE; line = 0} in
+    new_token :: (lex t)
+
+  | '>' :: '=' :: t ->
+    let new_token: token = {token_type = GE; line = 0} in
+    new_token :: (lex t)
+
+  | '<' :: t ->
+    let new_token: token = {token_type = LT; line = 0} in
+    new_token :: (lex t)
+
+  | '>' :: t ->
+    let new_token: token = {token_type = GT; line = 0} in
+    new_token :: (lex t)
+
+  | '=' :: '=' :: t ->
+    let new_token: token = {token_type = EQ; line = 0} in
+    new_token :: (lex t)
+
+  | '!' :: '=' :: t ->
+    let new_token: token = {token_type = NE; line = 0} in
+    new_token :: (lex t)
+  
+  | '|' :: '|' :: t ->
+    let new_token: token = {token_type = OR; line = 0} in
+    new_token :: (lex t)
+
+  | '&' :: '&' :: t ->
+    let new_token: token = {token_type = AND; line = 0} in
+    new_token :: (lex t)
 
   | _ -> failwith "no token matched"
 
@@ -221,6 +260,14 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | Minus -> "<minus>"
 | Times -> "<times>"
 | Divide -> "<divide>"
+| LT -> "<LT>"
+| GT -> "<GT>"
+| LE -> "<LE>"
+| GE -> "<GE>"
+| EQ -> "<EQ>"
+| NE -> "<NE>"
+| OR -> "<or>"
+| AND -> "<and>"
 
 
 let rec print_tokens_list: token list -> unit = function

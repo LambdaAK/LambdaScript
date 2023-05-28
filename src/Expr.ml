@@ -5,14 +5,42 @@ exception ParseFailure
 exception FactorParseFailure
 
 type pat =
-| IdPat of string
-| NothingPat
+  | IdPat of string
+  | NothingPat
 
+type rel_op =
+  | LT
+  | GT
+  | LE
+  | GE
 
-and expr =
+type eq_op =
+  | EQ
+  | NE
+
+type expr =
   | Function of pat * expr
   | Ternary of expr * expr * expr
-  | ArithExpr of arith_expr
+  | DisjunctionExpr of disjunction
+
+
+and disjunction =
+  | Disjunction of conjunction * disjunction
+  | ConjunctionUnderDisjunction of conjunction
+
+
+and conjunction =
+  | Conjunction of eq_expr * conjunction
+  | EqualityUnderConjunction of eq_expr
+
+and eq_expr =
+  | Equality of eq_op * rel_expr * eq_expr
+  | RelationUnderEqExpr of rel_expr
+
+
+and rel_expr =
+  | Relation of rel_op * arith_expr * rel_expr
+  | ArithmeticUnderRelExpr of arith_expr
 
 
 and arith_expr =
@@ -42,6 +70,19 @@ let string_of_pat: pat -> string =
   function
   | NothingPat -> "Nothing Pattern"
   | IdPat s -> "Id Pattern (" ^ s ^ ")"
+
+
+let string_of_rel_op: rel_op -> string =
+  function
+  | LT -> "LT"
+  | GT -> "GT"
+  | LE -> "LE"
+  | GE -> "GE"
+
+let string_of_eq_op: eq_op -> string =
+  function
+  | EQ -> "EQ"
+  | NE -> "NE"
 
 
 let indentations (level: int) = String.make (2 * level) ' '
@@ -84,18 +125,90 @@ let rec string_of_expr (e: expr) (level: int): string = match e with
   ^ indentations_with_newline level
   ^ ")"
 
+| DisjunctionExpr e  ->
+  string_of_disjunction e level
 
 
-| ArithExpr e ->
-  string_of_arith_expr e (level + 1)
+and string_of_disjunction (d: disjunction) (level: int): string =
+  match d with
+  | ConjunctionUnderDisjunction c ->
+    string_of_conjunction c level
+  | Disjunction (c, d) ->
+    "Disjunction ("
+    ^ indentations_with_newline (level + 1)
+    ^ (string_of_conjunction c (level + 1))
+    ^ ","
+    ^ indentations_with_newline (level + 1)
+    ^ (string_of_disjunction d (level + 1))
+    ^ ","
+    ^ indentations_with_newline level
+    ^ ")"
 
 
-  
-and string_of_arith_expr (ae: arith_expr) (level: int) = match ae with
+
+and string_of_conjunction (c: conjunction) (level: int): string =
+  match c with
+  | EqualityUnderConjunction e ->
+    string_of_eq_expr e level
+  | Conjunction (e, c) ->
+    "Conjunction ("
+    ^ indentations_with_newline (level + 1)
+    ^ (string_of_eq_expr e (level + 1))
+    ^ ","
+    ^ indentations_with_newline (level + 1)
+    ^ (string_of_conjunction c (level + 1))
+    ^ ","
+    ^ indentations_with_newline level
+    ^ ")"
+
+
+
+
+
+and string_of_eq_expr (ee: eq_expr) (level: int): string =
+  match ee with
+  | RelationUnderEqExpr re ->
+    string_of_rel_expr re level
+  | Equality (op, re, ee) ->
+    "Equality ("
+    ^ indentations_with_newline (level + 1)
+    ^ (string_of_eq_op op)
+    ^ ","
+    ^ indentations_with_newline (level + 1)
+    ^ (string_of_rel_expr re (level + 1))
+    ^ ","
+    ^ indentations_with_newline (level + 1)
+    ^ (string_of_eq_expr ee (level + 1))
+    ^ indentations_with_newline level
+    ^ ")"
+
+
+
+and string_of_rel_expr (re: rel_expr) (level: int): string =
+  match re with
+  | ArithmeticUnderRelExpr ae ->
+    string_of_arith_expr ae level
+  | Relation (op, ae, re) ->
+    "Relation ("
+    ^ indentations_with_newline (level + 1)
+    ^ (string_of_rel_op op)
+    ^ ","
+    ^ indentations_with_newline (level + 1)
+    ^ (string_of_arith_expr ae (level + 1))
+    ^ ","
+    ^ indentations_with_newline (level + 1)
+    ^ (string_of_rel_expr re (level + 1))
+    ^ indentations_with_newline level
+    ^ ")"
+
+
+and string_of_arith_expr (ae: arith_expr) (level: int) =
+match ae with
 | Plus (t, e) ->
   "Plus ("
   ^ indentations_with_newline (level + 1)
   ^ (string_of_arith_term t (level + 1))
+  ^ ","
   ^ indentations_with_newline (level + 1)
   ^ (string_of_arith_expr e (level + 1))
   ^ indentations_with_newline level
@@ -105,6 +218,7 @@ and string_of_arith_expr (ae: arith_expr) (level: int) = match ae with
   "Minus ("
   ^ indentations_with_newline (level + 1)
   ^ (string_of_arith_term t (level + 1))
+  ^ ","
   ^ indentations_with_newline (level + 1)
   ^ (string_of_arith_expr e (level + 1))
   ^ indentations_with_newline level
@@ -120,6 +234,7 @@ match at with
   "Mul ("
   ^ indentations_with_newline (level + 1)
   ^ (string_of_arith_factor f (level + 1))
+  ^ ","
   ^ indentations_with_newline (level + 1)
   ^ (string_of_arith_term t (level + 1))
   ^ indentations_with_newline level
@@ -128,6 +243,7 @@ match at with
   "Div ("
   ^ indentations_with_newline (level + 1)
   ^ (string_of_arith_factor f (level + 1))
+  ^ ","
   ^ indentations_with_newline (level + 1)
   ^ (string_of_arith_term t (level + 1))
   ^ indentations_with_newline level
@@ -161,12 +277,11 @@ match af with
   "App ("
   ^ indentations_with_newline (level + 1)
   ^ (string_of_arith_factor e1 (level + 1))
+  ^ ","
   ^ indentations_with_newline (level + 1)
   ^ (string_of_arith_factor e2 (level + 1))
   ^ indentations_with_newline level
   ^ ")"
-
-
 
 
 
@@ -205,22 +320,63 @@ let rec parse_expr (tokens: token list) : expr * token list =
     Ternary (guard, e1, e2), tokens_after_e2
   | _ ->
     (* parse an arith_expr *)
-    let (e, t): arith_expr * token list = parse_arith_expr tokens in
-    ArithExpr e, t
+    let (e, t): disjunction * token list = parse_disjunction tokens in
+    DisjunctionExpr e, t
 
 
-    
+and parse_disjunction (tokens: token list): disjunction * token list =
+  let first, tokens_after_first = parse_conjunction tokens in
+  match tokens_after_first with
+  | {token_type = OR; line = _} :: t ->
+    let second, tokens_after_second = parse_disjunction t in
+    Disjunction (first, second), tokens_after_second
+
+  | _ -> ConjunctionUnderDisjunction first, tokens_after_first 
+
+
+and parse_conjunction (tokens: token list): conjunction * token list =
+  let first, tokens_after_first = parse_eq_expr tokens in
+  match tokens_after_first with
+  | {token_type = AND; line = _} :: t ->
+    let second, tokens_after_second = parse_conjunction t in
+    Conjunction (first, second), tokens_after_second
+
+  | _ -> EqualityUnderConjunction first, tokens_after_first 
+
+
+and parse_eq_expr (tokens: token list): eq_expr * token list =
+  let first, tokens_after_first = parse_rel_expr tokens in
+  match tokens_after_first with
+  | {token_type = EQ; line = _} :: t ->
+    let second, tokens_after_second = parse_eq_expr t in
+    Equality (EQ, first, second), tokens_after_second
   
-and next_token_is_binop (tokens: token list): bool =
-  match tokens with
-  | {token_type = Plus; line = _} :: _
-  | {token_type = Minus; line = _} :: _
-  | {token_type = Times; line = _} :: _
-  | {token_type = Divide; line = _} :: _ -> true
-  | _ -> false
+  | {token_type = NE; line = _} :: t ->
+    let second, tokens_after_second = parse_eq_expr  t in
+    Equality (NE, first, second), tokens_after_second
+
+  | _ -> RelationUnderEqExpr first, tokens_after_first
 
 
-  
+and parse_rel_expr (tokens: token list): rel_expr * token list =
+  let first, tokens_after_first = parse_arith_expr tokens in
+  match tokens_after_first with
+  | {token_type = LT; line = _} :: t ->
+    let second, tokens_after_second = parse_rel_expr t in
+    Relation (LT, first, second), tokens_after_second
+
+  | {token_type = GT; line = _} :: t ->
+    let second, tokens_after_second = parse_rel_expr  t in
+    Relation (GT, first, second), tokens_after_second
+
+  | {token_type = LE; line = _} :: t ->
+      let second, tokens_after_second = parse_rel_expr  t in
+      Relation (LE, first, second), tokens_after_second
+
+  | {token_type = GE; line = _} :: t ->
+    let second, tokens_after_second = parse_rel_expr  t in
+    Relation (GE, first, second), tokens_after_second
+  | _ -> ArithmeticUnderRelExpr first, tokens_after_first
 
 and parse_arith_expr (tokens: token list): arith_expr * token list =
   (* start by parsing a term *)
