@@ -20,6 +20,7 @@ type token_type =
 | Times
 | Divide
 | Mod
+| Opposite
 | LT
 | GT
 | LE
@@ -180,6 +181,10 @@ let rec lex (lst: char list): token list =
     let new_token: token = {token_type = Plus; line = 0} in
     new_token :: (lex t)
 
+  | '~' :: '-' :: t ->
+    let new_token: token = {token_type = Opposite; line = 0} in
+    new_token :: (lex t)
+
   | '-' :: t ->
     let new_token: token = {token_type = Minus; line = 0} in
     new_token :: (lex t)
@@ -195,6 +200,7 @@ let rec lex (lst: char list): token list =
   | '%' :: t ->
       let new_token: token = {token_type = Mod; line = 0} in
       new_token :: (lex t)
+    
 
   | '<' :: '=' :: t ->
     let new_token: token = {token_type = LE; line = 0} in
@@ -266,6 +272,7 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | Times -> "<times>"
 | Divide -> "<divide>"
 | Mod -> "<mod>"
+| Opposite -> "<opposite>"
 | LT -> "<LT>"
 | GT -> "<GT>"
 | LE -> "<LE>"

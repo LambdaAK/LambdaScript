@@ -64,6 +64,7 @@ and factor =
   | Id of string
   | ParenFactor of expr
   | App of factor * factor
+  | Opposite of factor
 
 
 let string_of_pat: pat -> string =
@@ -288,6 +289,12 @@ match af with
   ^ (string_of_arith_factor e2 (level + 1))
   ^ indentations_with_newline level
   ^ ")"
+| Opposite f ->
+  "Opposite ("
+  ^ indentations_with_newline (level + 1)
+  ^ string_of_arith_factor f (level + 1)
+  ^ indentations_with_newline level
+  ^ ")"
 
 
 
@@ -440,15 +447,12 @@ and parse_term (tokens: token list): term * token list =
 
 and parse_factor (tokens: token list): factor * token list =
   let factors, tokens_after_factors = get_factor_list tokens [] in
-  create_factor_app_chain_from_factor_list factors, tokens_after_factors
+  if List.length factors = 0 then failwith "0 factors parsed in parse_factor" else
+  if List.length factors > 1 then
+    create_factor_app_chain_from_factor_list factors, tokens_after_factors
+  else List.hd factors, tokens_after_factors
+    
   
-  
-
-
-and parse_app (tokens: token list): factor * token list =
-  let factor_list, remaining_tokens = get_factor_list tokens [] in
-  create_factor_app_chain_from_factor_list factor_list, remaining_tokens
-
 
 
 and parse_pat (tokens: token list): pat * token list = match tokens with
@@ -464,6 +468,9 @@ and parse_factor_not_app (tokens: token list): factor * token list =
   match tokens with
   | {token_type = Integer n; line = _} :: t ->
     Integer n, t
+  | {token_type = Opposite; line = _} :: t ->
+    let inside, remaining_tokens = parse_factor_not_app t in
+    Opposite inside, remaining_tokens
   | {token_type = Boolean b; line = _} :: t ->
     Boolean b, t
   | {token_type = StringToken s; line = _} :: t ->
