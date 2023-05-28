@@ -190,7 +190,6 @@ and string_of_disjunction (d: disjunction) (level: int): string =
     ^ ","
     ^ indentations_with_newline (level + 1)
     ^ (string_of_disjunction d (level + 1))
-    ^ ","
     ^ indentations_with_newline level
     ^ ")"
 
@@ -207,7 +206,6 @@ and string_of_conjunction (c: conjunction) (level: int): string =
     ^ ","
     ^ indentations_with_newline (level + 1)
     ^ (string_of_conjunction c (level + 1))
-    ^ ","
     ^ indentations_with_newline level
     ^ ")"
 
@@ -541,9 +539,6 @@ and parse_term (tokens: token list): term * token list =
 
 
 and parse_factor (tokens: token list): factor * token list =
-  print_endline "printing tokens from parse_factor";
-  print_tokens_list tokens;
-  print_endline "finished";
   let factors, tokens_after_factors = get_factor_list tokens [] in
   if List.length factors = 0 then failwith "0 factors parsed in parse_factor" else
   if List.length factors > 1 then

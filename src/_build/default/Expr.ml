@@ -190,7 +190,6 @@ and string_of_disjunction (d: disjunction) (level: int): string =
     ^ ","
     ^ indentations_with_newline (level + 1)
     ^ (string_of_disjunction d (level + 1))
-    ^ ","
     ^ indentations_with_newline level
     ^ ")"
 
@@ -207,7 +206,6 @@ and string_of_conjunction (c: conjunction) (level: int): string =
     ^ ","
     ^ indentations_with_newline (level + 1)
     ^ (string_of_conjunction c (level + 1))
-    ^ ","
     ^ indentations_with_newline level
     ^ ")"
 
@@ -418,7 +416,6 @@ and parse_function (tokens_without_lam: token list): expr * token list =
     (* check if there is a left bracket for a type annotation *)
     match tokens_after_pattern with
     | {token_type = LBracket; line = _} :: tokens_after_l_bracket ->
-      print_endline "ajegkajgkajeaeg";
       let ct, tokens_after_ct = parse_compound_type tokens_after_l_bracket in
       (* disregard the next r bracket and arrow *)
       let body_tokens: token list = tokens_after_ct |> remove_head |> remove_head in
@@ -542,9 +539,6 @@ and parse_term (tokens: token list): term * token list =
 
 
 and parse_factor (tokens: token list): factor * token list =
-  print_endline "printing tokens from parse_factor";
-  print_tokens_list tokens;
-  print_endline "finished";
   let factors, tokens_after_factors = get_factor_list tokens [] in
   if List.length factors = 0 then failwith "0 factors parsed in parse_factor" else
   if List.length factors > 1 then

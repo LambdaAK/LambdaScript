@@ -31,7 +31,7 @@ let rec repl_loop (): unit =
   let e = input_string |> list_of_string |> lex |> parse_expr |> fst in
   
   
-  print_endline "[Printing AST]\n"; string_of_expr e 0|> print_endline; print_endline "\n[End AST]\n";
+  (*print_endline "[Printing AST]\n";*)print_newline (); string_of_expr e 0|> print_endline; (*print_endline "\n[End AST]\n";*)
 
   repl_loop ()
 
