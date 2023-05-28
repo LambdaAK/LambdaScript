@@ -12,6 +12,7 @@ Function application
 Multiplicative arithmetic operators
   + \*
   + /
+  + %
 
 Additive arithmetic operators
   + \+
