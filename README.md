@@ -46,26 +46,8 @@ Function literal (lowest precedence)
 
 # grammar
 
-
-## types
-
-compound_type ::=
-  | basic_type '->' compound_type
-  | basic_type
-
-
-factor_type ::=
-  | 'integer'
-
-  | 'boolean'
-
-  | 'string'
-
-  | 'nothing'
-
-  | '(' compound_type ')'
 <br><br>
-# Type
+## Type
 
 compound_type ::=
 
@@ -73,6 +55,7 @@ compound_type ::=
 
   | factor_type
 
+<br>
 factor_type ::=
 
   | integer
@@ -83,7 +66,7 @@ factor_type ::=
 
   | '(' compound_type ')'
 <br><br>
-# Binding pattern
+## Binding pattern
 
 pat ::=
   | '()'
