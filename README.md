@@ -40,8 +40,11 @@ Logical "or"
 Ternary conditional operator (if then else statement)
   + if e1 then e2 else e3
   
-Function literal (lowest precedence)
+Function literal 
   + lam pat -> e
+
+Bind expression
+  + bind pat <- e1 in e2 (lowest precedence)
 
 
 # grammar
@@ -82,9 +85,14 @@ expr ::=
 
   | 'lam' pat '[' compound_type ']' '->' expr (* function *)
 
+  | bind pat <- expr 'in' expr
+
+  | bind pat '[' compound_type ']'<- expr 'in' expr
+
   | 'if' expr 'then' expr 'else' expr
 
   | disjunction
+
 
 <br><br>
 ## Disjunction

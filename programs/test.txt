@@ -1,0 +1,15 @@
+bind succ [integer -> integer] <-
+  lam n [integer] -> n + 1
+in
+
+bind sum [integer -> integer -> integer] <-
+  lam a [integer] ->
+  lam b [integer] ->
+  a + b
+in
+
+bind even <-
+  lam a -> a % 2 == 0
+in
+
+even 5
