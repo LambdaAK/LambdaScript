@@ -8,6 +8,20 @@ type pat =
   | IdPat of string
   | NothingPat
 
+
+and compound_type =
+  | FunctionType of factor_type * compound_type
+  | BasicType of factor_type
+
+
+and factor_type =
+  | IntegerType
+  | StringType
+  | BooleanType
+  | NothingType
+  | ParenFactorType of compound_type
+
+
 type rel_op =
   | LT
   | GT
@@ -19,7 +33,7 @@ type eq_op =
   | NE
 
 type expr =
-  | Function of pat * expr
+  | Function of pat * compound_type option * expr
   | Ternary of expr * expr * expr
   | DisjunctionExpr of disjunction
 
@@ -86,9 +100,35 @@ let string_of_eq_op: eq_op -> string =
   | NE -> "NE"
 
 
+
+
 let indentations (level: int) = String.make (2 * level) ' '
 
 let indentations_with_newline (level: int) = "\n" ^ (indentations level)
+
+
+let rec string_of_basic_type (ft: factor_type) (level: int): string =
+  match ft with
+  | IntegerType -> "IntegerType"
+  | BooleanType -> "BooleanType"
+  | StringType -> "StringType"
+  | NothingType -> "NothingType"
+  | ParenFactorType c ->
+    string_of_compound_type c level
+
+and string_of_compound_type (ct: compound_type) (level: int) =
+  match ct with
+  | BasicType t ->
+    string_of_basic_type t level
+  | FunctionType (t1, t2) ->
+    "FunctionType ("
+    ^ indentations_with_newline (level + 1)
+    ^ string_of_basic_type t1 level
+    ^ ","
+    ^ indentations_with_newline (level + 1)
+    ^ (string_of_compound_type t2 (level + 1))
+    ^ indentations_with_newline level
+    ^ ")"
 
 
 let rec string_of_expr (e: expr) (level: int): string = match e with
@@ -112,7 +152,7 @@ let rec string_of_expr (e: expr) (level: int): string = match e with
   ^ ")"
 
 
-| Function (pattern, body) ->
+| Function (pattern, cto, body) ->
   let pattern_string: string = string_of_pat pattern in
   let body_string: string = string_of_expr body (level + 1) in
   
@@ -120,6 +160,16 @@ let rec string_of_expr (e: expr) (level: int): string = match e with
   ^ indentations_with_newline (level + 1)
   ^ pattern_string
   ^ ","
+  ^ (
+    match cto with
+    | None -> ""
+    | Some ct ->
+      (* add the type annotation *)
+      let string_of_ct: string = string_of_compound_type ct (level + 1) in
+      indentations_with_newline (level + 1)
+      ^ string_of_ct
+      ^ ","
+    )
   ^ indentations_with_newline (level + 1)
   ^ body_string
   ^ indentations_with_newline level
@@ -309,20 +359,46 @@ let remove_last (lst: 'a list): 'a * 'a list =
     last, List.rev rest
 
 
-let rec parse_expr (tokens: token list) : expr * token list =
+let rec parse_compound_type (tokens: token list): compound_type * token list =
+  let left_type, tokens_after_left_type = parse_factor_type tokens in
+  match tokens_after_left_type with
+  (* check if the next token is an arrow *)
+  | {token_type = Arrow; line = _} :: tokens_after_arrow ->
+    (* parse a function type *)
+    (* parse another compound type to the right of the arrow *)
+    let right_type, tokens_after_right_type = parse_compound_type tokens_after_arrow in
+    FunctionType (left_type, right_type), tokens_after_right_type
+  | _ ->
+    (* return the basic type *)
+    BasicType left_type, tokens_after_left_type
+
+
+
+and parse_factor_type (tokens: token list): factor_type * token list =
+  match tokens with
+  | {token_type = IntegerType; line = _} :: t ->
+    IntegerType, t
+  | {token_type = BooleanType; line = _} :: t ->
+      BooleanType, t
+  | {token_type = StringType; line = _} :: t ->
+      StringType, t
+  | {token_type = NothingType; line = _} :: t ->
+      NothingType, t
+  
+  | {token_type = LParen; line = _} :: t ->
+
+    let inside, tokens_after_inside = parse_compound_type t in
+    ParenFactorType inside, (remove_head tokens_after_inside) (* remove the RParen here *)
+
+
+  | _ -> failwith "no pattern matched in parse_factor_type"
+
+
+and parse_expr (tokens: token list) : expr * token list =
   match tokens with
   | {token_type = Lam; line = _} :: t ->
-    (* parse a pattern *)
-    let pattern, tokens_after_pattern = parse_pat t in
-    (* remove the next token, which should be an arrow *)
-    (
-      match tokens_after_pattern with
-      | {token_type = Arrow; line = _} :: tokens_after_arrow ->
-        (* parse an expression from the remaining tokens *)
-        let body, tokens_after_body = parse_expr tokens_after_arrow in
-        Function (pattern, body), tokens_after_body
-      | _ -> failwith "expected arrow"
-    )
+    parse_function t
+    
   | {token_type = If; line = _} :: t ->
     (* parse the guard *)
     let guard, tokens_after_guard = parse_expr t in
@@ -335,6 +411,25 @@ let rec parse_expr (tokens: token list) : expr * token list =
     (* parse an arith_expr *)
     let (e, t): disjunction * token list = parse_disjunction tokens in
     DisjunctionExpr e, t
+
+
+and parse_function (tokens_without_lam: token list): expr * token list =
+    let pattern, tokens_after_pattern = parse_pat tokens_without_lam in
+    (* check if there is a left bracket for a type annotation *)
+    match tokens_after_pattern with
+    | {token_type = LBracket; line = _} :: tokens_after_l_bracket ->
+      let ct, tokens_after_ct = parse_compound_type tokens_after_l_bracket in
+      (* disregard the next r bracket and arrow *)
+      let body_tokens: token list = tokens_after_ct |> remove_head |> remove_head in
+      let body, tokens_after_body = parse_expr body_tokens in
+      Function (pattern, Some ct, body), tokens_after_body
+    | _ ->
+      (* no type annotation *)
+      (* in this case, the next token is arrow *)
+      let body_tokens: token list = remove_head tokens_after_pattern in
+      let body, tokens_after_body = parse_expr body_tokens in
+      Function (pattern, None, body), tokens_after_body
+
 
 
 and parse_disjunction (tokens: token list): disjunction * token list =
@@ -446,6 +541,9 @@ and parse_term (tokens: token list): term * token list =
 
 
 and parse_factor (tokens: token list): factor * token list =
+  print_endline "printing tokens from parse_factor";
+  print_tokens_list tokens;
+  print_endline "finished";
   let factors, tokens_after_factors = get_factor_list tokens [] in
   if List.length factors = 0 then failwith "0 factors parsed in parse_factor" else
   if List.length factors > 1 then
@@ -507,51 +605,3 @@ and create_factor_app_chain_from_factor_list (factors: factor list): factor =
     let last, factors_without_last = remove_last factors_list in
     App (create_factor_app_chain_from_factor_list factors_without_last, last)
 
-
-
-and get_expr_list (tokens: token list) (acc: expr list): expr list * token list =
-print_endline "getting expr list";
-
-
-try 
-  let new_expr, remaining_tokens = parse_expr  tokens in
-  get_expr_list remaining_tokens (new_expr :: acc)
-
-with 
-  | ParseFailure -> List.rev acc, tokens (* return no new exprs *)
-
-and split_tokens_list_by_parens (tokens: token list): token list * token list =
-
-  let balance: int ref = ref 0 in
-  let tokens_list: token list ref = ref tokens in
-  let accumulated_tokens: token list ref = ref [] in
-  let active: bool ref = ref true in
-
-  while !active do
-    (match !tokens_list with
-    | {token_type = LParen; line} :: remaining_tokens ->
-
-      balance := !balance + 1;
-      tokens_list := remaining_tokens;
-      accumulated_tokens := !accumulated_tokens @ [{token_type = LParen; line}]
-
-    | {token_type = RParen; line} :: remaining_tokens ->
-
-      balance := ! balance - 1;
-      tokens_list := remaining_tokens;
-      accumulated_tokens := !accumulated_tokens @ [{token_type = LParen; line}]
-
-    | h :: remaining_tokens ->
-      tokens_list := remaining_tokens;
-      accumulated_tokens := !accumulated_tokens @ [h]
-
-    | [] -> active := false
-    );
-    if !balance = 0 then active := false
-
-  done;
-  (* at this point, accumulated tokens has both the opening and closing parens *)
-  (* we need to remove them *)
-  let a: token list = !accumulated_tokens |> remove_head |> remove_last |> snd in
-  let b: token list = !tokens_list in
-  a, b

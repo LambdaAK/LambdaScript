@@ -6,6 +6,9 @@ Grouping symbols (Highest precedence)
   + (
   + )
 
+Unary operators
+  + ~-
+
 Function application
   + f x
 
@@ -43,10 +46,55 @@ Function literal (lowest precedence)
 
 # grammar
 
-## general expression
+
+## types
+
+compound_type ::=
+  | basic_type '->' compound_type
+  | basic_type
+
+
+factor_type ::=
+  | 'integer'
+
+  | 'boolean'
+
+  | 'string'
+
+  | 'nothing'
+
+  | '(' compound_type ')'
+<br><br>
+# Type
+
+compound_type ::=
+
+  | factor_type '->' compound_type
+
+  | factor_type
+
+factor_type ::=
+
+  | integer
+
+  | boolean
+
+  | string
+
+  | '(' compound_type ')'
+<br><br>
+# Binding pattern
+
+pat ::=
+  | '()'
+  | ID
+<br><br>
+## General expression
 expr ::= 
 
   | 'lam' pat '->' expr (* function *)
+
+  | 'lam' pat '[' compound_type ']' '->' expr (* function *)
 
   | 'if' expr 'then' expr 'else' expr
 
@@ -127,5 +175,7 @@ factor ::=
   | ID
 
   | '(' expr ')'
+
+  | '~-' factor
 
   | factor factor

@@ -27,7 +27,9 @@ let get_action (): action =
 
 let rec repl_loop (): unit =
   let input_string: string = read_line () in
-  let e: expr = input_string |> list_of_string |> lex |> parse_expr |> fst in
+  (*input_string |> list_of_string |> lex |> print_tokens_list;*)
+  let e = input_string |> list_of_string |> lex |> parse_expr |> fst in
+  
   
   print_endline "[Printing AST]\n"; string_of_expr e 0|> print_endline; print_endline "\n[End AST]\n";
 
@@ -49,6 +51,7 @@ let run_run (dir: string): unit =
   let ast, _ = parse_expr tokens in
   string_of_expr ast 0 |> print_endline
   ;print_newline ()
+  
 
 let main (): unit =
   print_newline ();

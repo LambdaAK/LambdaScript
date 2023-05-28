@@ -29,6 +29,12 @@ type token_type =
 | NE
 | AND
 | OR
+| IntegerType
+| BooleanType
+| StringType
+| NothingType
+| LBracket
+| RBracket
 
 type token = {token_type: token_type; line: int}
 
@@ -106,8 +112,25 @@ let rec lex (lst: char list): token list =
 
     {token_type = (Boolean true); line = 0} :: (lex t)
   | 'f' :: 'a' :: 'l' :: 's' :: 'e' :: t ->
-
       {token_type = (Boolean false); line = 0} :: (lex t)
+
+
+  | 'i' :: 'n' :: 't' :: 'e' :: 'g' :: 'e' :: 'r' :: t ->
+    let new_token: token = {token_type = IntegerType; line = 0} in
+    new_token :: (lex t)
+
+  | 'b' :: 'o' :: 'o' :: 'l' :: 'e' :: 'a' :: 'n' :: t ->
+      let new_token: token = {token_type = BooleanType; line = 0} in
+      new_token :: (lex t)
+
+  | 's' :: 't' :: 'r' :: 'i' :: 'n' :: 'g' :: t ->
+      let new_token: token = {token_type = StringType; line = 0} in
+      new_token :: (lex t)
+
+  | 'n' :: 'o' :: 't' :: 'h' :: 'i' :: 'n' :: 'g' :: t ->
+      let new_token: token = {token_type = NothingType; line = 0} in
+      new_token :: (lex t)
+
   
   | 'l' :: 'e' :: 't' :: t ->
     let new_token: token = {token_type = Let; line = 0} in
@@ -156,22 +179,7 @@ let rec lex (lst: char list): token list =
       new_token :: (lex t)
 
 
-  | n :: _ when is_num n ->
-    let int_token, tail = lex_int lst 0 in int_token :: (lex tail)
-
-
-  | c :: _ when is_letter c ->
-    let id_token, tail = lex_id lst "" in id_token :: (lex tail)
-
-
-  | '"' :: c :: t ->
-    
-    if c = '"' then 
-      let new_token: token = {token_type = (StringToken ""); line = 0} in
-      new_token :: (lex t)
-  else
-    let new_token, remainder = lex_string (c :: t) "" in
-    new_token :: (lex remainder)
+  
 
   | '(' :: ')' :: t ->
     let new_token: token = {token_type = Nothing; line = 0} in
@@ -234,6 +242,34 @@ let rec lex (lst: char list): token list =
     let new_token: token = {token_type = AND; line = 0} in
     new_token :: (lex t)
 
+
+  | '[' :: t ->
+    let new_token: token = {token_type = LBracket; line = 0} in
+    new_token :: (lex t)
+
+
+  | ']' :: t ->
+      let new_token: token = {token_type = RBracket; line = 0} in
+      new_token :: (lex t)
+
+  | n :: _ when is_num n ->
+    let int_token, tail = lex_int lst 0 in int_token :: (lex tail)
+
+
+  | c :: _ when is_letter c ->
+    let id_token, tail = lex_id lst "" in id_token :: (lex tail)
+
+
+  | '"' :: c :: t ->
+    
+    if c = '"' then 
+      let new_token: token = {token_type = (StringToken ""); line = 0} in
+      new_token :: (lex t)
+  else
+    let new_token, remainder = lex_string (c :: t) "" in
+    new_token :: (lex remainder)
+
+
   | _ -> failwith "no token matched"
 
 
@@ -281,6 +317,12 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | NE -> "<NE>"
 | OR -> "<or>"
 | AND -> "<and>"
+| IntegerType -> "<integer type>"
+| BooleanType -> "<boolean type>"
+| StringType -> "<string type>"
+| NothingType -> "<nothing type>"
+| LBracket -> "<left bracket>"
+| RBracket -> "<right bracket>"
 
 
 let rec print_tokens_list: token list -> unit = function
