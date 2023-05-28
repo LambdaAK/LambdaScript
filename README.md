@@ -50,9 +50,28 @@ expr ::=
 
   | 'if' expr 'then' expr 'else' expr
 
-  | arith_expr
+  | disjunction
+
 <br><br>
-## equality
+## Disjunction
+disjunction ::=
+
+  | conjunction '||' disjunction
+  
+  | conjunction
+
+
+<br><br>
+## Conjunction
+conjunction ::=
+
+  | eq_expr '&&' conjunction
+
+  | eq_expr
+
+
+<br><br>
+## Equality
 eq_expr ::=
 
   | rel_expr '==' eq_expr
@@ -61,7 +80,7 @@ eq_expr ::=
 
   | rel_expr
 <br><br>
-## relation
+## Relation
 rel_expr ::=
 
   | arith_expr '<' rel_expr
@@ -74,7 +93,7 @@ rel_expr ::=
 
   | arith_expr
 <br><br>
-## arithmetic expressions
+## Arithmetic expressions
 arith_expr ::= 
 
   | term '+' arith_expr 
@@ -83,7 +102,7 @@ arith_expr ::=
 
   | term
   <br><br>
-## arithmetic term
+## Arithmetic term
 term ::= 
 
   | factor '*' term 
@@ -94,7 +113,7 @@ term ::=
 
   | factor
 <br><br>
-## arithmetic factor
+## Arithmetic factor
 factor ::= 
 
   | INT
