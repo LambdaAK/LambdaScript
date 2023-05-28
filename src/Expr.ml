@@ -504,18 +504,7 @@ and create_factor_app_chain_from_factor_list (factors: factor list): factor =
 
 and get_expr_list (tokens: token list) (acc: expr list): expr list * token list =
 print_endline "getting expr list";
-(*
-match tokens with
-| []
-| {token_type = Then; line = _} :: _
-| {token_type = Else; line = _} :: _ 
-| _ when next_token_is_binop tokens
--> List.rev acc, tokens (* return no new exprs *)
-| _ ->
-  (* parse one more expr *)
-  let new_expr, remaining_tokens = parse_expr ~can_be_app:false tokens in
-  get_expr_list remaining_tokens (new_expr :: acc)
-*)
+
 
 try 
   let new_expr, remaining_tokens = parse_expr  tokens in
@@ -523,35 +512,6 @@ try
 
 with 
   | ParseFailure -> List.rev acc, tokens (* return no new exprs *)
-
-(*
-and construct_app_chain_from_expr_list (expressions: expr list): expr =
-  print_endline "constructing app chain";
-  match expressions with
-  | [] -> failwith "impossible"
-  | e :: [] -> e
-  | expressions ->
-
-    let last, expressions_without_last = remove_last expressions in
-    App (construct_app_chain_from_expr_list expressions_without_last, last)
-
-
-and parse_app (tokens: token list): expr * token list =
-  let expressions, remaining_tokens = get_expr_list tokens [] in
-  construct_app_chain_from_expr_list expressions, remaining_tokens
-*)
-
-(**
-[split_tokens_list_by_parens t] is a tuple (a, b) where
-
-a is a list of tokens between a pair of corresponding parenthesis
-b is the list of tokens that comes after a
-
-a @ b = t, except the two parenthesis are removed
-
-Requires: the first token in t is a LParen, and there is a corresponding RParen in t
-
-*)
 
 and split_tokens_list_by_parens (tokens: token list): token list * token list =
 
