@@ -247,10 +247,17 @@ match at with
   ^ (string_of_arith_term t (level + 1))
   ^ indentations_with_newline level
   ^ ")"
+| Mod (f, t) ->
+  "Mod ("
+  ^ indentations_with_newline (level + 1)
+  ^ (string_of_arith_factor f (level + 1))
+  ^ ","
+  ^ indentations_with_newline (level + 1)
+  ^ (string_of_arith_term t (level + 1))
+  ^ indentations_with_newline level
+  ^ ")"
 | Factor f ->
   string_of_arith_factor f (level + 1)
-
-| _ -> failwith "unimplemented string_of_arith_term"
 
 
 
@@ -400,6 +407,9 @@ and parse_arith_expr (tokens: token list): arith_expr * token list =
     
     Minus(first, second), tokens_after_second
 
+
+
+
   
   | _ -> Term first, tokens_after_first
 
@@ -418,6 +428,10 @@ and parse_term (tokens: token list): term * token list =
   | {token_type = Divide; line = _} :: t ->
     let second, tokens_after_second = parse_term t in
     Div(first, second), tokens_after_second
+
+  | {token_type = Mod; line = _} :: t ->
+    let second, tokens_after_second = parse_term t in
+    Mod(first, second), tokens_after_second
 
   | _ -> Factor first, tokens_after_first
 

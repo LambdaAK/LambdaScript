@@ -87,7 +87,9 @@ term ::=
 
   | factor '*' term 
 
-  | factor '/' term 
+  | factor '/' term
+
+  | factor '%' term 
 
   | factor
 <br><br>
