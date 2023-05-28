@@ -3,78 +3,107 @@
 # precedence
 
 Grouping symbols (Highest precedence)
-  1. (
-  2. )
+  + (
+  + )
 
 Function application
-  1. f x
-    - f is applied to x
+  + f x
 
-multiplicative arithmetic operators
-  1. *
-  2. /
+Multiplicative arithmetic operators
+  + \*
+  + /
 
 Additive arithmetic operators
-  1. +
-  2. -
+  + \+
+  + \-
 
 Relational operators
-  1. <
-  2. >
-  3. <=
-  4. >=
+  + <
+  + \>
+  + <=
+  + \>=
 
 Equality operators
-  1. ==
-  2. !=
+  + ==
+  + !=
 
 Logical "and"
-  1. &&
+  + &&
 
 Logical "or"
-  1. ||
+  + ||
 
 Ternary conditional operator (if then else statement)
-  1. if e1 then e2 else e3
+  + if e1 then e2 else e3
   
 Function literal (lowest precedence)
-  1. lam pat -> e
+  + lam pat -> e
 
 
 # grammar
 
+## general expression
 expr ::= 
+
   | 'lam' pat '->' expr (* function *)
+
   | 'if' expr 'then' expr 'else' expr
-  | arith_expr
 
+  | arith_expr
+<br><br>
+## equality
 eq_expr ::=
+
   | rel_expr '==' eq_expr
+
   | rel_expr '!=' eq_expr
+
   | rel_expr
-
+<br><br>
+## relation
 rel_expr ::=
+
   | arith_expr '<' rel_expr
+
   | arith_expr '>' rel_expr
+
   | arith_expr '<=' rel_expr
+
   | arith_expr '>=' rel_expr
+
   | arith_expr
-
+<br><br>
+## arithmetic expressions
 arith_expr ::= 
+
   | term '+' arith_expr 
+
   | term '-' arith_expr 
+
   | term
-
+  <br><br>
+## arithmetic term
 term ::= 
-  | factor '*' term 
-  | factor '/' term 
-  | factor
 
+  | factor '*' term 
+
+  | factor '/' term 
+
+  | factor
+<br><br>
+## arithmetic factor
 factor ::= 
+
   | INT
+
   | BOOL
+
   | STRING
-  | NOTHING
+
+  | '()'
+
   | ID
+
   | '(' expr ')'
-  | factor factor (* function appliaction*)
+
+  | factor factor
