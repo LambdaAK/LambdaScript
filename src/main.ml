@@ -1,8 +1,7 @@
 open Lex
 open Expr
+open Eval
 
-
-let () = ignore print_tokens_list
 
 type action = Run of string | REPL
 
@@ -28,10 +27,18 @@ let get_action (): action =
 let rec repl_loop (): unit =
   let input_string: string = read_line () in
   (*input_string |> list_of_string |> lex |> print_tokens_list;*)
-  let e = input_string |> list_of_string |> lex |> parse_expr |> fst in
+  let e: expr = input_string |> list_of_string |> lex |> parse_expr |> fst in
   
   
-  (*print_endline "[Printing AST]\n";*)print_newline (); string_of_expr e 0|> print_endline; (*print_endline "\n[End AST]\n";*)
+  print_endline "[Printing AST]\n";
+  print_newline ();
+  string_of_expr e 0|> print_endline; 
+  print_endline "\n[End AST]\n";
+
+  print_endline "\n";
+
+  e |> eval_expr |> string_of_value |> print_endline;
+
 
   repl_loop ()
 
