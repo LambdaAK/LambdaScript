@@ -23,7 +23,14 @@ let string_of_value: value -> string =
 let rec eval_expr: expr -> value =
   function
   | DisjunctionExpr d -> eval_disjunction d
-
+  | Ternary (e1, e2, e3) ->
+    let v1: value = eval_expr e1 in
+    (
+      match v1 with
+      | BooleanValue true -> eval_expr e2
+      | BooleanValue false -> eval_expr e3
+      | _ -> failwith "unimplemented ternary eval_expr"
+    )
 
   | _ -> failwith "unimplemented eval_expr"
 
