@@ -15,6 +15,10 @@ type token_type =
 | RParen
 | Colon
 | InArrow
+| Plus
+| Minus
+| Times
+| Divide
 
 type token = {token_type: token_type; line: int}
 
@@ -162,6 +166,22 @@ let rec lex (lst: char list): token list =
   | '(' :: ')' :: t ->
     let new_token: token = {token_type = Nothing; line = 0} in
     new_token :: (lex t)
+  
+  | '+' :: t ->
+    let new_token: token = {token_type = Plus; line = 0} in
+    new_token :: (lex t)
+
+  | '-' :: t ->
+    let new_token: token = {token_type = Minus; line = 0} in
+    new_token :: (lex t)
+
+  | '*' :: t ->
+      let new_token: token = {token_type = Times; line = 0} in
+      new_token :: (lex t)
+
+  | '/' :: t ->
+      let new_token: token = {token_type = Divide; line = 0} in
+      new_token :: (lex t)
 
 
   | _ -> failwith "no token matched"
@@ -197,6 +217,10 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | RParen -> "<rparen>"
 | Colon-> "<colon>"
 | InArrow -> "<in arrow>"
+| Plus -> "<plus>"
+| Minus -> "<minus>"
+| Times -> "<times>"
+| Divide -> "<divide>"
 
 
 let rec print_tokens_list: token list -> unit = function
