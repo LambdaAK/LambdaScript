@@ -13,7 +13,7 @@ let rec repl_loop (): unit =
   string_of_expr e 0|> print_endline; 
  
   print_endline "\n[Value]\n";
-  (eval_expr e []) |> string_of_value |> print_endline;
+  eval input_string |> print_endline;
   print_endline "\n";
 
   repl_loop ()

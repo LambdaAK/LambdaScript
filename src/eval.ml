@@ -1,6 +1,5 @@
 open Expr
-
-let () = ignore NothingPat
+open Lex
 
 type value =
   | IntegerValue of int
@@ -10,6 +9,8 @@ type value =
   | FunctionClosure of env * pat * compound_type option * expr
 
 and env = (string * value) list
+
+
 
 let get_value (name: string) (env: env): value option = 
   try
@@ -205,3 +206,21 @@ and eval_factor (f: factor) (env: env) =
         )
       | _ -> failwith "function closure expected in eval_factor"
     )
+
+
+
+let eval_empty_env (s: string): value =
+  eval_expr (s |> list_of_string |> lex |> parse_expr |> fst) []
+
+let not_function: value = eval_empty_env {|
+lam a [boolean] -> 
+  if a then false else true
+|}
+
+let initial_env: env = [("not", not_function)]
+
+
+let eval (s: string): string = 
+  eval_expr (s |> list_of_string |> lex |> parse_expr |> fst) initial_env |> string_of_value
+
+

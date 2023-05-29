@@ -1,15 +1,11 @@
 open OUnit2
 open Language.Eval
-open Language.Expr
-open Language.Lex
 
 
 
 let eval_test (program: string) (expected_output: string): test =
   program >:: fun _ ->
-    let tokens: token list = program |> list_of_string |> lex in
-    let expr: expr = parse_expr tokens |> fst in
-    let result: string = eval_expr expr [] |> string_of_value in
+    let result: string = eval program in
     assert_equal result expected_output
     
 
@@ -67,6 +63,14 @@ let boolean_tests = [
   eval_test "true && false || false || false || (true || false && true)" "true";
   eval_test "true && false || false || false || (false || false && true)" "false";
   eval_test "true && false || false || false || (false || false && true)" "false";
+  eval_test "not true" "false";
+  eval_test "not false" "true";
+  eval_test "not (not true )" "true";
+  eval_test "not (not false)" "false";
+  eval_test "not true || false" "false";
+  eval_test "not true || true" "true";
+  eval_test "true && not true" "false";
+  eval_test "true && not false" "true";
   (* some relations *)
   eval_test "1 < 2" "true";
   eval_test "1 <= 2" "true";
