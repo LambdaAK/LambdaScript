@@ -4,8 +4,6 @@ open Language.Expr
 open Language.Lex
 
 
-let counter: int ref = ref 1
-let () = ignore counter
 
 let eval_test (program: string) (expected_output: string): test =
   program >:: fun _ ->
@@ -47,7 +45,9 @@ let arithmetic_tests = [
   eval_test "3 + 4 * 2 / (1 - 5)" "1";
   eval_test "(5 + 2) * 3 - 4" "17";
   eval_test "2 * (10 - 8) + 1" "5";
-  eval_test "100 / 10 % 3" "1"
+  eval_test "100 / 10 % 3" "1";
+  eval_test "100 % 30 / 2 * 3" "15";
+  eval_test "100 % 31 / 2" "3"
 ]
 
 let boolean_tests = [
@@ -60,7 +60,30 @@ let boolean_tests = [
   eval_test "true && true" "true";
   eval_test "true && false" "false";
   eval_test "false && true" "false";
-  eval_test "false && false" "false"
+  eval_test "false && false" "false";
+  (* more complicated ones *)
+  eval_test "true && true || false" "true";
+  eval_test "true || false || false || false || (true || false && true)" "true";
+  eval_test "true && false || false || false || (true || false && true)" "true";
+  eval_test "true && false || false || false || (false || false && true)" "false";
+  eval_test "true && false || false || false || (false || false && true)" "false";
+  (* some relations *)
+  eval_test "1 < 2" "true";
+  eval_test "1 <= 2" "true";
+  eval_test "1 <= 1" "true";
+  eval_test "1 < 1" "false";
+  eval_test "1 < 2 && 13414 < 11413413" "true";
+  eval_test "1 < 2 && 13414 > 11413413" "false";
+  eval_test "1 < 2 || false" "true";
+  eval_test "1 < 2 && false" "false";
+  
+]
+
+let ternary_tests = [
+  eval_test "if true then 0 else 1" "0";
+  eval_test "if false then 0 else 1" "1";
+  eval_test "if 1 < 2 then 0 else 1" "0";
+  eval_test "if 1 > 2 then 0 else 1" "1";
 ]
 
 
@@ -121,7 +144,8 @@ let all_tests =
       boolean_tests;
       complex_tests;
       minus_tests;
-      mult_div_mod_tests
+      mult_div_mod_tests;
+      ternary_tests
     ]
 
 let suite = "suite" >::: all_tests
