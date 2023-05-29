@@ -11,8 +11,12 @@ Clflags.include_dirs :=
   ; "/Users/alex/.opam/cs3110-2023sp/lib/ocaml/threads"
   ; "/Users/alex/.opam/cs3110-2023sp/lib/ocplib-endian"
   ; "/Users/alex/.opam/cs3110-2023sp/lib/ocplib-endian/bigstring"
+  ; "/Users/alex/.opam/cs3110-2023sp/lib/ounit2"
+  ; "/Users/alex/.opam/cs3110-2023sp/lib/ounit2/advanced"
   ; "/Users/alex/.opam/cs3110-2023sp/lib/react"
   ; "/Users/alex/.opam/cs3110-2023sp/lib/result"
+  ; "/Users/alex/.opam/cs3110-2023sp/lib/seq"
+  ; "/Users/alex/.opam/cs3110-2023sp/lib/stdlib-shims"
   ; "/Users/alex/.opam/cs3110-2023sp/lib/trie"
   ; "/Users/alex/.opam/cs3110-2023sp/lib/uchar"
   ; "/Users/alex/.opam/cs3110-2023sp/lib/utop"
@@ -20,5 +24,6 @@ Clflags.include_dirs :=
   ; "/Users/alex/.opam/cs3110-2023sp/lib/uuseg"
   ; "/Users/alex/.opam/cs3110-2023sp/lib/uutf"
   ; "/Users/alex/.opam/cs3110-2023sp/lib/zed"
+  ; "/Users/alex/Desktop/coding projects/programming language in ocaml/_build/default/src/.language.objs/byte"
   ];
 UTop_main.main ();

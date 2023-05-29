@@ -8,12 +8,4 @@ bind sum [integer -> integer -> integer] <-
   a + b
 in
 
-bind even <-
-  lam a -> a % 2 == 0
-in
-
-bind add_two <-
-  lam a -> succ (succ a)
-in
-
-~- (succ (sum (add_two 5) (sum 10 100)))
+sum (succ 4) (sum 1 2)

@@ -1,67 +1,406 @@
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Runner: processes
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Chooser: simple
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration suite_name = "suite"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration cache_filename = "/Users/alex/Desktop/coding projects/programming language in ocaml/_build/oUnit-$(suite_name).cache"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration run_gc_full_major = "true"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration display = "true"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration results_style_1_X = "false"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration testdata_dir = "none"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration health_check_interval = "1."
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration verbose = "false"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration chooser = "simple"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration output_html_dir = "none"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration processes_kill_period = "5."
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration runner = "processes"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration shards = "2"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration processes_grace_period = "5."
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration log_encoding = "utf-8"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration output_junit_file = "none"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration ci = "false"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Configuration output_file = "/Users/alex/Desktop/coding projects/programming language in ocaml/_build/oUnit-$(suite_name)-$(shard_id).log"
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Using 2 workers maximum.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Starting worker number Alexs-MBP.fios-router.home#01.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Worker Alexs-MBP.fios-router.home#01 started.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Starting worker number Alexs-MBP.fios-router.home#02.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Worker Alexs-MBP.fios-router.home#02 started.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Still 2 tests running : suite:1:addition, suite:0:1.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:1:addition, suite:0:1.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#01 I: Start test suite:0:1.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Still 2 tests running : suite:1:addition, suite:0:1.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:1:addition, suite:0:1.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#02 I: Start test suite:1:addition.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Still 2 tests running : suite:1:addition, suite:0:1.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:1:addition, suite:0:1.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#01 I: Test suite:0:1 is successful.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Still 2 tests running : suite:1:addition, suite:0:1.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:1:addition, suite:0:1.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#01 I: End test suite:0:1.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Still 2 tests running : suite:1:addition, suite:0:1.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:1:addition, suite:0:1.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Still 1 tests running : suite:1:addition.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: 1 tests running: suite:1:addition.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#02 I: Test suite:1:addition is successful.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Still 1 tests running : suite:1:addition.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: 1 tests running: suite:1:addition.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#02 I: End test suite:1:addition.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Still 1 tests running : suite:1:addition.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: 1 tests running: suite:1:addition.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: 0 tests running: .
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Worker Alexs-MBP.fios-router.home#01 has ended.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Worker Alexs-MBP.fios-router.home#02 has ended.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Used 2 worker during test execution.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Run 1 tests with shard Alexs-MBP.fios-router.home#01.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Run 1 tests with shard Alexs-MBP.fios-router.home#02.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Check health of shard Alexs-MBP.fios-router.home#01, 4 times.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Check health of shard Alexs-MBP.fios-router.home#02, 1 times.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: ==============
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Summary:
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:1:addition is successful.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:0:1 is successful.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Ran: 2 tests in: 0.11 seconds.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Cases: 2.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Tried: 2.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Errors: 0.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Failures: 0.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Skip: 0.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Todo: 0.
-2023-05-29T02:16:32+00:00 Alexs-MBP.fios-router.home#00 I: Timeout: 0.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Runner: processes
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Chooser: simple
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration suite_name = "suite"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration cache_filename = "/Users/alex/Desktop/coding projects/programming language in ocaml/_build/oUnit-$(suite_name).cache"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration run_gc_full_major = "true"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration display = "true"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration results_style_1_X = "false"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration testdata_dir = "none"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration health_check_interval = "1."
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration verbose = "false"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration chooser = "simple"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration output_html_dir = "none"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration processes_kill_period = "5."
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration runner = "processes"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration shards = "2"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration processes_grace_period = "5."
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration log_encoding = "utf-8"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration output_junit_file = "none"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration ci = "false"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Configuration output_file = "/Users/alex/Desktop/coding projects/programming language in ocaml/_build/oUnit-$(suite_name)-$(shard_id).log"
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Using 2 workers maximum.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Starting worker number Alexs-MBP.fios-router.home#01.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Worker Alexs-MBP.fios-router.home#01 started.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Starting worker number Alexs-MBP.fios-router.home#02.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Worker Alexs-MBP.fios-router.home#02 started.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:1:1 + 2, suite:0:1.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Start test suite:0:1.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:1:1 + 2, suite:0:1.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Start test suite:1:1 + 2.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:1:1 + 2, suite:0:1.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Test suite:0:1 is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:1:1 + 2, suite:0:1.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: End test suite:0:1.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:1:1 + 2, suite:0:1.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:2:1 + 2 + 3 + 4, suite:1:1 + 2.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Start test suite:2:1 + 2 + 3 + 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:2:1 + 2 + 3 + 4, suite:1:1 + 2.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Test suite:2:1 + 2 + 3 + 4 is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:2:1 + 2 + 3 + 4, suite:1:1 + 2.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Test suite:1:1 + 2 is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: End test suite:2:1 + 2 + 3 + 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:2:1 + 2 + 3 + 4, suite:1:1 + 2.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: End test suite:1:1 + 2.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:3:1 + 2 * 3 + 4, suite:1:1 + 2.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:4:100 / 30 + 5, suite:3:1 + 2 * 3 + 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Start test suite:4:100 / 30 + 5.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:4:100 / 30 + 5, suite:3:1 + 2 * 3 + 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Start test suite:3:1 + 2 * 3 + 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:4:100 / 30 + 5, suite:3:1 + 2 * 3 + 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Test suite:4:100 / 30 + 5 is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:4:100 / 30 + 5, suite:3:1 + 2 * 3 + 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: End test suite:4:100 / 30 + 5.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:4:100 / 30 + 5, suite:3:1 + 2 * 3 + 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Test suite:3:1 + 2 * 3 + 4 is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:5:10 % 4, suite:3:1 + 2 * 3 + 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: End test suite:3:1 + 2 * 3 + 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:5:10 % 4, suite:3:1 + 2 * 3 + 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Start test suite:5:10 % 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:6:true, suite:5:10 % 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Start test suite:6:true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:6:true, suite:5:10 % 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Test suite:5:10 % 4 is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:6:true, suite:5:10 % 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: End test suite:5:10 % 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Test suite:6:true is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:6:true, suite:5:10 % 4.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: End test suite:6:true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:7:false, suite:6:true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:8:true || true, suite:7:false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Start test suite:7:false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Start test suite:8:true || true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:8:true || true, suite:7:false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Test suite:7:false is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:8:true || true, suite:7:false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: End test suite:7:false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:8:true || true, suite:7:false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:9:true || false, suite:8:true || true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Test suite:8:true || true is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:9:true || false, suite:8:true || true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: End test suite:8:true || true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Start test suite:9:true || false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:9:true || false, suite:8:true || true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:10:false || true, suite:9:true || false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Start test suite:10:false || true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:10:false || true, suite:9:true || false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Test suite:9:true || false is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:10:false || true, suite:9:true || false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: End test suite:9:true || false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:10:false || true, suite:9:true || false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:11:false || false, suite:10:false || true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Test suite:10:false || true is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Start test suite:11:false || false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:11:false || false, suite:10:false || true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: End test suite:10:false || true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:11:false || false, suite:10:false || true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:12:true && true, suite:11:false || false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Start test suite:12:true && true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:12:true && true, suite:11:false || false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Test suite:11:false || false is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:12:true && true, suite:11:false || false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: End test suite:11:false || false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:12:true && true, suite:11:false || false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:13:true && false, suite:12:true && true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Test suite:12:true && true is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:13:true && false, suite:12:true && true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: End test suite:12:true && true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Start test suite:13:true && false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:13:true && false, suite:12:true && true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:14:false && true, suite:13:true && false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Start test suite:14:false && true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:14:false && true, suite:13:true && false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Test suite:13:true && false is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:14:false && true, suite:13:true && false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: End test suite:13:true && false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:14:false && true, suite:13:true && false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Test suite:14:false && true is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:15:false && false, suite:14:false && true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: End test suite:14:false && true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:15:false && false, suite:14:false && true.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Start test suite:15:false && false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:16:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind sum [integer -> integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam a [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam b [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       a + b
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     sum (succ 4) (sum 1 2)
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     , suite:15:false && false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Start test suite:16:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     bind sum [integer -> integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:       lam a [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:       lam b [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:       a + b
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     sum (succ 4) (sum 1 2)
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:16:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind sum [integer -> integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam a [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam b [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       a + b
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     sum (succ 4) (sum 1 2)
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     , suite:15:false && false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Test suite:15:false && false is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:16:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind sum [integer -> integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam a [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam b [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       a + b
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     sum (succ 4) (sum 1 2)
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     , suite:15:false && false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: End test suite:15:false && false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:16:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind sum [integer -> integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam a [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam b [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       a + b
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     sum (succ 4) (sum 1 2)
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     , suite:15:false && false.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: Test suite:16:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     bind sum [integer -> integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:       lam a [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:       lam b [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:       a + b
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     sum (succ 4) (sum 1 2)
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:      is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Still 2 tests running : suite:17:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     , suite:16:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind sum [integer -> integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam a [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam b [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       a + b
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     sum (succ 4) (sum 1 2)
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:17:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     , suite:16:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind sum [integer -> integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam a [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam b [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       a + b
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     sum (succ 4) (sum 1 2)
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I: End test suite:16:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     bind sum [integer -> integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:       lam a [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:       lam b [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:       a + b
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     sum (succ 4) (sum 1 2)
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#01 I:     .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Start test suite:17:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: 
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:     .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Still 2 tests running : suite:17:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     , suite:16:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind sum [integer -> integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam a [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam b [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       a + b
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     sum (succ 4) (sum 1 2)
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 2 tests running: suite:17:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     , suite:16:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind sum [integer -> integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam a [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam b [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       a + b
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     sum (succ 4) (sum 1 2)
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Still 1 tests running : suite:17:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 1 tests running: suite:17:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: Test suite:17:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: 
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:      is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Still 1 tests running : suite:17:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 1 tests running: suite:17:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: End test suite:17:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I: 
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#02 I:     .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Still 1 tests running : suite:17:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 1 tests running: suite:17:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 0 tests running: .
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Worker Alexs-MBP.fios-router.home#01 has ended.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Worker Alexs-MBP.fios-router.home#02 has ended.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Used 2 worker during test execution.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Run 9 tests with shard Alexs-MBP.fios-router.home#01.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Run 9 tests with shard Alexs-MBP.fios-router.home#02.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Check health of shard Alexs-MBP.fios-router.home#01, 4 times.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Check health of shard Alexs-MBP.fios-router.home#02, 1 times.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: ==============
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Summary:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:17:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: 
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:      is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:16:
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind succ [integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam n [integer] -> n + 1
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     bind sum [integer -> integer -> integer] <-
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam a [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       lam b [integer] ->
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:       a + b
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     in
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:     sum (succ 4) (sum 1 2)
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I:      is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:15:false && false is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:14:false && true is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:13:true && false is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:12:true && true is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:11:false || false is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:10:false || true is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:9:true || false is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:8:true || true is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:7:false is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:6:true is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:5:10 % 4 is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:3:1 + 2 * 3 + 4 is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:4:100 / 30 + 5 is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:1:1 + 2 is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:2:1 + 2 + 3 + 4 is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Test suite:0:1 is successful.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Ran: 18 tests in: 0.11 seconds.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Cases: 18.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Tried: 18.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Errors: 0.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Failures: 0.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Skip: 0.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Todo: 0.
+2023-05-29T02:30:26+00:00 Alexs-MBP.fios-router.home#00 I: Timeout: 0.
