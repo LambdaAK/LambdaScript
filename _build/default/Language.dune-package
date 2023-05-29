@@ -1,6 +1,6 @@
 (lang dune 3.7)
 (name Language)
-(sections (lib .) (libexec .) (doc ../../doc/Language))
+(sections (lib .) (libexec .) (bin ../../bin) (doc ../../doc/Language))
 (files
  (lib
   (Expr.ml
@@ -32,6 +32,7 @@
    reader.ml
    reader.mli))
  (libexec (language.cmxs))
+ (bin (Test))
  (doc (README.md)))
 (library
  (name Language)

@@ -1,13 +1,13 @@
 build:
-	dune build main.exe
+	dune build
 
 run:
 	dune build bin/interpreter.exe
 	dune exec ./bin/interpreter.exe "./programs/test.txt"
 
-test:
+suite:
 	dune build test/test.exe
-	dune exec test/text.exe
+	dune exec ./test/test.exe
 
 repl:
 	dune build bin/repl.exe

@@ -1,10 +1,10 @@
-# dune exec ./bin/interpreter.exe ./programs/test.txt
+# dune exec ./test/test.exe
 # OCAMLPARAM: unset
 # Shared cache: disabled
 # Workspace root: "/Users/alex/Desktop/coding projects/programming language in
 # ocaml"
 # Auto-detected concurrency: 10
-$ /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -config > /var/folders/_4/___ddmg11_d2sv3nsgj44bbw0000gn/T/dune_61a3d1_output
+$ /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -config > /var/folders/_4/___ddmg11_d2sv3nsgj44bbw0000gn/T/dune_9b54cf_output
 # Dune context:
 #  { name = "default"
 #  ; kind = "default"

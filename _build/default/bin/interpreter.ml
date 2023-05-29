@@ -11,8 +11,6 @@ let get_dir (): string =
     Sys.argv.(1)
 
 
-
-
 let run_run (dir: string): unit = 
   let contents: string = read dir in
   let tokens: token list = contents |> list_of_string |> lex in

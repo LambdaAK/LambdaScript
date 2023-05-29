@@ -1,0 +1,5 @@
+(executable
+ (name test)
+ (public_name Test)
+ (modules test)
+ (libraries Language ounit2))

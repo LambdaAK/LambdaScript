@@ -31,6 +31,9 @@ lib: [
 libexec: [
   "_build/install/default/lib/Language/language.cmxs"
 ]
+bin: [
+  "_build/install/default/bin/Test"
+]
 doc: [
   "_build/install/default/doc/Language/README.md"
 ]
