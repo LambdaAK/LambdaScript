@@ -12,4 +12,8 @@ bind even <-
   lam a -> a % 2 == 0
 in
 
-even 5
+bind add_two <-
+  lam a -> succ (succ a)
+in
+
+~- (succ (sum (add_two 5) (sum 10 100)))

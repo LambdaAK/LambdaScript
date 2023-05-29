@@ -1,0 +1,9 @@
+(executable
+ (name repl)
+ (modules repl)
+ (libraries Language))
+
+(executable
+ (name interpreter)
+ (modules interpreter)
+ (libraries Language))

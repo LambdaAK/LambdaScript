@@ -1,0 +1,70 @@
+(lang dune 3.7)
+(name Language)
+(sections (lib .) (libexec .) (doc ../../doc/Language))
+(files
+ (lib
+  (Expr.ml
+   META
+   dune-package
+   eval.ml
+   language.a
+   language.cma
+   language.cmi
+   language.cmt
+   language.cmx
+   language.cmxa
+   language.ml
+   language__Eval.cmi
+   language__Eval.cmt
+   language__Eval.cmx
+   language__Expr.cmi
+   language__Expr.cmt
+   language__Expr.cmx
+   language__Lex.cmi
+   language__Lex.cmt
+   language__Lex.cmx
+   language__Reader.cmi
+   language__Reader.cmt
+   language__Reader.cmti
+   language__Reader.cmx
+   lex.ml
+   opam
+   reader.ml
+   reader.mli))
+ (libexec (language.cmxs))
+ (doc (README.md)))
+(library
+ (name Language)
+ (kind normal)
+ (archives (byte language.cma) (native language.cmxa))
+ (plugins (byte language.cma) (native language.cmxs))
+ (native_archives language.a)
+ (main_module_name Language)
+ (modes byte native)
+ (modules
+  (wrapped
+   (group
+    (alias
+     (obj_name language)
+     (visibility public)
+     (kind alias)
+     (source (path Language) (impl (path language.ml-gen))))
+    (name Language)
+    (modules
+     (module
+      (obj_name language__Eval)
+      (visibility public)
+      (source (path Eval) (impl (path eval.ml))))
+     (module
+      (obj_name language__Expr)
+      (visibility public)
+      (source (path Expr) (impl (path Expr.ml))))
+     (module
+      (obj_name language__Lex)
+      (visibility public)
+      (source (path Lex) (impl (path lex.ml))))
+     (module
+      (obj_name language__Reader)
+      (visibility public)
+      (source (path Reader) (intf (path reader.mli)) (impl (path reader.ml))))))
+   (wrapped true))))
