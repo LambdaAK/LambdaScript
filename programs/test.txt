@@ -1,11 +1,1 @@
-bind succ [integer -> integer] <-
-  lam n [integer] -> n + 1
-in
-
-bind sum [integer -> integer -> integer] <-
-  lam a [integer] ->
-  lam b [integer] ->
-  a + b
-in
-
-sum (succ 4) (sum 1 2)
+not false

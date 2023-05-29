@@ -18,7 +18,7 @@ let run_run (dir: string): unit =
   print_endline "[AST]\n";
   (string_of_expr ast 0) |> print_endline;
   print_endline "\n[Value]\n";
-  (eval_expr ast []) |> string_of_value |> print_endline; print_newline ();
+  (eval contents) |> print_endline; print_newline ();
   print_endline "\n"
 
 let () = run_run (get_dir ())
