@@ -606,13 +606,18 @@ and parse_arith_expr (tokens: token list): arith_expr * token list =
       a - b + c = a - (b - c)
 
       change it to that
+
+      
     
      *)
       (
     match second with
     | Minus (b, c) ->
       Minus (first, Plus(b, c)), tokens_after_second
-    | Plus (b, c) -> Minus (first, Minus (b, c)), tokens_after_second
+      (* Minus (arith_expr_to_term (Minus (first, Term b)), c), tokens_after_second *)
+    | Plus (b, c) -> 
+      Minus (first, Minus (b, c)), tokens_after_second
+      (* Plus (arith_expr_to_term (Minus(first, Term b)), c), tokens_after_second *)
     | _ -> Minus (first, second), tokens_after_second
     
       )
@@ -625,20 +630,54 @@ and parse_arith_expr (tokens: token list): arith_expr * token list =
 and parse_term (tokens: token list): term * token list =
   (* start by parsing a factor *)
   let first, tokens_after_first = parse_factor tokens in
+  let a = first in
   (* check what the next token is *)
   (* if its a TIMES or DIVIDE, parse another term and return the product/quotient *)
   match tokens_after_first with
   | {token_type = Times; line = _} :: t ->
     let second, tokens_after_second = parse_term t in
-    Mul(first, second), tokens_after_second
-
+    (
+    match second with
+    | Div (b, c) ->
+      (* a * (b / c) -> (a * b) / c *)
+      Div (term_to_factor (Mul(a, Factor b)), c), tokens_after_second
+    | Mod (b, c) ->
+      (* a * (b / c) -> (a * b) / c *)
+      Mod (term_to_factor (Mul(a, Factor b)), c), tokens_after_second
+    | _ ->
+      Mul (first, second), tokens_after_second
+    )
   | {token_type = Divide; line = _} :: t ->
     let second, tokens_after_second = parse_term t in
-    Div(first, second), tokens_after_second
-
+    (
+    match second with
+    | Mul (b, c) ->
+      (* a / (b * c) -> (a / b) * c *)
+      Mul (term_to_factor c, Div(a, Factor b)), tokens_after_second
+    | Div (b, c) ->
+      (* a / (b / c) -> (a / b) / c *)
+      Div (term_to_factor (Div (a, Factor b)), c), tokens_after_second
+    | Mod (b, c) ->
+      (* a / (b % c) -> (a / b) % c *)
+      Mod (term_to_factor (Div (a, Factor b)), c), tokens_after_second
+    | _ -> Div (first, second), tokens_after_second
+    )
   | {token_type = Mod; line = _} :: t ->
     let second, tokens_after_second = parse_term t in
-    Mod(first, second), tokens_after_second
+    (
+      match second with
+      | Mod (b, c) ->
+        (* a % (b % c) -> (a % b) % c *)
+        Mod (term_to_factor (Mod (a, Factor b)), c), tokens_after_second
+      | Mul (b, c) ->
+        (* a % (b * c) -> (a % b) * c *)
+        Mul (term_to_factor c, Mod (a, Factor b)), tokens_after_second
+      | Div (b, c) ->
+        (* a % (b / c) -> (a % b) / c *)
+        Div (term_to_factor (Mod(a, Factor b)), c), tokens_after_second
+      | _ ->
+        Mod (first, second), tokens_after_second
+    )
 
   | _ -> Factor first, tokens_after_first
 
@@ -726,3 +765,34 @@ and create_minus_chain_from_term_list (terms: term list): arith_expr =
     let last, terms_without_last = remove_last terms in
     Minus (create_minus_chain_from_term_list terms_without_last, last)
 *)
+
+
+and term_to_factor (t: term): factor =
+ParenFactor (
+  DisjunctionExpr (
+    ConjunctionUnderDisjunction (
+      EqualityUnderConjunction (
+        RelationUnderEqExpr (
+          ArithmeticUnderRelExpr (
+            Term t
+          )
+        )
+      )
+    )
+  )
+)
+
+and arith_expr_to_term (ae: arith_expr): term =
+Factor (ParenFactor (
+  DisjunctionExpr (
+    ConjunctionUnderDisjunction (
+      EqualityUnderConjunction (
+        RelationUnderEqExpr (
+          ArithmeticUnderRelExpr ae
+        )
+      )
+    )
+  )
+)
+)
+

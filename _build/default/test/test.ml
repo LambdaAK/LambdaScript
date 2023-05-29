@@ -24,7 +24,30 @@ let arithmetic_tests = [
   eval_test "1 + 2 + 3 + 4" "10";
   eval_test "1 + 2 * 3 + 4" "11";
   eval_test "100 / 30 + 5" "8";
-  eval_test "10 % 4" "2"
+  eval_test "10 % 4" "2";
+  eval_test "5 + 2 * 3" "11";
+  (*a*)
+  eval_test "2 + 3 * 4" "14";
+  eval_test "1 + 2 + 3 + 4 + 5" "15";
+  eval_test "10 - 2 * 3" "4";
+  eval_test "8 - 2 - 3 - 4 - 5" "-6";
+  eval_test "6 * 2 + 3" "15";
+  eval_test "3 * 4 * 5" "60";
+  eval_test "15 / 3 - 2" "3";
+  eval_test "20 / 4 / 5" "1";
+  (*b*)
+  eval_test "10 * 2 / 4" "5";
+  eval_test "15 - 3 + 2" "14";
+  eval_test "2 + 4 * 6 - 8" "18";
+  eval_test "20 / 5 * 2 + 3" "11";
+  eval_test "7 - 3 * 2 / 4" "6";
+  eval_test "9 + 3 * 2 - 4 / 2" "13"; 
+  eval_test "5 * (3 + 2)" "25";
+  eval_test "12 / (4 - 2)" "6";
+  eval_test "3 + 4 * 2 / (1 - 5)" "1";
+  eval_test "(5 + 2) * 3 - 4" "17";
+  eval_test "2 * (10 - 8) + 1" "5";
+  eval_test "100 / 10 % 3" "1"
 ]
 
 let boolean_tests = [
@@ -47,7 +70,21 @@ let minus_tests = [
   eval_test "10 - 20 - 30 - 40" "-80";
   eval_test "1 + 5 - 4 - 3" "-1";
   eval_test "10 - 5 + 5" "10";
-  eval_test "~-10 - 5 + 5 - 5 - 5" "-20"
+  eval_test "~-10 - 5 + 5 - 5 - 5" "-20";
+  eval_test "1 - 2 - 3 - 4 - 5" "-13";
+  eval_test "1 - 2 - 3 - 4 - 5 - 6" "-19";
+  eval_test "1 + 2 - 3 + 4 - 5 + 6" "5";
+  eval_test "1 + 2 + 3 - 4 - 5 - 6" "-9"
+]
+
+let mult_div_mod_tests = [
+  eval_test "1 * 2 * 3 * 4" "24";
+  eval_test "10 / 2 * 3" "15";
+  eval_test "10 / 3 * 4" "12";
+  eval_test "100 / 2 / 5" "10";
+  eval_test "500 / 100 / 2" "2";
+  eval_test "100 / 2 % 49" "1";
+  
 ]
 
 
@@ -83,7 +120,8 @@ let all_tests =
       arithmetic_tests;
       boolean_tests;
       complex_tests;
-      minus_tests
+      minus_tests;
+      mult_div_mod_tests
     ]
 
 let suite = "suite" >::: all_tests
