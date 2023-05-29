@@ -585,15 +585,37 @@ and parse_arith_expr (tokens: token list): arith_expr * token list =
     Plus(first, second), tokens_after_second
   | {token_type = Minus; line = _} :: t ->
 
-    (* parse another level_one expression *)
-    (* return the sum of those expressions *)
-
     let second, tokens_after_second = parse_arith_expr t in
+    (*
+      if second is a Minus, the expression
+      a - b - c
+      has been incorrectly parsed as  
+      a - (b - c)
+
+      a - b - c is equivalent to the following
+      (a - b) - c = a - b - c + a - (b + c)
+
+      change it to that
+
+      if second is a Plus, the expression
+      a - b + c
+      has been incorrectly parsed as
+      a - (b + c)
+
+      a - b + c is equivalent to
+      a - b + c = a - (b - c)
+
+      change it to that
     
-    Minus(first, second), tokens_after_second
-
-
-
+     *)
+      (
+    match second with
+    | Minus (b, c) ->
+      Minus (first, Plus(b, c)), tokens_after_second
+    | Plus (b, c) -> Minus (first, Minus (b, c)), tokens_after_second
+    | _ -> Minus (first, second), tokens_after_second
+    
+      )
 
   
   | _ -> Term first, tokens_after_first
@@ -685,3 +707,22 @@ and create_factor_app_chain_from_factor_list (factors: factor list): factor =
     let last, factors_without_last = remove_last factors_list in
     App (create_factor_app_chain_from_factor_list factors_without_last, last)
 
+
+and get_term_list_seperated_by_minus (tokens: token list) (acc: term list): term list * token list =
+  match tokens with
+  | {token_type = Minus; line = _} :: tokens_after_minus ->
+    (* parse one more term *)
+    let new_term, tokens_after_term = parse_term tokens_after_minus in
+    get_term_list_seperated_by_minus tokens_after_term (new_term :: acc)
+  | _ ->
+    List.rev acc, tokens
+
+(*
+and create_minus_chain_from_term_list (terms: term list): arith_expr =
+  match terms with
+  | [] -> failwith "impossible"
+  | t :: [] -> Term t
+  | _ ->
+    let last, terms_without_last = remove_last terms in
+    Minus (create_minus_chain_from_term_list terms_without_last, last)
+*)

@@ -1,5 +1,11 @@
 # LambdaScript
 
+# current bugs
+
++ Subtraction and division are parsing incorrectly.
+They should be left associative but are parsing as right associative
+
+
 # precedence
 
 Grouping symbols (Highest precedence)

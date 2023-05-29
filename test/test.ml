@@ -41,6 +41,16 @@ let boolean_tests = [
 ]
 
 
+let minus_tests = [
+  eval_test "1 - 1 - 1" "-1";
+  eval_test "1 - 1 - 2" "-2";
+  eval_test "10 - 20 - 30 - 40" "-80";
+  eval_test "1 + 5 - 4 - 3" "-1";
+  eval_test "10 - 5 + 5" "10";
+  eval_test "~-10 - 5 + 5 - 5 - 5" "-20"
+]
+
+
 let complex_tests = [
     eval_test {|
     bind succ [integer -> integer] <-
@@ -72,7 +82,8 @@ let all_tests =
       value_tests;
       arithmetic_tests;
       boolean_tests;
-      complex_tests
+      complex_tests;
+      minus_tests
     ]
 
 let suite = "suite" >::: all_tests
