@@ -1,10 +1,10 @@
-# dune build @doc
+# dune exec ./bin/repl.exe
 # OCAMLPARAM: unset
 # Shared cache: disabled
 # Workspace root: "/Users/alex/Desktop/coding projects/programming language in
 # ocaml"
 # Auto-detected concurrency: 10
-$ /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -config > /var/folders/_4/___ddmg11_d2sv3nsgj44bbw0000gn/T/dune_448e6d_output
+$ /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -config > /var/folders/_4/___ddmg11_d2sv3nsgj44bbw0000gn/T/dune_e5dde1_output
 # Dune context:
 #  { name = "default"
 #  ; kind = "default"
@@ -113,29 +113,3 @@ $ /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -config > /var/folders/_4/___dd
 #      ; windows_unicode = false
 #      }
 #  }
-$ (cd _build/default && /Users/alex/.opam/cs3110-2023sp/bin/odoc support-files -o _doc/_html/_odoc_support)
-$ (cd _build/default && /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62@67@69-40 -strict-sequence -strict-formats -short-paths -keep-locs -w -49 -nopervasives -nostdlib -g -bin-annot -I src/.language.objs/byte -no-alias-deps -opaque -o src/.language.objs/byte/language.cmo -c -impl src/language.ml-gen)
-$ (cd _build/default && /Users/alex/.opam/cs3110-2023sp/bin/ocamldep.opt -modules -impl src/expr.ml) > _build/default/src/.language.objs/language__Expr.impl.d
-$ (cd _build/default && /Users/alex/.opam/cs3110-2023sp/bin/ocamldep.opt -modules -impl src/eval.ml) > _build/default/src/.language.objs/language__Eval.impl.d
-$ (cd _build/default && /Users/alex/.opam/cs3110-2023sp/bin/ocamldep.opt -modules -impl src/lex.ml) > _build/default/src/.language.objs/language__Lex.impl.d
-$ (cd _build/default && /Users/alex/.opam/cs3110-2023sp/bin/ocamldep.opt -modules -intf src/reader.mli) > _build/default/src/.language.objs/language__Reader.intf.d
-$ (cd _build/default && /Users/alex/.opam/cs3110-2023sp/bin/ocamldep.opt -modules -intf src/tostring.mli) > _build/default/src/.language.objs/language__Tostring.intf.d
-$ (cd _build/default && /Users/alex/.opam/cs3110-2023sp/bin/ocamldep.opt -modules -impl src/parse.ml) > _build/default/src/.language.objs/language__Parse.impl.d
-$ (cd _build/default/_doc/_odoc/pkg/Language && /Users/alex/.opam/cs3110-2023sp/bin/odoc compile --pkg Language -o page-index.odoc ../../../_mlds/Language/index.mld)
-$ (cd _build/default && /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62@67@69-40 -strict-sequence -strict-formats -short-paths -keep-locs -g -bin-annot -I src/.language.objs/byte -no-alias-deps -opaque -open Language -o src/.language.objs/byte/language__Expr.cmo -c -impl src/expr.ml)
-$ (cd _build/default && /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62@67@69-40 -strict-sequence -strict-formats -short-paths -keep-locs -g -bin-annot -I src/.language.objs/byte -no-alias-deps -opaque -open Language -o src/.language.objs/byte/language__Reader.cmi -c -intf src/reader.mli)
-$ (cd _build/default/src/.language.objs/byte && /Users/alex/.opam/cs3110-2023sp/bin/odoc compile -I . -I ../../../_doc/_odoc/pkg/Language --pkg Language -o language.odoc language.cmt)
-$ (cd _build/default && /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62@67@69-40 -strict-sequence -strict-formats -short-paths -keep-locs -g -bin-annot -I src/.language.objs/byte -no-alias-deps -opaque -open Language -o src/.language.objs/byte/language__Tostring.cmi -c -intf src/tostring.mli)
-$ (cd _build/default/src/.language.objs/byte && /Users/alex/.opam/cs3110-2023sp/bin/odoc compile -I . -I ../../../_doc/_odoc/pkg/Language --pkg Language -o language__Expr.odoc language__Expr.cmt)
-$ (cd _build/default/src/.language.objs/byte && /Users/alex/.opam/cs3110-2023sp/bin/odoc compile -I . -I ../../../_doc/_odoc/pkg/Language --pkg Language -o language__Reader.odoc language__Reader.cmti)
-$ (cd _build/default/src/.language.objs/byte && /Users/alex/.opam/cs3110-2023sp/bin/odoc compile -I . -I ../../../_doc/_odoc/pkg/Language --pkg Language -o language__Tostring.odoc language__Tostring.cmti)
-$ (cd _build/default && /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62@67@69-40 -strict-sequence -strict-formats -short-paths -keep-locs -g -bin-annot -I src/.language.objs/byte -no-alias-deps -opaque -open Language -o src/.language.objs/byte/language__Lex.cmo -c -impl src/lex.ml)
-$ (cd _build/default/src/.language.objs/byte && /Users/alex/.opam/cs3110-2023sp/bin/odoc compile -I . -I ../../../_doc/_odoc/pkg/Language --pkg Language -o language__Lex.odoc language__Lex.cmt)
-$ (cd _build/default && /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62@67@69-40 -strict-sequence -strict-formats -short-paths -keep-locs -g -bin-annot -I src/.language.objs/byte -no-alias-deps -opaque -open Language -o src/.language.objs/byte/language__Parse.cmo -c -impl src/parse.ml)
-$ (cd _build/default/src/.language.objs/byte && /Users/alex/.opam/cs3110-2023sp/bin/odoc compile -I . -I ../../../_doc/_odoc/pkg/Language --pkg Language -o language__Parse.odoc language__Parse.cmt)
-$ (cd _build/default && /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62@67@69-40 -strict-sequence -strict-formats -short-paths -keep-locs -g -bin-annot -I src/.language.objs/byte -no-alias-deps -opaque -open Language -o src/.language.objs/byte/language__Eval.cmo -c -impl src/eval.ml)
-$ (cd _build/default/src/.language.objs/byte && /Users/alex/.opam/cs3110-2023sp/bin/odoc compile -I . -I ../../../_doc/_odoc/pkg/Language --pkg Language -o language__Eval.odoc language__Eval.cmt)
-$ (cd _build/default/_doc/_html && /Users/alex/.opam/cs3110-2023sp/bin/odoc link -I ../_odoc/pkg/Language -I ../../src/.language.objs/byte -o ../_odocls/Language/page-index.odocl ../_odoc/pkg/Language/page-index.odoc)
-$ (cd _build/default/_doc/_html && /Users/alex/.opam/cs3110-2023sp/bin/odoc link -I ../_odoc/pkg/Language -I ../../src/.language.objs/byte -o ../_odocls/Language/language.odocl ../../src/.language.objs/byte/language.odoc)
-$ (cd _build/default/_doc/_html && /Users/alex/.opam/cs3110-2023sp/bin/odoc html-generate -o . --support-uri _odoc_support --theme-uri _odoc_support ../_odocls/Language/page-index.odocl)
-$ (cd _build/default/_doc/_html && /Users/alex/.opam/cs3110-2023sp/bin/odoc html-generate -o . --support-uri _odoc_support --theme-uri _odoc_support ../_odocls/Language/language.odocl)

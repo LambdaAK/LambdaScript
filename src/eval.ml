@@ -2,6 +2,8 @@ open Parse
 open Lex
 open Expr
 
+
+
 type value =
   | IntegerValue of int
   | StringValue of string
@@ -10,8 +12,6 @@ type value =
   | FunctionClosure of env * pat * compound_type option * expr
 
 and env = (string * value) list
-
-
 
 let get_value (name: string) (env: env): value option = 
   try

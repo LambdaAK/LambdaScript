@@ -127,13 +127,13 @@ let mult_div_mod_tests = [
 
 let complex_tests = [
     eval_test {|
-    bind succ [integer -> integer] <-
-      lam n [integer] -> n + 1
+    bind succ [int -> int] <-
+      lam n [int] -> n + 1
     in
     
-    bind sum [integer -> integer -> integer] <-
-      lam a [integer] ->
-      lam b [integer] ->
+    bind sum [int -> int -> int] <-
+      lam a [int] ->
+      lam b [int] ->
       a + b
     in
     
@@ -141,8 +141,8 @@ let complex_tests = [
     |} "8";
 
     eval_test {|
-    bind succ [integer -> integer] <-
-      lam n [integer] -> n + 1
+    bind succ [int-> int] <-
+      lam n [int] -> n + 1
     in
 
     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
@@ -156,7 +156,7 @@ let complex_tests = [
 
     eval_test {|
     bind f <-
-      lam a [string] -> a
+      lam a [str] -> a
     in
     f ""
     |} {|""|};

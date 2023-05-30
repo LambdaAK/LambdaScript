@@ -1,10 +1,12 @@
 # LambdaScript
 
-# current bugs
+# todo
 
-+ Subtraction and division are parsing incorrectly.
-They should be left associative but are parsing as right associative
++ Add documentation for the code
++ Add type inference
++ Make the types more convenient
 
+<br>
 
 # precedence
 

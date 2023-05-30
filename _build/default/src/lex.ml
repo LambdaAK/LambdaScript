@@ -118,19 +118,19 @@ let rec lex (lst: char list): token list =
       {token_type = (Boolean false); line = 0} :: (lex t)
 
 
-  | 'i' :: 'n' :: 't' :: 'e' :: 'g' :: 'e' :: 'r' :: t ->
+  | 'i' :: 'n' :: 't' :: t ->
     let new_token: token = {token_type = IntegerType; line = 0} in
     new_token :: (lex t)
 
-  | 'b' :: 'o' :: 'o' :: 'l' :: 'e' :: 'a' :: 'n' :: t ->
+  | 'b' :: 'o' :: 'o' :: 'l' :: t ->
       let new_token: token = {token_type = BooleanType; line = 0} in
       new_token :: (lex t)
 
-  | 's' :: 't' :: 'r' :: 'i' :: 'n' :: 'g' :: t ->
+  | 's' :: 't' :: 'r' :: t ->
       let new_token: token = {token_type = StringType; line = 0} in
       new_token :: (lex t)
 
-  | 'n' :: 'o' :: 't' :: 'h' :: 'i' :: 'n' :: 'g' :: t ->
+  | 'n' :: 'g' :: t ->
       let new_token: token = {token_type = NothingType; line = 0} in
       new_token :: (lex t)
 
