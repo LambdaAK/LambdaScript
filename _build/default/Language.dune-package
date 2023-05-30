@@ -3,10 +3,10 @@
 (sections (lib .) (libexec .) (bin ../../bin) (doc ../../doc/Language))
 (files
  (lib
-  (Expr.ml
-   META
+  (META
    dune-package
    eval.ml
+   expr.ml
    language.a
    language.cma
    language.cmi
@@ -23,14 +23,24 @@
    language__Lex.cmi
    language__Lex.cmt
    language__Lex.cmx
+   language__Parse.cmi
+   language__Parse.cmt
+   language__Parse.cmx
    language__Reader.cmi
    language__Reader.cmt
    language__Reader.cmti
    language__Reader.cmx
+   language__Tostring.cmi
+   language__Tostring.cmt
+   language__Tostring.cmti
+   language__Tostring.cmx
    lex.ml
    opam
+   parse.ml
    reader.ml
-   reader.mli))
+   reader.mli
+   tostring.ml
+   tostring.mli))
  (libexec (language.cmxs))
  (bin (Test))
  (doc (README.md)))
@@ -59,13 +69,24 @@
      (module
       (obj_name language__Expr)
       (visibility public)
-      (source (path Expr) (impl (path Expr.ml))))
+      (source (path Expr) (impl (path expr.ml))))
      (module
       (obj_name language__Lex)
       (visibility public)
       (source (path Lex) (impl (path lex.ml))))
      (module
+      (obj_name language__Parse)
+      (visibility public)
+      (source (path Parse) (impl (path parse.ml))))
+     (module
       (obj_name language__Reader)
       (visibility public)
-      (source (path Reader) (intf (path reader.mli)) (impl (path reader.ml))))))
+      (source (path Reader) (intf (path reader.mli)) (impl (path reader.ml))))
+     (module
+      (obj_name language__Tostring)
+      (visibility public)
+      (source
+       (path Tostring)
+       (intf (path tostring.mli))
+       (impl (path tostring.ml))))))
    (wrapped true))))

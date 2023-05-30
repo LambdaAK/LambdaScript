@@ -2,7 +2,6 @@ open OUnit2
 open Language.Eval
 
 
-
 let eval_test (program: string) (expected_output: string): test =
   program >:: fun _ ->
     let result: string = eval program in
@@ -73,13 +72,19 @@ let boolean_tests = [
   eval_test "true && not false" "true";
   (* some relations *)
   eval_test "1 < 2" "true";
+  eval_test "1 > 2" "false";
   eval_test "1 <= 2" "true";
   eval_test "1 <= 1" "true";
+  eval_test "1 >= 1" "true";
+  eval_test "2 >= 1" "true";
   eval_test "1 < 1" "false";
   eval_test "1 < 2 && 13414 < 11413413" "true";
   eval_test "1 < 2 && 13414 > 11413413" "false";
   eval_test "1 < 2 || false" "true";
   eval_test "1 < 2 && false" "false";
+  (* equality *)
+  eval_test "1 == 1" "true";
+  eval_test "1 != 1" "false";
   
 ]
 
@@ -88,6 +93,9 @@ let ternary_tests = [
   eval_test "if false then 0 else 1" "1";
   eval_test "if 1 < 2 then 0 else 1" "0";
   eval_test "if 1 > 2 then 0 else 1" "1";
+  eval_test "if not true then 0 else 1" "1";
+  eval_test "if not false then 0 else 1" "0";
+  eval_test "if not false || not true then 0 else 1" "0";
 ]
 
 
@@ -111,6 +119,8 @@ let mult_div_mod_tests = [
   eval_test "100 / 2 / 5" "10";
   eval_test "500 / 100 / 2" "2";
   eval_test "100 / 2 % 49" "1";
+  eval_test "2 * 5 % 4" "2";
+  eval_test "11 % 3 % 1" "0";
   
 ]
 
@@ -136,8 +146,29 @@ let complex_tests = [
     in
 
     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
-    |} "9"
+    |} "9";
+
+    eval_test {|
+    bind a <- 1 in
+    bind a <- a in
+    a
+    |} "1";
+
+    eval_test {|
+    bind f <-
+      lam a [string] -> a
+    in
+    f ""
+    |} {|""|};
+
+    eval_test {|
+    bind f <-
+      lam () -> ()
+    in
+    f ()
+    |} {|()|};
 ]
+
 
 
 let all_tests =

@@ -9,5 +9,11 @@ module Expr = Language__Expr
 (** @canonical Language.Lex *)
 module Lex = Language__Lex
 
+(** @canonical Language.Parse *)
+module Parse = Language__Parse
+
 (** @canonical Language.Reader *)
 module Reader = Language__Reader
+
+(** @canonical Language.Tostring *)
+module Tostring = Language__Tostring

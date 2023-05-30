@@ -1,7 +1,8 @@
 open Language.Eval
-open Language.Expr
+open Language.Parse
 open Language.Lex
-
+open Language.Tostring
+open Language.Expr
 
 let rec repl_loop (): unit =
   let input_string: string = read_line () in
@@ -10,7 +11,7 @@ let rec repl_loop (): unit =
   
   
   print_endline "[AST]\n";
-  string_of_expr e 0|> print_endline; 
+  string_of_expr e |> print_endline; 
  
   print_endline "\n[Value]\n";
   eval input_string |> print_endline;

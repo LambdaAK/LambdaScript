@@ -1,3 +1,5 @@
 (library
  (name language)
- (public_name Language))
+ (public_name Language)
+ (instrumentation
+  (backend bisect_ppx)))

@@ -1,7 +1,8 @@
 open Language.Eval
-open Language.Expr
+open Language.Parse
 open Language.Lex
 open Language.Reader
+open Language.Tostring
 
 let get_dir (): string =
   if Array.length Sys.argv = 1 then
@@ -16,7 +17,7 @@ let run_run (dir: string): unit =
   let tokens: token list = contents |> list_of_string |> lex in
   let ast, _ = parse_expr tokens in
   print_endline "[AST]\n";
-  (string_of_expr ast 0) |> print_endline;
+  (string_of_expr ast) |> print_endline;
   print_endline "\n[Value]\n";
   (eval contents) |> print_endline; print_newline ();
   print_endline "\n"

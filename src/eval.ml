@@ -1,5 +1,6 @@
-open Expr
+open Parse
 open Lex
+open Expr
 
 type value =
   | IntegerValue of int
@@ -21,7 +22,7 @@ let get_value (name: string) (env: env): value option =
 let string_of_value: value -> string =
   function
   | IntegerValue n -> string_of_int n
-  | StringValue s -> s
+  | StringValue s -> "\"" ^ s ^ "\""
   | BooleanValue b -> string_of_bool b
   | NothingValue -> "()"
   | FunctionClosure _ -> "<function closure>"
@@ -94,7 +95,7 @@ and eval_eq_expr (ee: eq_expr) (env: env) =
     match op, v1, v2 with
     | EQ, IntegerValue a, IntegerValue b -> BooleanValue (a = b)
     | NE, IntegerValue a, IntegerValue b -> BooleanValue (a <> b)
-    | _ -> failwith "unimplemented eval_eq_expr"
+    | _ -> failwith "unimplemented eval_eq_expr" [@ coverage off]
     )
   | RelationUnderEqExpr r -> eval_rel_expr r env
 
@@ -109,7 +110,7 @@ and eval_rel_expr (re: rel_expr) (env: env) =
     | GT, IntegerValue a, IntegerValue b -> BooleanValue (a > b)
     | LE, IntegerValue a, IntegerValue b -> BooleanValue (a <= b)
     | GE, IntegerValue a, IntegerValue b -> BooleanValue (a >= b)
-    | _ -> failwith "unimplemented eval_rel_expr"
+    | _ -> failwith "unimplemented eval_rel_expr" [@ coverage off]
     )
   | ArithmeticUnderRelExpr ae -> eval_arith_expr ae env
 
@@ -122,7 +123,7 @@ and eval_arith_expr (ae: arith_expr) (env: env) =
     (
       match v1, v2 with
       | IntegerValue a, IntegerValue b -> IntegerValue (a + b)
-      | _ -> failwith "plus implemented in eval_arith_expr"
+      | _ -> failwith "plus implemented in eval_arith_expr" [@ coverage off]
     )
   | Minus (t, ae) ->
     let v1: value = eval_term t env in
@@ -130,7 +131,7 @@ and eval_arith_expr (ae: arith_expr) (env: env) =
     (
       match v1, v2 with
       | IntegerValue a, IntegerValue b -> IntegerValue (a - b)
-      | _ -> failwith "minus unimplemented in eval_arith_expr"
+      | _ -> failwith "minus unimplemented in eval_arith_expr" [@ coverage off]
     )
 
 and eval_term (t: term) (env: env) =
@@ -142,7 +143,7 @@ and eval_term (t: term) (env: env) =
     (
     match v1, v2 with
     | IntegerValue a, IntegerValue b -> IntegerValue (a * b)
-    | _ -> failwith "mul unimplemented in eval_term"
+    | _ -> failwith "mul unimplemented in eval_term" [@ coverage off]
     )
   | Div (f, t) ->
     let v1: value = eval_factor f env in
@@ -150,7 +151,7 @@ and eval_term (t: term) (env: env) =
     (
     match v1, v2 with
     | IntegerValue a, IntegerValue b -> IntegerValue (a / b)
-    | _ -> failwith "mul unimplemented in eval_term"
+    | _ -> failwith "mul unimplemented in eval_term" [@ coverage off]
     )
 
   | Mod (f, t) ->
@@ -159,7 +160,7 @@ and eval_term (t: term) (env: env) =
     (
     match v1, v2 with
     | IntegerValue a, IntegerValue b -> IntegerValue (a mod b)
-    | _ -> failwith "mul unimplemented in eval_term"
+    | _ -> failwith "mul unimplemented in eval_term" [@ coverage off]
     )
 
 
@@ -183,7 +184,7 @@ and eval_factor (f: factor) (env: env) =
     (
     match eval_factor f env with
     | IntegerValue n -> IntegerValue (0 - n)
-    | _ -> failwith "opposite unimplemented in eval_factor"
+    | _ -> failwith "opposite unimplemented in eval_factor" [@ coverage off]
     )
   | App (f1, f2) ->
     let v1: value = eval_factor f1 env in
@@ -197,14 +198,14 @@ and eval_factor (f: factor) (env: env) =
         let new_bindings_option: env option = bind_pat p v2 in
         (
           match new_bindings_option with
-          | None -> failwith "no bindings produced in function closure eval_factor"
+          | None -> failwith "no bindings produced in function closure eval_factor" [@ coverage off]
           | Some b_lst ->
             (* add the new bindings to the environment *)
             let new_env: env = b_lst @ env_closure in
             (* then, evaluate the body with the new binding *)
             eval_expr body new_env
         )
-      | _ -> failwith "function closure expected in eval_factor"
+      | _ -> failwith "function closure expected in eval_factor" [@ coverage off]
     )
 
 
@@ -222,5 +223,3 @@ let initial_env: env = [("not", not_function)]
 
 let eval (s: string): string = 
   eval_expr (s |> list_of_string |> lex |> parse_expr |> fst) initial_env |> string_of_value
-
-

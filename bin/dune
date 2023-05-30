@@ -1,9 +1,13 @@
 (executable
  (name repl)
  (modules repl)
- (libraries Language))
+ (libraries Language)
+ (instrumentation
+  (backend bisect_ppx)))
 
 (executable
  (name interpreter)
  (modules interpreter)
- (libraries Language))
+ (libraries Language)
+ (instrumentation
+  (backend bisect_ppx)))
