@@ -17,3 +17,9 @@ module Reader = Language__Reader
 
 (** @canonical Language.Tostring *)
 module Tostring = Language__Tostring
+
+(** @canonical Language.Typechecker *)
+module Typechecker = Language__Typechecker
+
+(** @canonical Language.Types *)
+module Types = Language__Types

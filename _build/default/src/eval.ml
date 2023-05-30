@@ -1,7 +1,7 @@
 open Parse
 open Lex
 open Expr
-
+open Types
 
 
 type value =

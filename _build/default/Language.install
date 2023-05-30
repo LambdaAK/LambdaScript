@@ -30,6 +30,12 @@ lib: [
   "_build/install/default/lib/Language/language__Tostring.cmt"
   "_build/install/default/lib/Language/language__Tostring.cmti"
   "_build/install/default/lib/Language/language__Tostring.cmx"
+  "_build/install/default/lib/Language/language__Typechecker.cmi"
+  "_build/install/default/lib/Language/language__Typechecker.cmt"
+  "_build/install/default/lib/Language/language__Typechecker.cmx"
+  "_build/install/default/lib/Language/language__Types.cmi"
+  "_build/install/default/lib/Language/language__Types.cmt"
+  "_build/install/default/lib/Language/language__Types.cmx"
   "_build/install/default/lib/Language/lex.ml"
   "_build/install/default/lib/Language/opam"
   "_build/install/default/lib/Language/parse.ml"
@@ -37,6 +43,8 @@ lib: [
   "_build/install/default/lib/Language/reader.mli"
   "_build/install/default/lib/Language/tostring.ml"
   "_build/install/default/lib/Language/tostring.mli"
+  "_build/install/default/lib/Language/typechecker.ml"
+  "_build/install/default/lib/Language/types.ml"
 ]
 libexec: [
   "_build/install/default/lib/Language/language.cmxs"

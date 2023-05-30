@@ -1,5 +1,7 @@
 open Lex
 open Expr
+open Types
+
 
 
 exception ParseFailure

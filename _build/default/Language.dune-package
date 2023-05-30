@@ -34,13 +34,21 @@
    language__Tostring.cmt
    language__Tostring.cmti
    language__Tostring.cmx
+   language__Typechecker.cmi
+   language__Typechecker.cmt
+   language__Typechecker.cmx
+   language__Types.cmi
+   language__Types.cmt
+   language__Types.cmx
    lex.ml
    opam
    parse.ml
    reader.ml
    reader.mli
    tostring.ml
-   tostring.mli))
+   tostring.mli
+   typechecker.ml
+   types.ml))
  (libexec (language.cmxs))
  (bin (Test))
  (doc (README.md)))
@@ -88,5 +96,13 @@
       (source
        (path Tostring)
        (intf (path tostring.mli))
-       (impl (path tostring.ml))))))
+       (impl (path tostring.ml))))
+     (module
+      (obj_name language__Typechecker)
+      (visibility public)
+      (source (path Typechecker) (impl (path typechecker.ml))))
+     (module
+      (obj_name language__Types)
+      (visibility public)
+      (source (path Types) (impl (path types.ml))))))
    (wrapped true))))
