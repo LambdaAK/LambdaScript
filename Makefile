@@ -18,3 +18,10 @@ bisect:
 repl:
 	dune build bin/repl.exe
 	dune exec ./bin/repl.exe
+
+
+doc:
+	dune build @doc
+
+opendoc:
+	open "_build/default/_doc/_html/index.html"
