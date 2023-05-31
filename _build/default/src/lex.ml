@@ -38,6 +38,8 @@ type token_type =
 | Bind
 | In
 | BindArrow
+| LBrace
+| RBrace
 
 type token = {token_type: token_type; line: int}
 
@@ -262,6 +264,16 @@ let rec lex (lst: char list): token list =
       let new_token: token = {token_type = RBracket; line = 0} in
       new_token :: (lex t)
 
+
+  | '{' :: t ->
+      let new_token: token = {token_type = LBrace; line = 0} in
+      new_token :: (lex t)
+
+
+  | '}' :: t ->
+        let new_token: token = {token_type = RBrace; line = 0} in
+        new_token :: (lex t)
+
   | n :: _ when is_num n ->
     let int_token, tail = lex_int lst 0 in int_token :: (lex tail)
 
@@ -336,6 +348,8 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | Bind -> "<bind>"
 | BindArrow -> "<bind arrow>"
 | In -> "<in>"
+| LBrace -> "<lbrace>"
+| RBrace -> "<rbrace>"
 
 
 let rec print_tokens_list: token list -> unit = function

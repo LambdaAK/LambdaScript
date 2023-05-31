@@ -1,7 +1,7 @@
 open Parse
-open Lex
 open Expr
 open Types
+open Lex
 
 
 type value =
@@ -11,7 +11,38 @@ type value =
   | NothingValue
   | FunctionClosure of env * pat * compound_type option * expr
 
+
 and env = (string * value) list
+
+
+type runtime_type =
+  | RT_Int
+  | RT_String
+  | RT_Boolean
+  | RT_Nothing
+  | RT_Function of runtime_type * runtime_type
+
+
+
+let rec string_of_runtime_type =
+  function
+  | RT_Int -> "int"
+  | RT_String -> "string"
+  | RT_Boolean -> "boolean"
+  | RT_Nothing -> "()"
+  | RT_Function (rt1, rt2) -> "(" ^ (string_of_runtime_type rt1) ^ " -> " ^ (string_of_runtime_type rt2) ^ ")"
+
+
+exception InvalidArgument of compound_type * compound_type
+exception UnboundIdentifier of string
+exception TernaryExpectedBoolean
+exception PlusInvalidArguments
+exception MinusInvalidArguments
+exception MulInvalidArguments
+exception DivInvalidArguments
+exception ModInvalidArguments
+exception OppositeExpectedInteger
+
 
 let get_value (name: string) (env: env): value option = 
   try
@@ -26,6 +57,7 @@ let string_of_value: value -> string =
   | BooleanValue b -> string_of_bool b
   | NothingValue -> "()"
   | FunctionClosure _ -> "<function closure>"
+
 
 
 
@@ -54,7 +86,7 @@ let rec eval_expr (e: expr) (env: env) =
       match v1 with
       | BooleanValue true -> eval_expr e2 env
       | BooleanValue false -> eval_expr e3 env
-      | _ -> failwith "unimplemented ternary eval_expr"
+      | _ -> raise TernaryExpectedBoolean
     )
   | Function (p, cto, e) ->
     FunctionClosure (env, p, cto, e)
@@ -123,7 +155,7 @@ and eval_arith_expr (ae: arith_expr) (env: env) =
     (
       match v1, v2 with
       | IntegerValue a, IntegerValue b -> IntegerValue (a + b)
-      | _ -> failwith "plus implemented in eval_arith_expr" [@ coverage off]
+      | _ -> raise PlusInvalidArguments
     )
   | Minus (t, ae) ->
     let v1: value = eval_term t env in
@@ -131,7 +163,7 @@ and eval_arith_expr (ae: arith_expr) (env: env) =
     (
       match v1, v2 with
       | IntegerValue a, IntegerValue b -> IntegerValue (a - b)
-      | _ -> failwith "minus unimplemented in eval_arith_expr" [@ coverage off]
+      | _ -> raise MinusInvalidArguments
     )
 
 and eval_term (t: term) (env: env) =
@@ -143,7 +175,7 @@ and eval_term (t: term) (env: env) =
     (
     match v1, v2 with
     | IntegerValue a, IntegerValue b -> IntegerValue (a * b)
-    | _ -> failwith "mul unimplemented in eval_term" [@ coverage off]
+    | _ -> raise MulInvalidArguments
     )
   | Div (f, t) ->
     let v1: value = eval_factor f env in
@@ -151,7 +183,7 @@ and eval_term (t: term) (env: env) =
     (
     match v1, v2 with
     | IntegerValue a, IntegerValue b -> IntegerValue (a / b)
-    | _ -> failwith "mul unimplemented in eval_term" [@ coverage off]
+    | _ -> raise DivInvalidArguments
     )
 
   | Mod (f, t) ->
@@ -160,7 +192,7 @@ and eval_term (t: term) (env: env) =
     (
     match v1, v2 with
     | IntegerValue a, IntegerValue b -> IntegerValue (a mod b)
-    | _ -> failwith "mul unimplemented in eval_term" [@ coverage off]
+    | _ -> raise ModInvalidArguments
     )
 
 
@@ -172,11 +204,10 @@ and eval_factor (f: factor) (env: env) =
     (
     match get_value s env with
       | None -> 
-        print_endline "no value found in env";
-        print_endline s;
-        exit 1
+        raise (UnboundIdentifier s)
       | Some v -> v
     )
+
   | Nothing -> NothingValue
   | Integer n -> IntegerValue n
   | ParenFactor e -> eval_expr e env
@@ -184,7 +215,7 @@ and eval_factor (f: factor) (env: env) =
     (
     match eval_factor f env with
     | IntegerValue n -> IntegerValue (0 - n)
-    | _ -> failwith "opposite unimplemented in eval_factor" [@ coverage off]
+    | _ -> raise OppositeExpectedInteger
     )
   | App (f1, f2) ->
     let v1: value = eval_factor f1 env in
@@ -205,8 +236,10 @@ and eval_factor (f: factor) (env: env) =
             (* then, evaluate the body with the new binding *)
             eval_expr body new_env
         )
+      
       | _ -> failwith "function closure expected in eval_factor" [@ coverage off]
     )
+
 
 
 
@@ -219,6 +252,9 @@ lam a [boolean] ->
 |}
 
 let initial_env: env = [("not", not_function)]
+
+
+
 
 
 let eval (s: string): string = 

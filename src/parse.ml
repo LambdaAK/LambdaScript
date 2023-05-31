@@ -9,8 +9,6 @@ exception FactorParseFailure
 
 
 
-
-
 let remove_head: 'a list -> 'a list = function
 | [] -> failwith "cannot remove head from empty list"
 | _ :: t -> t
@@ -389,6 +387,18 @@ and parse_factor_not_app (tokens: token list): factor * token list =
     (* the next token should be a RPAREN *)
     (* remove the RPAREN with remove_head *)
     ParenFactor e, remove_head tokens_after_e
+
+  (*| {token_type = LBrace; line = _} :: t ->
+    (* infix *)
+    (* the first token in t is the infix operator *)
+    let infix_op: token_type = (List.hd t).token_type in
+    (* the next token is the first operand *)
+    let tokens_after_infix_op_and_r_brace: token list = t |> remove_head |> remove_head in
+
+    Infix (token_type_to_infix_op infix_op), tokens_after_infix_op_and_r_brace*)
+
+
+
   | _ -> raise FactorParseFailure
   
 

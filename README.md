@@ -2,9 +2,22 @@
 
 # todo
 
++ Function application needs to become it's own level in the AST
+
++ The language should be strongly typed
++ Type aliases
 + Add documentation for the code
 + Add type inference
-+ Make the types more convenient
++ Infix operators
++ definitions
++ recursive functions
++ Enum (a type of definition)
++ Sequence type
++ Change type annotation to be before the the pattern
++ Vectors (tuples)
++ Error handling
+
+
 
 <br>
 

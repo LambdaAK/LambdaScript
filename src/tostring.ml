@@ -1,5 +1,6 @@
 open Expr
 open Types
+
 let indentations (level: int) = String.make (2 * level) ' '
 
 let indentations_with_newline (level: int) = "\n" ^ (indentations level)
@@ -260,4 +261,8 @@ match af with
   ^ string_of_arith_factor f (level + 1)
   ^ indentations_with_newline level
   ^ ")"
+
+
+
 let string_of_expr (e: expr) = string_of_expr e 0
+

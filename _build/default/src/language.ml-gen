@@ -6,6 +6,9 @@ module Eval = Language__Eval
 (** @canonical Language.Expr *)
 module Expr = Language__Expr
 
+(** @canonical Language.Expression *)
+module Expression = Language__Expression
+
 (** @canonical Language.Lex *)
 module Lex = Language__Lex
 

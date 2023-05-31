@@ -7,6 +7,7 @@
    dune-package
    eval.ml
    expr.ml
+   expression.ml
    language.a
    language.cma
    language.cmi
@@ -20,6 +21,9 @@
    language__Expr.cmi
    language__Expr.cmt
    language__Expr.cmx
+   language__Expression.cmi
+   language__Expression.cmt
+   language__Expression.cmx
    language__Lex.cmi
    language__Lex.cmt
    language__Lex.cmx
@@ -78,6 +82,10 @@
       (obj_name language__Expr)
       (visibility public)
       (source (path Expr) (impl (path expr.ml))))
+     (module
+      (obj_name language__Expression)
+      (visibility public)
+      (source (path Expression) (impl (path expression.ml))))
      (module
       (obj_name language__Lex)
       (visibility public)
