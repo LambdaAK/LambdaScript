@@ -22,4 +22,8 @@ let run_run (dir: string): unit =
   (eval contents) |> print_endline; print_newline ();
   print_endline "\n"
 
-let () = run_run (get_dir ())
+let () = 
+
+try run_run (get_dir ())
+with
+| _ -> print_endline "Error"; exit 1

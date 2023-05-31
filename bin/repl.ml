@@ -5,8 +5,11 @@ open Language.Tostring
 open Language.Expr
 
 
+
 let rec repl_loop (): unit =
   let input_string: string = read_line () in
+  if input_string = "#exit" then exit 0
+  else
   (*input_string |> list_of_string |> lex |> print_tokens_list;*)
   let e: expr = input_string |> list_of_string |> lex |> parse_expr |> fst in
   
