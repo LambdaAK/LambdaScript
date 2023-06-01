@@ -1,10 +1,10 @@
 open OUnit2
-open Language.Eval
+open Language.Ceval
 
 
 let eval_test (program: string) (expected_output: string): test =
   program >:: fun _ ->
-    let result: string = eval program in
+    let result: string = c_eval program in
     assert_equal result expected_output
     
 

@@ -1,3 +1,4 @@
 bind f <-
-  lam a -> a
-in f 1 + 1
+  lam a [str] -> a
+in
+f "aaaa"

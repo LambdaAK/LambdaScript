@@ -4,6 +4,7 @@
 (files
  (lib
   (META
+   ceval.ml
    cexpr.ml
    ctostring.ml
    dune-package
@@ -16,6 +17,9 @@
    language.cmx
    language.cmxa
    language.ml
+   language__Ceval.cmi
+   language__Ceval.cmt
+   language__Ceval.cmx
    language__Cexpr.cmi
    language__Cexpr.cmt
    language__Cexpr.cmx
@@ -74,6 +78,10 @@
      (source (path Language) (impl (path language.ml-gen))))
     (name Language)
     (modules
+     (module
+      (obj_name language__Ceval)
+      (visibility public)
+      (source (path Ceval) (impl (path ceval.ml))))
      (module
       (obj_name language__Cexpr)
       (visibility public)

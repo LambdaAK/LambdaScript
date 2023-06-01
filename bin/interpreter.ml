@@ -1,4 +1,4 @@
-open Language.Eval
+open Language.Ceval
 open Language.Parse
 open Language.Lex
 open Language.Reader
@@ -24,7 +24,7 @@ let run_run (dir: string): unit =
   string_of_c_expr (ast |> condense_expr) 0 |> print_endline;
 
   print_endline "\n[Value]\n";
-  (eval contents) |> print_endline; print_newline ();
+  (c_eval contents) |> print_endline; print_newline ();
   print_endline "\n"
 
 let () = 
