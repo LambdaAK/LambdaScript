@@ -5,6 +5,7 @@
  (lib
   (META
    cexpr.ml
+   ctostring.ml
    dune-package
    eval.ml
    expr.ml
@@ -18,6 +19,9 @@
    language__Cexpr.cmi
    language__Cexpr.cmt
    language__Cexpr.cmx
+   language__Ctostring.cmi
+   language__Ctostring.cmt
+   language__Ctostring.cmx
    language__Eval.cmi
    language__Eval.cmt
    language__Eval.cmx
@@ -38,9 +42,6 @@
    language__Tostring.cmt
    language__Tostring.cmti
    language__Tostring.cmx
-   language__Typechecker.cmi
-   language__Typechecker.cmt
-   language__Typechecker.cmx
    language__Types.cmi
    language__Types.cmt
    language__Types.cmx
@@ -51,7 +52,6 @@
    reader.mli
    tostring.ml
    tostring.mli
-   typechecker.ml
    types.ml))
  (libexec (language.cmxs))
  (bin (Test))
@@ -79,6 +79,10 @@
       (visibility public)
       (source (path Cexpr) (impl (path cexpr.ml))))
      (module
+      (obj_name language__Ctostring)
+      (visibility public)
+      (source (path Ctostring) (impl (path ctostring.ml))))
+     (module
       (obj_name language__Eval)
       (visibility public)
       (source (path Eval) (impl (path eval.ml))))
@@ -105,10 +109,6 @@
        (path Tostring)
        (intf (path tostring.mli))
        (impl (path tostring.ml))))
-     (module
-      (obj_name language__Typechecker)
-      (visibility public)
-      (source (path Typechecker) (impl (path typechecker.ml))))
      (module
       (obj_name language__Types)
       (visibility public)

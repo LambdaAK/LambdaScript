@@ -4,6 +4,7 @@ open Language.Lex
 open Language.Reader
 open Language.Tostring
 open Language.Cexpr
+open Language.Ctostring
 
 let get_dir (): string =
   if Array.length Sys.argv = 1 then

@@ -3,6 +3,9 @@
 (** @canonical Language.Cexpr *)
 module Cexpr = Language__Cexpr
 
+(** @canonical Language.Ctostring *)
+module Ctostring = Language__Ctostring
+
 (** @canonical Language.Eval *)
 module Eval = Language__Eval
 
@@ -20,9 +23,6 @@ module Reader = Language__Reader
 
 (** @canonical Language.Tostring *)
 module Tostring = Language__Tostring
-
-(** @canonical Language.Typechecker *)
-module Typechecker = Language__Typechecker
 
 (** @canonical Language.Types *)
 module Types = Language__Types
