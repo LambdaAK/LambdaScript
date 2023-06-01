@@ -3,6 +3,7 @@ open Language.Parse
 open Language.Lex
 open Language.Tostring
 open Language.Expr
+open Language.Cexpr
 
 
 
@@ -12,6 +13,10 @@ let rec repl_loop (): unit =
   else
   (*input_string |> list_of_string |> lex |> print_tokens_list;*)
   let e: expr = input_string |> list_of_string |> lex |> parse_expr |> fst in
+  let ce: c_expr = condense_expr e in
+  let () = print_endline "\n[Condensed]\n" in
+  let () = string_of_c_expr ce 0 |> print_endline in
+  let () = print_endline "\n[Condensed]\n" in
   
   try
   (

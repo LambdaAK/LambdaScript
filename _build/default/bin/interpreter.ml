@@ -3,6 +3,7 @@ open Language.Parse
 open Language.Lex
 open Language.Reader
 open Language.Tostring
+open Language.Cexpr
 
 let get_dir (): string =
   if Array.length Sys.argv = 1 then
@@ -18,6 +19,9 @@ let run_run (dir: string): unit =
   let ast, _ = parse_expr tokens in
   print_endline "[AST]\n";
   (string_of_expr ast) |> print_endline;
+  print_endline "\n[Condensed AST]\n";
+  string_of_c_expr (ast |> condense_expr) 0 |> print_endline;
+
   print_endline "\n[Value]\n";
   (eval contents) |> print_endline; print_newline ();
   print_endline "\n"

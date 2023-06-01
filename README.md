@@ -16,6 +16,7 @@
 + Change type annotation to be before the the pattern
 + Vectors (tuples)
 + Error handling
++ AST condenser
 
 
 

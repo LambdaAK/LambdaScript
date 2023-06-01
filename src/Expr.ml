@@ -1,7 +1,5 @@
 open Types
 
-
-
 type pat =
   | IdPat of string
   | NothingPat
@@ -16,21 +14,6 @@ type rel_op =
 type eq_op =
   | EQ
   | NE
-
-type infix_op = 
-  | PlusInfix
-  | MinusInfix
-  | MulInfix
-  | DivInfix
-  | ModInfix
-  | AndInfix
-  | OrInfix
-  | LTInfix
-  | GTInfix
-  | LEInfix
-  | GEInfix
-  | EQInfix
-  | NEInfix
 
 
 
