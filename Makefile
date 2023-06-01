@@ -25,3 +25,6 @@ doc:
 
 opendoc:
 	open "_build/default/_doc/_html/index.html"
+
+cloc:
+	cloc .

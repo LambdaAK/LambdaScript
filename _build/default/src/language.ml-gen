@@ -6,11 +6,11 @@ module Ceval = Language__Ceval
 (** @canonical Language.Cexpr *)
 module Cexpr = Language__Cexpr
 
+(** @canonical Language.Condense *)
+module Condense = Language__Condense
+
 (** @canonical Language.Ctostring *)
 module Ctostring = Language__Ctostring
-
-(** @canonical Language.Eval *)
-module Eval = Language__Eval
 
 (** @canonical Language.Expr *)
 module Expr = Language__Expr
@@ -23,9 +23,3 @@ module Parse = Language__Parse
 
 (** @canonical Language.Reader *)
 module Reader = Language__Reader
-
-(** @canonical Language.Tostring *)
-module Tostring = Language__Tostring
-
-(** @canonical Language.Types *)
-module Types = Language__Types

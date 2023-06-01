@@ -1,10 +1,10 @@
 open Language.Parse
 open Language.Lex
-open Language.Tostring
 open Language.Expr
 open Language.Cexpr
 open Language.Ctostring
 open Language.Ceval
+open Language.Condense
 
 
 
@@ -15,16 +15,13 @@ let rec repl_loop (): unit =
   (*input_string |> list_of_string |> lex |> print_tokens_list;*)
   let e: expr = input_string |> list_of_string |> lex |> parse_expr |> fst in
   let ce: c_expr = condense_expr e in
-  let () = print_endline "\n[Condensed]\n" in
-  let () = string_of_c_expr ce 0 |> print_endline in
-  let () = print_endline "\n[Condensed]\n" in
+  let () = print_endline "\n[AST]\n" in
+  let () = ce |> string_of_c_expr |> print_endline in
+  let () = print_endline "\n[AST]\n" in
   
-
-  string_of_expr e |> print_endline;
-
  
   print_endline "\n[Value]\n";
-  eval_c_expr ce [] |> string_of_value |> print_endline;
+  input_string |> c_eval |> print_endline;
   print_endline "\n";
   (* get_type e [] |> fst |> string_of_type |> print_endline; *)
 

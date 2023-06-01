@@ -1,5 +1,3 @@
-open Types
-
 type pat =
   | IdPat of string
   | NothingPat
@@ -14,6 +12,18 @@ type rel_op =
 type eq_op =
   | EQ
   | NE
+
+type compound_type =
+  | FunctionType of factor_type * compound_type
+  | BasicType of factor_type
+
+
+and factor_type =
+  | IntegerType
+  | StringType
+  | BooleanType
+  | NothingType
+  | ParenFactorType of compound_type
 
 
 

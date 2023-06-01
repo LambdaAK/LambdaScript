@@ -6,9 +6,10 @@
   (META
    ceval.ml
    cexpr.ml
+   condense.ml
    ctostring.ml
+   ctostring.mli
    dune-package
-   eval.ml
    expr.ml
    language.a
    language.cma
@@ -23,12 +24,13 @@
    language__Cexpr.cmi
    language__Cexpr.cmt
    language__Cexpr.cmx
+   language__Condense.cmi
+   language__Condense.cmt
+   language__Condense.cmx
    language__Ctostring.cmi
    language__Ctostring.cmt
+   language__Ctostring.cmti
    language__Ctostring.cmx
-   language__Eval.cmi
-   language__Eval.cmt
-   language__Eval.cmx
    language__Expr.cmi
    language__Expr.cmt
    language__Expr.cmx
@@ -42,21 +44,11 @@
    language__Reader.cmt
    language__Reader.cmti
    language__Reader.cmx
-   language__Tostring.cmi
-   language__Tostring.cmt
-   language__Tostring.cmti
-   language__Tostring.cmx
-   language__Types.cmi
-   language__Types.cmt
-   language__Types.cmx
    lex.ml
    opam
    parse.ml
    reader.ml
-   reader.mli
-   tostring.ml
-   tostring.mli
-   types.ml))
+   reader.mli))
  (libexec (language.cmxs))
  (bin (Test))
  (doc (README.md)))
@@ -87,13 +79,16 @@
       (visibility public)
       (source (path Cexpr) (impl (path cexpr.ml))))
      (module
+      (obj_name language__Condense)
+      (visibility public)
+      (source (path Condense) (impl (path condense.ml))))
+     (module
       (obj_name language__Ctostring)
       (visibility public)
-      (source (path Ctostring) (impl (path ctostring.ml))))
-     (module
-      (obj_name language__Eval)
-      (visibility public)
-      (source (path Eval) (impl (path eval.ml))))
+      (source
+       (path Ctostring)
+       (intf (path ctostring.mli))
+       (impl (path ctostring.ml))))
      (module
       (obj_name language__Expr)
       (visibility public)
@@ -109,16 +104,5 @@
      (module
       (obj_name language__Reader)
       (visibility public)
-      (source (path Reader) (intf (path reader.mli)) (impl (path reader.ml))))
-     (module
-      (obj_name language__Tostring)
-      (visibility public)
-      (source
-       (path Tostring)
-       (intf (path tostring.mli))
-       (impl (path tostring.ml))))
-     (module
-      (obj_name language__Types)
-      (visibility public)
-      (source (path Types) (impl (path types.ml))))))
+      (source (path Reader) (intf (path reader.mli)) (impl (path reader.ml))))))
    (wrapped true))))

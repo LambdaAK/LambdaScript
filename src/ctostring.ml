@@ -4,8 +4,6 @@ let indentations (level: int) = String.make (2 * level) ' '
 let indentations_with_newline (level: int) = "\n" ^ (indentations level)
 
 
-
-
 let rec string_of_c_expr (e: c_expr) (level: int) =
   match e with
   | EInt i ->
@@ -122,3 +120,6 @@ and string_of_t t =
   | NothingType -> "nothing"
   | IntType -> "int"
   | FunctionType (i, o) -> Printf.sprintf "%s -> %s" (string_of_t i) (string_of_t o)
+
+
+let string_of_c_expr e = string_of_c_expr e 0

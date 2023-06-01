@@ -1,1 +1,1 @@
-src/parse.ml: Expr Lex List Types
+src/parse.ml: Expr Lex List

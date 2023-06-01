@@ -2,6 +2,7 @@ open Cexpr
 open Expr
 open Lex
 open Parse
+open Condense
 
 type value =
   | IntegerValue of int
