@@ -33,5 +33,17 @@ and c_type =
   | StringType
   | NothingType
   | FunctionType of c_type * c_type
+  | TypeVar of int
+
+let ( => ) (t1: c_type) (t2: c_type): c_type =
+  FunctionType (t1, t2)
+
+
+let counter: int ref = ref 0
+let fresh_type_var: unit -> c_type =
+fun () ->
+  counter := !counter + 1;
+  TypeVar !counter
+  
 
 (* condense expression *)

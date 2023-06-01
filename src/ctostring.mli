@@ -1,2 +1,3 @@
 open Cexpr
 val string_of_c_expr: c_expr -> string
+val string_of_c_type: c_type -> string

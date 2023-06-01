@@ -44,11 +44,15 @@
    language__Reader.cmt
    language__Reader.cmti
    language__Reader.cmx
+   language__Typecheck.cmi
+   language__Typecheck.cmt
+   language__Typecheck.cmx
    lex.ml
    opam
    parse.ml
    reader.ml
-   reader.mli))
+   reader.mli
+   typecheck.ml))
  (libexec (language.cmxs))
  (bin (Test))
  (doc (README.md)))
@@ -104,5 +108,9 @@
      (module
       (obj_name language__Reader)
       (visibility public)
-      (source (path Reader) (intf (path reader.mli)) (impl (path reader.ml))))))
+      (source (path Reader) (intf (path reader.mli)) (impl (path reader.ml))))
+     (module
+      (obj_name language__Typecheck)
+      (visibility public)
+      (source (path Typecheck) (impl (path typecheck.ml))))))
    (wrapped true))))

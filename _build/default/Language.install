@@ -40,11 +40,15 @@ lib: [
   "_build/install/default/lib/Language/language__Reader.cmt"
   "_build/install/default/lib/Language/language__Reader.cmti"
   "_build/install/default/lib/Language/language__Reader.cmx"
+  "_build/install/default/lib/Language/language__Typecheck.cmi"
+  "_build/install/default/lib/Language/language__Typecheck.cmt"
+  "_build/install/default/lib/Language/language__Typecheck.cmx"
   "_build/install/default/lib/Language/lex.ml"
   "_build/install/default/lib/Language/opam"
   "_build/install/default/lib/Language/parse.ml"
   "_build/install/default/lib/Language/reader.ml"
   "_build/install/default/lib/Language/reader.mli"
+  "_build/install/default/lib/Language/typecheck.ml"
 ]
 libexec: [
   "_build/install/default/lib/Language/language.cmxs"

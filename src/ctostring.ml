@@ -53,7 +53,7 @@ let rec string_of_c_expr (e: c_expr) (level: int) =
         | None -> ""
         | Some t ->
           (* add the type annotation *)
-          let string_of_ct: string = string_of_t t in
+          let string_of_ct: string = string_of_c_type t in
           indentations_with_newline (level + 1)
           ^ string_of_ct
           ^ ","
@@ -113,13 +113,14 @@ and string_of_pat pat =
   | NothingPat -> "nothing"
 
 
-and string_of_t t =
+and string_of_c_type t =
   match t with
   | BoolType -> "bool"
   | StringType -> "string"
   | NothingType -> "nothing"
   | IntType -> "int"
-  | FunctionType (i, o) -> Printf.sprintf "%s -> %s" (string_of_t i) (string_of_t o)
+  | FunctionType (i, o) -> Printf.sprintf "%s -> %s" (string_of_c_type i) (string_of_c_type o)
+  | TypeVar n -> "typevar " ^ (string_of_int n)
 
 
 let string_of_c_expr e = string_of_c_expr e 0
