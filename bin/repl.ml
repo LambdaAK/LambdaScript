@@ -7,35 +7,13 @@ open Language.Typecheck
 open Language.Ctostring
 
 
+let attempt_lex (input_string: string): token list = input_string |> list_of_string |> lex
 
+let attempt_parse (tokens: token list): c_expr = tokens |> parse_expr |> fst |> condense_expr
 
+let attempt_type_check (ce: c_expr): c_type = type_of_c_expr ce
 
-let attempt_lex (input_string: string): token list =
-
-    input_string |> list_of_string |> lex
-
-
-let attempt_parse (tokens: token list): c_expr =
-
-    tokens |> parse_expr |> fst |> condense_expr
-
-
-
-
-let attempt_type_check (ce: c_expr): c_type =
-
-    type_of_c_expr ce
-
-
-
-
-
-let attempt_eval (ce: c_expr): string =
-
-    c_eval_ce ce
-
- 
-
+let attempt_eval (ce: c_expr): string = c_eval_ce ce
 
 let rec repl_loop (): unit =
   (

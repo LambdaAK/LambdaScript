@@ -1,1 +1,1 @@
-src/ctostring.ml: Cexpr Printf String
+src/ctostring.ml: Cexpr String

@@ -119,7 +119,18 @@ and string_of_c_type t =
   | StringType -> "str"
   | NothingType -> "ng"
   | IntType -> "int"
-  | FunctionType (i, o) -> Printf.sprintf "%s -> %s" (string_of_c_type i) (string_of_c_type o)
+  | FunctionType (i, o) ->
+    (* if i is a function type it must be surrounded by ( ) *)
+    let i_string: string =
+    (
+      match i with
+      | FunctionType _ -> "(" ^ (string_of_c_type i) ^ ")"
+      | _ -> string_of_c_type i
+    ) in
+    let o_string: string = string_of_c_type o in
+    i_string ^ " -> " ^ o_string
+
+
   | TypeVar n -> "t" ^ (string_of_int n)
 
 

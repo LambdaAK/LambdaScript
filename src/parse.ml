@@ -399,7 +399,6 @@ and parse_factor_not_app (tokens: token list): factor * token list =
 
 
   | _ -> raise FactorParseFailure
-  
 
 
 and get_factor_list (tokens: token list) (acc: factor list) : factor list * token list =
