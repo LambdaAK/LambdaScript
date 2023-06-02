@@ -26,6 +26,11 @@ let rec repl_loop (): unit =
   let () = t |> string_of_c_type |> print_endline in
   print_string "\nconstraints:\n";
   let () = cn |> string_of_constraints |> print_endline in
+  print_string "\nunify:\n";
+  let () = cn |> reduce_eq |> string_of_constraints |> print_endline in
+
+  print_string "\nthe expression is of type:\n";
+  let () = get_type t (reduce_eq cn) |> string_of_c_type |> print_endline in
  
   print_endline "\n[Value]\n";
   input_string |> c_eval |> print_endline;

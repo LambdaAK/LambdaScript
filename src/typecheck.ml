@@ -4,20 +4,20 @@ open Expr
 
 type static_env = (string * c_type) list
 
-type type_constraint = c_type * c_type
+type type_equation = c_type * c_type
 
-type constraints = type_constraint list
+type type_equations = type_equation list
 
-type substitutions = constraints
+type substitutions = type_equations
 
-let rec string_of_constraints (c: constraints): string =
+let rec string_of_constraints (c: type_equations): string =
   match c with
   | [] -> ""
   | (t1, t2) :: c' -> Printf.sprintf "%s = %s\n" (string_of_c_type t1) (string_of_c_type t2) ^ string_of_constraints c'
 
 exception TypeFailure
 
-let rec generate (env: static_env) (e: c_expr): c_type * constraints =
+let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
   match e with
   | EInt _ -> IntType, []
   | EBool _ -> BoolType, []
@@ -89,14 +89,104 @@ and type_of_pat (p: pat): c_type * static_env =
 
 
 
-
-let rec unify (c: constraints): substitutions =
+let rec reduce_eq (c: type_equations): substitutions =
+  print_endline "reducing";
   match c with
   [] -> []
   | (t1, t2) :: c' ->
-    if t1 = t2 then unify c'
+    if t1 = t2 then reduce_eq c'
     else
-      failwith "unimplemented"
+    (
+      match t1, t2 with
+      | TypeVar id, _ when not (inside t1 t2) ->
+        (t1, t2) :: reduce_eq (substitute id t2 c')
+
+      | _, TypeVar _ -> reduce_eq ((t2, t1) :: c')
+
+      | FunctionType (i1, o1), FunctionType (i2, o2) ->
+        reduce_eq ((i1, i2) :: (o1, o2) :: c')
+
+      | _ -> failwith "not well-typed"
+
+    )
+
+
+
+
+and get_type (var: c_type) (subs: substitutions): c_type =
+  match var with
+  | TypeVar _ ->
+    (
+    let looked_up_type = get_type_of_type_var_if_possible var subs in
+    match looked_up_type with
+    | FunctionType (i, o) -> FunctionType (get_type i subs, get_type o subs)
+    | _ -> looked_up_type
+    )
+  | FunctionType (i, o) -> FunctionType (get_type i subs, get_type o subs)
+  | _ -> var
+
+
+and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type =
+  match var with
+  | TypeVar _ ->
+    (
+    try
+      List.assoc var subs
+    with
+    | Not_found -> var
+    )
+  | _ -> failwith "not a type var"
+
+
+(*
+   
+lam a -> lam b -> lam c -> a + b
+
+
+
+*)
+
+
+
+and inside (inside_type: c_type) (outside_type: c_type): bool =
+  match outside_type with
+  | _ when inside_type = outside_type -> true
+  | FunctionType (i, o) -> inside inside_type i || inside inside_type o
+  | _ -> false 
+
+
+
+and is_basic_type (t: c_type): bool =
+  match t with
+  | IntType
+  | BoolType
+  | StringType
+  | NothingType -> true
+  | TypeVar _ -> false
+  | FunctionType (i, o) -> is_basic_type i && is_basic_type o
+
+
+
+and substitute (var_id: int) (t: c_type) (equations: type_equations): type_equations =
+  match equations with
+  | [] -> []
+  | (t1, t2) :: equations' ->
+    (substitute_in_type t1 var_id t, substitute_in_type t2 var_id t) :: substitute var_id t equations'
+
+
+and substitute_in_type (type_subbing_in: c_type) (type_var_id_subbing_for: int) (substitute_with: c_type): c_type =
+  match type_subbing_in with
+  | IntType -> IntType
+  | BoolType -> BoolType
+  | StringType -> StringType
+  | NothingType -> NothingType
+  | TypeVar id ->
+    if id = type_var_id_subbing_for then substitute_with
+    else TypeVar id
+  | FunctionType (t1, t2) ->
+    FunctionType (substitute_in_type t1 type_var_id_subbing_for substitute_with, substitute_in_type t2 type_var_id_subbing_for substitute_with)
+
+
 
 
 let initial_env = [("not", BoolType => BoolType)]
