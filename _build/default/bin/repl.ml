@@ -11,37 +11,35 @@ open Language.Ctostring
 
 
 let attempt_lex (input_string: string): token list =
-  try 
+
     input_string |> list_of_string |> lex
-  with
-  | LexFailure -> print_endline "Lexing error"; raise (Failure "Lexing error")
 
 
 let attempt_parse (tokens: token list): c_expr =
-  try
+
     tokens |> parse_expr |> fst |> condense_expr
-  with
-  | _ -> print_endline "Parsing error"; raise (Failure "Parsing error")
+
 
 
 
 let attempt_type_check (ce: c_expr): c_type =
-  try
+
     type_of_c_expr ce
-  with
-  | _ -> print_endline "Type error"; raise (Failure "Type error")
+
+
 
 
 
 let attempt_eval (ce: c_expr): string =
-  try
+
     c_eval_ce ce
 
-  with
-  | _ -> print_endline "Evaluation error"; raise (Failure "Evaluation error")
+ 
 
 
 let rec repl_loop (): unit =
+  (
+  try
   counter := 0;
   print_string "> ";
   let input_string: string = read_line () in
@@ -50,10 +48,14 @@ let rec repl_loop (): unit =
   let t: c_type = attempt_type_check ce in
   let t_string: string = string_of_c_type t in
   let result: string = attempt_eval ce in
-  print_endline ("\n" ^ t_string ^ ": " ^ result ^ "\n");
+  print_endline ("\n" ^ t_string ^ ": " ^ result ^ "\n")
+  
+  with
+  | LexFailure -> print_endline "Lex Failure\n"
+  | ParseFailure -> print_endline "Parse Failure\n"
+  | TypeFailure -> print_endline "Type Failure\n"
 
-
- 
+  );
   
 
   repl_loop ()

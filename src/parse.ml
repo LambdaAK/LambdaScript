@@ -51,7 +51,7 @@ and parse_factor_type (tokens: token list): factor_type * token list =
     ParenFactorType inside, (remove_head tokens_after_inside) (* remove the RParen here *)
 
 
-  | _ -> failwith "no pattern matched in parse_factor_type"
+  | _ -> (*failwith "no pattern matched in parse_factor_type"*) raise ParseFailure
 
 
 and parse_expr (tokens: token list) : expr * token list =
@@ -348,7 +348,7 @@ and parse_term (tokens: token list): term * token list =
 
 and parse_factor (tokens: token list): factor * token list =
   let factors, tokens_after_factors = get_factor_list tokens [] in
-  if List.length factors = 0 then failwith "0 factors parsed in parse_factor" else
+  if List.length factors = 0 then raise ParseFailure else
   if List.length factors > 1 then
     create_factor_app_chain_from_factor_list factors, tokens_after_factors
   else List.hd factors, tokens_after_factors
@@ -362,7 +362,7 @@ and parse_pat (tokens: token list): pat * token list = match tokens with
   NothingPat, t
 | {token_type = Id s; line = _} :: t ->
   IdPat s, t
-| _ -> failwith "pattern match failed in parse_pat"
+| _ -> raise ParseFailure
 
 
 and parse_factor_not_app (tokens: token list): factor * token list =
