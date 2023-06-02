@@ -60,8 +60,15 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     ignore cto;
 
     let input_type, new_env_bindings = type_of_pat pat in
+    let constraints_from_type_annotation: type_equations = 
+    (
+      match cto with
+      | Some t -> [(input_type, t)]
+      | None -> []
+
+    ) in
     let output_type, c_output = generate (new_env_bindings @ env) body in
-    input_type => output_type,c_output
+    input_type => output_type, constraints_from_type_annotation @ c_output
 
   | ETernary (e1, e2, e3) ->
     let t1, c1 = generate env e1 in

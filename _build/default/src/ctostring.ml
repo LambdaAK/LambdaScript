@@ -110,14 +110,14 @@ and string_of_c_bop: c_bop -> string =
 and string_of_pat pat =
   match pat with
   | IdPat s -> s
-  | NothingPat -> "nothing"
+  | NothingPat -> "ng"
 
 
 and string_of_c_type t =
   match t with
   | BoolType -> "bool"
-  | StringType -> "string"
-  | NothingType -> "nothing"
+  | StringType -> "str"
+  | NothingType -> "ng"
   | IntType -> "int"
   | FunctionType (i, o) -> Printf.sprintf "%s -> %s" (string_of_c_type i) (string_of_c_type o)
   | TypeVar n -> "t" ^ (string_of_int n)
