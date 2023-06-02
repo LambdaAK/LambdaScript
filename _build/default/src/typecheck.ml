@@ -90,7 +90,7 @@ and type_of_pat (p: pat): c_type * static_env =
 
 
 let rec reduce_eq (c: type_equations): substitutions =
-  print_endline "reducing";
+
   match c with
   [] -> []
   | (t1, t2) :: c' ->
@@ -106,7 +106,7 @@ let rec reduce_eq (c: type_equations): substitutions =
       | FunctionType (i1, o1), FunctionType (i2, o2) ->
         reduce_eq ((i1, i2) :: (o1, o2) :: c')
 
-      | _ -> failwith "not well-typed"
+      | _ -> raise TypeFailure
 
     )
 
@@ -137,15 +137,10 @@ and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type
     )
   | _ -> failwith "not a type var"
 
-
-(*
-   
-lam a -> lam b -> lam c -> a + b
-
-
-
-*)
-
+and type_of_c_expr (e: c_expr): c_type =
+  let t, constraints = generate [] e in
+  let solution = reduce_eq constraints in
+  get_type t solution
 
 
 and inside (inside_type: c_type) (outside_type: c_type): bool =
@@ -185,6 +180,7 @@ and substitute_in_type (type_subbing_in: c_type) (type_var_id_subbing_for: int) 
     else TypeVar id
   | FunctionType (t1, t2) ->
     FunctionType (substitute_in_type t1 type_var_id_subbing_for substitute_with, substitute_in_type t2 type_var_id_subbing_for substitute_with)
+
 
 
 

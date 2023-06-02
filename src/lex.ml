@@ -45,6 +45,8 @@ type token = {token_type: token_type; line: int}
 
 let list_of_string (s: string) = s |> String.to_seq |> List.of_seq
 
+exception LexFailure
+
 let is_num: char -> bool = function
 | '0'
 | '1'

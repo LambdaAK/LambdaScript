@@ -112,5 +112,10 @@ and eval_bop (op: c_bop) (e1: c_expr) (e2: c_expr) (env: env) =
   
   let initial_env: env = [("not", not_function)]
   
-  let c_eval (s: string): string = 
+
+let c_eval_ce (ce: c_expr): string =
+  eval_c_expr ce initial_env |> string_of_value
+
+
+  let c_eval (s: string): string =
     eval_c_expr (s |> list_of_string |> lex |> parse_expr |> fst |> condense_expr) initial_env |> string_of_value

@@ -1,41 +1,60 @@
 open Language.Parse
 open Language.Lex
-open Language.Expr
 open Language.Cexpr
-open Language.Ctostring
 open Language.Ceval
 open Language.Condense
 open Language.Typecheck
+open Language.Ctostring
 
+
+
+
+
+let attempt_lex (input_string: string): token list =
+  try 
+    input_string |> list_of_string |> lex
+  with
+  | LexFailure -> print_endline "Lexing error"; raise (Failure "Lexing error")
+
+
+let attempt_parse (tokens: token list): c_expr =
+  try
+    tokens |> parse_expr |> fst |> condense_expr
+  with
+  | _ -> print_endline "Parsing error"; raise (Failure "Parsing error")
+
+
+
+let attempt_type_check (ce: c_expr): c_type =
+  try
+    type_of_c_expr ce
+  with
+  | _ -> print_endline "Type error"; raise (Failure "Type error")
+
+
+
+let attempt_eval (ce: c_expr): string =
+  try
+    c_eval_ce ce
+
+  with
+  | _ -> print_endline "Evaluation error"; raise (Failure "Evaluation error")
 
 
 let rec repl_loop (): unit =
   counter := 0;
+  print_string "> ";
   let input_string: string = read_line () in
-  if input_string = "#exit" then exit 0
-  else
-  (*input_string |> list_of_string |> lex |> print_tokens_list;*)
-  let e: expr = input_string |> list_of_string |> lex |> parse_expr |> fst in
-  let ce: c_expr = condense_expr e in
+  let tokens: token list = attempt_lex input_string in
+  let ce: c_expr = attempt_parse tokens in
+  let t: c_type = attempt_type_check ce in
+  let t_string: string = string_of_c_type t in
+  let result: string = attempt_eval ce in
+  print_endline ("\n" ^ t_string ^ ": " ^ result ^ "\n");
 
-  let () = print_endline "\n[AST]\n" in
-  let () = ce |> string_of_c_expr |> print_endline in
-  let () = print_endline "\n[AST]\n" in
-  let t, cn = generate initial_env ce in
-  print_string "type: ";
-  let () = t |> string_of_c_type |> print_endline in
-  print_string "\nconstraints:\n";
-  let () = cn |> string_of_constraints |> print_endline in
-  print_string "\nunify:\n";
-  let () = cn |> reduce_eq |> string_of_constraints |> print_endline in
 
-  print_string "\nthe expression is of type:\n";
-  let () = get_type t (reduce_eq cn) |> string_of_c_type |> print_endline in
  
-  print_endline "\n[Value]\n";
-  input_string |> c_eval |> print_endline;
-  print_endline "\n";
-  (* get_type e [] |> fst |> string_of_type |> print_endline; *)
+  
 
   repl_loop ()
  

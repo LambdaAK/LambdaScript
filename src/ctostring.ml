@@ -120,7 +120,7 @@ and string_of_c_type t =
   | NothingType -> "nothing"
   | IntType -> "int"
   | FunctionType (i, o) -> Printf.sprintf "%s -> %s" (string_of_c_type i) (string_of_c_type o)
-  | TypeVar n -> "typevar " ^ (string_of_int n)
+  | TypeVar n -> "t" ^ (string_of_int n)
 
 
 let string_of_c_expr e = string_of_c_expr e 0
