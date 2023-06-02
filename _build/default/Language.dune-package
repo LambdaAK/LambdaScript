@@ -47,12 +47,18 @@
    language__Typecheck.cmi
    language__Typecheck.cmt
    language__Typecheck.cmx
+   language__Typefixer.cmi
+   language__Typefixer.cmt
+   language__Typefixer.cmti
+   language__Typefixer.cmx
    lex.ml
    opam
    parse.ml
    reader.ml
    reader.mli
-   typecheck.ml))
+   typecheck.ml
+   typefixer.ml
+   typefixer.mli))
  (libexec (language.cmxs))
  (bin (Test))
  (doc (README.md)))
@@ -112,5 +118,12 @@
      (module
       (obj_name language__Typecheck)
       (visibility public)
-      (source (path Typecheck) (impl (path typecheck.ml))))))
+      (source (path Typecheck) (impl (path typecheck.ml))))
+     (module
+      (obj_name language__Typefixer)
+      (visibility public)
+      (source
+       (path Typefixer)
+       (intf (path typefixer.mli))
+       (impl (path typefixer.ml))))))
    (wrapped true))))

@@ -26,3 +26,6 @@ module Reader = Language__Reader
 
 (** @canonical Language.Typecheck *)
 module Typecheck = Language__Typecheck
+
+(** @canonical Language.Typefixer *)
+module Typefixer = Language__Typefixer

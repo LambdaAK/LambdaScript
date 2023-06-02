@@ -1,1 +1,1 @@
-src/typecheck.ml: Cexpr Ctostring Expr List Printf
+src/typecheck.ml: Cexpr Ctostring Expr List Printf Typefixer

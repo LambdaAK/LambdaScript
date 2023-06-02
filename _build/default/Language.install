@@ -43,12 +43,18 @@ lib: [
   "_build/install/default/lib/Language/language__Typecheck.cmi"
   "_build/install/default/lib/Language/language__Typecheck.cmt"
   "_build/install/default/lib/Language/language__Typecheck.cmx"
+  "_build/install/default/lib/Language/language__Typefixer.cmi"
+  "_build/install/default/lib/Language/language__Typefixer.cmt"
+  "_build/install/default/lib/Language/language__Typefixer.cmti"
+  "_build/install/default/lib/Language/language__Typefixer.cmx"
   "_build/install/default/lib/Language/lex.ml"
   "_build/install/default/lib/Language/opam"
   "_build/install/default/lib/Language/parse.ml"
   "_build/install/default/lib/Language/reader.ml"
   "_build/install/default/lib/Language/reader.mli"
   "_build/install/default/lib/Language/typecheck.ml"
+  "_build/install/default/lib/Language/typefixer.ml"
+  "_build/install/default/lib/Language/typefixer.mli"
 ]
 libexec: [
   "_build/install/default/lib/Language/language.cmxs"

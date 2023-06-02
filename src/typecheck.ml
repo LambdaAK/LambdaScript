@@ -1,6 +1,7 @@
 open Cexpr
 open Ctostring
 open Expr
+open Typefixer
 
 type static_env = (string * c_type) list
 
@@ -27,7 +28,7 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
   | EBop (op, e1, e2) ->
     let t1, c1 = generate env e1 in
     let t2, c2 = generate env e2 in
-    let type_of_expression: c_type = fresh_type_var () in
+    (* let type_of_expression: c_type = fresh_type_var () in *)
     (
     match op with
     | CPlus 
@@ -36,24 +37,24 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     | CDiv
     | CMod
     ->
-      type_of_expression, (t1, IntType) :: (t2, IntType) :: (type_of_expression, IntType) :: c1 @ c2
+      IntType, (t1, IntType) :: (t2, IntType)  :: c1 @ c2
     | CGE
     | CGT
     | CLE
     | CLT
     ->
-      type_of_expression, (t1, IntType) :: (t2, IntType) :: (type_of_expression, BoolType) :: c1 @ c2
+      BoolType, (t1, IntType) :: (t2, IntType)  :: c1 @ c2
 
     | CEQ
     | CNE
     ->
-      type_of_expression, (type_of_expression, BoolType) :: c1 @ c2
+      BoolType, c1 @ c2
       (* the only constraint here is that the entire expression must be boolean *)
     
     | CAnd
     | COr
     ->
-      type_of_expression, (t1, BoolType) :: (t2, BoolType) :: (type_of_expression, BoolType) :: c1 @ c2
+      BoolType, (t1, BoolType) :: (t2, BoolType) :: c1 @ c2
     
     )
   | EFunction (pat, cto, body) ->
@@ -121,6 +122,7 @@ let rec reduce_eq (c: type_equations): substitutions =
 
 
 and get_type (var: c_type) (subs: substitutions): c_type =
+ 
   match var with
   | TypeVar _ ->
     (
@@ -131,6 +133,8 @@ and get_type (var: c_type) (subs: substitutions): c_type =
     )
   | FunctionType (i, o) -> FunctionType (get_type i subs, get_type o subs)
   | _ -> var
+
+
 
 
 and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type =
@@ -147,7 +151,7 @@ and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type
 and type_of_c_expr (e: c_expr): c_type =
   let t, constraints = generate [] e in
   let solution = reduce_eq constraints in
-  get_type t solution
+  get_type t solution |> fix
 
 
 and inside (inside_type: c_type) (outside_type: c_type): bool =
@@ -189,9 +193,7 @@ and substitute_in_type (type_subbing_in: c_type) (type_var_id_subbing_for: int) 
     FunctionType (substitute_in_type t1 type_var_id_subbing_for substitute_with, substitute_in_type t2 type_var_id_subbing_for substitute_with)
 
 
-
-
-
 let initial_env = [("not", BoolType => BoolType)]
+
 
 
