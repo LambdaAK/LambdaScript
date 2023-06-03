@@ -2,14 +2,15 @@
 
 # todo
 
-+ Fixing the numbers of type variables inside function types
+
++ Error handling
 + Type aliases
 + definitions
 + recursive functions
 + Enum (a type of definition)
 + Sequence type
 + Vectors (tuples)
-+ Error handling
+
 
 
 

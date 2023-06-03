@@ -57,7 +57,9 @@ let type_tests = [
 ]
 
 let int_type_tests = [
+  type_is_int "0";
   type_is_int "1";
+  type_is_int "~-1";
   type_is_int "1 + 2";
   type_is_int "1 + 2 + 3 + 4";
   type_is_int "1 + 2 * 3 + 4";
@@ -83,6 +85,25 @@ let int_type_tests = [
   type_is_int "3 + 4 * 2 / (1 - 5)";
   type_is_int "(5 + 2) * 3 - 4";
   type_is_int "2 * (10 - 8) + 1";
+  type_is_int "100 / 10 % 3";
+  type_is_int "100 % 30 / 2 * 3";
+  type_is_int "100 % 31 / 2";
+  type_is_int "100 % 31 / 2 * 3";
+  type_is_int "100 % 31 / 2 * 3 + 1";
+  type_is_int "100 % 31 / 2 * 3 + 1 - 1";
+  type_is_int "1 + 2 * 3 + 4 * 5 + 6 * 7 + 8 * 9 + 10";
+  type_is_int "1 - 1 - 1";
+  type_is_int "~-1 - 1 - 2";
+  type_is_int "10 - 20 - 30 - 40";
+  type_is_int "1 + 5 - 4 - 3";
+  type_is_int "10 - 5 + 5";
+  type_is_int "~-10 - 5 + 5 - 5 - 5";
+  type_is_int "1 - 2 - 3 - 4 - 5";
+  type_is_int "1 - 2 - 3 - 4 - 5 - 6";
+  type_is_int "1 + 2 - 3 + 4 - 5 + 6";
+  type_is_int "1 + 2 + 3 - 4 - 5 - 6";
+  type_is_int "1 * 2 * 3 * 4";
+  type_is_int "10 / 2 * 3";
 ]
 
 let bool_type_tests = [
@@ -118,8 +139,12 @@ let bool_type_tests = [
   type_is_boolean "1 < 1";
   type_is_boolean "1 < 2 && 13414 < 11413413";
   type_is_boolean "1 < 2 && 13414 > 11413413";
-  type_is_boolean "1 < 2 || false";
   type_is_boolean "1 < 2 && false";
+  type_is_boolean "1 == 1";
+  type_is_boolean "1 != 1";
+  type_is_boolean "if true then true else false";
+  type_is_boolean "true || true";
+  type_is_boolean "1 < 2 || false";
   type_is_boolean "1 == 1";
   type_is_boolean "1 != 1";
   type_is_boolean "if true then true else false";
@@ -149,6 +174,16 @@ let bool_type_tests = [
   type_is_boolean "if true && true || false then true else false";
   type_is_boolean "if true || false || false || false || (true || false && true) then true else false";
   type_is_boolean "if true && false || false || false || (true || false && true) then true else false";
+  type_is_boolean "if true && false || false || false || (false || false && true) then true else false";
+  type_is_boolean "if true && false || false || false || (false || false && true) then true else false";
+  type_is_boolean "if true && true || false then true else false";
+  type_is_boolean "if true || false || false || false || (true || false && true) then true else false";
+
+]
+
+let string_type_tests = [
+  type_is_string {|""|};
+  type_is_string {|"hello"|};
 
 ]
 
@@ -189,6 +224,13 @@ let arithmetic_tests = [
   eval_test "100 % 31 / 2 * 3 + 1 - 1" "9";
   (* very complicated test *)
   eval_test "1 + 2 * 3 + 4 * 5 + 6 * 7 + 8 * 9 + 10" "151";
+  eval_test "1 - 1 - 1" "-1";
+  eval_test "~-1 - 1 - 2" "-4";
+  eval_test "10 - 20 - 30 - 40" "-80";
+  eval_test "1 + 5 - 4 - 3" "-1";
+  eval_test "10 - 5 + 5" "10";
+  eval_test "~-10 - 5 + 5 - 5 - 5" "-20";
+  eval_test "1 - 2 - 3 - 4 - 5" "-13";
 ]
 
 let boolean_tests = [
@@ -231,6 +273,9 @@ let boolean_tests = [
   (* equality *)
   eval_test "1 == 1" "true";
   eval_test "1 != 1" "false";
+  (* big tests with just + and - *)
+  eval_test "1 + 2 - 3 + 4 - 5 + 6" "5";
+  eval_test "1 + 2 + 3 - 4 - 5 - 6" "-9";
   
 ]
 
@@ -330,6 +375,7 @@ let all_tests =
       type_tests;
       int_type_tests;
       bool_type_tests;
+      string_type_tests;
     ]
 
 let suite = "suite" >::: all_tests
