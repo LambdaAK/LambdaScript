@@ -184,7 +184,11 @@ let arithmetic_tests = [
   eval_test "100 / 10 % 3" "1";
   eval_test "100 % 30 / 2 * 3" "15";
   eval_test "100 % 31 / 2" "3";
-  (*eval_test "100 % 31 / 2 * 3" "9";*)
+  eval_test "100 % 31 / 2 * 3" "9";
+  eval_test "100 % 31 / 2 * 3 + 1" "10";
+  eval_test "100 % 31 / 2 * 3 + 1 - 1" "9";
+  (* very complicated test *)
+  eval_test "1 + 2 * 3 + 4 * 5 + 6 * 7 + 8 * 9 + 10" "151";
 ]
 
 let boolean_tests = [

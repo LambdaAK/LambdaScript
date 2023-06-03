@@ -20,6 +20,9 @@ let remove_last (lst: 'a list): 'a * 'a list =
     last, List.rev rest
 
 
+type mulop = Times | Div | Mod
+
+
 let rec parse_compound_type (tokens: token list): compound_type * token list =
   let left_type, tokens_after_left_type = parse_factor_type tokens in
   match tokens_after_left_type with
@@ -291,69 +294,62 @@ and parse_arith_expr (tokens: token list): arith_expr * token list =
 
 
 and parse_term (tokens: token list): term * token list =
-  (* start by parsing a factor *)
+  let factor_list, mulop_list, tokens_after_factor_list = parse_factor_list tokens in
+  let term = construct_term_from_factor_list_and_mulop_list_helper factor_list mulop_list in
+  term, tokens_after_factor_list
+
+
+
+
+and parse_factor_list (tokens: token list): factor list * mulop list * token list =
   let first, tokens_after_first = parse_factor tokens in
-  let a = first in
-  (* check what the next token is *)
-  (* if its a TIMES or DIVIDE, parse another term and return the product/quotient *)
-  match tokens_after_first with
-  | {token_type = Times; line = _} :: t ->
-    let second, tokens_after_second = parse_term t in
-    (
-    match second with
-    | Div (b, c) ->
-      (* a * (b / c) -> (a * b) / c *)
-      Div (term_to_factor (Mul(a, Factor b)), c), tokens_after_second
-    | Mod (b, c) ->
-      (* a * (b / c) -> (a * b) / c *)
-      Mod (term_to_factor (Mul(a, Factor b)), c), tokens_after_second
-    | Mul (b, c) ->
-      (* a * (b * c) -> (a * b) * c *)
-      Mul (term_to_factor (Mul(a, Factor b)), c), tokens_after_second
-    | _ ->
-      
-      print_endline "one";
-      Tostring.string_of_arith_factor first 0 |> print_endline;
-      Tostring.string_of_arith_term second 0 |> print_endline;
-      Mul (first, second), tokens_after_second
-    )
-  | {token_type = Divide; line = _} :: t ->
-    let second, tokens_after_second = parse_term t in
-    (
-    match second with
-    | Mul (b, c) ->
-      (* a / (b * c) -> (a / b) * c *)
-      Mul (term_to_factor c, Div(a, Factor b)), tokens_after_second
-    | Div (b, c) ->
-      (* a / (b / c) -> (a / b) / c *)
-      Div (term_to_factor (Div (a, Factor b)), c), tokens_after_second
-    | Mod (b, c) ->
-      (* a / (b % c) -> (a / b) % c *)
-      Mod (term_to_factor (Div (a, Factor b)), c), tokens_after_second
-    | _ -> 
-      print_endline "two";
-      Div (first, second), tokens_after_second
-    )
-  | {token_type = Mod; line = _} :: t ->
-    let second, tokens_after_second = parse_term t in
-    (
-      match second with
-      | Mod (b, c) ->
-        (* a % (b % c) -> (a % b) % c *)
-        Mod (term_to_factor (Mod (a, Factor b)), c), tokens_after_second
-      | Mul (b, c) ->
-        (* a % (b * c) -> (a % b) * c *)
-        Mul (term_to_factor c, Mod (a, Factor b)), tokens_after_second
-      | Div (b, c) ->
-        (* a % (b / c) -> (a % b) / c *)
-        Div (term_to_factor (Mod(a, Factor b)), c), tokens_after_second
-      | _ ->
-        print_endline "three";
-        Mod (first, second), tokens_after_second
-    )
+  let factor_list: (factor list) ref = ref [first] in
+  let remaining_tokens: (token list) ref = ref tokens_after_first in
+  let mulop_list: (mulop list) ref = ref [] in
+  let guard: bool ref = ref true in
 
-  | _ -> Factor first, tokens_after_first
+  while !guard do
+    
+    match !remaining_tokens with
+    | {token_type = Times; line = _} :: t ->
+      mulop_list := !mulop_list @ [Times];
+      let next_factor, tokens_after_next_factor = parse_factor t in
+      factor_list := !factor_list @ [next_factor];
+      remaining_tokens := tokens_after_next_factor
 
+    | {token_type = Divide; line = _} :: t ->
+      mulop_list := !mulop_list @ [Div];
+      let next_factor, tokens_after_next_factor = parse_factor t in
+      factor_list := !factor_list @ [next_factor];
+      remaining_tokens := tokens_after_next_factor
+
+    | {token_type = Mod; line = _} :: t ->
+      mulop_list := !mulop_list @ [Mod];
+      let next_factor, tokens_after_next_factor = parse_factor t in
+      factor_list := !factor_list @ [next_factor];
+      remaining_tokens := tokens_after_next_factor
+
+    | _ -> guard := false
+
+  done;
+  List.rev !factor_list, List.rev !mulop_list, !remaining_tokens
+  
+
+
+
+
+and construct_term_from_factor_list_and_mulop_list_helper (factor_list_reversed: factor list) (mulop_list_reversed: mulop list): term =
+  match factor_list_reversed, mulop_list_reversed with
+  | [], [] -> failwith "impossible"
+  | f :: [], [] -> Factor f
+  | f :: f_rest, m :: m_rest ->
+    (
+      match m with
+      | Times -> Mul (construct_term_from_factor_list_and_mulop_list_helper f_rest m_rest, f)
+      | Div -> Div (construct_term_from_factor_list_and_mulop_list_helper f_rest m_rest, f)
+      | Mod -> Mod (construct_term_from_factor_list_and_mulop_list_helper f_rest m_rest, f)
+    )
+  | _ -> failwith "impossible"
 
 
 

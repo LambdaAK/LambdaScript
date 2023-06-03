@@ -198,28 +198,28 @@ match at with
 | Mul (f, t) ->
   "Mul ("
   ^ indentations_with_newline (level + 1)
-  ^ (string_of_arith_factor f (level + 1))
+  ^ (string_of_arith_term f (level + 1))
   ^ ","
   ^ indentations_with_newline (level + 1)
-  ^ (string_of_arith_term t (level + 1))
+  ^ (string_of_arith_factor t (level + 1))
   ^ indentations_with_newline level
   ^ ")"
 | Div (f, t) ->
   "Div ("
   ^ indentations_with_newline (level + 1)
-  ^ (string_of_arith_factor f (level + 1))
+  ^ (string_of_arith_term f (level + 1))
   ^ ","
   ^ indentations_with_newline (level + 1)
-  ^ (string_of_arith_term t (level + 1))
+  ^ (string_of_arith_factor t (level + 1))
   ^ indentations_with_newline level
   ^ ")"
 | Mod (f, t) ->
   "Mod ("
   ^ indentations_with_newline (level + 1)
-  ^ (string_of_arith_factor f (level + 1))
+  ^ (string_of_arith_term f (level + 1))
   ^ ","
   ^ indentations_with_newline (level + 1)
-  ^ (string_of_arith_term t (level + 1))
+  ^ (string_of_arith_factor t (level + 1))
   ^ indentations_with_newline level
   ^ ")"
 | Factor f ->

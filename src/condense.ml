@@ -55,9 +55,9 @@ and condense_arith_expr: arith_expr -> c_expr =
 
 and condense_term: term -> c_expr =
   function
-  | Mul (factor, term) -> EBop (CMul, condense_factor factor, condense_term term)
-  | Div (factor, term) -> EBop (CDiv, condense_factor factor, condense_term term)
-  | Mod (factor, term) -> EBop (CMod, condense_factor factor, condense_term term)
+  | Mul (t, f) -> EBop (CMul, condense_term t, condense_factor f)
+  | Div (t, f) -> EBop (CDiv, condense_term t, condense_factor f)
+  | Mod (t, f) -> EBop (CMod, condense_term t, condense_factor f)
   | Factor factor -> condense_factor factor
 
 and condense_factor: factor -> c_expr =

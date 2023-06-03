@@ -59,9 +59,9 @@ and arith_expr =
 
 
 and term = 
-  | Mul of factor * term
-  | Div of factor * term
-  | Mod of factor * term
+  | Mul of term * factor
+  | Div of term * factor
+  | Mod of term * factor
   | Factor of factor
 
 
