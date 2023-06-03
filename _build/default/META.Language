@@ -1,6 +1,0 @@
-description = ""
-requires = ""
-archive(byte) = "language.cma"
-archive(native) = "language.cmxa"
-plugin(byte) = "language.cma"
-plugin(native) = "language.cmxs"
