@@ -7,7 +7,6 @@ open Language.Parse
 open Language.Lex
 
 
-
 module type TestModifier = sig
   type test_type
   val modify_tests: test_type list -> test_type list
@@ -19,7 +18,6 @@ module type TestModifierInput = sig
   type test_type
   val modifiers: (test_type -> test_type) list
 end
-
 
 
 
@@ -35,21 +33,23 @@ end
 
 
 
-
-
-
 module IntTestModifierInput: TestModifierInput with type test_type = string * string = struct
   type test_type = string * string
 
   let modifiers = [
-    (fun (x, y): (string * string) -> x, y);
-    (fun (x, y): (string * string) -> x ^ " + 1", y |> int_of_string |> (+) 1 |> string_of_int);
-    (fun (x, y): (string * string) -> x ^ " + 2", y |> int_of_string |> (+) 2 |> string_of_int);
-    (fun (x, y): (string * string) -> x ^ " + 3", y |> int_of_string |> (+) 3 |> string_of_int);
-    (fun (x, y): (string * string) -> x ^ " + 4", y |> int_of_string |> (+) 4 |> string_of_int);
-    (fun (x, y): (string * string) -> x ^ " + 5", y |> int_of_string |> (+) 5 |> string_of_int);
-    (fun (x, y): (string * string) -> "( " ^ x ^ " ) " ^ "* 2" , y |> int_of_string |> ( * ) 2 |> string_of_int);
-    
+    (fun (x, y) -> x, y);
+    (fun (x, y) -> x ^ " + 1", y |> int_of_string |> (+) 1 |> string_of_int);
+    (fun (x, y) -> x ^ " + 2", y |> int_of_string |> (+) 2 |> string_of_int);
+    (fun (x, y) -> x ^ " + 3", y |> int_of_string |> (+) 3 |> string_of_int);
+    (fun (x, y) -> x ^ " + 4", y |> int_of_string |> (+) 4 |> string_of_int);
+    (fun (x, y) -> x ^ " + 5", y |> int_of_string |> (+) 5 |> string_of_int);
+    (fun (x, y) -> "( " ^ x ^ " ) " ^ "* 2" , y |> int_of_string |> ( * ) 2 |> string_of_int);
+    (fun (x, y) -> "( " ^ x ^ " ) " ^ "* 3" , y |> int_of_string |> ( * ) 3 |> string_of_int);
+    (* division *)
+    (fun (x, y) -> "( " ^ x ^ " ) " ^ "/ 2" , y |> int_of_string |> (fun x -> x / 2) |> string_of_int);
+    (fun (x, y) -> "( " ^ x ^ " ) " ^ "/ 3" , y |> int_of_string |> (fun x -> x / 3) |> string_of_int);
+    (fun (x, y) -> "( " ^ x ^ " ) " ^ "/ 4" , y |> int_of_string |> (fun x -> x / 4) |> string_of_int);
+    (fun (x, y) -> "~- ( " ^ x ^ " )", y |> int_of_string |> (fun x -> -x) |> string_of_int);
   ]
 end
 
@@ -119,24 +119,23 @@ module BoolTypeTestModifierInput: TestModifierInput with type test_type = string
 end
 
 
-
 module IntTestModifier = MakeTestModifier (IntTestModifierInput)
 module IntTypeTestModifier = MakeTestModifier (IntTypeTestModifierInput)
 module BoolTypeTestModifier = MakeTestModifier (BoolTypeTestModifierInput)
 
 
-let eval_test (program: string) (expected_output: string): test =
-  program >:: fun _ ->
-    let result: string = c_eval program in
+let eval_test (expr: string) (expected_output: string): test =
+  expr ^ " SHOULD YIELD " ^ expected_output >:: fun _ ->
+    let result: string = c_eval expr in
     (* print the test *)
     assert_equal result expected_output
 
 
 
-let type_test (program: string) (expected_output: string): test =
-  program >:: fun _ ->
+let type_test (expr: string) (expected_output: string): test =
+  expr ^ " SHOULD BE OF TYPE " ^ expected_output >:: fun _ ->
     let result: string = 
-    program
+    expr
     |> list_of_string 
     |> lex 
     |> parse_expr
