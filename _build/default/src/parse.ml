@@ -3,6 +3,7 @@ open Expr
 
 
 
+
 exception ParseFailure
 exception FactorParseFailure
 
@@ -306,7 +307,14 @@ and parse_term (tokens: token list): term * token list =
     | Mod (b, c) ->
       (* a * (b / c) -> (a * b) / c *)
       Mod (term_to_factor (Mul(a, Factor b)), c), tokens_after_second
+    | Mul (b, c) ->
+      (* a * (b * c) -> (a * b) * c *)
+      Mul (term_to_factor (Mul(a, Factor b)), c), tokens_after_second
     | _ ->
+      
+      print_endline "one";
+      Tostring.string_of_arith_factor first 0 |> print_endline;
+      Tostring.string_of_arith_term second 0 |> print_endline;
       Mul (first, second), tokens_after_second
     )
   | {token_type = Divide; line = _} :: t ->
@@ -322,7 +330,9 @@ and parse_term (tokens: token list): term * token list =
     | Mod (b, c) ->
       (* a / (b % c) -> (a / b) % c *)
       Mod (term_to_factor (Div (a, Factor b)), c), tokens_after_second
-    | _ -> Div (first, second), tokens_after_second
+    | _ -> 
+      print_endline "two";
+      Div (first, second), tokens_after_second
     )
   | {token_type = Mod; line = _} :: t ->
     let second, tokens_after_second = parse_term t in
@@ -338,6 +348,7 @@ and parse_term (tokens: token list): term * token list =
         (* a % (b / c) -> (a % b) / c *)
         Div (term_to_factor (Mod(a, Factor b)), c), tokens_after_second
       | _ ->
+        print_endline "three";
         Mod (first, second), tokens_after_second
     )
 

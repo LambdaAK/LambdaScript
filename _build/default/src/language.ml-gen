@@ -24,6 +24,9 @@ module Parse = Language__Parse
 (** @canonical Language.Reader *)
 module Reader = Language__Reader
 
+(** @canonical Language.Tostring *)
+module Tostring = Language__Tostring
+
 (** @canonical Language.Typecheck *)
 module Typecheck = Language__Typecheck
 

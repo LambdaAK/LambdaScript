@@ -44,6 +44,9 @@
    language__Reader.cmt
    language__Reader.cmti
    language__Reader.cmx
+   language__Tostring.cmi
+   language__Tostring.cmt
+   language__Tostring.cmx
    language__Typecheck.cmi
    language__Typecheck.cmt
    language__Typecheck.cmx
@@ -56,6 +59,7 @@
    parse.ml
    reader.ml
    reader.mli
+   tostring.ml
    typecheck.ml
    typefixer.ml
    typefixer.mli))
@@ -115,6 +119,10 @@
       (obj_name language__Reader)
       (visibility public)
       (source (path Reader) (intf (path reader.mli)) (impl (path reader.ml))))
+     (module
+      (obj_name language__Tostring)
+      (visibility public)
+      (source (path Tostring) (impl (path tostring.ml))))
      (module
       (obj_name language__Typecheck)
       (visibility public)

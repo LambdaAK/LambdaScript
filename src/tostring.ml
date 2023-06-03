@@ -1,5 +1,4 @@
 open Expr
-open Types
 
 let indentations (level: int) = String.make (2 * level) ' '
 

@@ -129,6 +129,26 @@ let bool_type_tests = [
   type_is_boolean "if not true then true else false";
   type_is_boolean "if not false then true else false";
   type_is_boolean "if not false || not true then true else false";
+  type_is_boolean "if true && true then true else false";
+  type_is_boolean "if true && false then true else false";
+  type_is_boolean "if false && true then true else false";
+  type_is_boolean "if false && false then true else false";
+  type_is_boolean "if true && true || false then true else false";
+  type_is_boolean "if true || false || false || false || (true || false && true) then true else false";
+  type_is_boolean "if true && false || false || false || (true || false && true) then true else false";
+  type_is_boolean "if true && false || false || false || (false || false && true) then true else false";
+  type_is_boolean "if true && false || false || false || (false || false && true) then true else false";
+  type_is_boolean "if not true then true else false";
+  type_is_boolean "if not false then true else false";
+  type_is_boolean "if not (not true ) then true else false";
+  type_is_boolean "if not (not false) then true else false";
+  type_is_boolean "if not true || false then true else false";
+  type_is_boolean "if not true || true then true else false";
+  type_is_boolean "if true && not true then true else false";
+  type_is_boolean "if true && not false then true else false";
+  type_is_boolean "if true && true || false then true else false";
+  type_is_boolean "if true || false || false || false || (true || false && true) then true else false";
+  type_is_boolean "if true && false || false || false || (true || false && true) then true else false";
 
 ]
 
@@ -142,7 +162,6 @@ let arithmetic_tests = [
   eval_test "100 / 30 + 5" "8";
   eval_test "10 % 4" "2";
   eval_test "5 + 2 * 3" "11";
-  (*a*)
   eval_test "2 + 3 * 4" "14";
   eval_test "1 + 2 + 3 + 4 + 5" "15";
   eval_test "10 - 2 * 3" "4";
@@ -151,7 +170,6 @@ let arithmetic_tests = [
   eval_test "3 * 4 * 5" "60";
   eval_test "15 / 3 - 2" "3";
   eval_test "20 / 4 / 5" "1";
-  (*b*)
   eval_test "10 * 2 / 4" "5";
   eval_test "15 - 3 + 2" "14";
   eval_test "2 + 4 * 6 - 8" "18";
@@ -165,7 +183,8 @@ let arithmetic_tests = [
   eval_test "2 * (10 - 8) + 1" "5";
   eval_test "100 / 10 % 3" "1";
   eval_test "100 % 30 / 2 * 3" "15";
-  eval_test "100 % 31 / 2" "3"
+  eval_test "100 % 31 / 2" "3";
+  (*eval_test "100 % 31 / 2 * 3" "9";*)
 ]
 
 let boolean_tests = [
