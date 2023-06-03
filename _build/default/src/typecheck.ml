@@ -18,6 +18,8 @@ let rec string_of_constraints (c: type_equations): string =
 
 exception TypeFailure
 
+let initial_env = [("not", BoolType => BoolType)]
+
 let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
   match e with
   | EInt _ -> IntType, []
@@ -149,7 +151,7 @@ and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type
   | _ -> failwith "not a type var"
 
 and type_of_c_expr (e: c_expr): c_type =
-  let t, constraints = generate [] e in
+  let t, constraints = generate initial_env e in
   let solution = reduce_eq constraints in
   get_type t solution |> fix
 
@@ -193,7 +195,7 @@ and substitute_in_type (type_subbing_in: c_type) (type_var_id_subbing_for: int) 
     FunctionType (substitute_in_type t1 type_var_id_subbing_for substitute_with, substitute_in_type t2 type_var_id_subbing_for substitute_with)
 
 
-let initial_env = [("not", BoolType => BoolType)]
+
 
 
 

@@ -1,16 +1,139 @@
 open OUnit2
 open Language.Ceval
+open Language.Typecheck
+open Language.Condense
+open Language.Ctostring
+open Language.Parse
+open Language.Lex
 
 
 let eval_test (program: string) (expected_output: string): test =
   program >:: fun _ ->
     let result: string = c_eval program in
     assert_equal result expected_output
+
+
+let type_test (program: string) (expected_output: string): test =
+  program >:: fun _ ->
+    let result: string = 
+    program
+    |> list_of_string 
+    |> lex 
+    |> parse_expr
+    |> fst 
+    |> condense_expr 
+    |> type_of_c_expr 
+    |> string_of_c_type 
+  in
+    assert_equal result expected_output
+
+
+let type_is_boolean (program: string) = type_test program "bool"
+let type_is_int (program: string) = type_test program "int"
+let type_is_string (program: string) = type_test program "str"
+
+let () = ignore type_is_boolean
+let () = ignore type_is_int
+let () = ignore type_is_string
     
 
 let value_tests = [
-  eval_test "1" "1"
+  eval_test "1" "1";
 ]
+
+
+let type_tests = [
+  type_test "1" "int";
+  type_test "true" "bool";
+  type_test "false" "bool";
+  type_test "1 + 2" "int";
+  (* complicated test *)
+  type_test "lam n -> n" "t1 -> t1";
+  type_test "lam n -> n + 1" "int -> int";
+  type_test "lam a -> lam b -> a + b" "int -> int -> int";
+  type_test "true || false" "bool";
+
+
+]
+
+let int_type_tests = [
+  type_is_int "1";
+  type_is_int "1 + 2";
+  type_is_int "1 + 2 + 3 + 4";
+  type_is_int "1 + 2 * 3 + 4";
+  type_is_int "100 / 30 + 5";
+  type_is_int "10 % 4";
+  type_is_int "5 + 2 * 3";
+  type_is_int "2 + 3 * 4";
+  type_is_int "1 + 2 + 3 + 4 + 5";
+  type_is_int "10 - 2 * 3";
+  type_is_int "8 - 2 - 3 - 4 - 5";
+  type_is_int "6 * 2 + 3";
+  type_is_int "3 * 4 * 5";
+  type_is_int "15 / 3 - 2";
+  type_is_int "20 / 4 / 5";
+  type_is_int "10 * 2 / 4";
+  type_is_int "15 - 3 + 2";
+  type_is_int "2 + 4 * 6 - 8";
+  type_is_int "20 / 5 * 2 + 3";
+  type_is_int "7 - 3 * 2 / 4";
+  type_is_int "9 + 3 * 2 - 4 / 2";
+  type_is_int "5 * (3 + 2)";
+  type_is_int "12 / (4 - 2)";
+  type_is_int "3 + 4 * 2 / (1 - 5)";
+  type_is_int "(5 + 2) * 3 - 4";
+  type_is_int "2 * (10 - 8) + 1";
+]
+
+let bool_type_tests = [
+  type_is_boolean "true";
+  type_is_boolean "false";
+  type_is_boolean "true || true";
+  type_is_boolean "true || false";
+  type_is_boolean "false || true";
+  type_is_boolean "false || false";
+  type_is_boolean "true && true";
+  type_is_boolean "true && false";
+  type_is_boolean "false && true";
+  type_is_boolean "false && false";
+  type_is_boolean "true && true || false";
+  type_is_boolean "true || false || false || false || (true || false && true)";
+  type_is_boolean "true && false || false || false || (true || false && true)";
+  type_is_boolean "true && false || false || false || (false || false && true)";
+  type_is_boolean "true && false || false || false || (false || false && true)";
+  type_is_boolean "not true";
+  type_is_boolean "not false";
+  type_is_boolean "not (not true )";
+  type_is_boolean "not (not false)";
+  type_is_boolean "not true || false";
+  type_is_boolean "not true || true";
+  type_is_boolean "true && not true";
+  type_is_boolean "true && not false";
+  type_is_boolean "1 < 2";
+  type_is_boolean "1 > 2";
+  type_is_boolean "1 <= 2";
+  type_is_boolean "1 <= 1";
+  type_is_boolean "1 >= 1";
+  type_is_boolean "2 >= 1";
+  type_is_boolean "1 < 1";
+  type_is_boolean "1 < 2 && 13414 < 11413413";
+  type_is_boolean "1 < 2 && 13414 > 11413413";
+  type_is_boolean "1 < 2 || false";
+  type_is_boolean "1 < 2 && false";
+  type_is_boolean "1 == 1";
+  type_is_boolean "1 != 1";
+  type_is_boolean "if true then true else false";
+  type_is_boolean "if false then true else false";
+  type_is_boolean "if 1 < 2 then true else false";
+  type_is_boolean "if 1 > 2 then true else false";
+  type_is_boolean "if not true then true else false";
+  type_is_boolean "if not false then true else false";
+  type_is_boolean "if not false || not true then true else false";
+
+]
+
+
+
 
 let arithmetic_tests = [
   eval_test "1 + 2" "3";
@@ -180,7 +303,10 @@ let all_tests =
       complex_tests;
       minus_tests;
       mult_div_mod_tests;
-      ternary_tests
+      ternary_tests;
+      type_tests;
+      int_type_tests;
+      bool_type_tests;
     ]
 
 let suite = "suite" >::: all_tests
