@@ -7,6 +7,11 @@ open Language.Parse
 open Language.Lex
 
 
+
+let modify_tests: bool = true
+
+
+
 module type TestModifier = sig
   type test_type
   val modify_tests: test_type list -> test_type list
@@ -24,6 +29,8 @@ end
 module MakeTestModifier (Input: TestModifierInput): TestModifier with type test_type = Input.test_type = struct
   type test_type = Input.test_type
   let modify_tests (tests: test_type list): test_type list =
+    if not modify_tests then tests
+    else
     List.map (fun expression -> 
       (
         List.map (fun modifier -> modifier expression) Input.modifiers
@@ -50,7 +57,55 @@ module IntTestModifierInput: TestModifierInput with type test_type = string * st
     (fun (x, y) -> "( " ^ x ^ " ) " ^ "/ 3" , y |> int_of_string |> (fun x -> x / 3) |> string_of_int);
     (fun (x, y) -> "( " ^ x ^ " ) " ^ "/ 4" , y |> int_of_string |> (fun x -> x / 4) |> string_of_int);
     (fun (x, y) -> "~- ( " ^ x ^ " )", y |> int_of_string |> (fun x -> -x) |> string_of_int);
+    (* ternary *)
+    (fun (x, y) -> "if true then " ^ x ^ " else 0", y);
+    (fun (x, y) -> "if false then 0 else " ^ x, y);
+    (* more ternary *)
+    (fun (x, _) -> "if false then " ^ x ^ " else 0", "0");
+    (fun (x, _) -> "if true then 0 else " ^ x, "0");
+    
+    (* more complicated tests *)
+    (fun (x, y) -> x ^ " + 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10", y |> int_of_string |> (+) 55 |> string_of_int);
+   
+    
+    (* tests involving functions *)
+    (fun (x, y) -> "(lam n -> n) (" ^ x ^ " )", y);
+    (fun (x, y) -> "(lam n -> n + 1) (" ^ x ^ " )", y |> int_of_string |> (+) 1 |> string_of_int);
+    (fun (x, y) -> "(lam a -> lam b -> a + b) (" ^ x ^ " )" ^ " ( " ^ x ^ " )", y |> int_of_string |> ( * ) 2 |> string_of_int);
+
+
+    (* tests involving bind expressions *)
+    (fun (x, y) -> "bind a <- " ^ x ^ " in a", y);
+    (fun (x, y) -> "bind a <- " ^ x ^ " in a + 1", y |> int_of_string |> (+) 1 |> string_of_int);
   ]
+end
+
+module EvalTestModifierInput: TestModifierInput with type test_type = string * string = struct
+  type test_type = string * string
+
+  let modifiers: (test_type -> test_type) list = [
+    (* identity *)
+    (fun (x, y) -> x, y);
+    (* bind expression *)
+    (fun (x, y) -> "bind a <- " ^ x ^ " in a", y);
+    (fun (x, y) -> "( lam a -> a ) ( " ^ x ^ " )", y);
+
+  ]
+
+end
+
+module TypeTestModifierInput: TestModifierInput with type test_type = string = struct
+  type test_type = string
+
+  let modifiers: (test_type -> test_type) list = [
+    (* identity *)
+    (fun x -> x);
+    (* bind expression *)
+    (fun x -> "bind q <- " ^ x ^ " in q");
+    (fun x -> "( lam a -> a ) ( " ^ x ^ " )");
+
+  ]
+
 end
 
 
@@ -89,6 +144,14 @@ module IntTypeTestModifierInput: TestModifierInput with type test_type = string 
 
     (* paren *)
     (fun x -> "(" ^ x ^ ")");
+    (* ternary *)
+    (fun x -> "if true then " ^ x ^ " else 0");
+    (fun x -> "if false then 0 else " ^ x);
+
+    (* tests that involve functions that will evaluate to integers *)
+    (fun x -> "(lam n -> n) (" ^ x ^ " )");
+    (fun x -> "(lam n -> n + 1) (" ^ x ^ " )");
+    (fun x -> "(lam a -> lam b -> a + b) (" ^ x ^ " )" ^ " ( " ^ x ^ " )");
 
   ]
 
@@ -118,16 +181,30 @@ module BoolTypeTestModifierInput: TestModifierInput with type test_type = string
 
 end
 
+module FunctionTypeTestModifierInput: TestModifierInput with type test_type = string * string = struct
+  type test_type = string * string
+
+  let modifiers = [
+    (fun x -> x);
+    (fun (x, y) -> "(lam m -> m) ( " ^ x ^ " )", y);
+    
+  ]
+
+
+end
+
 
 module IntTestModifier = MakeTestModifier (IntTestModifierInput)
 module IntTypeTestModifier = MakeTestModifier (IntTypeTestModifierInput)
 module BoolTypeTestModifier = MakeTestModifier (BoolTypeTestModifierInput)
+module EvalTestModifier = MakeTestModifier (EvalTestModifierInput)
+module TypeTestModifier = MakeTestModifier (TypeTestModifierInput)
+module FunctionTypeTestModifier = MakeTestModifier (FunctionTypeTestModifierInput)
 
 
 let eval_test (expr: string) (expected_output: string): test =
   expr ^ " SHOULD YIELD " ^ expected_output >:: fun _ ->
     let result: string = c_eval expr in
-    (* print the test *)
     assert_equal result expected_output
 
 
@@ -154,21 +231,8 @@ let type_is_string (program: string) = type_test program "str"
 let () = ignore type_is_bool
 let () = ignore type_is_int
 let () = ignore type_is_string
-    
-
-let type_tests = [
-  type_test "1" "int";
-  type_test "true" "bool";
-  type_test "false" "bool";
-  type_test "1 + 2" "int";
-  (* complicated test *)
-  type_test "lam n -> n" "t1 -> t1";
-  type_test "lam n -> n + 1" "int -> int";
-  type_test "lam a -> lam b -> a + b" "int -> int -> int";
-  type_test "true || false" "bool";
 
 
-]
 
 let int_types: string list = [
   "0";
@@ -303,24 +367,25 @@ let string_types = [
 ]
 
 let function_type_tests = [
-  type_test "lam n -> n" "t1 -> t1";
-  type_test "lam n -> n + 1" "int -> int";
-  type_test "lam a -> lam b -> a + b" "int -> int -> int";
-  type_test "lam n [int] -> n" "int -> int";
-  type_test "lam n [int] -> n + 1" "int -> int";
-  type_test "lam a [int] -> lam b [int] -> a + b" "int -> int -> int";
-  type_test "lam a -> lam b -> a" "t1 -> t2 -> t1";
-  type_test "lam a -> lam b -> b" "t1 -> t2 -> t2";
-  type_test "lam a [int] -> lam b -> b" "int -> t1 -> t1";
-  type_test "lam a -> lam b [int] -> b" "t1 -> int -> int";
-  type_test "lam a [int] -> lam b [int] -> b" "int -> int -> int";
-  type_test "lam a [int] -> lam b [int] -> a" "int -> int -> int";
-  type_test "lam a [int] -> lam b [int] -> a + b" "int -> int -> int";
-  type_test "lam a [int] -> lam b [int] -> a + b + 1" "int -> int -> int";
-  type_test "lam a [int] -> lam b [int] -> a + b + 1 + 2" "int -> int -> int";
+  "lam n -> n", "t1 -> t1";
+  "lam n -> n + 1", "int -> int";
+  "lam a -> lam b -> a + b", "int -> int -> int";
+  "lam n [int] -> n", "int -> int";
+  "lam n [int] -> n + 1", "int -> int";
+  "lam a [int] -> lam b [int] -> a + b", "int -> int -> int";
+  "lam a -> lam b -> a", "t1 -> t2 -> t1";
+  "lam a -> lam b -> b", "t1 -> t2 -> t2";
+  "lam a [int] -> lam b -> b", "int -> t1 -> t1";
+  "lam a -> lam b [int] -> b", "t1 -> int -> int";
+  "lam a [int] -> lam b [int] -> b", "int -> int -> int";
+  "lam a [int] -> lam b [int] -> a", "int -> int -> int";
+  "lam a [int] -> lam b [int] -> a + b", "int -> int -> int";
+  "lam a [int] -> lam b [int] -> a + b + 1", "int -> int -> int";
+  "lam a [int] -> lam b [int] -> a + b + 1 + 2", "int -> int -> int";
 
   (* more complicated function type tests *)
-  type_test "lam a -> lam b -> lam c -> a ( b ( c ) )" "(t1 -> t2) -> (t3 -> t1) -> t3 -> t2";
+  "lam a -> lam b -> lam c -> a ( b ( c ) )", "(t1 -> t2) -> (t3 -> t1) -> t3 -> t2";
+
 
 
 
@@ -501,9 +566,12 @@ let complex_tests = [
 ]
 
 
-let int_type_tests: test list = List.map (fun expression -> type_is_int expression) (int_types |> IntTypeTestModifier.modify_tests)
-let bool_type_tests: test list = List.map (fun expression -> type_is_bool expression) (bool_types |> BoolTypeTestModifier.modify_tests)
+let int_type_tests: test list = List.map (fun expression -> type_is_int expression) (int_types |> TypeTestModifier.modify_tests |> IntTypeTestModifier.modify_tests)
+let bool_type_tests: test list = List.map (fun expression -> type_is_bool expression) (bool_types |> TypeTestModifier.modify_tests |>BoolTypeTestModifier.modify_tests)
 let string_type_tests: test list = List.map (fun expression -> type_is_string expression) string_types
+let function_type_tests: test list = List.map (fun (a, b) -> type_test a b) (function_type_tests |> FunctionTypeTestModifier.modify_tests)
+
+
 
 let eval_test_data = [
   arithmetic_tests |> IntTestModifier.modify_tests;
@@ -512,7 +580,7 @@ let eval_test_data = [
   minus_tests;
   mult_div_mod_tests;
   ternary_tests;
-] |> List.flatten
+] |> List.flatten |> EvalTestModifier.modify_tests
 
 let eval_tests = List.map (fun (a, b) -> eval_test a b) eval_test_data
 
@@ -521,7 +589,6 @@ let all_tests =
   List.flatten
     [
       eval_tests;
-      type_tests;
       int_type_tests;
       bool_type_tests;
       string_type_tests;
