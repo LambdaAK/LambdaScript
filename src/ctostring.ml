@@ -1,4 +1,5 @@
 open Cexpr
+open Expr
 [@@@coverage off]
 
 let indentations (level: int) = String.make (2 * level) ' '
@@ -6,7 +7,25 @@ let indentations (level: int) = String.make (2 * level) ' '
 let indentations_with_newline (level: int) = "\n" ^ (indentations level)
 
 
-let rec string_of_c_expr (e: c_expr) (level: int) =
+let rec string_of_pat pat =
+  match pat with
+  | IdPat s -> s
+  | NothingPat -> "ng"
+
+
+and string_of_c_defn (d: c_defn) =
+  match d with
+  | CDefn (pattern, cto, body_expression) -> ignore cto;
+    "Definition ("
+      ^ indentations_with_newline (1)
+      ^ (string_of_pat pattern)
+      ^ ","
+      ^ (string_of_c_expr body_expression 1)
+      ^ indentations_with_newline 1
+      ^ ")"
+
+
+and string_of_c_expr (e: c_expr) (level: int) =
   match e with
   | EInt i ->
     "Int ("
@@ -109,10 +128,7 @@ and string_of_c_bop: c_bop -> string =
   | CAnd -> "&&"
   | COr -> "||"
 
-and string_of_pat pat =
-  match pat with
-  | IdPat s -> s
-  | NothingPat -> "ng"
+
 
 
 and string_of_c_type t =
@@ -137,3 +153,5 @@ and string_of_c_type t =
 
 
 let string_of_c_expr e = string_of_c_expr e 0
+
+let () = ignore string_of_c_defn

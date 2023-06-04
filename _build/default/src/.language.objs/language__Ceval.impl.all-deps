@@ -3,3 +3,5 @@ language__Condense
 language__Expr
 language__Lex
 language__Parse
+language__Typecheck
+language__Typefixer

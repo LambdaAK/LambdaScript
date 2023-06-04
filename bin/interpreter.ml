@@ -25,7 +25,7 @@ let run_run (dir: string): unit =
   print_endline "\n[Value]\n";
   *)print_newline ();
   contents |> c_eval |> print_endline; print_newline ();
-  contents |> list_of_string |> lex |> parse_expr |> fst |> condense_expr |> type_of_c_expr |> string_of_c_type |> print_endline;
+  type_of_c_expr (contents |> list_of_string |> lex |> parse_expr |> fst |> condense_expr) [] |> string_of_c_type |> print_endline;
   print_endline "\n"
 
 let () = 

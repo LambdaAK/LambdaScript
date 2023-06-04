@@ -28,7 +28,6 @@ let assert_next_token (tokens: token list) (expected_value: token_type) =
     else raise (UnexpectedToken (expected_value, Some t, line))
 
 
-
 let rec parse_compound_type (tokens: token list): compound_type * token list =
   let left_type, tokens_after_left_type = parse_factor_type tokens in
   match tokens_after_left_type with
@@ -63,6 +62,62 @@ and parse_factor_type (tokens: token list): factor_type * token list =
 
 
   | _ -> (*failwith "no pattern matched in parse_factor_type"*) raise ParseFailure
+
+
+
+and parse_defn (tokens: token list): defn * token list =
+  match tokens with
+  | {token_type = Let; line = _} :: t ->
+    (* let p <- e *)
+    (* parse a pattern *)
+    let pattern, tokens_after_pattern = parse_pat t in
+    
+    (* check if there's a type annotation after that *)
+    (
+      match tokens_after_pattern with
+      | {token_type = LBracket; line = _} :: t ->
+        (* parse a type *)
+        let annotated_type, tokens_after_type = parse_compound_type t in
+        let () = assert_next_token tokens_after_type RBracket in
+        let tokens_after_r_bracket = remove_head tokens_after_type in
+
+        (* the next token should be a bind arrow *)
+
+        let () = assert_next_token tokens_after_r_bracket BindArrow in
+        let tokens_after_bind_arrow = remove_head tokens_after_r_bracket in
+
+        (* parse an expression *)
+
+        let body_expression, tokens_after_body_expression = parse_expr tokens_after_bind_arrow in
+
+        Defn (pattern, Some annotated_type, body_expression), tokens_after_body_expression
+
+
+      | _ ->
+
+        (* no type annotation *)
+
+        (* the next token should be a bind arrow *)
+
+        let () = assert_next_token tokens_after_pattern BindArrow in
+        let tokens_after_bind_arrow = remove_head tokens_after_pattern in
+
+        (* parse an expression *)
+
+        let body_expression, tokens_after_body_expression = parse_expr tokens_after_bind_arrow in
+
+        Defn (pattern, None, body_expression), tokens_after_body_expression
+
+
+      )
+    | _ -> failwith "expected let in parse_defn"
+
+
+
+
+
+
+
 
 
 and parse_expr (tokens: token list) : expr * token list =

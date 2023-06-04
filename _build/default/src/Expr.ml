@@ -26,8 +26,11 @@ and factor_type =
   | ParenFactorType of compound_type
 
 
+type defn =
+  | Defn of pat * compound_type option * expr
 
-type expr =
+
+and expr =
   | Function of pat * compound_type option * expr
   | Ternary of expr * expr * expr
   | DisjunctionExpr of disjunction

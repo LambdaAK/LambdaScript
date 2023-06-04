@@ -39,6 +39,7 @@ type token_type =
 | BindArrow
 | LBrace
 | RBrace
+| Let
 
 type token = {token_type: token_type; line: int}
 
@@ -145,6 +146,10 @@ let rec lex (lst: char list): token list =
 
   | 'b' :: 'i' :: 'n' :: 'd' :: t ->
     let new_token: token = {token_type = Bind; line = !line_number} in
+    new_token :: (lex t)
+
+  | 'l' :: 'e' :: 't' :: t ->
+    let new_token: token = {token_type = Let; line = !line_number} in
     new_token :: (lex t)
   
   | 'l' :: 'a' :: 'm' :: t ->
@@ -347,6 +352,7 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | In -> "<in>"
 | LBrace -> "<lbrace>"
 | RBrace -> "<rbrace>"
+| Let -> "<let>"
 
 [@@coverage off]
 let rec print_tokens_list: token list -> unit = function

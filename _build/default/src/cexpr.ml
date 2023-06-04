@@ -16,6 +16,11 @@ type c_bop =
   | CAnd
   | COr
 
+
+and c_defn =
+  | CDefn of pat * c_type option * c_expr
+
+
 and c_expr =
   | EFunction of pat * c_type option * c_expr
   | ETernary of c_expr * c_expr * c_expr

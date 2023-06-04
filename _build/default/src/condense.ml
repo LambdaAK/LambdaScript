@@ -1,7 +1,22 @@
 open Expr
 open Cexpr
 
-let rec condense_expr: expr -> c_expr =
+
+let rec condense_defn: defn -> c_defn =
+  function
+  | Defn (pattern, cto, body_expression) ->
+    let a: pat = pattern in
+    let b: c_type option = (
+      match cto with
+      | None -> None
+      | Some t -> Some (condense_type t)
+    ) in
+
+    let c: c_expr = condense_expr body_expression in
+    CDefn (a, b, c)
+
+
+and condense_expr: expr -> c_expr =
   function
   | Function (pat, ct_opt, expr) -> EFunction (pat, 
   (

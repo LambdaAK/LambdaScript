@@ -146,8 +146,8 @@ and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type
     )
   | _ -> failwith "not a type var"
 
-and type_of_c_expr (e: c_expr): c_type =
-  let t, constraints = generate initial_env e in
+and type_of_c_expr (e: c_expr) (static_env: static_env): c_type =
+  let t, constraints = generate static_env e in
   let solution = reduce_eq constraints in
   get_type t solution |> fix
 

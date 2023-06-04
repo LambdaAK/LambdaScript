@@ -212,13 +212,13 @@ let eval_test (expr: string) (expected_output: string): test =
 let type_test (expr: string) (expected_output: string): test =
   expr ^ " SHOULD BE OF TYPE " ^ expected_output >:: fun _ ->
     let result: string = 
-    expr
+    type_of_c_expr (expr
     |> list_of_string 
     |> lex 
     |> parse_expr
     |> fst 
-    |> condense_expr 
-    |> type_of_c_expr 
+    |> condense_expr ) initial_env
+
     |> string_of_c_type 
   in
     assert_equal result expected_output

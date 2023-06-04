@@ -3,6 +3,7 @@ open Expr
 open Lex
 open Parse
 open Condense
+open Typecheck
 
 type value =
   | IntegerValue of int
@@ -14,7 +15,14 @@ type value =
 and env = (string * value) list
 
 
-let string_of_value = function
+let rec string_of_env (env: env) =
+  match env with
+  | [] -> ""
+  | (id, v) :: t ->
+    "(" ^ id ^ ", " ^ (string_of_value v) ^ ")" ^ (string_of_env t)
+
+
+and string_of_value = function
   | IntegerValue i -> string_of_int i
   | StringValue s -> "\"" ^ s ^ "\""
   | BooleanValue b -> string_of_bool b
@@ -117,5 +125,33 @@ let c_eval_ce (ce: c_expr): string =
   eval_c_expr ce initial_env |> string_of_value
 
 
-  let c_eval (s: string): string =
-    eval_c_expr (s |> list_of_string |> lex |> parse_expr |> fst |> condense_expr) initial_env |> string_of_value
+let c_eval (s: string): string =
+  eval_c_expr (s |> list_of_string |> lex |> parse_expr |> fst |> condense_expr) initial_env |> string_of_value
+
+
+let eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_env =
+  match d with
+  | CDefn (pattern, _, body_expression) ->
+    let v: value = eval_c_expr body_expression env in
+    let new_bindings_option: env option = bind_pat pattern v in
+
+    match new_bindings_option with
+    | None ->
+      failwith "no pattern matched"
+    | Some new_bindings ->
+      new_bindings |> string_of_env |> print_endline;
+      match new_bindings with
+      | [] -> env, static_env
+      | _ ->
+        (
+          match pattern with
+          | IdPat id ->
+            let new_type: c_type = type_of_c_expr body_expression static_env in
+            let new_env: env = new_bindings @ env in
+            let new_static_env: static_env = (id, new_type) :: static_env in
+            new_env, new_static_env
+          | _ -> failwith "impossible"
+        )
+        (* one new binding was produced *)
+        
+      
