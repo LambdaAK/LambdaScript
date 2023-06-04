@@ -34,6 +34,24 @@ let rec repl_loop (): unit =
   | LexFailure -> print_endline "Lex Failure\n"
   | ParseFailure -> print_endline "Parse Failure\n"
   | TypeFailure -> print_endline "Type Failure\n"
+  | UnexpectedToken (expected, Some got, line) ->
+    (* print the error *)
+    "Unexpected Token on line " 
+    ^ (string_of_int line) 
+    ^ ": expected "  
+    ^ (string_of_token {token_type = expected; line = line}) 
+    ^ " but got " ^ (string_of_token {token_type = got; line = line})
+    |> print_endline;
+
+  
+  | UnexpectedToken (expected, None, line) ->
+    (* print the error *)
+    "Unexpected Toke: " 
+    ^ (string_of_int line) 
+    ^ ": expected "  
+    ^ (string_of_token {token_type = expected; line = line}) 
+    ^ " but got none"
+    |> print_endline
 
   );
   

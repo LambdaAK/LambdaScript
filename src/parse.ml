@@ -18,14 +18,14 @@ let remove_last (lst: 'a list): 'a * 'a list =
 
 type mulop = Times | Div | Mod
 
-exception UnexpectedToken of token_type * token_type option
+exception UnexpectedToken of token_type * token_type option * int
 
 let assert_next_token (tokens: token list) (expected_value: token_type) =
   match tokens with
-  | [] -> raise (UnexpectedToken (expected_value, None))
-  | {token_type = t; line = _} :: _ ->
+  | [] -> raise (UnexpectedToken (expected_value, None, -1))
+  | {token_type = t; line = line} :: _ ->
     if t = expected_value then ()
-    else raise (UnexpectedToken (t, Some expected_value))
+    else raise (UnexpectedToken (expected_value, Some t, line))
 
 
 

@@ -108,166 +108,165 @@ let rec lex_id (lst: char list) (acc: string): token * char list = match lst wit
   
 
 
+let lex (lst: char list): token list =
+let line_number: int ref = ref 1 in
 let rec lex (lst: char list): token list =
-
+  (
   match lst with
   | [] -> []
   | ' ' :: t -> lex t (* ignore white space *)
-  | '\n' :: t -> lex t (* ignore new lines *)
+  | '\n' :: t -> line_number := !line_number + 1; lex t (* ignore new lines, increment the line number *)
   | 't' :: 'r' :: 'u' :: 'e' :: t ->
 
-    {token_type = (Boolean true); line = 0} :: (lex t)
+    {token_type = (Boolean true); line = !line_number} :: (lex t)
   | 'f' :: 'a' :: 'l' :: 's' :: 'e' :: t ->
-      {token_type = (Boolean false); line = 0} :: (lex t)
+      {token_type = (Boolean false); line = !line_number} :: (lex t)
 
 
   | 'i' :: 'n' :: 't' :: t ->
-    let new_token: token = {token_type = IntegerType; line = 0} in
+    let new_token: token = {token_type = IntegerType; line = !line_number} in
     new_token :: (lex t)
 
   | 'b' :: 'o' :: 'o' :: 'l' :: t ->
-      let new_token: token = {token_type = BooleanType; line = 0} in
+      let new_token: token = {token_type = BooleanType; line = !line_number} in
       new_token :: (lex t)
 
   | 's' :: 't' :: 'r' :: t ->
-      let new_token: token = {token_type = StringType; line = 0} in
+      let new_token: token = {token_type = StringType; line = !line_number} in
       new_token :: (lex t)
 
   | 'n' :: 'g' :: t ->
-      let new_token: token = {token_type = NothingType; line = 0} in
+      let new_token: token = {token_type = NothingType; line = !line_number} in
       new_token :: (lex t)
 
   | 'i' :: 'n' :: t ->
-    let new_token: token = {token_type = In; line = 0} in
+    let new_token: token = {token_type = In; line = !line_number} in
     new_token :: (lex t)
 
   | 'b' :: 'i' :: 'n' :: 'd' :: t ->
-    let new_token: token = {token_type = Bind; line = 0} in
+    let new_token: token = {token_type = Bind; line = !line_number} in
     new_token :: (lex t)
   
   | 'l' :: 'a' :: 'm' :: t ->
-      let new_token: token = {token_type = Lam; line = 0} in
+      let new_token: token = {token_type = Lam; line = !line_number} in
       new_token :: (lex t)
 
   | 'i' :: 'f' :: t ->
-    let new_token: token = {token_type = If; line = 0} in
+    let new_token: token = {token_type = If; line = !line_number} in
       new_token :: (lex t)
 
   | 't' :: 'h' :: 'e' :: 'n' :: t ->
-      let new_token: token = {token_type = Then; line = 0} in
+      let new_token: token = {token_type = Then; line = !line_number} in
         new_token :: (lex t)
 
   | 'e' :: 'l' :: 's' :: 'e' :: t ->
-      let new_token: token = {token_type = Else; line = 0} in
+      let new_token: token = {token_type = Else; line = !line_number} in
         new_token :: (lex t)
 
 
   | '(' :: c :: t when c <> ')' ->
-    let new_token: token = {token_type = LParen; line = 0} in
+    let new_token: token = {token_type = LParen; line = !line_number} in
         new_token :: (lex (c :: t))
 
   | ')' :: t ->
-    let new_token: token = {token_type = RParen; line = 0} in
+    let new_token: token = {token_type = RParen; line = !line_number} in
         new_token :: (lex t)
 
   | '=' :: '>' :: t ->
-    let new_token: token = {token_type = InArrow; line = 0} in
+    let new_token: token = {token_type = InArrow; line = !line_number} in
     new_token :: (lex t)
   
   | '-' :: '>' :: t ->
-    let new_token: token = {token_type = Arrow; line = 0} in
+    let new_token: token = {token_type = Arrow; line = !line_number} in
       new_token :: (lex t)
 
   | '<' :: '-' :: t ->
-    let new_token: token = {token_type = BindArrow; line = 0} in
+    let new_token: token = {token_type = BindArrow; line = !line_number} in
       new_token :: (lex t)
   
   | ':' :: t ->
-    let new_token: token = {token_type = Colon; line = 0} in
+    let new_token: token = {token_type = Colon; line = !line_number} in
       new_token :: (lex t)
 
-
-  
-
   | '(' :: ')' :: t ->
-    let new_token: token = {token_type = Nothing; line = 0} in
+    let new_token: token = {token_type = Nothing; line = !line_number} in
     new_token :: (lex t)
   
   | '+' :: t ->
-    let new_token: token = {token_type = Plus; line = 0} in
+    let new_token: token = {token_type = Plus; line = !line_number} in
     new_token :: (lex t)
 
   | '~' :: '-' :: t ->
-    let new_token: token = {token_type = Opposite; line = 0} in
+    let new_token: token = {token_type = Opposite; line = !line_number} in
     new_token :: (lex t)
 
   | '-' :: t ->
-    let new_token: token = {token_type = Minus; line = 0} in
+    let new_token: token = {token_type = Minus; line = !line_number} in
     new_token :: (lex t)
 
   | '*' :: t ->
-      let new_token: token = {token_type = Times; line = 0} in
+      let new_token: token = {token_type = Times; line = !line_number} in
       new_token :: (lex t)
 
   | '/' :: t ->
-      let new_token: token = {token_type = Divide; line = 0} in
+      let new_token: token = {token_type = Divide; line = !line_number} in
       new_token :: (lex t)
   
   | '%' :: t ->
-      let new_token: token = {token_type = Mod; line = 0} in
+      let new_token: token = {token_type = Mod; line = !line_number} in
       new_token :: (lex t)
     
 
   | '<' :: '=' :: t ->
-    let new_token: token = {token_type = LE; line = 0} in
+    let new_token: token = {token_type = LE; line = !line_number} in
     new_token :: (lex t)
 
   | '>' :: '=' :: t ->
-    let new_token: token = {token_type = GE; line = 0} in
+    let new_token: token = {token_type = GE; line = !line_number} in
     new_token :: (lex t)
 
   | '<' :: t ->
-    let new_token: token = {token_type = LT; line = 0} in
+    let new_token: token = {token_type = LT; line = !line_number} in
     new_token :: (lex t)
 
   | '>' :: t ->
-    let new_token: token = {token_type = GT; line = 0} in
+    let new_token: token = {token_type = GT; line = !line_number} in
     new_token :: (lex t)
 
   | '=' :: '=' :: t ->
-    let new_token: token = {token_type = EQ; line = 0} in
+    let new_token: token = {token_type = EQ; line = !line_number} in
     new_token :: (lex t)
 
   | '!' :: '=' :: t ->
-    let new_token: token = {token_type = NE; line = 0} in
+    let new_token: token = {token_type = NE; line = !line_number} in
     new_token :: (lex t)
   
   | '|' :: '|' :: t ->
-    let new_token: token = {token_type = OR; line = 0} in
+    let new_token: token = {token_type = OR; line = !line_number} in
     new_token :: (lex t)
 
   | '&' :: '&' :: t ->
-    let new_token: token = {token_type = AND; line = 0} in
+    let new_token: token = {token_type = AND; line = !line_number} in
     new_token :: (lex t)
 
 
   | '[' :: t ->
-    let new_token: token = {token_type = LBracket; line = 0} in
+    let new_token: token = {token_type = LBracket; line = !line_number} in
     new_token :: (lex t)
 
 
   | ']' :: t ->
-      let new_token: token = {token_type = RBracket; line = 0} in
+      let new_token: token = {token_type = RBracket; line = !line_number} in
       new_token :: (lex t)
 
 
   | '{' :: t ->
-      let new_token: token = {token_type = LBrace; line = 0} in
+      let new_token: token = {token_type = LBrace; line = !line_number} in
       new_token :: (lex t)
 
 
   | '}' :: t ->
-        let new_token: token = {token_type = RBrace; line = 0} in
+        let new_token: token = {token_type = RBrace; line = !line_number} in
         new_token :: (lex t)
 
   | n :: _ when is_num n ->
@@ -281,7 +280,7 @@ let rec lex (lst: char list): token list =
   | '"' :: c :: t ->
     
     if c = '"' then 
-      let new_token: token = {token_type = (StringToken ""); line = 0} in
+      let new_token: token = {token_type = (StringToken ""); line = !line_number} in
       new_token :: (lex t)
   else
     let new_token, remainder = lex_string (c :: t) "" in
@@ -289,6 +288,9 @@ let rec lex (lst: char list): token list =
 
 
   | _ -> failwith "no token matched"
+
+  )
+  in lex lst
 
 
 
