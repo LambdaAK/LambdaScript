@@ -1,10 +1,9 @@
 # dune exec ./test/test.exe
 # OCAMLPARAM: unset
 # Shared cache: disabled
-# Workspace root: "/Users/alex/Desktop/coding projects/programming language in
-# ocaml"
+# Workspace root: "/Users/alex/Desktop/coding projects/LambdaScript"
 # Auto-detected concurrency: 10
-$ /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -config > /var/folders/_4/___ddmg11_d2sv3nsgj44bbw0000gn/T/dune_a6091a_output
+$ /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -config > /var/folders/_4/___ddmg11_d2sv3nsgj44bbw0000gn/T/dune_e00dd7_output
 # Dune context:
 #  { name = "default"
 #  ; kind = "default"
@@ -27,15 +26,15 @@ $ /Users/alex/.opam/cs3110-2023sp/bin/ocamlc.opt -config > /var/folders/_4/___dd
 #        { "DUNE_OCAML_HARDCODED" : "/Users/alex/.opam/cs3110-2023sp/lib"
 #        ; "DUNE_OCAML_STDLIB" : "/Users/alex/.opam/cs3110-2023sp/lib/ocaml"
 #        ; "DUNE_SOURCEROOT" :
-#            "/Users/alex/Desktop/coding projects/programming language in ocaml"
+#            "/Users/alex/Desktop/coding projects/LambdaScript"
 #        ; "INSIDE_DUNE" :
-#            "/Users/alex/Desktop/coding projects/programming language in ocaml/_build/default"
+#            "/Users/alex/Desktop/coding projects/LambdaScript/_build/default"
 #        ; "OCAMLFIND_IGNORE_DUPS_IN" :
-#            "/Users/alex/Desktop/coding projects/programming language in ocaml/_build/install/default/lib"
+#            "/Users/alex/Desktop/coding projects/LambdaScript/_build/install/default/lib"
 #        ; "OCAMLPATH" :
-#            "/Users/alex/Desktop/coding projects/programming language in ocaml/_build/install/default/lib"
+#            "/Users/alex/Desktop/coding projects/LambdaScript/_build/install/default/lib"
 #        ; "OCAMLTOP_INCLUDE_PATH" :
-#            "/Users/alex/Desktop/coding projects/programming language in ocaml/_build/install/default/lib/toplevel"
+#            "/Users/alex/Desktop/coding projects/LambdaScript/_build/install/default/lib/toplevel"
 #        ; "OCAML_COLOR" : "always"
 #        ; "OPAMCOLOR" : "always"
 #        }

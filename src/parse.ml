@@ -1,12 +1,8 @@
 open Lex
 open Expr
 
-
-
-
 exception ParseFailure
 exception FactorParseFailure
-
 
 
 let remove_head: 'a list -> 'a list = function
@@ -21,6 +17,16 @@ let remove_last (lst: 'a list): 'a * 'a list =
 
 
 type mulop = Times | Div | Mod
+
+exception UnexpectedToken of token_type * token_type option
+
+let assert_next_token (tokens: token list) (expected_value: token_type) =
+  match tokens with
+  | [] -> raise (UnexpectedToken (expected_value, None))
+  | {token_type = t; line = _} :: _ ->
+    if t = expected_value then ()
+    else raise (UnexpectedToken (t, Some expected_value))
+
 
 
 let rec parse_compound_type (tokens: token list): compound_type * token list =
@@ -52,6 +58,7 @@ and parse_factor_type (tokens: token list): factor_type * token list =
   | {token_type = LParen; line = _} :: t ->
 
     let inside, tokens_after_inside = parse_compound_type t in
+    assert_next_token tokens_after_inside RParen;
     ParenFactorType inside, (remove_head tokens_after_inside) (* remove the RParen here *)
 
 
@@ -67,8 +74,10 @@ and parse_expr (tokens: token list) : expr * token list =
     (* parse the guard *)
     let guard, tokens_after_guard = parse_expr t in
     (* the next token should be a Then *)
+    assert_next_token tokens_after_guard Then;
     let e1, tokens_after_e1 = parse_expr (remove_head tokens_after_guard) in
     (* the next token should be a Else *)
+    assert_next_token tokens_after_e1 Else;
     let e2, tokens_after_e2 = parse_expr (remove_head tokens_after_e1) in
     Ternary (guard, e1, e2), tokens_after_e2
   
@@ -96,6 +105,7 @@ and parse_function (tokens_without_lam: token list): expr * token list =
     | _ ->
       (* no type annotation *)
       (* in this case, the next token is arrow *)
+      assert_next_token tokens_after_pattern Arrow;
       let body_tokens: token list = remove_head tokens_after_pattern in
       let body, tokens_after_body = parse_expr body_tokens in
       Function (pattern, None, body), tokens_after_body
@@ -112,6 +122,7 @@ and parse_bind (tokens_without_bind: token list): expr * token list =
     let e1, tokens_after_e1 = parse_expr tokens_after_bind_arrow in
     (* the next token should be in *)
     (* remove it *)
+    assert_next_token tokens_after_e1 In;
     let tokens_after_in = remove_head tokens_after_e1 in
     let e2, tokens_after_e2 = parse_expr tokens_after_in in
 
@@ -145,10 +156,12 @@ and parse_bind (tokens_without_bind: token list): expr * token list =
   | _ ->
     (* there is no type annotation *)
     (* the next token should be the bind arrow *)
+    assert_next_token tokens_after_pattern BindArrow;
     let tokens_after_bind_arrow: token list = remove_head tokens_after_pattern in
     let e1, tokens_after_e1 = parse_expr tokens_after_bind_arrow in
     (* the next token should be in *)
     (* remove it *)
+    assert_next_token tokens_after_e1 In;
     let tokens_after_in = remove_head tokens_after_e1 in
     let e2, tokens_after_e2 = parse_expr tokens_after_in in
 
@@ -335,9 +348,6 @@ and parse_factor_list (tokens: token list): factor list * mulop list * token lis
   List.rev !factor_list, List.rev !mulop_list, !remaining_tokens
   
 
-
-
-
 and construct_term_from_factor_list_and_mulop_list_helper (factor_list_reversed: factor list) (mulop_list_reversed: mulop list): term =
   match factor_list_reversed, mulop_list_reversed with
   | [], [] -> failwith "impossible"
@@ -392,6 +402,7 @@ and parse_factor_not_app (tokens: token list): factor * token list =
     let e, tokens_after_e = parse_expr t in
     (* the next token should be a RPAREN *)
     (* remove the RPAREN with remove_head *)
+    assert_next_token tokens_after_e RParen;
     ParenFactor e, remove_head tokens_after_e
 
   (*| {token_type = LBrace; line = _} :: t ->
@@ -425,36 +436,4 @@ and create_factor_app_chain_from_factor_list (factors: factor list): factor =
 
     let last, factors_without_last = remove_last factors_list in
     App (create_factor_app_chain_from_factor_list factors_without_last, last)
-
-
-
-
-and term_to_factor (t: term): factor =
-ParenFactor (
-  DisjunctionExpr (
-    ConjunctionUnderDisjunction (
-      EqualityUnderConjunction (
-        RelationUnderEqExpr (
-          ArithmeticUnderRelExpr (
-            Term t
-          )
-        )
-      )
-    )
-  )
-)
-
-and arith_expr_to_term (ae: arith_expr): term =
-Factor (ParenFactor (
-  DisjunctionExpr (
-    ConjunctionUnderDisjunction (
-      EqualityUnderConjunction (
-        RelationUnderEqExpr (
-          ArithmeticUnderRelExpr ae
-        )
-      )
-    )
-  )
-)
-)
 

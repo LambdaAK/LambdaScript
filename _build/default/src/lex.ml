@@ -7,7 +7,6 @@ type token_type =
 | Assign
 | Lam
 | Arrow
-| Let
 | If
 | Then
 | Else
@@ -146,11 +145,6 @@ let rec lex (lst: char list): token list =
     let new_token: token = {token_type = Bind; line = 0} in
     new_token :: (lex t)
   
-  | 'l' :: 'e' :: 't' :: t ->
-    let new_token: token = {token_type = Let; line = 0} in
-      new_token :: (lex t)
-
-
   | 'l' :: 'a' :: 'm' :: t ->
       let new_token: token = {token_type = Lam; line = 0} in
       new_token :: (lex t)
@@ -304,7 +298,7 @@ let rec remove_line_numbers (tokens: token list): token_type list = match tokens
 
 
 
-
+[@@ coverage off]
 let string_of_token: token -> string = fun (tok: token) -> match tok.token_type with
 | Boolean b -> let s: string = string_of_bool b in
 
@@ -319,7 +313,6 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | Lam -> "<lam>"
 | Arrow -> "<arrow>"
 | Assign -> "<assign>"
-| Let -> "<let>"
 | If -> "<if>"
 | Then -> "<then>"
 | Else -> "<else>"
@@ -353,7 +346,7 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | LBrace -> "<lbrace>"
 | RBrace -> "<rbrace>"
 
-
+[@@coverage off]
 let rec print_tokens_list: token list -> unit = function
 | [] -> ()
 | token :: tail ->

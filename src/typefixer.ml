@@ -12,15 +12,7 @@ open Cexpr
     | h :: _ when h = elm -> 1 (* the first element gets replaced by 1 *)
     | _ :: t -> 1 + get_replacement elm t (* add 1 *)
 
-let print_int_list (lst: int list): unit =
-  let rec print (lst: int list): unit =
-    match lst with
-    | [] -> ()
-    | h :: t -> Printf.printf "%d " h; print t
-  in
-  print lst
 
-let () = ignore print_int_list
 
   let fix (t: c_type): c_type =
     let order: (int list) ref = ref [] in

@@ -1,5 +1,4 @@
 open Cexpr
-open Ctostring
 open Expr
 open Typefixer
 
@@ -11,10 +10,7 @@ type type_equations = type_equation list
 
 type substitutions = type_equations
 
-let rec string_of_constraints (c: type_equations): string =
-  match c with
-  | [] -> ""
-  | (t1, t2) :: c' -> Printf.sprintf "%s = %s\n" (string_of_c_type t1) (string_of_c_type t2) ^ string_of_constraints c'
+
 
 exception TypeFailure
 

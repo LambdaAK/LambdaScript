@@ -1,4 +1,6 @@
 open Cexpr
+[@@@coverage off]
+
 let indentations (level: int) = String.make (2 * level) ' '
 
 let indentations_with_newline (level: int) = "\n" ^ (indentations level)

@@ -2,7 +2,6 @@
 
 # todo
 
-
 + Error handling
 + Type aliases
 + definitions
@@ -10,9 +9,6 @@
 + Enum (a type of definition)
 + Sequence type
 + Vectors (tuples)
-
-
-
 
 <br>
 

@@ -8,7 +8,7 @@ open Language.Lex
 
 
 
-let modify_tests: bool = true
+let modify_tests: bool = false
 
 
 
@@ -387,11 +387,14 @@ let function_type_tests = [
   "lam a -> lam b -> lam c -> a ( b ( c ) )", "(t1 -> t2) -> (t3 -> t1) -> t3 -> t2";
 
 
-
-
 ]
 
-
+let function_to_string_tests = [
+  "lam a -> a", "function";
+  "lam () -> ()", "function";
+  "lam () [ng] -> ()", "function";
+  "bind a [(int -> int) -> int] <- lam f -> f 1 in a", "function"
+]
 
 
 let arithmetic_tests = [
@@ -580,6 +583,7 @@ let eval_test_data = [
   minus_tests;
   mult_div_mod_tests;
   ternary_tests;
+  function_to_string_tests
 ] |> List.flatten |> EvalTestModifier.modify_tests
 
 let eval_tests = List.map (fun (a, b) -> eval_test a b) eval_test_data

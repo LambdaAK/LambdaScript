@@ -1,4 +1,8 @@
+bind z <- 5 in
+bind x <- z in
+
 bind f <-
-  lam a [str] -> a
+  lam z -> x
 in
-f "aaaa"
+
+f 10
