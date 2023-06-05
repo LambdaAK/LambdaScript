@@ -398,6 +398,7 @@ let function_type_tests = [
   "bind f a b c <- a + b + c in f 1", "int -> int -> int";
   "bind f a b c <- a + b + c in f 1 2", "int -> int";
   "bind f a b c <- a + b + c in f 1 2 3", "int";
+  "bind f a b c d <- a in f", "t1 -> t2 -> t3 -> t4 -> t1";
 
 ]
 
@@ -582,8 +583,26 @@ let complex_tests = [
 
     (* add some tests involving functions *)
     "bind f a b c d <- a + b + c + d in f 1 1 1 1", "4";
-    "bind f a b c d <- a - b + c + d in f 1 2 1 1", "1"
+    "bind f a b c d <- a - b + c + d in f 1 2 1 1", "1";
+    "bind f a b c d <- a in f 1 () 100 100000", "1";
+    "bind f a b c d <- a in f (f 5 () () ()) () 100 100000", "5";
+    (* function that uses ternary statement *)
+    "bind f a b c d <- if a < b then c else d in f 1 2 3 4", "3";
+    (* function that applies one function twice to another function *)
+    
+    {|
+    bind succ n <- n + 1 in
+    bind apply_twice f x <- f (f x) in
+    apply_twice succ 2
+    |}, "4";
 
+    (* make a similar test *)
+    {|
+    bind square n <- n * n in
+    bind apply_twice f x <- f (f x) in
+    apply_twice square 3
+    |}, "81"
+    
 ]
 
 
