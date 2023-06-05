@@ -11,7 +11,6 @@ open Language.Lex
 let modify_tests: bool = false
 
 
-
 module type TestModifier = sig
   type test_type
   val modify_tests: test_type list -> test_type list
@@ -23,7 +22,6 @@ module type TestModifierInput = sig
   type test_type
   val modifiers: (test_type -> test_type) list
 end
-
 
 
 module MakeTestModifier (Input: TestModifierInput): TestModifier with type test_type = Input.test_type = struct
@@ -400,6 +398,38 @@ let function_type_tests = [
   "bind f a b c <- a + b + c in f 1 2 3", "int";
   "bind f a b c d <- a in f", "t1 -> t2 -> t3 -> t4 -> t1";
 
+  (* typed arguments *)
+
+  "bind f a [int] b [int] c [int] d [int] <- a in f", "int -> int -> int -> int -> int";
+  "bind f a [int] b [int] c [int] d [int] <- a in f 1", "int -> int -> int -> int";
+  "bind f a [int] b [int] c [int] d [int] <- a in f 1 2", "int -> int -> int";
+  "bind f a [int] b [int] c [int] d [int] <- a in f 1 2 3", "int -> int";
+  "bind f a [int] b [int] c [int] d [int] <- a in f 1 2 3 4", "int";
+
+  "bind f a b [int] c [int] d [int] <- a in f", "t1 -> int -> int -> int -> t1";
+  "bind f a b [int] c [int] d <- a in f", "t1 -> int -> int -> t2 -> t1";
+  "bind f a b [int] c d [int] <- a in f", "t1 -> int -> t2 -> int -> t1";
+  "bind f a b [int] c d <- a in f", "t1 -> int -> t2 -> t3 -> t1";
+  "bind f a b c [int] d [int] <- b in f", "t1 -> t2 -> int -> int -> t2";
+  "bind f a b c [int] d <- b in f", "t1 -> t2 -> int -> t3 -> t2";
+  "bind f a b c d [str] <- c in f", "t1 -> t2 -> t3 -> str -> t3";
+  "bind f a b c d <- c in f", "t1 -> t2 -> t3 -> t4 -> t3";
+  "bind f a b c d [str] <- d in f", "t1 -> t2 -> t3 -> str -> str";
+
+  (* long function with 10 arguments and return the first *)
+  "bind f a b c d e f g h i j <- a in f", "t1 -> t2 -> t3 -> t4 -> t5 -> t6 -> t7 -> t8 -> t9 -> t10 -> t1";
+  (* long function with 20 arguments *)
+  "bind f a b c d e f g h i j k l m n o p q r s t <- a in f", "t1 -> t2 -> t3 -> t4 -> t5 -> t6 -> t7 -> t8 -> t9 -> t10 -> t11 -> t12 -> t13 -> t14 -> t15 -> t16 -> t17 -> t18 -> t19 -> t20 -> t1";
+  (* long function with 30 arguments. name the arguments the word of the number *)
+  "bind f one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twentyone twentytwo twentythree twentyfour twentyfive twentysix twentyseven twentyeight twentynine thirty <- one in f", "t1 -> t2 -> t3 -> t4 -> t5 -> t6 -> t7 -> t8 -> t9 -> t10 -> t11 -> t12 -> t13 -> t14 -> t15 -> t16 -> t17 -> t18 -> t19 -> t20 -> t21 -> t22 -> t23 -> t24 -> t25 -> t26 -> t27 -> t28 -> t29 -> t30 -> t1";
+  (* long function with 40 arguments. name the arguments the word of the number *)
+  "bind f one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twentyone twentytwo twentythree twentyfour twentyfive twentysix twentyseven twentyeight twentynine thirty thirtyone thirtytwo thirtythree thirtyfour thirtyfive thirtysix thirtyseven thirtyeight thirtynine forty <- one in f", "t1 -> t2 -> t3 -> t4 -> t5 -> t6 -> t7 -> t8 -> t9 -> t10 -> t11 -> t12 -> t13 -> t14 -> t15 -> t16 -> t17 -> t18 -> t19 -> t20 -> t21 -> t22 -> t23 -> t24 -> t25 -> t26 -> t27 -> t28 -> t29 -> t30 -> t31 -> t32 -> t33 -> t34 -> t35 -> t36 -> t37 -> t38 -> t39 -> t40 -> t1";
+  (* long function with 50 arguments. name the arguments the word of the number *)
+  "bind f one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twentyone twentytwo twentythree twentyfour twentyfive twentysix twentyseven twentyeight twentynine thirty thirtyone thirtytwo thirtythree thirtyfour thirtyfive thirtysix thirtyseven thirtyeight thirtynine forty fortyone fortytwo fortythree fortyfour fortyfive fortysix fortyseven fortyeight fortynine fifty <- one in f", "t1 -> t2 -> t3 -> t4 -> t5 -> t6 -> t7 -> t8 -> t9 -> t10 -> t11 -> t12 -> t13 -> t14 -> t15 -> t16 -> t17 -> t18 -> t19 -> t20 -> t21 -> t22 -> t23 -> t24 -> t25 -> t26 -> t27 -> t28 -> t29 -> t30 -> t31 -> t32 -> t33 -> t34 -> t35 -> t36 -> t37 -> t38 -> t39 -> t40 -> t41 -> t42 -> t43 -> t44 -> t45 -> t46 -> t47 -> t48 -> t49 -> t50 -> t1";
+  (* long function with 60 arguments. name the arguments the word of the number *)
+  
+  
+  
 ]
 
 let function_to_string_tests = [
@@ -601,7 +631,23 @@ let complex_tests = [
     bind square n <- n * n in
     bind apply_twice f x <- f (f x) in
     apply_twice square 3
-    |}, "81"
+    |}, "81";
+
+    (* complicated function tests *)
+    (* function that takes a function and applies it to 1 *)
+    {|
+    bind apply_one f <- f 1 in
+    apply_one (lam n -> n + 1)
+    |}, "2";
+  
+    (* function that takes a bunch of arguments *)
+    {|
+    bind f a b c d e f g h i j k l m n o p q r s t <- a in
+    f 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 true false 1 2
+    |}, "1";
+
+
+
     
 ]
 

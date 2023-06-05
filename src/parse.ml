@@ -192,16 +192,38 @@ and parse_bind (tokens_without_bind: token list): expr * token list =
     which is how we want to access it later
     when wrapping the body expression with functions
     *)
-    let rec parse_pats_while_next_token_is_not_bind_arrow_not_tr (tokens: token list) (acc: pat list): pat list * token list =
+    (* if the next token is l bracket, parse a compound type
+      return an option
+      if it's none, then there is no type annotation
+      if it's some, then there is a type annotation
+        return the tokens as well, after the r bracket
+      *)
+    let parse_compound_type_if_possible (tokens: token list): compound_type option * token list =
+      match tokens with
+      | {token_type = LBracket; line = _} :: tokens_after_l_bracket ->
+        let ct, tokens_after_ct = parse_compound_type tokens_after_l_bracket in
+        (* the next token should be a r bracket *)
+        assert_next_token tokens_after_ct RBracket;
+        Some ct, remove_head tokens_after_ct
+      | _ -> None, tokens
+
+    in
+
+
+    let rec parse_pats_while_next_token_is_not_bind_arrow
+    (tokens: token list) (acc: (pat * compound_type option) list)
+    : (pat * compound_type option) list * token list =
       match tokens with
       | {token_type = BindArrow; line = _ } :: _ -> acc, tokens (* I don't think you need List.rev here *)
       | _ ->
         let next_pat, tokens_after_next_pat = parse_pat tokens in
-        parse_pats_while_next_token_is_not_bind_arrow_not_tr tokens_after_next_pat (next_pat :: acc)
+        (* parse a compound type if possible *)
+        let cto, tokens_after_cto = parse_compound_type_if_possible tokens_after_next_pat in
+        parse_pats_while_next_token_is_not_bind_arrow tokens_after_cto ((next_pat, cto) :: acc)
 
     in
 
-    let pattern_list, tokens_after_pattern_list = parse_pats_while_next_token_is_not_bind_arrow_not_tr tokens_after_annotated_type [] in
+    let pattern_list, tokens_after_pattern_list = parse_pats_while_next_token_is_not_bind_arrow tokens_after_annotated_type [] in
 
     let () = assert_next_token tokens_after_pattern_list BindArrow in
 
@@ -209,17 +231,19 @@ and parse_bind (tokens_without_bind: token list): expr * token list =
   assert_next_token tokens_after_pattern_list BindArrow;
   let body_tokens: token list = remove_head tokens_after_pattern_list in
   let e1, tokens_after_body = parse_expr body_tokens in
-  (* the next token should be in*)
+  (* the next token should be in *)
   assert_next_token tokens_after_body In;
   let tokens_after_in: token list = remove_head tokens_after_body in
   let e2, tokens_after_e2 = parse_expr tokens_after_in in
 
 
-  (* wrap e1 with functions using the patterns, right to left*)
-  let rec wrap_e1_with_functions (e1: expr) (patterns_right_to_left: pat list): expr =
-    match patterns_right_to_left with
+  (* wrap e1 with functions using the patterns, right to left *)
+  let rec wrap_e1_with_functions (e1: expr) (pattern_list: (pat * compound_type option) list): expr =
+    match pattern_list with
     | [] -> e1
-    | p :: rest -> wrap_e1_with_functions (Function (p, None, e1)) rest
+    | (pattern, cto) :: rest ->
+      wrap_e1_with_functions (Function (pattern, cto, e1)) rest
+
 
   in
 
