@@ -6,12 +6,12 @@ exception FactorParseFailure
 
 
 let remove_head: 'a list -> 'a list = function
-| [] -> failwith "cannot remove head from empty list"
+| [] -> raise ParseFailure
 | _ :: t -> t
 
 let remove_last (lst: 'a list): 'a * 'a list =
   match List.rev lst with
-  | [] -> failwith "cannot remove the last element of an empty list"
+  | [] -> raise ParseFailure
   | last :: rest ->
     last, List.rev rest
 
@@ -110,7 +110,7 @@ and parse_defn (tokens: token list): defn * token list =
 
 
       )
-    | _ -> failwith "expected let in parse_defn"
+    | _ -> raise ParseFailure
 
 
 

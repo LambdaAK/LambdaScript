@@ -1,3 +1,5 @@
 .vscode
 _build
 _coverage
+bin/_build
+src/_build
