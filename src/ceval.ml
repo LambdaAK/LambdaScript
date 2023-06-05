@@ -128,7 +128,15 @@ let c_eval_ce (ce: c_expr): string =
 let c_eval (s: string): string =
   eval_c_expr (s |> list_of_string |> lex |> parse_expr |> fst |> condense_expr) initial_env |> string_of_value
 
+(**
+returns a tuple (a, b, c, d)
 
+a is the new dynamic environment
+b is the new static environment
+c is the type of the expression
+d is the value of the expression
+
+*)
 let eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_env * c_type * value =
   match d with
   | CDefn (pattern, _, body_expression) ->
@@ -151,6 +159,5 @@ let eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_env 
             new_env, new_static_env, type_of_c_expr body_expression static_env, v
           | _ -> failwith "impossible"
         )
-        (* one new binding was produced *)
         
       

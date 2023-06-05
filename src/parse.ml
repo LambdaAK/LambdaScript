@@ -168,21 +168,64 @@ and parse_function (tokens_without_lam: token list): expr * token list =
 
 and parse_bind (tokens_without_bind: token list): expr * token list =
   let pattern, tokens_after_pattern = parse_pat tokens_without_bind in
-  (* check if there is a left bracket for a type annotation *)
-  match tokens_after_pattern with
-  | {token_type = LBracket; line = _} :: tokens_after_l_bracket ->
-    let ct, tokens_after_ct = parse_compound_type tokens_after_l_bracket in
-    (* disregard the next r bracket and bind arrow *)
-    let tokens_after_bind_arrow = tokens_after_ct |> remove_head |> remove_head in
-    let e1, tokens_after_e1 = parse_expr tokens_after_bind_arrow in
-    (* the next token should be in *)
-    (* remove it *)
-    assert_next_token tokens_after_e1 In;
-    let tokens_after_in = remove_head tokens_after_e1 in
-    let e2, tokens_after_e2 = parse_expr tokens_after_in in
 
+
+  let cto, tokens_after_annotated_type = (* if there is a type annotation, get it here *)
+    (
+    match tokens_after_pattern with
+    | {token_type = LBracket; line = _} :: tokens_after_l_bracket ->
+      let ct, tokens_after_ct = parse_compound_type tokens_after_l_bracket in
+      (* the next token should be a r bracket *)
+      assert_next_token tokens_after_ct RBracket;
+      Some ct, remove_head tokens_after_ct
+    | _ -> None, tokens_after_pattern
+    ) in
+
+  
+    (*
+    we could be parsing a function, so after this, continue parsing patterns while the next
+    token is not a bind arrow
+    *)
     
-    DisjunctionExpr (
+    (*
+    Note that the pattern list is returned in right to left order, 
+    which is how we want to access it later
+    when wrapping the body expression with functions
+    *)
+    let rec parse_pats_while_next_token_is_not_bind_arrow_not_tr (tokens: token list) (acc: pat list): pat list * token list =
+      match tokens with
+      | {token_type = BindArrow; line = _ } :: _ -> acc, tokens (* I don't think you need List.rev here *)
+      | _ ->
+        let next_pat, tokens_after_next_pat = parse_pat tokens in
+        parse_pats_while_next_token_is_not_bind_arrow_not_tr tokens_after_next_pat (next_pat :: acc)
+
+    in
+
+    let pattern_list, tokens_after_pattern_list = parse_pats_while_next_token_is_not_bind_arrow_not_tr tokens_after_annotated_type [] in
+
+    let () = assert_next_token tokens_after_pattern_list BindArrow in
+
+  (* the next token should be a bind arrow *)
+  assert_next_token tokens_after_pattern_list BindArrow;
+  let body_tokens: token list = remove_head tokens_after_pattern_list in
+  let e1, tokens_after_body = parse_expr body_tokens in
+  (* the next token should be in*)
+  assert_next_token tokens_after_body In;
+  let tokens_after_in: token list = remove_head tokens_after_body in
+  let e2, tokens_after_e2 = parse_expr tokens_after_in in
+
+
+  (* wrap e1 with functions using the patterns, right to left*)
+  let rec wrap_e1_with_functions (e1: expr) (patterns_right_to_left: pat list): expr =
+    match patterns_right_to_left with
+    | [] -> e1
+    | p :: rest -> wrap_e1_with_functions (Function (p, None, e1)) rest
+
+  in
+
+  let e1_wrapped = wrap_e1_with_functions e1 pattern_list in
+
+  DisjunctionExpr (
       ConjunctionUnderDisjunction (
         EqualityUnderConjunction (
           RelationUnderEqExpr (
@@ -193,11 +236,11 @@ and parse_bind (tokens_without_bind: token list): expr * token list =
                     ParenFactor (
                       Function (
                         pattern,
-                        Some ct,
+                         cto,
                         e2
                       )
                     ),
-                    ParenFactor (e1)
+                    ParenFactor (e1_wrapped)
                   )
                 )
               )
@@ -206,47 +249,6 @@ and parse_bind (tokens_without_bind: token list): expr * token list =
         )
       )
     ), tokens_after_e2
-
-
-  | _ ->
-    (* there is no type annotation *)
-    (* the next token should be the bind arrow *)
-    assert_next_token tokens_after_pattern BindArrow;
-    let tokens_after_bind_arrow: token list = remove_head tokens_after_pattern in
-    let e1, tokens_after_e1 = parse_expr tokens_after_bind_arrow in
-    (* the next token should be in *)
-    (* remove it *)
-    assert_next_token tokens_after_e1 In;
-    let tokens_after_in = remove_head tokens_after_e1 in
-    let e2, tokens_after_e2 = parse_expr tokens_after_in in
-
-    DisjunctionExpr (
-      ConjunctionUnderDisjunction (
-        EqualityUnderConjunction (
-          RelationUnderEqExpr (
-            ArithmeticUnderRelExpr (
-              Term (
-                Factor (
-                  App (
-                    ParenFactor (
-                      Function (
-                        pattern,
-                        None,
-                        e2
-                      )
-                    ),
-                    ParenFactor (e1)
-                  )
-                )
-              )
-            )
-          )
-        )
-      )
-    ), tokens_after_e2
-    
-
-
 
 
 and parse_disjunction (tokens: token list): disjunction * token list =

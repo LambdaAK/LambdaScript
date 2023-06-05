@@ -386,6 +386,18 @@ let function_type_tests = [
   (* more complicated function type tests *)
   "lam a -> lam b -> lam c -> a ( b ( c ) )", "(t1 -> t2) -> (t3 -> t1) -> t3 -> t2";
 
+  (* tests with syntax sugar bind expressions *)
+
+  "bind f x <- x in f", "t1 -> t1";
+  "bind f x <- x + 1 in f", "int -> int";
+  "bind f x <- x + 1 in f 1", "int";
+  "bind f x <- x + 1 in f 1 + 1", "int";
+  "bind f x <- x + 1 in f (1 + 1)", "int";
+  (* add three numbers *)
+  "bind f a b c <- a + b + c in f", "int -> int -> int -> int";
+  "bind f a b c <- a + b + c in f 1", "int -> int -> int";
+  "bind f a b c <- a + b + c in f 1 2", "int -> int";
+  "bind f a b c <- a + b + c in f 1 2 3", "int";
 
 ]
 
@@ -567,6 +579,11 @@ let complex_tests = [
     in
     f ()
     |}, {|()|};
+
+    (* add some tests involving functions *)
+    "bind f a b c d <- a + b + c + d in f 1 1 1 1", "4";
+    "bind f a b c d <- a - b + c + d in f 1 2 1 1", "1"
+
 ]
 
 
