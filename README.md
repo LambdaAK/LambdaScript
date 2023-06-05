@@ -2,10 +2,6 @@
 
 # todo
 
-+ Definitions
-  + Better error handling
-  + Printing the new bindings and their types
-  + Integrating definitions with the interpreter
 + Type aliases
 + recursive functions
 + Enum (a type of definition)
