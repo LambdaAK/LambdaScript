@@ -129,7 +129,7 @@ let c_eval (s: string): string =
   eval_c_expr (s |> list_of_string |> lex |> parse_expr |> fst |> condense_expr) initial_env |> string_of_value
 
 
-let eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_env =
+let eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_env * c_type * value =
   match d with
   | CDefn (pattern, _, body_expression) ->
     let v: value = eval_c_expr body_expression env in
@@ -139,9 +139,8 @@ let eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_env 
     | None ->
       failwith "no pattern matched"
     | Some new_bindings ->
-      new_bindings |> string_of_env |> print_endline;
       match new_bindings with
-      | [] -> env, static_env
+      | [] -> failwith "unimplemented eval_defn"
       | _ ->
         (
           match pattern with
@@ -149,7 +148,7 @@ let eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_env 
             let new_type: c_type = type_of_c_expr body_expression static_env in
             let new_env: env = new_bindings @ env in
             let new_static_env: static_env = (id, new_type) :: static_env in
-            new_env, new_static_env
+            new_env, new_static_env, type_of_c_expr body_expression static_env, v
           | _ -> failwith "impossible"
         )
         (* one new binding was produced *)

@@ -25,69 +25,23 @@ let rec repl_loop (env: env) (static_env: static_env): unit =
   match tokens with
   | {token_type = Let; line = _} :: _ ->
     let d: c_defn = attempt_parse_defn tokens in
-    let new_env, new_static_env = eval_defn d env static_env in
-    new_env |> string_of_env |> print_endline;
+    let new_env, new_static_env, t, v = eval_defn d env static_env in
+    let t_string: string = string_of_c_type t in
+    let v_string: string = string_of_value v in
+    print_endline ("\n" ^ t_string ^ ": " ^ v_string ^ "\n");
+
     repl_loop new_env new_static_env
   | _ ->
-    repl_expr_one_iter_no_input env static_env input_string;
+    repl_expr env static_env input_string;
     repl_loop env static_env
 
 
-
-and repl_loop_expr (): unit =
-  
-  repl_expr_one_iter [] [];
-  repl_loop_expr ()
-
-
-and repl_expr_one_iter (env: env) (static_env: static_env) =
-  (
-    try
-    counter := 0;
-    print_string "> ";
-    let input_string: string = read_line () in
-    let tokens: token list = attempt_lex input_string in
-    let ce: c_expr = attempt_parse tokens in
-    let () = ce |> string_of_c_expr |> print_endline in
-    let () = tokens |> parse_expr |> fst |> Language.Tostring.string_of_expr |> print_endline in
-    let t: c_type = attempt_type_check ce static_env in
-    let t_string: string = string_of_c_type t in
-    let result: string = attempt_eval ce env in
-    print_endline ("\n" ^ t_string ^ ": " ^ result ^ "\n")
-    
-    with
-    | LexFailure -> print_endline "Lex Failure\n"
-    | ParseFailure -> print_endline "Parse Failure\n"
-    | TypeFailure -> print_endline "Type Failure\n"
-    | UnexpectedToken (expected, Some got, line) ->
-      (* print the error *)
-      "Unexpected Token on line " 
-      ^ (string_of_int line) 
-      ^ ": expected "  
-      ^ (string_of_token {token_type = expected; line = line}) 
-      ^ " but got " ^ (string_of_token {token_type = got; line = line})
-      |> print_endline;
-  
-    
-    | UnexpectedToken (expected, None, line) ->
-      (* print the error *)
-      "Unexpected Toke: " 
-      ^ (string_of_int line) 
-      ^ ": expected "  
-      ^ (string_of_token {token_type = expected; line = line}) 
-      ^ " but got none"
-      |> print_endline
-  
-    )
-
-and repl_expr_one_iter_no_input (env: env) (static_env: static_env) (e: string) =
+and repl_expr (env: env) (static_env: static_env) (e: string) =
   (
     try
     let input_string: string = e in
     let tokens: token list = attempt_lex input_string in
     let ce: c_expr = attempt_parse tokens in
-    let () = ce |> string_of_c_expr |> print_endline in
-    let () = tokens |> parse_expr |> fst |> Language.Tostring.string_of_expr |> print_endline in
     let t: c_type = attempt_type_check ce static_env in
     let t_string: string = string_of_c_type t in
     let result: string = attempt_eval ce env in
@@ -117,7 +71,6 @@ and repl_expr_one_iter_no_input (env: env) (static_env: static_env) (e: string) 
       |> print_endline
   
     )
-
 
 
 let run_repl (): unit = 
@@ -126,4 +79,3 @@ let run_repl (): unit =
   print_endline "[LambdaScript REPL]\n"; repl_loop Language.Ceval.initial_env Language.Typecheck.initial_env
 
 let () = run_repl ()
-let () = ignore repl_loop_expr
