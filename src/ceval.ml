@@ -29,7 +29,7 @@ and string_of_value = function
   | BooleanValue b -> string_of_bool b
   | NothingValue -> "()"
   | FunctionClosure _ -> "function"
-  | RecursiveFunctionClosure _ -> "recursive function"
+  | RecursiveFunctionClosure _ -> "function"
 
 
 let bind_pat (p: pat) (v: value): env option =

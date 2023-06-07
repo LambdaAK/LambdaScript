@@ -1,7 +1,6 @@
 open Cexpr
 open Expr
 open Typefixer
-open Ctostring
 
 type static_env = (string * c_type) list
 
@@ -93,25 +92,15 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
       | _ -> failwith "not a valid pattern in typecheck.ml"
     ) in
 
-    let a = EApp (EFunction (pattern, None, e2), e1) in
+    let a = EApp (EFunction (pattern, cto, e2), e1) in
 
-    let function_type: c_type = fresh_type_var () => fresh_type_var () in
+    let function_type: c_type = fresh_type_var () in
 
     let new_env: static_env = (function_id, function_type) :: env in
 
-    (* print the new env *)
-    print_endline "THE ENV";
-    List.iter (fun (id, t) -> print_endline (id ^ " : " ^ (string_of_c_type t))) new_env;
+    generate new_env a
 
-    let generated_type, generated_constraints = generate new_env a in
-
-    (
-      match cto with
-      | Some t -> generated_type, (function_type, t) :: generated_constraints
-      | None -> generated_type, generated_constraints
-    )
-    
-    
+   
 
 
 and type_of_pat (p: pat): c_type * static_env =
@@ -177,7 +166,7 @@ and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type
 and type_of_c_expr (e: c_expr) (static_env: static_env): c_type =
   let t, constraints = generate static_env e in
   (* print the constraints *)
-  let _ = List.iter (fun (t1, t2) -> print_endline ((string_of_c_type t1) ^ " = " ^ (string_of_c_type t2))) constraints in
+  (*let () = List.iter (fun (t1, t2) -> print_endline ((string_of_c_type t1) ^ " = " ^ (string_of_c_type t2))) constraints in*)
   (* reduce the constraints *)
   (* reduce the constraints *)
   let solution = reduce_eq constraints in
@@ -221,9 +210,3 @@ and substitute_in_type (type_subbing_in: c_type) (type_var_id_subbing_for: int) 
     else TypeVar id
   | FunctionType (t1, t2) ->
     FunctionType (substitute_in_type t1 type_var_id_subbing_for substitute_with, substitute_in_type t2 type_var_id_subbing_for substitute_with)
-
-
-
-
-
-

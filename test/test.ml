@@ -8,7 +8,7 @@ open Language.Lex
 
 
 
-let modify_tests: bool = false
+let modify_tests: bool = true
 
 
 module type TestModifier = sig
@@ -86,6 +86,7 @@ module EvalTestModifierInput: TestModifierInput with type test_type = string * s
     (fun (x, y) -> x, y);
     (* bind expression *)
     (fun (x, y) -> "bind a <- " ^ x ^ " in a", y);
+    (fun (x, y) -> "bind rec a <- " ^ x ^ " in a", y);
     (fun (x, y) -> "( lam a -> a ) ( " ^ x ^ " )", y);
 
   ]
@@ -100,6 +101,7 @@ module TypeTestModifierInput: TestModifierInput with type test_type = string = s
     (fun x -> x);
     (* bind expression *)
     (fun x -> "bind q <- " ^ x ^ " in q");
+    (fun x -> "bind rec q <- " ^ x ^ " in q");
     (fun x -> "( lam a -> a ) ( " ^ x ^ " )");
 
   ]
@@ -416,6 +418,8 @@ let function_type_tests = [
   "bind f a b c d <- c in f", "t1 -> t2 -> t3 -> t4 -> t3";
   "bind f a b c d [str] <- d in f", "t1 -> t2 -> t3 -> str -> str";
 
+  
+
   (* long function with 10 arguments and return the first *)
   "bind f a b c d e f g h i j <- a in f", "t1 -> t2 -> t3 -> t4 -> t5 -> t6 -> t7 -> t8 -> t9 -> t10 -> t1";
   (* long function with 20 arguments *)
@@ -430,6 +434,15 @@ let function_type_tests = [
 
 
   (* recursive functions *)
+
+  "bind rec f x <- x in f", "t1 -> t1";
+  "bind rec f [int -> int] x <- x in f", "int -> int";
+  "bind rec f x [ng] <- x in f", "ng -> ng";
+  "bind rec f x [int -> int] <- x in f", "(int -> int) -> int -> int";
+  
+
+
+
   "bind rec f x <- if x == 0 then 0 else f (x - 1) in f", "int -> int";
   (* factorial *)
   "bind rec f x <- if x == 0 then 1 else x * f (x - 1) in f", "int -> int";
