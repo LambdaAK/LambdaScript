@@ -95,6 +95,33 @@ let rec string_of_expr (e: expr) (level: int): string = match e with
 | DisjunctionExpr e  ->
   string_of_disjunction e level
 
+| BindRec (p, cto, e1, e2) ->
+  let p_string: string = string_of_pat p in
+  let e1_string: string = string_of_expr e1 (level + 1) in
+  let e2_string: string = string_of_expr e2 (level + 1) in
+
+  "BindRec ("
+  ^ indentations_with_newline (level + 1)
+  ^ p_string
+  ^ ","
+  ^ (
+    match cto with
+    | None -> ""
+    | Some ct ->
+      (* add the type annotation *)
+      let string_of_ct: string = string_of_compound_type ct (level + 1) in
+      indentations_with_newline (level + 1)
+      ^ string_of_ct
+      ^ ","
+    )
+  ^ indentations_with_newline (level + 1)
+  ^ e1_string
+  ^ ","
+  ^ indentations_with_newline (level + 1)
+  ^ e2_string
+  ^ indentations_with_newline level
+  ^ ")"
+
 
 and string_of_disjunction (d: disjunction) (level: int): string =
   match d with

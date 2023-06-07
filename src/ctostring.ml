@@ -110,6 +110,33 @@ and string_of_c_expr (e: c_expr) (level: int) =
     ^ e2_string
     ^ indentations_with_newline level
     ^ ")"
+
+  | EBindRec (pattern, cto, body, e) ->
+    let pattern_string: string = string_of_pat pattern in
+    let body_string: string = string_of_c_expr body (level + 1) in
+    let e_string: string = string_of_c_expr e (level + 1) in
+
+    "BindRec ("
+    ^ indentations_with_newline (level + 1)
+    ^ pattern_string
+    ^ ","
+    ^ (
+      match cto with
+      | None -> ""
+      | Some t ->
+        (* add the type annotation *)
+        let string_of_ct: string = string_of_c_type t in
+        indentations_with_newline (level + 1)
+        ^ string_of_ct
+        ^ ","
+      )
+    ^ indentations_with_newline (level + 1)
+    ^ body_string
+    ^ ","
+    ^ indentations_with_newline (level + 1)
+    ^ e_string
+    ^ indentations_with_newline level
+    ^ ")"
     
 
 and string_of_c_bop: c_bop -> string =

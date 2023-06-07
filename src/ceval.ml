@@ -11,6 +11,7 @@ type value =
   | BooleanValue of bool
   | NothingValue
   | FunctionClosure of env * pat * c_type option * c_expr
+  | RecursiveFunctionClosure of env ref * pat * c_type option * c_expr
 
 and env = (string * value) list
 
@@ -28,6 +29,7 @@ and string_of_value = function
   | BooleanValue b -> string_of_bool b
   | NothingValue -> "()"
   | FunctionClosure _ -> "function"
+  | RecursiveFunctionClosure _ -> "recursive function"
 
 
 let bind_pat (p: pat) (v: value): env option =
@@ -65,10 +67,50 @@ let rec eval_c_expr (ce: c_expr) (env: env) =
           | Some env'' -> eval_c_expr e (env'' @ env')
           | None -> failwith "eval_c_expr: EApp"
         )
+      (* recursive function *)
+      | RecursiveFunctionClosure (env'_ref, p, _, e) ->
+        let env': env = !env'_ref in
+        (
+          match bind_pat p v2 with
+          | Some env'' -> eval_c_expr e (env'' @ env')
+          | None -> failwith "eval_c_expr: EApp"
+        )
+      
       | _ -> failwith "eval_c_expr: EApp"
     )
-  
+  | EBindRec (pattern, _, e1, e2) ->
+    let v1: value = eval_c_expr e1 env in
+    let v1_rec = (
+      match v1 with
+      | FunctionClosure (closure_env, closure_pat, _, closure_body) ->
+        RecursiveFunctionClosure (ref closure_env, closure_pat, None, closure_body)
 
+      | _ -> v1
+        (* not a function, so the rec doesn't really mean anything *)
+        
+    ) in
+
+    (* backpatch *)
+    (
+      match v1_rec with
+      | RecursiveFunctionClosure (env_ref, _, _, _) ->
+        let recursive_bindings_option: env option = bind_pat pattern v1_rec in
+        (
+          match recursive_bindings_option with
+          | None -> failwith "no pattern matched"
+          | Some recursive_bindings ->
+            env_ref := recursive_bindings @ env;
+            eval_c_expr e2 (recursive_bindings @ env)
+        )
+      | _ ->
+        (* evaluate a regular let expression *)
+        let new_bindings_option: env option = bind_pat pattern v1_rec in
+        (
+          match new_bindings_option with
+          | None -> failwith "no pattern matched"
+          | Some new_bindings -> eval_c_expr e2 (new_bindings @ env)
+        )
+    );
 
 and eval_bop (op: c_bop) (e1: c_expr) (e2: c_expr) (env: env) =
 

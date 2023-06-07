@@ -427,9 +427,45 @@ let function_type_tests = [
   (* long function with 50 arguments. name the arguments the word of the number *)
   "bind f one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twentyone twentytwo twentythree twentyfour twentyfive twentysix twentyseven twentyeight twentynine thirty thirtyone thirtytwo thirtythree thirtyfour thirtyfive thirtysix thirtyseven thirtyeight thirtynine forty fortyone fortytwo fortythree fortyfour fortyfive fortysix fortyseven fortyeight fortynine fifty <- one in f", "t1 -> t2 -> t3 -> t4 -> t5 -> t6 -> t7 -> t8 -> t9 -> t10 -> t11 -> t12 -> t13 -> t14 -> t15 -> t16 -> t17 -> t18 -> t19 -> t20 -> t21 -> t22 -> t23 -> t24 -> t25 -> t26 -> t27 -> t28 -> t29 -> t30 -> t31 -> t32 -> t33 -> t34 -> t35 -> t36 -> t37 -> t38 -> t39 -> t40 -> t41 -> t42 -> t43 -> t44 -> t45 -> t46 -> t47 -> t48 -> t49 -> t50 -> t1";
   (* long function with 60 arguments. name the arguments the word of the number *)
+
+
+  (* recursive functions *)
+  "bind rec f x <- if x == 0 then 0 else f (x - 1) in f", "int -> int";
+  (* factorial *)
+  "bind rec f x <- if x == 0 then 1 else x * f (x - 1) in f", "int -> int";
+  (* fibonacci *)
+  "bind rec f x <- if x == 0 then 0 else if x == 1 then 1 else f (x - 1) + f (x - 2) in f", "int -> int";
+  (* sum of first n numbers *)
+  "bind rec f x <- if x == 0 then 0 else x + f (x - 1) in f", "int -> int";
+  (* sum of first n odd numbers *)
+  "bind rec f x <- if x == 0 then 0 else if x == 1 then 1 else 2 * x - 1 + f (x - 1) in f", "int -> int";
+  (* sum of first n even numbers *)
+  "bind rec f x <- if x == 0 then 0 else if x == 1 then 2 else 2 * x + f (x - 1) in f", "int -> int";
+  (* sum of first n squares *)
+  "bind rec f x <- if x == 0 then 0 else x * x + f (x - 1) in f", "int -> int";
+  (* sum of first n cubes *)
+  "bind rec f x <- if x == 0 then 0 else x * x * x + f (x - 1) in f", "int -> int";
+  (* sum of first n fourth powers *)
+  "bind rec f x <- if x == 0 then 0 else x * x * x * x + f (x - 1) in f", "int -> int";
+  (* sum of first n fifth powers *)
+  "bind rec f x <- if x == 0 then 0 else x * x * x * x * x + f (x - 1) in f", "int -> int";
   
+  (* recursive function with boolean inputs *)
+  "bind rec f x <- if x then 1 else 0 in f", "bool -> int";
+
+  "bind rec f x <- if x then 1 else f (not x) in f", "bool -> int";
+
+  (* big recursive function like fibonacci but with third order recurrence relation *)
+  "bind rec f x <- if x == 0 then 0 else if x == 1 then 1 else if x == 2 then 2 else f (x - 1) + f (x - 2) + f (x - 3) in f", "int -> int";
+  (* big recursive function like fibonacci but with fourth order recurrence relation *)
+  "bind rec f x <- if x == 0 then 0 else if x == 1 then 1 else if x == 2 then 2 else if x == 3 then 3 else f (x - 1) + f (x - 2) + f (x - 3) + f (x - 4) in f", "int -> int";
+  (* big recursive function like fibonacci but with fifth order recurrence relation *)
+  "bind rec f x <- if x == 0 then 0 else if x == 1 then 1 else if x == 2 then 2 else if x == 3 then 3 else if x == 4 then 4 else f (x - 1) + f (x - 2) + f (x - 3) + f (x - 4) + f (x - 5) in f", "int -> int";
   
+
+
   
+   
 ]
 
 let function_to_string_tests = [
@@ -640,15 +676,115 @@ let complex_tests = [
     apply_one (lam n -> n + 1)
     |}, "2";
   
-    (* function that takes a bunch of arguments *)
+ 
     {|
     bind f a b c d e f g h i j k l m n o p q r s t <- a in
     f 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 true false 1 2
     |}, "1";
 
+    {|
+    bind rec f x <- if x == 0 then 1 else x * f (x - 1) in
+    f 5
+    |}, "120";
 
+    (* fibonacci *)
+    {|
+    bind rec f x <- if x == 0 then 0 else if x == 1 then 1 else f (x - 1) + f (x - 2) in
+    f 10
+    |}, "55";
+
+  
+    {|
+    bind rec f x <- if x == 0 then 0 else if x == 1 then 1 else f (x - 1) + f (x - 2) in
+    f 20
+    |}, "6765";
+
+   
+    {|
+    bind rec f x <- if x == 1 then 1 else if x == 2 then 1 else f (x - 1) + f (x - 2) in
+    f 1
+    |}, "1";
+  
+    
+      {|
+    bind rec f x <- if x == 1 then 1 else if x == 2 then 1 else f (x - 1) + f (x - 2) in
+    f 2
+    |}, "1";
+
+      {|
+    bind rec f x <- if x == 1 then 1 else if x == 2 then 1 else f (x - 1) + f (x - 2) in
+    f 3
+    |}, "2";
 
     
+      {|
+
+    bind rec f x <- if x == 1 then 1 else if x == 2 then 1 else f (x - 1) + f (x - 2) in
+    f 4
+    |}, "3";
+
+   
+      {|
+    bind rec f x <- if x == 1 then 1 else if x == 2 then 1 else f (x - 1) + f (x - 2) in
+    f 5
+    |}, "5";
+
+     
+      {|
+    bind rec f x <- if x == 1 then 1 else if x == 2 then 1 else f (x - 1) + f (x - 2) in
+    f 6
+    |}, "8";
+
+  
+      {|
+    bind rec f x <- if x == 1 then 1 else if x == 2 then 1 else f (x - 1) + f (x - 2) in
+    f 7
+    |}, "13";
+
+  
+      {|
+    bind rec f x <- if x == 1 then 1 else if x == 2 then 1 else f (x - 1) + f (x - 2) in
+    f 8
+    |}, "21";
+
+
+    (* sum *)
+    {|
+    bind rec f x <- if x == 0 then 0 else x + f (x - 1) in
+    f 10
+    |}, "55";
+
+    (* sum of first n odd numbers *)
+    {|
+    bind rec f x <- if x == 0 then 0 else if x == 1 then 1 else 2 * x - 1 + f (x - 1) in
+    f 10
+    |}, "100";
+
+    (* sum of first n even numbers *)
+    
+    {|
+    bind rec f x <- if x then 1 else f (not x) in
+    f true
+
+    |}, "1";
+
+
+    {|
+    bind rec f x <- if x then 1 else f (not x) in
+    f false
+    |}, "1";
+
+    {|
+    bind rec f x <- if x == 0 then true else false || f (x - 1) in
+    f 100
+    |}, "true";
+
+    {|
+    bind rec f x <- if x == 0 then false else true && f (x - 1) in
+    f 100
+    |}, "false";
+
+
 ]
 
 
@@ -656,7 +792,6 @@ let int_type_tests: test list = List.map (fun expression -> type_is_int expressi
 let bool_type_tests: test list = List.map (fun expression -> type_is_bool expression) (bool_types |> TypeTestModifier.modify_tests |>BoolTypeTestModifier.modify_tests)
 let string_type_tests: test list = List.map (fun expression -> type_is_string expression) string_types
 let function_type_tests: test list = List.map (fun (a, b) -> type_test a b) (function_type_tests |> FunctionTypeTestModifier.modify_tests)
-
 
 
 let eval_test_data = [

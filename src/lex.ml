@@ -40,6 +40,7 @@ type token_type =
 | LBrace
 | RBrace
 | Let
+| Rec
 
 type token = {token_type: token_type; line: int}
 
@@ -142,6 +143,10 @@ let rec lex (lst: char list): token list =
 
   | 'i' :: 'n' :: t ->
     let new_token: token = {token_type = In; line = !line_number} in
+    new_token :: (lex t)
+
+  | 'r' :: 'e' :: 'c' :: t ->
+    let new_token: token = {token_type = Rec; line = !line_number} in
     new_token :: (lex t)
 
   | 'b' :: 'i' :: 'n' :: 'd' :: t ->
@@ -353,6 +358,7 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | LBrace -> "<lbrace>"
 | RBrace -> "<rbrace>"
 | Let -> "<let>"
+| Rec -> "<rec>"
 
 [@@coverage off]
 let rec print_tokens_list: token list -> unit = function

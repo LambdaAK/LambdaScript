@@ -28,6 +28,12 @@ and condense_expr: expr -> c_expr =
   , condense_expr expr)
   | Ternary (e1, e2, e3) -> ETernary (condense_expr e1, condense_expr e2, condense_expr e3)
   | DisjunctionExpr disj -> condense_disjunction disj
+  | BindRec (pat, cto, e1, e2) -> EBindRec (pat, (
+    match cto with
+    | None -> None
+    | Some ct -> Some (condense_type ct)
+    ), condense_expr e1, condense_expr e2)
+
 
 and condense_disjunction: disjunction -> c_expr =
   function

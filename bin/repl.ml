@@ -18,6 +18,9 @@ let attempt_type_check (ce: c_expr) (env: static_env): c_type = type_of_c_expr c
 let attempt_eval (ce: c_expr) (env: env): string = eval_c_expr ce env |> string_of_value
 
 
+let () = ignore attempt_lex; ignore attempt_parse; ignore attempt_type_check; ignore attempt_eval
+
+
 let rec repl_loop (env: env) (static_env: static_env): unit =
   print_string "> ";
   let input_string: string = read_line () in
@@ -36,9 +39,10 @@ let rec repl_loop (env: env) (static_env: static_env): unit =
     repl_loop env static_env
 
 
-and repl_expr (env: env) (static_env: static_env) (e: string) =
+and repl_expr (env: env) (static_env: static_env) (e: string) = ignore env; ignore static_env;
   (
     try
+    (*
     let input_string: string = e in
     let tokens: token list = attempt_lex input_string in
     let ce: c_expr = attempt_parse tokens in
@@ -46,6 +50,19 @@ and repl_expr (env: env) (static_env: static_env) (e: string) =
     let t_string: string = string_of_c_type t in
     let result: string = attempt_eval ce env in
     print_endline ("\n" ^ t_string ^ ": " ^ result ^ "\n")
+    *)
+    
+    let input_string: string = e in
+    let tokens: token list = attempt_lex input_string in
+    let ce: c_expr = attempt_parse tokens in
+    let () = ce |> string_of_c_expr |> print_endline in
+    let t: c_type = attempt_type_check ce static_env in
+    let t_string: string = string_of_c_type t in
+    print_endline ("\n" ^ t_string ^ ": ");
+    (* evaluate ce *)
+    (* don't typecheck *)
+    let result: string = attempt_eval ce env in
+    print_endline ("\n" ^ result ^ "\n")
     
     with
     | LexFailure -> print_endline "Lex Failure\n"

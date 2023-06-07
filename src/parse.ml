@@ -136,6 +136,10 @@ and parse_expr (tokens: token list) : expr * token list =
     let e2, tokens_after_e2 = parse_expr (remove_head tokens_after_e1) in
     Ternary (guard, e1, e2), tokens_after_e2
   
+  | {token_type = Bind; line = _} :: {token_type = Rec; line = _} :: t -> (* bind rec expression *)
+    parse_bind_rec t
+
+
   | {token_type = Bind; line = _} :: t -> (* bind expression *)
     parse_bind t
 
@@ -145,6 +149,78 @@ and parse_expr (tokens: token list) : expr * token list =
     (* parse an arith_expr *)
     let (e, t): disjunction * token list = parse_disjunction tokens in
     DisjunctionExpr e, t
+
+and parse_bind_rec (tokens_without_bind_rec: token list): expr * token list =
+
+    let pattern, tokens_after_pattern = parse_pat tokens_without_bind_rec in
+
+
+    let cto, tokens_after_annotated_type = (* if there is a type annotation, get it here *)
+      (
+      match tokens_after_pattern with
+      | {token_type = LBracket; line = _} :: tokens_after_l_bracket ->
+        let ct, tokens_after_ct = parse_compound_type tokens_after_l_bracket in
+        (* the next token should be a r bracket *)
+        assert_next_token tokens_after_ct RBracket;
+        Some ct, remove_head tokens_after_ct
+      | _ -> None, tokens_after_pattern
+      ) in
+
+    let parse_compound_type_if_possible (tokens: token list): compound_type option * token list =
+      match tokens with
+      | {token_type = LBracket; line = _} :: tokens_after_l_bracket ->
+        let ct, tokens_after_ct = parse_compound_type tokens_after_l_bracket in
+        (* the next token should be a r bracket *)
+        assert_next_token tokens_after_ct RBracket;
+        Some ct, remove_head tokens_after_ct
+      | _ -> None, tokens
+
+    in
+
+
+    let rec parse_pats_while_next_token_is_not_bind_arrow
+    (tokens: token list) (acc: (pat * compound_type option) list)
+    : (pat * compound_type option) list * token list =
+      match tokens with
+      | {token_type = BindArrow; line = _ } :: _ -> acc, tokens (* I don't think you need List.rev here *)
+      | _ ->
+        let next_pat, tokens_after_next_pat = parse_pat tokens in
+        (* parse a compound type if possible *)
+        let cto, tokens_after_cto = parse_compound_type_if_possible tokens_after_next_pat in
+        parse_pats_while_next_token_is_not_bind_arrow tokens_after_cto ((next_pat, cto) :: acc)
+
+    in
+
+
+    let pattern_list, tokens_after_pattern_list = parse_pats_while_next_token_is_not_bind_arrow tokens_after_annotated_type [] in
+
+    let () = assert_next_token tokens_after_pattern_list BindArrow in
+
+  (* the next token should be a bind arrow *)
+  assert_next_token tokens_after_pattern_list BindArrow;
+  let body_tokens: token list = remove_head tokens_after_pattern_list in
+  let e1, tokens_after_body = parse_expr body_tokens in
+  (* the next token should be in *)
+  assert_next_token tokens_after_body In;
+  let tokens_after_in: token list = remove_head tokens_after_body in
+  let e2, tokens_after_e2 = parse_expr tokens_after_in in
+
+
+  (* wrap e1 with functions using the patterns, right to left *)
+  let rec wrap_e1_with_functions (e1: expr) (pattern_list: (pat * compound_type option) list): expr =
+    match pattern_list with
+    | [] -> e1
+    | (pattern, cto) :: rest ->
+      wrap_e1_with_functions (Function (pattern, cto, e1)) rest
+
+
+  in
+
+  let e1_wrapped = wrap_e1_with_functions e1 pattern_list in
+
+  BindRec(pattern, cto, e1_wrapped, e2), tokens_after_e2
+
+
 
 
 and parse_function (tokens_without_lam: token list): expr * token list =
@@ -182,22 +258,6 @@ and parse_bind (tokens_without_bind: token list): expr * token list =
     ) in
 
   
-    (*
-    we could be parsing a function, so after this, continue parsing patterns while the next
-    token is not a bind arrow
-    *)
-    
-    (*
-    Note that the pattern list is returned in right to left order, 
-    which is how we want to access it later
-    when wrapping the body expression with functions
-    *)
-    (* if the next token is l bracket, parse a compound type
-      return an option
-      if it's none, then there is no type annotation
-      if it's some, then there is a type annotation
-        return the tokens as well, after the r bracket
-      *)
     let parse_compound_type_if_possible (tokens: token list): compound_type option * token list =
       match tokens with
       | {token_type = LBracket; line = _} :: tokens_after_l_bracket ->
@@ -366,8 +426,6 @@ and parse_arith_expr (tokens: token list): arith_expr * token list =
       a - b + c = a - (b - c)
 
       change it to that
-
-      
     
      *)
       (
@@ -517,4 +575,3 @@ and create_factor_app_chain_from_factor_list (factors: factor list): factor =
 
     let last, factors_without_last = remove_last factors_list in
     App (create_factor_app_chain_from_factor_list factors_without_last, last)
-

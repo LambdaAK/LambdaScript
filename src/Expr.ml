@@ -34,6 +34,7 @@ and expr =
   | Function of pat * compound_type option * expr
   | Ternary of expr * expr * expr
   | DisjunctionExpr of disjunction
+  | BindRec of pat * compound_type option * expr * expr
 
 
 and disjunction =

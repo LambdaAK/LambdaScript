@@ -23,6 +23,7 @@ and c_defn =
 
 and c_expr =
   | EFunction of pat * c_type option * c_expr
+  | EBindRec of pat * c_type option * c_expr * c_expr
   | ETernary of c_expr * c_expr * c_expr
   | EBool of bool
   | EString of string
