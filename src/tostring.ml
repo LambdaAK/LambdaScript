@@ -5,10 +5,19 @@ let indentations (level: int) = String.make (2 * level) ' '
 let indentations_with_newline (level: int) = "\n" ^ (indentations level)
 
 
-let string_of_pat: pat -> string =
+let rec string_of_pat: pat -> string =
   function
   | NothingPat -> "Nothing Pattern"
   | IdPat s -> "Id Pattern (" ^ s ^ ")"
+  | PairPat (p1, p2) ->
+    "Pair Pattern ("
+    ^ indentations_with_newline 1
+    ^ string_of_pat p1
+    ^ ","
+    ^ indentations_with_newline 1
+    ^ string_of_pat p2
+    ^ indentations_with_newline 0
+    ^ ")"
 
 
 let string_of_rel_op: rel_op -> string =
@@ -32,6 +41,15 @@ let rec string_of_basic_type (ft: factor_type) (level: int): string =
   | NothingType -> "NothingType"
   | ParenFactorType c ->
     string_of_compound_type c level
+  | PairType (t1, t2) ->
+    "PairType ("
+    ^ indentations_with_newline (level + 1)
+    ^ string_of_compound_type t1 level
+    ^ ","
+    ^ indentations_with_newline (level + 1)
+    ^ string_of_compound_type t2 level
+    ^ indentations_with_newline level
+    ^ ")"
 
 and string_of_compound_type (ct: compound_type) (level: int) =
   match ct with
@@ -287,7 +305,15 @@ match af with
   ^ string_of_arith_factor f (level + 1)
   ^ indentations_with_newline level
   ^ ")"
-
+| Pair (e1, e2) ->
+  "Pair ("
+  ^ indentations_with_newline (level + 1)
+  ^ (string_of_expr e1 (level + 1))
+  ^ ","
+  ^ indentations_with_newline (level + 1)
+  ^ (string_of_expr e2 (level + 1))
+  ^ indentations_with_newline level
+  ^ ")"
 
 
 let string_of_expr (e: expr) = string_of_expr e 0

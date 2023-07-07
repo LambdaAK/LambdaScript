@@ -1,6 +1,5 @@
 open Expr
 
-
 type c_bop =
   | CPlus
   | CMinus
@@ -32,6 +31,7 @@ and c_expr =
   | EId of string
   | EApp of c_expr * c_expr
   | EBop of c_bop * c_expr * c_expr
+  | EPair of c_expr * c_expr
 
 and c_type =
   | IntType
@@ -39,6 +39,7 @@ and c_type =
   | StringType
   | NothingType
   | FunctionType of c_type * c_type
+  | PairType of c_type * c_type
   | TypeVar of int
 
 let ( => ) (t1: c_type) (t2: c_type): c_type =

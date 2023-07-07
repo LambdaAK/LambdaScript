@@ -45,6 +45,16 @@ let rec parse_compound_type (tokens: token list): compound_type * token list =
 
 and parse_factor_type (tokens: token list): factor_type * token list =
   match tokens with
+  | {token_type = PairOpen; line = _} :: t ->
+    (* parse a compound type *)
+    let left_type, tokens_after_left_type = parse_compound_type t in
+    (* the next token should be a COMMA *)
+    assert_next_token tokens_after_left_type Comma;
+    let right_type, tokens_after_right_type = parse_compound_type (remove_head tokens_after_left_type) in
+    (* the next token should be a PairClose *)
+    assert_next_token tokens_after_right_type PairClose;
+    PairType (left_type, right_type), remove_head tokens_after_right_type
+    
   | {token_type = IntegerType; line = _} :: t ->
     IntegerType, t
   | {token_type = BooleanType; line = _} :: t ->
@@ -518,6 +528,15 @@ and parse_pat (tokens: token list): pat * token list = match tokens with
   NothingPat, t
 | {token_type = Id s; line = _} :: t ->
   IdPat s, t
+| {token_type = PairOpen; line = _} :: t ->
+  (* parse a pair *)
+  let p1, tokens_after_p1 = parse_pat t in
+  (* the next token should be a COMMA *)
+  assert_next_token tokens_after_p1 Comma;
+  let p2, tokens_after_p2 = parse_pat (remove_head tokens_after_p1) in
+  (* the next token should be a PairClose *)
+  assert_next_token tokens_after_p2 PairClose;
+  PairPat (p1, p2), remove_head tokens_after_p2
 | _ -> raise ParseFailure
 
 
@@ -543,6 +562,16 @@ and parse_factor_not_app (tokens: token list): factor * token list =
     (* remove the RPAREN with remove_head *)
     assert_next_token tokens_after_e RParen;
     ParenFactor e, remove_head tokens_after_e
+  | {token_type = PairOpen; line = _} :: t ->
+    (* parse a pair *)
+    let e1, tokens_after_e1 = parse_expr t in
+    (* the next token should be a COMMA *)
+    assert_next_token tokens_after_e1 Comma;
+    let e2, tokens_after_e2 = parse_expr (remove_head tokens_after_e1) in
+    (* the next token should be a PairClose *)
+    assert_next_token tokens_after_e2 PairClose;
+    Pair (e1, e2), remove_head tokens_after_e2
+
 
   (*| {token_type = LBrace; line = _} :: t ->
     (* infix *)

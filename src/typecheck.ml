@@ -100,15 +100,23 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
 
     generate new_env a
 
-   
+  | EPair (e1, e2) ->
+    let t1, c1 = generate env e1 in
+    let t2, c2 = generate env e2 in
+    let type_of_expression: c_type = PairType (t1, t2) in
+    type_of_expression, c1 @ c2
 
-
+  
 and type_of_pat (p: pat): c_type * static_env =
   match p with
   | IdPat id -> 
     let new_var: c_type = fresh_type_var () in
     new_var, [(id, new_var)]
   | NothingPat -> NothingType, []
+  | PairPat (p1, p2) ->
+    let t1, env1 = type_of_pat p1 in
+    let t2, env2 = type_of_pat p2 in
+    PairType (t1, t2), env1 @ env2
 
 
 
@@ -129,8 +137,10 @@ let rec reduce_eq (c: type_equations): substitutions =
       | FunctionType (i1, o1), FunctionType (i2, o2) ->
         reduce_eq ((i1, i2) :: (o1, o2) :: c')
 
-      | _ -> raise TypeFailure
+      | PairType (t3, t4), PairType(t5, t6) ->
+        reduce_eq ((t3, t5) :: (t4, t6) :: c')
 
+      | _ -> raise TypeFailure
     )
 
 
@@ -189,6 +199,7 @@ and is_basic_type (t: c_type): bool =
   | NothingType -> true
   | TypeVar _ -> false
   | FunctionType (i, o) -> is_basic_type i && is_basic_type o
+  | PairType (t1, t2) -> is_basic_type t1 && is_basic_type t2
 
 
 
@@ -210,3 +221,5 @@ and substitute_in_type (type_subbing_in: c_type) (type_var_id_subbing_for: int) 
     else TypeVar id
   | FunctionType (t1, t2) ->
     FunctionType (substitute_in_type t1 type_var_id_subbing_for substitute_with, substitute_in_type t2 type_var_id_subbing_for substitute_with)
+  | PairType (t1, t2) ->
+    PairType (substitute_in_type t1 type_var_id_subbing_for substitute_with, substitute_in_type t2 type_var_id_subbing_for substitute_with)

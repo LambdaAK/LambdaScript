@@ -1,8 +1,2 @@
-bind z <- 5 in
-bind x <- z in
-
-bind f <-
-  lam z -> x
-in
-
-f 10
+bind p <- <|1, 2|> in
+bind <|a, b|> <- p in a + b

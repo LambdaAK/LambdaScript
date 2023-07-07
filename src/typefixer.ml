@@ -31,6 +31,9 @@ open Cexpr
       | FunctionType (i, o) ->
         search i;
         search o
+      | PairType (t1, t2) ->
+        search t1;
+        search t2
       )
     in
     let () = search t in
@@ -52,6 +55,9 @@ open Cexpr
       | FunctionType (i, o) ->
 
         FunctionType (replace i lst, replace o lst)
+      
+      | PairType (t1, t2) ->
+        PairType (replace t1 lst, replace t2 lst)
 
       in
 

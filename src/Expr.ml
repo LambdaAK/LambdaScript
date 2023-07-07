@@ -1,6 +1,7 @@
 type pat =
   | IdPat of string
   | NothingPat
+  | PairPat of pat * pat
 
 
 type rel_op =
@@ -24,6 +25,7 @@ and factor_type =
   | BooleanType
   | NothingType
   | ParenFactorType of compound_type
+  | PairType of compound_type * compound_type
 
 
 type defn =
@@ -78,3 +80,4 @@ and factor =
   | ParenFactor of expr
   | App of factor * factor
   | Opposite of factor
+  | Pair of expr * expr
