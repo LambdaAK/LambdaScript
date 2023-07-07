@@ -526,6 +526,8 @@ and parse_pat (tokens: token list): pat * token list = match tokens with
 | [] -> failwith "empty list passed to parse_pat"
 | {token_type = Nothing; line = _} :: t ->
   NothingPat, t
+| {token_type = WildcardPattern; line = _} :: t ->
+  WildcardPat, t
 | {token_type = Id s; line = _} :: t ->
   IdPat s, t
 | {token_type = PairOpen; line = _} :: t ->

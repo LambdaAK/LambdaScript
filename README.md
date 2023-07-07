@@ -2,185 +2,210 @@
 
 # todo
 
-+ Type aliases
-+ recursive functions
-+ Enum (a type of definition)
-+ Sequence type
-+ Vectors (tuples)
-
+- Type aliases
+- recursive functions
+- Enum (a type of definition)
+- Sequence type
+- Vectors (tuples)
 
 <br>
 
 # precedence
 
 Grouping symbols (Highest precedence)
-  + (
-  + )
+
+- (
+- )
 
 Unary operators
-  + ~-
+
+- ~-
 
 Function application
-  + f x
+
+- f x
 
 Multiplicative arithmetic operators
-  + \*
-  + /
-  + %
+
+- \*
+- /
+- %
 
 Additive arithmetic operators
-  + \+
-  + \-
+
+- \+
+- \-
 
 Relational operators
-  + <
-  + \>
-  + <=
-  + \>=
+
+- <
+- \>
+- <=
+- \>=
 
 Equality operators
-  + ==
-  + !=
+
+- ==
+- !=
 
 Logical "and"
-  + &&
+
+- &&
 
 Logical "or"
-  + ||
+
+- ||
 
 Ternary conditional operator (if then else statement)
-  + if e1 then e2 else e3
-  
-Function literal 
-  + lam pat -> e
+
+- if e1 then e2 else e3
+
+Function literal
+
+- lam pat -> e
 
 Bind expression
-  + bind pat <- e1 in e2 (lowest precedence)
 
+- bind pat <- e1 in e2 (lowest precedence)
 
 # grammar
 
 <br><br>
+
 ## Type
 
 compound_type ::=
 
-  | factor_type '->' compound_type
+| factor_type '->' compound_type
 
-  | factor_type
+| factor_type
 
 <br>
 factor_type ::=
 
-  | integer
+| integer
 
-  | boolean
+| boolean
 
-  | string
+| string
 
-  | '(' compound_type ')'
+| '(' compound_type ')'
 <br><br>
+
 ## Binding pattern
 
 pat ::=
 
-  | '()'
+| '()'
 
-  | ID
-  
+| ID
+
 <br><br>
+
 ## General expression
-expr ::= 
 
-  | 'lam' pat '->' expr (* function *)
+expr ::=
 
-  | 'lam' pat '[' compound_type ']' '->' expr (* function *)
+| 'lam' pat '->' expr (* function *)
 
-  | bind pat <- expr 'in' expr
+| 'lam' pat '[' compound_type ']' '->' expr (* function *)
 
-  | bind pat '[' compound_type ']'<- expr 'in' expr
+| bind pat <- expr 'in' expr
 
-  | 'if' expr 'then' expr 'else' expr
+| bind pat '[' compound_type ']'<- expr 'in' expr
 
-  | disjunction
+| 'if' expr 'then' expr 'else' expr
 
+| disjunction
 
 <br><br>
+
 ## Disjunction
+
 disjunction ::=
 
-  | conjunction '||' disjunction
-  
-  | conjunction
+| conjunction '||' disjunction
 
+| conjunction
 
 <br><br>
+
 ## Conjunction
+
 conjunction ::=
 
-  | eq_expr '&&' conjunction
+| eq_expr '&&' conjunction
 
-  | eq_expr
-
+| eq_expr
 
 <br><br>
+
 ## Equality
+
 eq_expr ::=
 
-  | rel_expr '==' eq_expr
+| rel_expr '==' eq_expr
 
-  | rel_expr '!=' eq_expr
+| rel_expr '!=' eq_expr
 
-  | rel_expr
+| rel_expr
 <br><br>
+
 ## Relation
+
 rel_expr ::=
 
-  | arith_expr '<' rel_expr
+| arith_expr '<' rel_expr
 
-  | arith_expr '>' rel_expr
+| arith_expr '>' rel_expr
 
-  | arith_expr '<=' rel_expr
+| arith_expr '<=' rel_expr
 
-  | arith_expr '>=' rel_expr
+| arith_expr '>=' rel_expr
 
-  | arith_expr
+| arith_expr
 <br><br>
+
 ## Arithmetic expressions
-arith_expr ::= 
 
-  | term '+' arith_expr 
+arith_expr ::=
 
-  | term '-' arith_expr 
+| term '+' arith_expr
 
-  | term
-  <br><br>
-## Arithmetic term
-term ::= 
+| term '-' arith_expr
 
-  | factor '*' term 
-
-  | factor '/' term
-
-  | factor '%' term 
-
-  | factor
+| term
 <br><br>
+
+## Arithmetic term
+
+term ::=
+
+| factor '*' term
+
+| factor '/' term
+
+| factor '%' term
+
+| factor
+<br><br>
+
 ## Arithmetic factor
-factor ::= 
 
-  | INT
+factor ::=
 
-  | BOOL
+| INT
 
-  | STRING
+| BOOL
 
-  | '()'
+| STRING
 
-  | ID
+| '()'
 
-  | '(' expr ')'
+| ID
 
-  | '~-' factor
+| '(' expr ')'
 
-  | factor factor
+| '~-' factor
+
+| factor factor

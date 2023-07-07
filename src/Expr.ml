@@ -2,6 +2,7 @@ type pat =
   | IdPat of string
   | NothingPat
   | PairPat of pat * pat
+  | WildcardPat
 
 
 type rel_op =

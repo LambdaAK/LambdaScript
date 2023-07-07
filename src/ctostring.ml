@@ -10,6 +10,7 @@ let indentations_with_newline (level: int) = "\n" ^ (indentations level)
 let rec string_of_pat pat =
   match pat with
   | IdPat s -> s
+  | WildcardPat -> "_"
   | NothingPat -> "ng"
   | PairPat (p1, p2) ->
     let p1_string: string = string_of_pat p1 in

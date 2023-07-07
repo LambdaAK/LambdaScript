@@ -1,6 +1,7 @@
 open Cexpr
 open Expr
 open Typefixer
+open Ctostring
 
 type static_env = (string * c_type) list
 
@@ -14,6 +15,22 @@ type substitutions = type_equations
 exception TypeFailure
 
 let initial_env = [("not", BoolType => BoolType)]
+
+
+let string_of_type_equation ((t1, t2): type_equation): string = 
+  (string_of_c_type t1) ^ " = " ^ (string_of_c_type t2)
+
+
+let rec string_of_type_equations (c: type_equations): string =
+  match c with
+  | [] -> ""
+  | (t1, t2) :: c' -> (string_of_type_equation (t1, t2)) ^ "\n" ^ (string_of_type_equations c')
+
+
+let rec string_of_static_env (env: static_env): string =
+  match env with
+  | [] -> ""
+  | (id, t) :: env' -> id ^ " : " ^ (string_of_c_type t) ^ "\n" ^ (string_of_static_env env')
 
 let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
   match e with
@@ -56,13 +73,12 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     
     )
   | EFunction (pat, cto, body) ->
-    ignore cto;
 
     let input_type, new_env_bindings = type_of_pat pat in
     let constraints_from_type_annotation: type_equations = 
     (
       match cto with
-      | Some t -> [(input_type, t)]
+      | Some t -> [(input_type, t)] (* the input type must equal the type anotation *)
       | None -> []
 
     ) in
@@ -113,17 +129,17 @@ and type_of_pat (p: pat): c_type * static_env =
     let new_var: c_type = fresh_type_var () in
     new_var, [(id, new_var)]
   | NothingPat -> NothingType, []
+  | WildcardPat -> fresh_type_var (), []
   | PairPat (p1, p2) ->
     let t1, env1 = type_of_pat p1 in
     let t2, env2 = type_of_pat p2 in
     PairType (t1, t2), env1 @ env2
 
 
-
 let rec reduce_eq (c: type_equations): substitutions =
 
   match c with
-  [] -> []
+  | [] -> []
   | (t1, t2) :: c' ->
     if t1 = t2 then reduce_eq c'
     else
@@ -132,19 +148,17 @@ let rec reduce_eq (c: type_equations): substitutions =
       | TypeVar id, _ when not (inside t1 t2) ->
         (t1, t2) :: reduce_eq (substitute id t2 c')
 
-      | _, TypeVar _ -> reduce_eq ((t2, t1) :: c')
+      | _, TypeVar _ -> reduce_eq ((t2, t1) :: c') (* this switches the order of the types, then the branch before will be hit on the next iteration *)
 
       | FunctionType (i1, o1), FunctionType (i2, o2) ->
         reduce_eq ((i1, i2) :: (o1, o2) :: c')
 
       | PairType (t3, t4), PairType(t5, t6) ->
+
         reduce_eq ((t3, t5) :: (t4, t6) :: c')
 
       | _ -> raise TypeFailure
     )
-
-
-
 
 and get_type (var: c_type) (subs: substitutions): c_type =
  
@@ -157,9 +171,11 @@ and get_type (var: c_type) (subs: substitutions): c_type =
     | _ -> looked_up_type
     )
   | FunctionType (i, o) -> FunctionType (get_type i subs, get_type o subs)
-  | _ -> var
-
-
+  | PairType (t1, t2) -> PairType (get_type t1 subs, get_type t2 subs)
+  | IntType -> IntType
+  | BoolType -> BoolType
+  | StringType -> StringType
+  | NothingType -> NothingType
 
 
 and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type =
@@ -167,7 +183,11 @@ and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type
   | TypeVar _ ->
     (
     try
-      List.assoc var subs
+      let looked_up = List.assoc var subs in (
+        match looked_up with
+        | TypeVar _ -> get_type_of_type_var_if_possible looked_up subs
+        | _ -> looked_up
+      )
     with
     | Not_found -> var
     )

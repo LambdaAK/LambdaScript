@@ -8,6 +8,7 @@ let indentations_with_newline (level: int) = "\n" ^ (indentations level)
 let rec string_of_pat: pat -> string =
   function
   | NothingPat -> "Nothing Pattern"
+  | WildcardPat -> "Wildcard Pattern"
   | IdPat s -> "Id Pattern (" ^ s ^ ")"
   | PairPat (p1, p2) ->
     "Pair Pattern ("

@@ -12,10 +12,9 @@ type value =
   | NothingValue
   | FunctionClosure of env * pat * c_type option * c_expr
   | RecursiveFunctionClosure of env ref * pat * c_type option * c_expr
-  | Pair of value * value
+  | PairValue of value * value
 
 and env = (string * value) list
-
 
 let rec string_of_env (env: env) =
   match env with
@@ -31,14 +30,15 @@ and string_of_value = function
   | NothingValue -> "()"
   | FunctionClosure _ -> "function"
   | RecursiveFunctionClosure _ -> "function"
-  | Pair (v1, v2) -> "<|" ^ (string_of_value v1) ^ ", " ^ (string_of_value v2) ^ ">|"
+  | PairValue (v1, v2) -> "<|" ^ (string_of_value v1) ^ ", " ^ (string_of_value v2) ^ ">|"
 
 
 let rec bind_pat (p: pat) (v: value): env option =
   match p, v with
   | NothingPat, NothingValue -> Some []
+  | WildcardPat, _ -> Some []
   | IdPat s, _ -> Some [(s, v)]
-  | PairPat (p1, p2), Pair (v1, v2) ->
+  | PairPat (p1, p2), PairValue (v1, v2) ->
     (
       match bind_pat p1 v1, bind_pat p2 v2 with
       | Some env1, Some env2 -> Some (env1 @ env2)
@@ -59,7 +59,7 @@ let rec eval_c_expr (ce: c_expr) (env: env) =
   | EPair (e1, e2) ->
     let v1: value = eval_c_expr e1 env in
     let v2: value = eval_c_expr e2 env in
-    Pair (v1, v2)
+    PairValue (v1, v2)
 
   | ETernary (e1, e2, e3) ->
     let v1: value = eval_c_expr e1 env in
