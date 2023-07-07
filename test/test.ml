@@ -6,7 +6,7 @@ open Language.Ctostring
 open Language.Parse
 open Language.Lex
 
-let modify_tests: bool = false
+let modify_tests: bool = true
 
 
 module type TestModifier = sig
@@ -33,7 +33,6 @@ module MakeTestModifier (Input: TestModifierInput): TestModifier with type test_
       )
       ) tests |> List.flatten
 end
-
 
 
 module IntTestModifierInput: TestModifierInput with type test_type = string * string = struct
@@ -106,8 +105,6 @@ module TypeTestModifierInput: TestModifierInput with type test_type = string = s
 
 end
 
-
-
 module IntTypeTestModifierInput: TestModifierInput with type test_type = string = struct
   type test_type = string
   let modifiers: (string -> string) list = [
@@ -176,7 +173,6 @@ module BoolTypeTestModifierInput: TestModifierInput with type test_type = string
 
   ]
 
-
 end
 
 module FunctionTypeTestModifierInput: TestModifierInput with type test_type = string * string = struct
@@ -188,9 +184,16 @@ module FunctionTypeTestModifierInput: TestModifierInput with type test_type = st
     
   ]
 
-
 end
 
+module PairTypeTestModiferInput: TestModifierInput with type test_type = string * string = struct
+  type test_type = string * string
+
+  let modifiers: (string * string -> string * string) list = [
+    (fun x -> x)
+  ]
+
+end
 
 module IntTestModifier = MakeTestModifier (IntTestModifierInput)
 module IntTypeTestModifier = MakeTestModifier (IntTypeTestModifierInput)
@@ -198,13 +201,13 @@ module BoolTypeTestModifier = MakeTestModifier (BoolTypeTestModifierInput)
 module EvalTestModifier = MakeTestModifier (EvalTestModifierInput)
 module TypeTestModifier = MakeTestModifier (TypeTestModifierInput)
 module FunctionTypeTestModifier = MakeTestModifier (FunctionTypeTestModifierInput)
+module PairTypeTestModifier = MakeTestModifier (PairTypeTestModiferInput)
 
 
 let eval_test (expr: string) (expected_output: string): test =
   expr ^ " SHOULD YIELD " ^ expected_output >:: fun _ ->
     let result: string = c_eval expr in
     assert_equal result expected_output
-
 
 
 let type_test (expr: string) (expected_output: string): test =
@@ -380,6 +383,16 @@ let function_type_tests = [
   "lam a [int] -> lam b [int] -> a + b", "int -> int -> int";
   "lam a [int] -> lam b [int] -> a + b + 1", "int -> int -> int";
   "lam a [int] -> lam b [int] -> a + b + 1 + 2", "int -> int -> int";
+  "lam <|a, b|> [<|int, int|>] -> a + b", "<|int, int|> -> int";
+  "lam <|a, _|> -> lam <|_, b|> -> a + b", "<|int, t1|> -> <|t2, int|> -> int";
+  "lam <|a, _|> -> lam <|_, b|> -> a || b", "<|bool, t1|> -> <|t2, bool|> -> bool";
+  {|lam <|a, b|> ->
+    lam <|c, d|> ->
+    if a then b
+    else if c then d
+    else 1|}, "<|bool, int|> -> <|bool, int|> -> int";
+
+  
 
   (* more complicated function type tests *)
   "lam a -> lam b -> lam c -> a ( b ( c ) )", "(t1 -> t2) -> (t3 -> t1) -> t3 -> t2";
@@ -416,7 +429,8 @@ let function_type_tests = [
   "bind f a b c d <- c in f", "t1 -> t2 -> t3 -> t4 -> t3";
   "bind f a b c d [str] <- d in f", "t1 -> t2 -> t3 -> str -> str";
 
-  
+  "lam <|a, _|> -> a", "<|t1, t2|> -> t1";
+  "lam <|a, _|> -> a + 1", "<|int, t1|> -> int";
 
   (* long function with 10 arguments and return the first *)
   "bind f a b c d e f g h i j <- a in f", "t1 -> t2 -> t3 -> t4 -> t5 -> t6 -> t7 -> t8 -> t9 -> t10 -> t1";
@@ -438,8 +452,6 @@ let function_type_tests = [
   "bind rec f x [ng] <- x in f", "ng -> ng";
   "bind rec f x [int -> int] <- x in f", "(int -> int) -> int -> int";
   
-
-
 
   "bind rec f x <- if x == 0 then 0 else f (x - 1) in f", "int -> int";
   (* factorial *)
@@ -473,10 +485,17 @@ let function_type_tests = [
   (* big recursive function like fibonacci but with fifth order recurrence relation *)
   "bind rec f x <- if x == 0 then 0 else if x == 1 then 1 else if x == 2 then 2 else if x == 3 then 3 else if x == 4 then 4 else f (x - 1) + f (x - 2) + f (x - 3) + f (x - 4) + f (x - 5) in f", "int -> int";
   
+]
 
-
-  
-   
+let pair_type_tests = [
+  "<|1, 1|>", "<|int, int|>";
+  "<|1, true|>", "<|int, bool|>";
+  "<|1, 1 + 1|>", "<|int, int|>";
+  "<|1 - 1, 1 + 1 + 1|>", "<|int, int|>";
+  "<|1 - 1, 1 + 1 + 1 + 1|>", "<|int, int|>";
+  (* nested *)
+  "<|1 - 1, <|1 + 1, 1 + 1 + 1|>|>", "<|int, <|int, int|>|>";
+  "<|1 - 1, <|1 + 1, <|1 + 1 + 1, 1 + 1 + 1 + 1|>|>|>", "<|int, <|int, <|int, int|>|>|>";
 ]
 
 let function_to_string_tests = [
@@ -803,7 +822,7 @@ let int_type_tests: test list = List.map (fun expression -> type_is_int expressi
 let bool_type_tests: test list = List.map (fun expression -> type_is_bool expression) (bool_types |> TypeTestModifier.modify_tests |>BoolTypeTestModifier.modify_tests)
 let string_type_tests: test list = List.map (fun expression -> type_is_string expression) string_types
 let function_type_tests: test list = List.map (fun (a, b) -> type_test a b) (function_type_tests |> FunctionTypeTestModifier.modify_tests)
-
+let pair_type_tests: test list = List.map (fun (a, b) -> type_test a b) (pair_type_tests |> PairTypeTestModifier.modify_tests)
 
 let eval_test_data = [
   arithmetic_tests |> IntTestModifier.modify_tests;
@@ -826,6 +845,7 @@ let all_tests =
       bool_type_tests;
       string_type_tests;
       function_type_tests;
+      pair_type_tests;
       
     ]
 

@@ -1,1 +1,0 @@
-bind <|f, g|> <- <|lam a -> a, lam b -> b + 1|> in f g
