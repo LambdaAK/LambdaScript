@@ -42,21 +42,17 @@ let rec parse_compound_type (tokens: token list): compound_type * token list =
     BasicType left_type, tokens_after_left_type
 
 
-
 and parse_factor_type (tokens: token list): factor_type * token list =
   match tokens with
   | {token_type = PairOpen; line = _} :: t ->
-    (* parse a compound type *)
-    let left_type, tokens_after_left_type = parse_compound_type t in
-    (* the next token should be a COMMA *)
-    assert_next_token tokens_after_left_type Comma;
-    let right_type, tokens_after_right_type = parse_compound_type (remove_head tokens_after_left_type) in
+    (* parse a list of compound types seperated by commas *)
+    let compound_type_list, tokens_after_compound_type_list = parse_compound_type_list_seperated_by_commas t in
     (* the next token should be a PairClose *)
-    assert_next_token tokens_after_right_type PairClose;
-    PairType (left_type, right_type), remove_head tokens_after_right_type
+    assert_next_token tokens_after_compound_type_list PairClose;
+    VectorType compound_type_list, remove_head tokens_after_compound_type_list
     
   | {token_type = IntegerType; line = _} :: t ->
-    IntegerType, t
+      IntegerType, t
   | {token_type = BooleanType; line = _} :: t ->
       BooleanType, t
   | {token_type = StringType; line = _} :: t ->
@@ -70,9 +66,16 @@ and parse_factor_type (tokens: token list): factor_type * token list =
     assert_next_token tokens_after_inside RParen;
     ParenFactorType inside, (remove_head tokens_after_inside) (* remove the RParen here *)
 
+  | _ -> raise ParseFailure
 
-  | _ -> (*failwith "no pattern matched in parse_factor_type"*) raise ParseFailure
 
+and parse_compound_type_list_seperated_by_commas (tokens: token list): compound_type list * token list =
+  let first, tokens_after_first = parse_compound_type tokens in
+  match tokens_after_first with (* if the next token is a comma, remove the comma and parse another type *)
+  | {token_type = Comma; line = _} :: t ->
+    let second, tokens_after_second = parse_compound_type_list_seperated_by_commas t in
+    first :: second, tokens_after_second
+  | _ -> [first], tokens_after_first
 
 
 and parse_defn (tokens: token list): defn * token list =
@@ -123,11 +126,13 @@ and parse_defn (tokens: token list): defn * token list =
     | _ -> raise ParseFailure
 
 
-
-
-
-
-
+and parse_expressions_seperated_by_commas (tokens: token list): expr list * token list =
+  let first, tokens_after_first = parse_expr tokens in
+  match tokens_after_first with (* if the next token is a comma, remove the comma and parse another expression *)
+  | {token_type = Comma; line = _} :: t ->
+    let second, tokens_after_second = parse_expressions_seperated_by_commas t in
+    first :: second, tokens_after_second
+  | _ -> [first], tokens_after_first
 
 
 and parse_expr (tokens: token list) : expr * token list =
@@ -423,7 +428,7 @@ and parse_arith_expr (tokens: token list): arith_expr * token list =
       a - (b - c)
 
       a - b - c is equivalent to the following
-      (a - b) - c = a - b - c + a - (b + c)
+      (a - b) - c = a - b - c = a - (b + c)
 
       change it to that
 
@@ -450,7 +455,6 @@ and parse_arith_expr (tokens: token list): arith_expr * token list =
     
       )
 
-  
   | _ -> Term first, tokens_after_first
 
 
@@ -459,8 +463,6 @@ and parse_term (tokens: token list): term * token list =
   let factor_list, mulop_list, tokens_after_factor_list = parse_factor_list tokens in
   let term = construct_term_from_factor_list_and_mulop_list_helper factor_list mulop_list in
   term, tokens_after_factor_list
-
-
 
 
 and parse_factor_list (tokens: token list): factor list * mulop list * token list =
@@ -520,7 +522,13 @@ and parse_factor (tokens: token list): factor * token list =
   else List.hd factors, tokens_after_factors
     
   
-
+and parse_pats_seperated_by_commas (tokens: token list): pat list * token list =
+  let first, tokens_after_first = parse_pat tokens in
+  match tokens_after_first with (* if the next token is a comma, remove the comma and parse another pat *)
+  | {token_type = Comma; line = _} :: t ->
+    let second, tokens_after_second = parse_pats_seperated_by_commas t in
+    first :: second, tokens_after_second
+  | _ -> [first], tokens_after_first
 
 and parse_pat (tokens: token list): pat * token list = match tokens with
 | [] -> failwith "empty list passed to parse_pat"
@@ -531,14 +539,11 @@ and parse_pat (tokens: token list): pat * token list = match tokens with
 | {token_type = Id s; line = _} :: t ->
   IdPat s, t
 | {token_type = PairOpen; line = _} :: t ->
-  (* parse a pair *)
-  let p1, tokens_after_p1 = parse_pat t in
-  (* the next token should be a COMMA *)
-  assert_next_token tokens_after_p1 Comma;
-  let p2, tokens_after_p2 = parse_pat (remove_head tokens_after_p1) in
+  (* parse a list of pats seperated by commas *)
+  let pat_list, tokens_after_pat_list = parse_pats_seperated_by_commas t in
   (* the next token should be a PairClose *)
-  assert_next_token tokens_after_p2 PairClose;
-  PairPat (p1, p2), remove_head tokens_after_p2
+  assert_next_token tokens_after_pat_list PairClose;
+  VectorPat pat_list, remove_head tokens_after_pat_list
 | _ -> raise ParseFailure
 
 
@@ -565,14 +570,11 @@ and parse_factor_not_app (tokens: token list): factor * token list =
     assert_next_token tokens_after_e RParen;
     ParenFactor e, remove_head tokens_after_e
   | {token_type = PairOpen; line = _} :: t ->
-    (* parse a pair *)
-    let e1, tokens_after_e1 = parse_expr t in
-    (* the next token should be a COMMA *)
-    assert_next_token tokens_after_e1 Comma;
-    let e2, tokens_after_e2 = parse_expr (remove_head tokens_after_e1) in
+    (* parse a list of expressions seperated by commas *)
+    let expr_list, tokens_after_expr_list = parse_expressions_seperated_by_commas t in
     (* the next token should be a PairClose *)
-    assert_next_token tokens_after_e2 PairClose;
-    Pair (e1, e2), remove_head tokens_after_e2
+    assert_next_token tokens_after_expr_list PairClose;
+    Vector(expr_list), remove_head tokens_after_expr_list
 
 
   (*| {token_type = LBrace; line = _} :: t ->

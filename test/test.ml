@@ -72,6 +72,7 @@ module IntTestModifierInput: TestModifierInput with type test_type = string * st
     (* tests involving bind expressions *)
     (fun (x, y) -> "bind a <- " ^ x ^ " in a", y);
     (fun (x, y) -> "bind a <- " ^ x ^ " in a + 1", y |> int_of_string |> (+) 1 |> string_of_int);
+
   ]
 end
 
@@ -85,6 +86,7 @@ module EvalTestModifierInput: TestModifierInput with type test_type = string * s
     (fun (x, y) -> "bind a <- " ^ x ^ " in a", y);
     (fun (x, y) -> "bind rec a <- " ^ x ^ " in a", y);
     (fun (x, y) -> "( lam a -> a ) ( " ^ x ^ " )", y);
+
 
   ]
 
@@ -195,6 +197,15 @@ module PairTypeTestModiferInput: TestModifierInput with type test_type = string 
 
 end
 
+module VectorTypeTestModifierInput: TestModifierInput with type test_type = string * string = struct
+  type test_type = string * string
+
+  let modifiers: (string * string -> string * string) list = [
+    (fun x -> x)
+  ]
+
+end
+
 module IntTestModifier = MakeTestModifier (IntTestModifierInput)
 module IntTypeTestModifier = MakeTestModifier (IntTypeTestModifierInput)
 module BoolTypeTestModifier = MakeTestModifier (BoolTypeTestModifierInput)
@@ -202,7 +213,7 @@ module EvalTestModifier = MakeTestModifier (EvalTestModifierInput)
 module TypeTestModifier = MakeTestModifier (TypeTestModifierInput)
 module FunctionTypeTestModifier = MakeTestModifier (FunctionTypeTestModifierInput)
 module PairTypeTestModifier = MakeTestModifier (PairTypeTestModiferInput)
-
+module VectorTypeTestModifier = MakeTestModifier (VectorTypeTestModifierInput)
 
 let eval_test (expr: string) (expected_output: string): test =
   expr ^ " SHOULD YIELD " ^ expected_output >:: fun _ ->
@@ -503,6 +514,21 @@ let function_to_string_tests = [
   "lam () -> ()", "function";
   "lam () [ng] -> ()", "function";
   "bind a [(int -> int) -> int] <- lam f -> f 1 in a", "function"
+]
+
+let vector_type_tests = [
+  "<|1, 2, 3|>", "<|int, int, int|>";
+  "<|1, 2, 3, 4|>", "<|int, int, int, int|>";
+  "<|1, 2, 3, 4, 5|>", "<|int, int, int, int, int|>";
+  "<|1, 2, 3, 4, 5, 6|>", "<|int, int, int, int, int, int|>";
+  "<|1, 2, 3, 4, 5, 6, 7|>", "<|int, int, int, int, int, int, int|>";
+  (* with other types *)
+  "<|1, 2, true|>", "<|int, int, bool|>";
+  "<|1, 2, true, false|>", "<|int, int, bool, bool|>";
+  "<|1, 2, true, false, 1 + 1|>", "<|int, int, bool, bool, int|>";
+  "<|1, 2, true, false, 1 + 1, 1 + 1 + 1|>", "<|int, int, bool, bool, int, int|>";
+  (* very complicated nested vector *)
+  "<|1, 2, true, false, 1 + 1, 1 + 1 + 1, <|1, 2, true, false, 1 + 1, 1 + 1 + 1|>|>", "<|int, int, bool, bool, int, int, <|int, int, bool, bool, int, int|>|>";
 ]
 
 
@@ -824,6 +850,8 @@ let string_type_tests: test list = List.map (fun expression -> type_is_string ex
 let function_type_tests: test list = List.map (fun (a, b) -> type_test a b) (function_type_tests |> FunctionTypeTestModifier.modify_tests)
 let pair_type_tests: test list = List.map (fun (a, b) -> type_test a b) (pair_type_tests |> PairTypeTestModifier.modify_tests)
 
+let vector_type_tests: test list = List.map (fun (a, b) -> type_test a b) (vector_type_tests |> VectorTypeTestModifier.modify_tests)
+
 let eval_test_data = [
   arithmetic_tests |> IntTestModifier.modify_tests;
   boolean_tests;
@@ -846,6 +874,7 @@ let all_tests =
       string_type_tests;
       function_type_tests;
       pair_type_tests;
+      vector_type_tests;
       
     ]
 

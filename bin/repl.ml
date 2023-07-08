@@ -22,6 +22,15 @@ let () = ignore attempt_lex; ignore attempt_parse; ignore attempt_type_check; ig
 
 
 let rec repl_loop (env: env) (static_env: static_env): unit =
+  
+
+  
+  List.iter (fun (name, value) -> print_endline (name ^ ": " ^ (string_of_value value))) env;
+  List.iter (fun (name, value) -> print_endline (name ^ ": " ^ (string_of_c_type value))) static_env;
+  
+
+
+
   print_string "> ";
   let input_string: string = read_line () in
   let tokens: token list = attempt_lex input_string in

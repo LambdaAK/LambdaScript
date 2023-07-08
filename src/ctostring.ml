@@ -16,6 +16,21 @@ let rec string_of_pat pat =
     let p1_string: string = string_of_pat p1 in
     let p2_string: string = string_of_pat p2 in
     "<|" ^ p1_string ^ ", " ^ p2_string ^ "|>"
+  | VectorPat patterns ->
+    let patterns_string: string =
+      List.fold_left
+        (fun acc p ->
+          let p_string: string = string_of_pat p in
+          acc
+          ^ p_string
+          ^ ", "
+        )
+        ""
+        patterns
+    in
+    "<|"
+    ^ (String.sub patterns_string 0 ((String.length patterns_string) - 2))
+    ^ "|>"
 
 
 and string_of_c_defn (d: c_defn) =
@@ -154,6 +169,24 @@ and string_of_c_expr (e: c_expr) (level: int) =
     ^ e2_string
     ^ indentations_with_newline level
     ^ ")"
+  | EVector expressions ->
+    let expressions_string: string =
+      List.fold_left
+        (fun acc e ->
+          let e_string: string = string_of_c_expr e (level + 1) in
+          acc
+          ^ indentations_with_newline (level + 1)
+          ^ e_string
+          ^ ","
+        )
+        ""
+        expressions
+    in
+    "Vector ("
+    ^ indentations_with_newline (level + 1)
+    ^ expressions_string
+    ^ indentations_with_newline level
+    ^ ")"
     
 
 and string_of_c_bop: c_bop -> string =
@@ -171,7 +204,6 @@ and string_of_c_bop: c_bop -> string =
   | CGE -> ">="
   | CAnd -> "&&"
   | COr -> "||"
-
 
 
 
@@ -198,6 +230,22 @@ and string_of_c_type t =
     let t1_string: string = string_of_c_type t1 in
     let t2_string: string = string_of_c_type t2 in
     "<|" ^ t1_string ^ ", " ^ t2_string ^ "|>"
+  | VectorType types ->
+    let types_string: string =
+      List.fold_left
+        (fun acc t ->
+          let t_string: string = string_of_c_type t in
+          acc
+     
+          ^ t_string
+          ^ ", "
+        )
+        ""
+        types
+    in
+    "<|"
+    ^ (String.sub types_string 0 ((String.length types_string) - 2))
+    ^ "|>"
 
 
 let string_of_c_expr e = string_of_c_expr e 0

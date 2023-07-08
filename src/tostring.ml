@@ -19,6 +19,12 @@ let rec string_of_pat: pat -> string =
     ^ string_of_pat p2
     ^ indentations_with_newline 0
     ^ ")"
+  | VectorPat patterns ->
+    "Vector Pattern ("
+    ^ indentations_with_newline 1
+    ^ (String.concat (",\n" ^ indentations_with_newline 1) (List.map string_of_pat patterns))
+    ^ indentations_with_newline 0
+    ^ ")"
 
 
 let string_of_rel_op: rel_op -> string =
@@ -49,6 +55,12 @@ let rec string_of_basic_type (ft: factor_type) (level: int): string =
     ^ ","
     ^ indentations_with_newline (level + 1)
     ^ string_of_compound_type t2 level
+    ^ indentations_with_newline level
+    ^ ")"
+  | VectorType types ->
+    "VectorType ("
+    ^ indentations_with_newline (level + 1)
+    ^ (String.concat (",\n" ^ indentations_with_newline (level + 1)) (List.map (fun t -> string_of_compound_type t (level + 1)) types))
     ^ indentations_with_newline level
     ^ ")"
 
@@ -313,6 +325,12 @@ match af with
   ^ ","
   ^ indentations_with_newline (level + 1)
   ^ (string_of_expr e2 (level + 1))
+  ^ indentations_with_newline level
+  ^ ")"
+| Vector expressions ->
+  "Vector ("
+  ^ indentations_with_newline (level + 1)
+  ^ (String.concat (",\n" ^ indentations_with_newline (level + 1)) (List.map (fun e -> string_of_expr e (level + 1)) expressions))
   ^ indentations_with_newline level
   ^ ")"
 

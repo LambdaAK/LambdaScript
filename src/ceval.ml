@@ -13,6 +13,7 @@ type value =
   | FunctionClosure of env * pat * c_type option * c_expr
   | RecursiveFunctionClosure of env ref * pat * c_type option * c_expr
   | PairValue of value * value
+  | VectorValue of value list
 
 and env = (string * value) list
 
@@ -20,7 +21,7 @@ let rec string_of_env (env: env) =
   match env with
   | [] -> ""
   | (id, v) :: t ->
-    "(" ^ id ^ ", " ^ (string_of_value v) ^ ")" ^ (string_of_env t)
+    "(" ^ id ^ ", " ^ (string_of_value v) ^ ") " ^ (string_of_env t)
 
 
 and string_of_value = function
@@ -31,6 +32,9 @@ and string_of_value = function
   | FunctionClosure _ -> "function"
   | RecursiveFunctionClosure _ -> "function"
   | PairValue (v1, v2) -> "<|" ^ (string_of_value v1) ^ ", " ^ (string_of_value v2) ^ ">|"
+  | VectorValue values ->
+    let values_string: string = values |> List.map string_of_value |> String.concat ", " in
+    "<|" ^ values_string ^ "|>"
 
 
 let rec bind_pat (p: pat) (v: value): env option =
@@ -44,8 +48,52 @@ let rec bind_pat (p: pat) (v: value): env option =
       | Some env1, Some env2 -> Some (env1 @ env2)
       | _ -> None
     )
-  | _ -> None (* no pattern matched *)
+  | VectorPat patterns, VectorValue values ->
+    (
+      match patterns, values with
+      | [], [] -> Some []
+      | p :: pt, v :: vt ->
+        (
+          match bind_pat p v with
+          | None -> None
+          | Some bindings -> (
+            match bind_pat (VectorPat pt) (VectorValue vt) with
+            | None -> None
+            | Some bindings' -> Some (bindings @ bindings')
+          )
+        )
+      | _ -> None
+    )
+  | _ -> None
 
+let rec bind_static (p: pat) (t: c_type): static_env option =
+  match p, t with
+  | NothingPat, NothingType -> Some []
+  | WildcardPat, _ -> Some []
+  | IdPat s, _ -> Some [(s, t)]
+  | PairPat (p1, p2), PairType (t1, t2) ->
+    (
+      match bind_static p1 t1, bind_static p2 t2 with
+      | Some env1, Some env2 -> Some (env1 @ env2)
+      | _ -> None
+    )
+  | VectorPat patterns, VectorType types ->
+    (
+      match patterns, types with
+      | [], [] -> Some []
+      | p :: pt, t :: tt ->
+        (
+          match bind_static p t with
+          | None -> None
+          | Some bindings -> (
+            match bind_static (VectorPat pt) (VectorType tt) with
+            | None -> None
+            | Some bindings' -> Some (bindings @ bindings')
+          )
+        )
+      | _ -> None
+    )
+  | _ -> None
 
 let rec eval_c_expr (ce: c_expr) (env: env) =
   match ce with
@@ -60,6 +108,11 @@ let rec eval_c_expr (ce: c_expr) (env: env) =
     let v1: value = eval_c_expr e1 env in
     let v2: value = eval_c_expr e2 env in
     PairValue (v1, v2)
+  | EVector expressions ->
+    (* evalute each sub expression to a value *)
+    let transformer = fun e -> eval_c_expr e env in
+    let values: value list = List.map transformer expressions in
+    VectorValue values
 
   | ETernary (e1, e2, e3) ->
     let v1: value = eval_c_expr e1 env in
@@ -192,7 +245,7 @@ c is the type of the expression
 d is the value of the expression
 
 *)
-let eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_env * c_type * value =
+let rec eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_env * c_type * value =
   match d with
   | CDefn (pattern, _, body_expression) ->
     let v: value = eval_c_expr body_expression env in
@@ -212,7 +265,41 @@ let eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_env 
             let new_env: env = new_bindings @ env in
             let new_static_env: static_env = (id, new_type) :: static_env in
             new_env, new_static_env, type_of_c_expr body_expression static_env, v
-          | _ -> failwith "impossible"
+          | VectorPat patterns ->
+            (
+              match v with
+              | VectorValue values ->
+                let new_type: c_type = type_of_c_expr body_expression static_env in
+                let new_bindings: env = handle_let_defn_with_vector_pat patterns values in
+                let new_env: env = new_bindings @ env in
+
+                (* get the new static env bindings *)
+
+                let new_static_bindings = bind_static pattern new_type in
+                (
+                  match new_static_bindings with
+                  | None -> failwith "unimplemented eval_defn"
+                  | Some new_static_bindings -> (
+                    let new_static_end = new_static_bindings @ static_env in
+                    new_env, new_static_end, type_of_c_expr body_expression static_env, v
+                  )
+                )
+              
+              | _ -> failwith "expected a vector value"
+            )
+            
+          | _ -> failwith "unimplemented eval_defn"
         )
+
         
-      
+
+and handle_let_defn_with_vector_pat (patterns: pat list) (values: value list) =
+  match patterns, values with
+  | [], [] -> []
+  | p :: pt, v :: vt ->
+    (
+      match bind_pat p v with
+      | None -> failwith "handle_let_defn_with_vector_pat: no pattern matched"
+      | Some bindings -> bindings @ (handle_let_defn_with_vector_pat pt vt)
+    )
+  | _ -> failwith "handle_let_defn_with_vector_pat: pattern/value mismatch"

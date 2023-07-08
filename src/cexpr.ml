@@ -32,6 +32,7 @@ and c_expr =
   | EApp of c_expr * c_expr
   | EBop of c_bop * c_expr * c_expr
   | EPair of c_expr * c_expr
+  | EVector of c_expr list
 
 and c_type =
   | IntType
@@ -40,6 +41,7 @@ and c_type =
   | NothingType
   | FunctionType of c_type * c_type
   | PairType of c_type * c_type
+  | VectorType of c_type list
   | TypeVar of int
 
 let ( => ) (t1: c_type) (t2: c_type): c_type =

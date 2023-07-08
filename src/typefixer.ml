@@ -34,6 +34,8 @@ open Cexpr
       | PairType (t1, t2) ->
         search t1;
         search t2
+      | VectorType types ->
+        List.iter (fun t -> search t) types
       )
     in
     let () = search t in
@@ -58,6 +60,9 @@ open Cexpr
       
       | PairType (t1, t2) ->
         PairType (replace t1 lst, replace t2 lst)
+
+      | VectorType types ->
+        VectorType (List.map (fun t -> replace t lst) types)
 
       in
 

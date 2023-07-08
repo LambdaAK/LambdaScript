@@ -78,7 +78,7 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     let constraints_from_type_annotation: type_equations = 
     (
       match cto with
-      | Some t -> [(input_type, t)] (* the input type must equal the type anotation *)
+      | Some t -> [(input_type, t)] (* the input type must equal the annotated type *)
       | None -> []
 
     ) in
@@ -122,6 +122,22 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     let type_of_expression: c_type = PairType (t1, t2) in
     type_of_expression, c1 @ c2
 
+  | EVector expressions ->
+    (*
+        type inference relation for vectors
+
+        env |- <|e1, e2, ..., en|> : <|t1, t2, ..., tn|> -| C1, C2, ..., Cn
+        -----------------------------------------------------------------
+          env |- e1 : t1 -| C1
+          env |- e2 : t2 -| C2
+          ...
+          env |- en : tn -| Cn
+    *)
+
+      let list_of_types, list_of_lists_of_constraints = List.split (List.map (generate env) expressions) in
+
+      VectorType list_of_types, List.flatten list_of_lists_of_constraints
+
   
 and type_of_pat (p: pat): c_type * static_env =
   match p with
@@ -134,7 +150,9 @@ and type_of_pat (p: pat): c_type * static_env =
     let t1, env1 = type_of_pat p1 in
     let t2, env2 = type_of_pat p2 in
     PairType (t1, t2), env1 @ env2
-
+  | VectorPat patterns ->
+    let list_of_types, list_of_lists_of_envs = List.split (List.map type_of_pat patterns) in
+    VectorType list_of_types, List.flatten list_of_lists_of_envs
 
 let rec reduce_eq (c: type_equations): substitutions =
 
@@ -156,6 +174,15 @@ let rec reduce_eq (c: type_equations): substitutions =
       | PairType (t3, t4), PairType(t5, t6) ->
 
         reduce_eq ((t3, t5) :: (t4, t6) :: c')
+      
+      | VectorType types1, VectorType types2 ->
+        (
+          match types1, types2 with
+          | type1 :: tail1, type2 :: tail2 ->
+            reduce_eq ((type1, type2) :: (VectorType tail1, VectorType tail2) :: c')
+          | _ -> (* one of them is empty, so the vectors are not the same size *)
+            raise TypeFailure
+        )
 
       | _ -> raise TypeFailure
     )
@@ -172,6 +199,7 @@ and get_type (var: c_type) (subs: substitutions): c_type =
     )
   | FunctionType (i, o) -> FunctionType (get_type i subs, get_type o subs)
   | PairType (t1, t2) -> PairType (get_type t1 subs, get_type t2 subs)
+  | VectorType types -> VectorType (List.map (fun t -> get_type t subs) types)
   | IntType -> IntType
   | BoolType -> BoolType
   | StringType -> StringType
@@ -210,7 +238,6 @@ and inside (inside_type: c_type) (outside_type: c_type): bool =
   | _ -> false 
 
 
-
 and is_basic_type (t: c_type): bool =
   match t with
   | IntType
@@ -220,7 +247,7 @@ and is_basic_type (t: c_type): bool =
   | TypeVar _ -> false
   | FunctionType (i, o) -> is_basic_type i && is_basic_type o
   | PairType (t1, t2) -> is_basic_type t1 && is_basic_type t2
-
+  | VectorType types -> List.for_all is_basic_type types
 
 
 and substitute (var_id: int) (t: c_type) (equations: type_equations): type_equations =
@@ -243,3 +270,8 @@ and substitute_in_type (type_subbing_in: c_type) (type_var_id_subbing_for: int) 
     FunctionType (substitute_in_type t1 type_var_id_subbing_for substitute_with, substitute_in_type t2 type_var_id_subbing_for substitute_with)
   | PairType (t1, t2) ->
     PairType (substitute_in_type t1 type_var_id_subbing_for substitute_with, substitute_in_type t2 type_var_id_subbing_for substitute_with)
+  | VectorType types ->
+    VectorType (
+      List.map (fun t -> substitute_in_type t type_var_id_subbing_for substitute_with) types
+    )
+    
