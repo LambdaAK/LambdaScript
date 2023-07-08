@@ -1,0 +1,3 @@
+lam f ['a -> 'b -> 'c] ->
+lam <|a, b|> ->
+f a b

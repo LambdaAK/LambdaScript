@@ -430,6 +430,20 @@ let function_type_tests = [
   "bind f a [int] b [int] c [int] d [int] <- a in f 1 2 3", "int -> int";
   "bind f a [int] b [int] c [int] d [int] <- a in f 1 2 3 4", "int";
 
+  (* with type variables *)
+  "lam a ['a] -> a", "t1 -> t1";
+  "lam a ['a] -> a + 1", "int -> int";
+  "lam a ['a] -> lam b ['a] -> a", "t1 -> t1 -> t1";
+  "lam a ['a] -> lam b ['a] -> b", "t1 -> t1 -> t1";
+  "lam a ['a] -> lam b ['b] -> a", "t1 -> t2 -> t1";
+  "lam a ['a] -> lam b ['a] -> a + b", "int -> int -> int";
+  "lam a ['a] -> lam b ['a] -> a + b + 1", "int -> int -> int";
+
+  "lam f ['a -> 'b] -> lam x ['b] -> f x", "(t1 -> t1) -> t1 -> t1";
+  (* this is an interesting example because it turns out that 'a = 'b here *)
+  "lam f ['a -> 'b] -> lam x ['a] -> f x", "(t1 -> t2) -> t1 -> t2";
+  (* on the other hand, there is no constraint generated in this expression saying that 'a = 'b, so they are different *)
+
   "bind f a b [int] c [int] d [int] <- a in f", "t1 -> int -> int -> int -> t1";
   "bind f a b [int] c [int] d <- a in f", "t1 -> int -> int -> t2 -> t1";
   "bind f a b [int] c d [int] <- a in f", "t1 -> int -> t2 -> int -> t1";
@@ -442,6 +456,31 @@ let function_type_tests = [
 
   "lam <|a, _|> -> a", "<|t1, t2|> -> t1";
   "lam <|a, _|> -> a + 1", "<|int, t1|> -> int";
+
+  "lam f -> lam x -> f x", "(t1 -> t2) -> t1 -> t2";
+
+  {|lam f ['a -> 'b -> 'c] ->
+    lam a ['a] ->
+    lam b ['b] ->
+    f a b|}, "(t1 -> t2 -> t3) -> t1 -> t2 -> t3";
+
+  
+  "lam a [<|'a, 'b|>] -> a", "<|t1, t2|> -> <|t1, t2|>";
+  "lam <|a, _|> [<|'a, 'b|>] -> a", "<|t1, t2|> -> t1";
+  "lam <|_, a|> [<|'a, 'b|>] -> a", "<|t1, t2|> -> t2";
+  "lam <|a, b, c|> [<|'a, 'b, 'c|>] -> a", "<|t1, t2, t3|> -> t1";
+
+  (* higher order function *)
+  {|lam f [<|'a, 'b|> -> 'c] ->
+    lam a ['a] ->
+    lam b ['b] ->
+    f <|a, b|>|}, "(<|t1, t2|> -> t3) -> t1 -> t2 -> t3";
+
+  {|lam f ['a -> 'b -> 'c] ->
+    lam <|a, b|> ->
+    f a b|}, "(t1 -> t2 -> t3) -> <|t1, t2|> -> t3";
+
+
 
   (* long function with 10 arguments and return the first *)
   "bind f a b c d e f g h i j <- a in f", "t1 -> t2 -> t3 -> t4 -> t5 -> t6 -> t7 -> t8 -> t9 -> t10 -> t1";
