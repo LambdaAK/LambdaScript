@@ -4,6 +4,7 @@ type token_type =
 | StringToken of string 
 | Nothing
 | Id of string
+| TypeVar of string
 | Assign
 | Lam
 | Arrow
@@ -84,7 +85,7 @@ let int_from_char: char -> int = function
 
 let is_letter: char -> bool = fun (c: char) ->
   let code: int = Char.code c in
-  if (code >= 65) && (code <= 122) then true else false
+  if (code >= 65) && (code <= 122) && (code <> 93) && (code <> 91) then true else false
 
 
 let string_of_char = String.make 1 
@@ -112,7 +113,19 @@ let rec lex_string (lst: char list) (acc: string): token * char list = match lst
 let rec lex_id (lst: char list) (acc: string): token * char list = match lst with
 | c :: t when is_letter c -> lex_id t (acc ^^ c)
 | _ -> ({token_type = Id acc; line = 0}, lst)
-  
+
+(*
+A type variable has the following form
+'x
+
+where x is an identifier
+*)
+
+let lex_type_var(tokens_after_single_quote: char list): token * char list =
+  match lex_id tokens_after_single_quote "" with
+  | {token_type = Id i; line = _}, tokens_after_type_var ->
+    ({token_type = TypeVar i; line = 0}, tokens_after_type_var)
+  | _ -> failwith "expected an identifier after single quote"
 
 
 let lex (lst: char list): token list =
@@ -145,6 +158,10 @@ let rec lex (lst: char list): token list =
   | 'n' :: 'g' :: t ->
       let new_token: token = {token_type = NothingType; line = !line_number} in
       new_token :: (lex t)
+
+  | '\'' :: tokens_after_single_quote ->
+    let type_var_token, tokens_after_type_var = lex_type_var tokens_after_single_quote in
+    type_var_token :: (lex tokens_after_type_var)
 
   | '_' :: t ->
       let new_token: token = {token_type = WildcardPattern; line = !line_number} in
@@ -385,6 +402,7 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | PairClose -> "<pair close>"
 | Comma -> "<comma>"
 | WildcardPattern -> "<wildcard pattern>"
+| TypeVar s -> "<type var: " ^ s ^ ">"
 
 [@@coverage off]
 let rec print_tokens_list: token list -> unit = function

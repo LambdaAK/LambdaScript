@@ -210,13 +210,13 @@ and string_of_c_type t =
 
 
   | TypeVar n -> "t" ^ (string_of_int n)
+  | TypeVarWritten i -> "'" ^ i
   | VectorType types ->
     let types_string: string =
       List.fold_left
         (fun acc t ->
           let t_string: string = string_of_c_type t in
           acc
-     
           ^ t_string
           ^ ", "
         )

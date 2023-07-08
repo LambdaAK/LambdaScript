@@ -45,6 +45,10 @@ let rec string_of_basic_type (ft: factor_type) (level: int): string =
     ^ (String.concat (",\n" ^ indentations_with_newline (level + 1)) (List.map (fun t -> string_of_compound_type t (level + 1)) types))
     ^ indentations_with_newline level
     ^ ")"
+  | _ -> "Not implemented yet"
+
+
+
 
 and string_of_compound_type (ct: compound_type) (level: int) =
   match ct with

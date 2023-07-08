@@ -3,10 +3,9 @@
 # todo
 
 - Type aliases
-- recursive functions
 - Enum (a type of definition)
 - Sequence type
-- Vectors (tuples)
+- Type variables
 
 <br>
 

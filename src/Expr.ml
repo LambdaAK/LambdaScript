@@ -25,6 +25,7 @@ and factor_type =
   | StringType
   | BooleanType
   | NothingType
+  | TypeVarWritten of string
   | ParenFactorType of compound_type
   | VectorType of compound_type list
 

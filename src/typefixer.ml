@@ -13,8 +13,8 @@ open Cexpr
     | _ :: t -> 1 + get_replacement elm t (* add 1 *)
 
 
-
   let fix (t: c_type): c_type =
+    (* replace written type vars with type vars *)
     let order: (int list) ref = ref [] in
     let rec search (t: c_type): unit =
       (
@@ -23,6 +23,7 @@ open Cexpr
       | BoolType -> ()
       | StringType -> ()
       | NothingType -> ()
+      | TypeVarWritten _ -> () (* fix this later *)
       | TypeVar id ->
         if not (visited id !order) then
         (
@@ -47,9 +48,9 @@ open Cexpr
       | NothingType -> NothingType
       | TypeVar id ->
     
-       
-
         TypeVar (get_replacement id lst)
+      
+      | TypeVarWritten _ -> t
 
       | FunctionType (i, o) ->
 

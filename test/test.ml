@@ -6,7 +6,7 @@ open Language.Ctostring
 open Language.Parse
 open Language.Lex
 
-let modify_tests: bool = true
+let modify_tests: bool = false
 
 
 module type TestModifier = sig

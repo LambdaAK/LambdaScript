@@ -59,6 +59,9 @@ and parse_factor_type (tokens: token list): factor_type * token list =
       StringType, t
   | {token_type = NothingType; line = _} :: t ->
       NothingType, t
+
+  | {token_type = TypeVar i; line = _} :: t ->
+      TypeVarWritten i, t
   
   | {token_type = LParen; line = _} :: t ->
 
@@ -105,7 +108,6 @@ and parse_defn (tokens: token list): defn * token list =
 
         Defn (pattern, Some annotated_type, body_expression), tokens_after_body_expression
 
-
       | _ ->
 
         (* no type annotation *)
@@ -120,7 +122,6 @@ and parse_defn (tokens: token list): defn * token list =
         let body_expression, tokens_after_body_expression = parse_expr tokens_after_bind_arrow in
 
         Defn (pattern, None, body_expression), tokens_after_body_expression
-
 
       )
     | _ -> raise ParseFailure

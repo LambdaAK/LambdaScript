@@ -204,7 +204,7 @@ and eval_bop (op: c_bop) (e1: c_expr) (e2: c_expr) (env: env) =
     eval_c_expr (s |> list_of_string |> lex |> parse_expr |> fst |> condense_expr) []
   
   let not_function: value = eval_c_empty_env {|
-  lam a [boolean] -> 
+  lam a -> 
     if a then false else true
   |}
   

@@ -38,6 +38,7 @@ and c_type =
   | BoolType
   | StringType
   | NothingType
+  | TypeVarWritten of string
   | FunctionType of c_type * c_type
   | VectorType of c_type list
   | TypeVar of int

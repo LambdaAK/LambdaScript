@@ -11,7 +11,6 @@ type type_equations = type_equation list
 
 type substitutions = type_equations
 
-
 exception TypeFailure
 
 let initial_env = [("not", BoolType => BoolType)]
@@ -31,6 +30,7 @@ let rec string_of_static_env (env: static_env): string =
   match env with
   | [] -> ""
   | (id, t) :: env' -> id ^ " : " ^ (string_of_c_type t) ^ "\n" ^ (string_of_static_env env')
+
 
 let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
   match e with
@@ -153,10 +153,13 @@ let rec reduce_eq (c: type_equations): substitutions =
     else
     (
       match t1, t2 with
+      
       | TypeVar id, _ when not (inside t1 t2) ->
         (t1, t2) :: reduce_eq (substitute id t2 c')
 
       | _, TypeVar _ -> reduce_eq ((t2, t1) :: c') (* this switches the order of the types, then the branch before will be hit on the next iteration *)
+
+      
 
       | FunctionType (i1, o1), FunctionType (i2, o2) ->
         reduce_eq ((i1, i2) :: (o1, o2) :: c')
@@ -189,11 +192,12 @@ and get_type (var: c_type) (subs: substitutions): c_type =
   | BoolType -> BoolType
   | StringType -> StringType
   | NothingType -> NothingType
+  | _ -> failwith "not a type var"
 
 
 and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type =
   match var with
-  | TypeVar _ ->
+  | TypeVar _ | TypeVarWritten _ ->
     (
     try
       let looked_up = List.assoc var subs in (
@@ -208,18 +212,15 @@ and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type
 
 and type_of_c_expr (e: c_expr) (static_env: static_env): c_type =
   let t, constraints = generate static_env e in
-  (* print the constraints *)
-  (*let () = List.iter (fun (t1, t2) -> print_endline ((string_of_c_type t1) ^ " = " ^ (string_of_c_type t2))) constraints in*)
-  (* reduce the constraints *)
-  (* reduce the constraints *)
-  let solution = reduce_eq constraints in
+  let constraints_without_written_type_vars = replace_written_types constraints in
+  let solution: substitutions = reduce_eq constraints_without_written_type_vars in
   get_type t solution |> fix
-
 
 and inside (inside_type: c_type) (outside_type: c_type): bool =
   match outside_type with
   | _ when inside_type = outside_type -> true
   | FunctionType (i, o) -> inside inside_type i || inside inside_type o
+  (* there needs to be a case here for vectors *)
   | _ -> false 
 
 
@@ -230,6 +231,7 @@ and is_basic_type (t: c_type): bool =
   | StringType
   | NothingType -> true
   | TypeVar _ -> false
+  | TypeVarWritten _ -> false (* fix this later if necessary *)
   | FunctionType (i, o) -> is_basic_type i && is_basic_type o
   | VectorType types -> List.for_all is_basic_type types
 
@@ -256,4 +258,43 @@ and substitute_in_type (type_subbing_in: c_type) (type_var_id_subbing_for: int) 
     VectorType (
       List.map (fun t -> substitute_in_type t type_var_id_subbing_for substitute_with) types
     )
-    
+  | _ -> failwith "not a type var"
+
+and substitute_written_var_with_type_var (var_id: int) (written_var_id: string) (t: c_type): c_type =
+  match t with
+  | TypeVarWritten id when id = written_var_id -> TypeVar var_id
+  | FunctionType (i, o) -> FunctionType (substitute_written_var_with_type_var var_id written_var_id i, substitute_written_var_with_type_var var_id written_var_id o)
+  | VectorType types -> VectorType (List.map (fun t -> substitute_written_var_with_type_var var_id written_var_id t) types)
+  | _ -> t
+
+and substitute_written_vars_in_equations (var_id: int) (written_var_id: string) (equations: type_equations): type_equations =
+  match equations with
+  | [] -> []
+  | (t1, t2) :: equations' ->
+    (substitute_written_var_with_type_var var_id written_var_id t1, substitute_written_var_with_type_var var_id written_var_id t2) :: substitute_written_vars_in_equations var_id written_var_id equations'
+
+and replace_written_types (equations: type_equations): type_equations =
+  let rec find_written_type(equations: type_equations): string option =
+    match equations with
+    | [] -> None
+    | (t1, t2) :: equations' ->
+      (
+        match t1, t2 with
+        | TypeVarWritten id, _ -> Some id
+        | _, TypeVarWritten id -> Some id
+        | _ -> find_written_type equations'
+      )
+    in
+
+    match find_written_type equations with
+    | None -> equations
+    | Some id ->
+      (* generate a fresh type variable and replace the written type var everywhere with it *)
+      let fresh_type_var: c_type = fresh_type_var () in
+      let fresh_type_var_int: int = (
+        match fresh_type_var with
+        | TypeVar n -> n
+        | _ -> failwith "type var generated incorrectly"
+      ) in
+      let equations_with_subbed_type_var: type_equations = substitute_written_vars_in_equations fresh_type_var_int id equations in
+      replace_written_types equations_with_subbed_type_var

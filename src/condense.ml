@@ -101,6 +101,7 @@ and factor_type_to_t: factor_type -> c_type=
   | StringType -> StringType
   | NothingType -> NothingType
   | IntegerType -> IntType
+  | TypeVarWritten i -> TypeVarWritten i
   | ParenFactorType expr -> condense_type expr
   | VectorType types -> VectorType (List.map condense_type types)
 
