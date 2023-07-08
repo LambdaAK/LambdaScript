@@ -1,1 +1,0 @@
-lam <|a, b|> [<|int, int|>] -> a + b in

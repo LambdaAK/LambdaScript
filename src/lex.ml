@@ -82,10 +82,14 @@ let int_from_char: char -> int = function
 | '9' -> 9
 | _ -> failwith "not an int passed to int_from_char"
 
-
+(*
+[65, 90]: uppercase
+[97, 122]: lowercase
+95: underscore
+*)
 let is_letter: char -> bool = fun (c: char) ->
   let code: int = Char.code c in
-  if (code >= 65) && (code <= 122) && (code <> 93) && (code <> 91) then true else false
+  if (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code = 95 then true else false
 
 
 let string_of_char = String.make 1 
