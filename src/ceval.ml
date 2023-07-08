@@ -12,7 +12,6 @@ type value =
   | NothingValue
   | FunctionClosure of env * pat * c_type option * c_expr
   | RecursiveFunctionClosure of env ref * pat * c_type option * c_expr
-  | PairValue of value * value
   | VectorValue of value list
 
 and env = (string * value) list
@@ -31,7 +30,6 @@ and string_of_value = function
   | NothingValue -> "()"
   | FunctionClosure _ -> "function"
   | RecursiveFunctionClosure _ -> "function"
-  | PairValue (v1, v2) -> "<|" ^ (string_of_value v1) ^ ", " ^ (string_of_value v2) ^ ">|"
   | VectorValue values ->
     let values_string: string = values |> List.map string_of_value |> String.concat ", " in
     "<|" ^ values_string ^ "|>"
@@ -42,12 +40,6 @@ let rec bind_pat (p: pat) (v: value): env option =
   | NothingPat, NothingValue -> Some []
   | WildcardPat, _ -> Some []
   | IdPat s, _ -> Some [(s, v)]
-  | PairPat (p1, p2), PairValue (v1, v2) ->
-    (
-      match bind_pat p1 v1, bind_pat p2 v2 with
-      | Some env1, Some env2 -> Some (env1 @ env2)
-      | _ -> None
-    )
   | VectorPat patterns, VectorValue values ->
     (
       match patterns, values with
@@ -71,12 +63,6 @@ let rec bind_static (p: pat) (t: c_type): static_env option =
   | NothingPat, NothingType -> Some []
   | WildcardPat, _ -> Some []
   | IdPat s, _ -> Some [(s, t)]
-  | PairPat (p1, p2), PairType (t1, t2) ->
-    (
-      match bind_static p1 t1, bind_static p2 t2 with
-      | Some env1, Some env2 -> Some (env1 @ env2)
-      | _ -> None
-    )
   | VectorPat patterns, VectorType types ->
     (
       match patterns, types with
@@ -104,10 +90,6 @@ let rec eval_c_expr (ce: c_expr) (env: env) =
   | EId s -> List.assoc s env
   | EBop (op, e1, e2) -> eval_bop op e1 e2 env
   | EFunction (p, _, e) -> FunctionClosure (env, p, None, e)
-  | EPair (e1, e2) ->
-    let v1: value = eval_c_expr e1 env in
-    let v2: value = eval_c_expr e2 env in
-    PairValue (v1, v2)
   | EVector expressions ->
     (* evalute each sub expression to a value *)
     let transformer = fun e -> eval_c_expr e env in
@@ -291,7 +273,7 @@ let rec eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_
           | _ -> failwith "unimplemented eval_defn"
         )
 
-        
+
 
 and handle_let_defn_with_vector_pat (patterns: pat list) (values: value list) =
   match patterns, values with

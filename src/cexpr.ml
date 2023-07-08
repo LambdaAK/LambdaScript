@@ -31,7 +31,6 @@ and c_expr =
   | EId of string
   | EApp of c_expr * c_expr
   | EBop of c_bop * c_expr * c_expr
-  | EPair of c_expr * c_expr
   | EVector of c_expr list
 
 and c_type =
@@ -40,7 +39,6 @@ and c_type =
   | StringType
   | NothingType
   | FunctionType of c_type * c_type
-  | PairType of c_type * c_type
   | VectorType of c_type list
   | TypeVar of int
 

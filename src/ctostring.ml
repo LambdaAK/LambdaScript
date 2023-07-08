@@ -12,10 +12,6 @@ let rec string_of_pat pat =
   | IdPat s -> s
   | WildcardPat -> "_"
   | NothingPat -> "ng"
-  | PairPat (p1, p2) ->
-    let p1_string: string = string_of_pat p1 in
-    let p2_string: string = string_of_pat p2 in
-    "<|" ^ p1_string ^ ", " ^ p2_string ^ "|>"
   | VectorPat patterns ->
     let patterns_string: string =
       List.fold_left
@@ -157,18 +153,6 @@ and string_of_c_expr (e: c_expr) (level: int) =
     ^ e_string
     ^ indentations_with_newline level
     ^ ")"
-  | EPair (e1, e2) ->
-    let e1_string: string = string_of_c_expr e1 (level + 1) in
-    let e2_string: string = string_of_c_expr e2 (level + 1) in
-
-    "Pair ("
-    ^ indentations_with_newline (level + 1)
-    ^ e1_string
-    ^ ","
-    ^ indentations_with_newline (level + 1)
-    ^ e2_string
-    ^ indentations_with_newline level
-    ^ ")"
   | EVector expressions ->
     let expressions_string: string =
       List.fold_left
@@ -226,10 +210,6 @@ and string_of_c_type t =
 
 
   | TypeVar n -> "t" ^ (string_of_int n)
-  | PairType (t1, t2) ->
-    let t1_string: string = string_of_c_type t1 in
-    let t2_string: string = string_of_c_type t2 in
-    "<|" ^ t1_string ^ ", " ^ t2_string ^ "|>"
   | VectorType types ->
     let types_string: string =
       List.fold_left

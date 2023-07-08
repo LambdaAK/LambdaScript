@@ -91,7 +91,6 @@ and condense_factor: factor -> c_expr =
   | ParenFactor expr -> condense_expr expr
   | App (factor1, factor2) -> EApp (condense_factor factor1, condense_factor factor2)
   | Opposite factor -> EBop (CMinus, EInt 0, condense_factor factor)
-  | Pair (e1, e2) -> EPair (condense_expr e1, condense_expr e2)
   | Vector expressions ->
     EVector (List.map condense_expr expressions)
 
@@ -103,7 +102,6 @@ and factor_type_to_t: factor_type -> c_type=
   | NothingType -> NothingType
   | IntegerType -> IntType
   | ParenFactorType expr -> condense_type expr
-  | PairType (t1, t2) -> PairType (condense_type t1, condense_type t2)
   | VectorType types -> VectorType (List.map condense_type types)
 
 

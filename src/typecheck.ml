@@ -116,12 +116,6 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
 
     generate new_env a
 
-  | EPair (e1, e2) ->
-    let t1, c1 = generate env e1 in
-    let t2, c2 = generate env e2 in
-    let type_of_expression: c_type = PairType (t1, t2) in
-    type_of_expression, c1 @ c2
-
   | EVector expressions ->
     (*
         type inference relation for vectors
@@ -146,10 +140,6 @@ and type_of_pat (p: pat): c_type * static_env =
     new_var, [(id, new_var)]
   | NothingPat -> NothingType, []
   | WildcardPat -> fresh_type_var (), []
-  | PairPat (p1, p2) ->
-    let t1, env1 = type_of_pat p1 in
-    let t2, env2 = type_of_pat p2 in
-    PairType (t1, t2), env1 @ env2
   | VectorPat patterns ->
     let list_of_types, list_of_lists_of_envs = List.split (List.map type_of_pat patterns) in
     VectorType list_of_types, List.flatten list_of_lists_of_envs
@@ -170,10 +160,6 @@ let rec reduce_eq (c: type_equations): substitutions =
 
       | FunctionType (i1, o1), FunctionType (i2, o2) ->
         reduce_eq ((i1, i2) :: (o1, o2) :: c')
-
-      | PairType (t3, t4), PairType(t5, t6) ->
-
-        reduce_eq ((t3, t5) :: (t4, t6) :: c')
       
       | VectorType types1, VectorType types2 ->
         (
@@ -198,7 +184,6 @@ and get_type (var: c_type) (subs: substitutions): c_type =
     | _ -> looked_up_type
     )
   | FunctionType (i, o) -> FunctionType (get_type i subs, get_type o subs)
-  | PairType (t1, t2) -> PairType (get_type t1 subs, get_type t2 subs)
   | VectorType types -> VectorType (List.map (fun t -> get_type t subs) types)
   | IntType -> IntType
   | BoolType -> BoolType
@@ -246,7 +231,6 @@ and is_basic_type (t: c_type): bool =
   | NothingType -> true
   | TypeVar _ -> false
   | FunctionType (i, o) -> is_basic_type i && is_basic_type o
-  | PairType (t1, t2) -> is_basic_type t1 && is_basic_type t2
   | VectorType types -> List.for_all is_basic_type types
 
 
@@ -268,8 +252,6 @@ and substitute_in_type (type_subbing_in: c_type) (type_var_id_subbing_for: int) 
     else TypeVar id
   | FunctionType (t1, t2) ->
     FunctionType (substitute_in_type t1 type_var_id_subbing_for substitute_with, substitute_in_type t2 type_var_id_subbing_for substitute_with)
-  | PairType (t1, t2) ->
-    PairType (substitute_in_type t1 type_var_id_subbing_for substitute_with, substitute_in_type t2 type_var_id_subbing_for substitute_with)
   | VectorType types ->
     VectorType (
       List.map (fun t -> substitute_in_type t type_var_id_subbing_for substitute_with) types

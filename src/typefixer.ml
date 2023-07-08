@@ -31,9 +31,6 @@ open Cexpr
       | FunctionType (i, o) ->
         search i;
         search o
-      | PairType (t1, t2) ->
-        search t1;
-        search t2
       | VectorType types ->
         List.iter (fun t -> search t) types
       )
@@ -58,9 +55,6 @@ open Cexpr
 
         FunctionType (replace i lst, replace o lst)
       
-      | PairType (t1, t2) ->
-        PairType (replace t1 lst, replace t2 lst)
-
       | VectorType types ->
         VectorType (List.map (fun t -> replace t lst) types)
 

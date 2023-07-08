@@ -1,7 +1,6 @@
 type pat =
   | IdPat of string
   | NothingPat
-  | PairPat of pat * pat
   | VectorPat of pat list
   | WildcardPat
 
@@ -27,7 +26,6 @@ and factor_type =
   | BooleanType
   | NothingType
   | ParenFactorType of compound_type
-  | PairType of compound_type * compound_type
   | VectorType of compound_type list
 
 type defn =
@@ -82,5 +80,4 @@ and factor =
   | ParenFactor of expr
   | App of factor * factor
   | Opposite of factor
-  | Pair of expr * expr
   | Vector of expr list
