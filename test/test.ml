@@ -884,7 +884,7 @@ let complex_tests = [
 
 
 let int_type_tests: test list = List.map (fun expression -> type_is_int expression) (int_types |> TypeTestModifier.modify_tests |> IntTypeTestModifier.modify_tests)
-let bool_type_tests: test list = List.map (fun expression -> type_is_bool expression) (bool_types |> TypeTestModifier.modify_tests |>BoolTypeTestModifier.modify_tests)
+let bool_type_tests: test list = List.map (fun expression -> type_is_bool expression) (bool_types |> TypeTestModifier.modify_tests |> BoolTypeTestModifier.modify_tests)
 let string_type_tests: test list = List.map (fun expression -> type_is_string expression) string_types
 let function_type_tests: test list = List.map (fun (a, b) -> type_test a b) (function_type_tests |> FunctionTypeTestModifier.modify_tests)
 let pair_type_tests: test list = List.map (fun (a, b) -> type_test a b) (pair_type_tests |> PairTypeTestModifier.modify_tests)

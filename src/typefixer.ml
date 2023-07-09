@@ -12,7 +12,6 @@ open Cexpr
     | h :: _ when h = elm -> 1 (* the first element gets replaced by 1 *)
     | _ :: t -> 1 + get_replacement elm t (* add 1 *)
 
-
   let fix (t: c_type): c_type =
     (* replace written type vars with type vars *)
     let order: (int list) ref = ref [] in

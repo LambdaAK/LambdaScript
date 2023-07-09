@@ -1,7 +1,6 @@
 open Expr
 open Cexpr
 
-
 let rec condense_defn: defn -> c_defn =
   function
   | Defn (pattern, cto, body_expression) ->
@@ -95,7 +94,7 @@ and condense_factor: factor -> c_expr =
     EVector (List.map condense_expr expressions)
 
 
-and factor_type_to_t: factor_type -> c_type=
+and factor_type_to_t: factor_type -> c_type =
   function
   | BooleanType -> BoolType
   | StringType -> StringType
