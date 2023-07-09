@@ -6,7 +6,7 @@ open Language.Ctostring
 open Language.Parse
 open Language.Lex
 
-let modify_tests: bool = false
+let modify_tests: bool = true
 
 
 module type TestModifier = sig
@@ -394,14 +394,14 @@ let function_type_tests = [
   "lam a [int] -> lam b [int] -> a + b", "int -> int -> int";
   "lam a [int] -> lam b [int] -> a + b + 1", "int -> int -> int";
   "lam a [int] -> lam b [int] -> a + b + 1 + 2", "int -> int -> int";
-  "lam <|a, b|> [<|int, int|>] -> a + b", "<|int, int|> -> int";
-  "lam <|a, _|> -> lam <|_, b|> -> a + b", "<|int, t1|> -> <|t2, int|> -> int";
-  "lam <|a, _|> -> lam <|_, b|> -> a || b", "<|bool, t1|> -> <|t2, bool|> -> bool";
-  {|lam <|a, b|> ->
-    lam <|c, d|> ->
+  "lam (a, b) [(int, int)] -> a + b", "(int, int) -> int";
+  "lam (a, _) -> lam (_, b) -> a + b", "(int, t1) -> (t2, int) -> int";
+  "lam (a, _) -> lam (_, b) -> a || b", "(bool, t1) -> (t2, bool) -> bool";
+  {|lam (a, b) ->
+    lam (c, d) ->
     if a then b
     else if c then d
-    else 1|}, "<|bool, int|> -> <|bool, int|> -> int";
+    else 1|}, "(bool, int) -> (bool, int) -> int";
 
   
 
@@ -454,8 +454,8 @@ let function_type_tests = [
   "bind f a b c d <- c in f", "t1 -> t2 -> t3 -> t4 -> t3";
   "bind f a b c d [str] <- d in f", "t1 -> t2 -> t3 -> str -> str";
 
-  "lam <|a, _|> -> a", "<|t1, t2|> -> t1";
-  "lam <|a, _|> -> a + 1", "<|int, t1|> -> int";
+  "lam (a, _) -> a", "(t1, t2) -> t1";
+  "lam (a, _) -> a + 1", "(int, t1) -> int";
 
   "lam f -> lam x -> f x", "(t1 -> t2) -> t1 -> t2";
 
@@ -465,20 +465,20 @@ let function_type_tests = [
     f a b|}, "(t1 -> t2 -> t3) -> t1 -> t2 -> t3";
 
   
-  "lam a [<|'a, 'b|>] -> a", "<|t1, t2|> -> <|t1, t2|>";
-  "lam <|a, _|> [<|'a, 'b|>] -> a", "<|t1, t2|> -> t1";
-  "lam <|_, a|> [<|'a, 'b|>] -> a", "<|t1, t2|> -> t2";
-  "lam <|a, b, c|> [<|'a, 'b, 'c|>] -> a", "<|t1, t2, t3|> -> t1";
+  "lam a [('a, 'b)] -> a", "(t1, t2) -> (t1, t2)";
+  "lam (a, _) [('a, 'b)] -> a", "(t1, t2) -> t1";
+  "lam (_, a) [('a, 'b)] -> a", "(t1, t2) -> t2";
+  "lam (a, b, c) [('a, 'b, 'c)] -> a", "(t1, t2, t3) -> t1";
 
   (* higher order function *)
-  {|lam f [<|'a, 'b|> -> 'c] ->
+  {|lam f [('a, 'b) -> 'c] ->
     lam a ['a] ->
     lam b ['b] ->
-    f <|a, b|>|}, "(<|t1, t2|> -> t3) -> t1 -> t2 -> t3";
+    f (a, b)|}, "((t1, t2) -> t3) -> t1 -> t2 -> t3";
 
   {|lam f ['a -> 'b -> 'c] ->
-    lam <|a, b|> ->
-    f a b|}, "(t1 -> t2 -> t3) -> <|t1, t2|> -> t3";
+    lam (a, b) ->
+    f a b|}, "(t1 -> t2 -> t3) -> (t1, t2) -> t3";
 
 
 
@@ -538,14 +538,14 @@ let function_type_tests = [
 ]
 
 let pair_type_tests = [
-  "<|1, 1|>", "<|int, int|>";
-  "<|1, true|>", "<|int, bool|>";
-  "<|1, 1 + 1|>", "<|int, int|>";
-  "<|1 - 1, 1 + 1 + 1|>", "<|int, int|>";
-  "<|1 - 1, 1 + 1 + 1 + 1|>", "<|int, int|>";
+  "(1, 1)", "(int, int)";
+  "(1, true)", "(int, bool)";
+  "(1, 1 + 1)", "(int, int)";
+  "(1 - 1, 1 + 1 + 1)", "(int, int)";
+  "(1 - 1, 1 + 1 + 1 + 1)", "(int, int)";
   (* nested *)
-  "<|1 - 1, <|1 + 1, 1 + 1 + 1|>|>", "<|int, <|int, int|>|>";
-  "<|1 - 1, <|1 + 1, <|1 + 1 + 1, 1 + 1 + 1 + 1|>|>|>", "<|int, <|int, <|int, int|>|>|>";
+  "(1 - 1, (1 + 1, 1 + 1 + 1))", "(int, (int, int))";
+  "(1 - 1, (1 + 1, (1 + 1 + 1, 1 + 1 + 1 + 1)))", "(int, (int, (int, int)))";
 ]
 
 let function_to_string_tests = [
@@ -556,18 +556,18 @@ let function_to_string_tests = [
 ]
 
 let vector_type_tests = [
-  "<|1, 2, 3|>", "<|int, int, int|>";
-  "<|1, 2, 3, 4|>", "<|int, int, int, int|>";
-  "<|1, 2, 3, 4, 5|>", "<|int, int, int, int, int|>";
-  "<|1, 2, 3, 4, 5, 6|>", "<|int, int, int, int, int, int|>";
-  "<|1, 2, 3, 4, 5, 6, 7|>", "<|int, int, int, int, int, int, int|>";
+  "(1, 2, 3)", "(int, int, int)";
+  "(1, 2, 3, 4)", "(int, int, int, int)";
+  "(1, 2, 3, 4, 5)", "(int, int, int, int, int)";
+  "(1, 2, 3, 4, 5, 6)", "(int, int, int, int, int, int)";
+  "(1, 2, 3, 4, 5, 6, 7)", "(int, int, int, int, int, int, int)";
   (* with other types *)
-  "<|1, 2, true|>", "<|int, int, bool|>";
-  "<|1, 2, true, false|>", "<|int, int, bool, bool|>";
-  "<|1, 2, true, false, 1 + 1|>", "<|int, int, bool, bool, int|>";
-  "<|1, 2, true, false, 1 + 1, 1 + 1 + 1|>", "<|int, int, bool, bool, int, int|>";
+  "(1, 2, true)", "(int, int, bool)";
+  "(1, 2, true, false)", "(int, int, bool, bool)";
+  "(1, 2, true, false, 1 + 1)", "(int, int, bool, bool, int)";
+  "(1, 2, true, false, 1 + 1, 1 + 1 + 1)", "(int, int, bool, bool, int, int)";
   (* very complicated nested vector *)
-  "<|1, 2, true, false, 1 + 1, 1 + 1 + 1, <|1, 2, true, false, 1 + 1, 1 + 1 + 1|>|>", "<|int, int, bool, bool, int, int, <|int, int, bool, bool, int, int|>|>";
+  "(1, 2, true, false, 1 + 1, 1 + 1 + 1, (1, 2, true, false, 1 + 1, 1 + 1 + 1))", "(int, int, bool, bool, int, int, (int, int, bool, bool, int, int))";
 ]
 
 

@@ -223,9 +223,9 @@ and string_of_c_type t =
         ""
         types
     in
-    "<|"
+    "("
     ^ (String.sub types_string 0 ((String.length types_string) - 2))
-    ^ "|>"
+    ^ ")"
 
 
 let string_of_c_expr e = string_of_c_expr e 0

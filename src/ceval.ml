@@ -32,7 +32,7 @@ and string_of_value = function
   | RecursiveFunctionClosure _ -> "function"
   | VectorValue values ->
     let values_string: string = values |> List.map string_of_value |> String.concat ", " in
-    "<|" ^ values_string ^ "|>"
+    "(" ^ values_string ^ ")"
 
 
 let rec bind_pat (p: pat) (v: value): env option =

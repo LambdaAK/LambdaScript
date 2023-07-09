@@ -6,8 +6,8 @@ exception FactorParseFailure
 
 
 let remove_head: 'a list -> 'a list = function
-| [] -> raise ParseFailure
-| _ :: t -> t
+  | [] -> raise ParseFailure
+  | _ :: t -> t
 
 let remove_last (lst: 'a list): 'a * 'a list =
   match List.rev lst with
@@ -65,9 +65,16 @@ and parse_factor_type (tokens: token list): factor_type * token list =
   
   | {token_type = LParen; line = _} :: t ->
 
-    let inside, tokens_after_inside = parse_compound_type t in
-    assert_next_token tokens_after_inside RParen;
-    ParenFactorType inside, (remove_head tokens_after_inside) (* remove the RParen here *)
+    (* parse a list of compound types seperated by commas *)
+    let compound_type_list, tokens_after_compound_type_list = parse_compound_type_list_seperated_by_commas t in
+    (* the next token should be a RParen *)
+    assert_next_token tokens_after_compound_type_list RParen;
+    (* if the length of compound_type_list is 1, return a paren factor *)
+    (* otherwise return a vector *)
+    if List.length compound_type_list = 1 then
+      ParenFactorType (List.hd compound_type_list), remove_head tokens_after_compound_type_list
+    else
+      VectorType compound_type_list, remove_head tokens_after_compound_type_list
 
   | _ -> raise ParseFailure
 
@@ -539,6 +546,21 @@ and parse_pat (tokens: token list): pat * token list = match tokens with
   WildcardPat, t
 | {token_type = Id s; line = _} :: t ->
   IdPat s, t
+
+| {token_type = LParen; line = _} :: t ->
+  (* parse a list of pats seperated by commas *)
+  let pat_list, tokens_after_pat_list = parse_pats_seperated_by_commas t in
+  (* the next token should be a RParen *)
+  assert_next_token tokens_after_pat_list RParen;
+  (* if the length of pat_list is 1, return a paren pat *)
+  (* otherwise return a vector *)
+  if List.length pat_list = 1 then
+    (List.hd pat_list), remove_head tokens_after_pat_list
+  else
+    VectorPat pat_list, remove_head tokens_after_pat_list
+
+
+
 | {token_type = PairOpen; line = _} :: t ->
   (* parse a list of pats seperated by commas *)
   let pat_list, tokens_after_pat_list = parse_pats_seperated_by_commas t in
@@ -564,12 +586,17 @@ and parse_factor_not_app (tokens: token list): factor * token list =
   | {token_type = Id s; line = _} :: t ->
     Id s, t
   | {token_type = LParen; line = _} :: t ->
-    (* parse an expr *)
-    let e, tokens_after_e = parse_expr t in
-    (* the next token should be a RPAREN *)
-    (* remove the RPAREN with remove_head *)
-    assert_next_token tokens_after_e RParen;
-    ParenFactor e, remove_head tokens_after_e
+    (* parse a list of expressions seperated by commas *)
+    let expr_list, tokens_after_expr_list = parse_expressions_seperated_by_commas t in
+    (* the next token should be a RParen *)
+    assert_next_token tokens_after_expr_list RParen;
+    (* if the length of expr_list is 1, return a paren factor *)
+    (* otherwise return a vector *)
+    if List.length expr_list = 1 then
+      ParenFactor (List.hd expr_list), remove_head tokens_after_expr_list
+    else
+      Vector (expr_list), remove_head tokens_after_expr_list
+
   | {token_type = PairOpen; line = _} :: t ->
     (* parse a list of expressions seperated by commas *)
     let expr_list, tokens_after_expr_list = parse_expressions_seperated_by_commas t in

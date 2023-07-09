@@ -52,6 +52,3 @@ let fresh_type_var: unit -> c_type =
 fun () ->
   counter := !counter + 1;
   TypeVar !counter
-  
-
-(* condense expression *)
