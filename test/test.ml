@@ -64,9 +64,9 @@ module IntTestModifierInput: TestModifierInput with type test_type = string * st
    
     
     (* tests involving functions *)
-    (fun (x, y) -> "(lam n -> n) (" ^ x ^ " )", y);
-    (fun (x, y) -> "(lam n -> n + 1) (" ^ x ^ " )", y |> int_of_string |> (+) 1 |> string_of_int);
-    (fun (x, y) -> "(lam a -> lam b -> a + b) (" ^ x ^ " )" ^ " ( " ^ x ^ " )", y |> int_of_string |> ( * ) 2 |> string_of_int);
+    (fun (x, y) -> "(fn n -> n) (" ^ x ^ " )", y);
+    (fun (x, y) -> "(fn n -> n + 1) (" ^ x ^ " )", y |> int_of_string |> (+) 1 |> string_of_int);
+    (fun (x, y) -> "(fn a -> fn b -> a + b) (" ^ x ^ " )" ^ " ( " ^ x ^ " )", y |> int_of_string |> ( * ) 2 |> string_of_int);
 
 
     (* tests involving bind expressions *)
@@ -85,7 +85,7 @@ module EvalTestModifierInput: TestModifierInput with type test_type = string * s
     (* bind expression *)
     (fun (x, y) -> "bind a <- " ^ x ^ " in a", y);
     (fun (x, y) -> "bind rec a <- " ^ x ^ " in a", y);
-    (fun (x, y) -> "( lam a -> a ) ( " ^ x ^ " )", y);
+    (fun (x, y) -> "( fn a -> a ) ( " ^ x ^ " )", y);
 
 
   ]
@@ -101,7 +101,7 @@ module TypeTestModifierInput: TestModifierInput with type test_type = string = s
     (* bind expression *)
     (fun x -> "bind q <- " ^ x ^ " in q");
     (fun x -> "bind rec q <- " ^ x ^ " in q");
-    (fun x -> "( lam a -> a ) ( " ^ x ^ " )");
+    (fun x -> "( fn a -> a ) ( " ^ x ^ " )");
 
   ]
 
@@ -146,9 +146,9 @@ module IntTypeTestModifierInput: TestModifierInput with type test_type = string 
     (fun x -> "if false then 0 else " ^ x);
 
     (* tests that involve functions that will evaluate to integers *)
-    (fun x -> "(lam n -> n) (" ^ x ^ " )");
-    (fun x -> "(lam n -> n + 1) (" ^ x ^ " )");
-    (fun x -> "(lam a -> lam b -> a + b) (" ^ x ^ " )" ^ " ( " ^ x ^ " )");
+    (fun x -> "(fn n -> n) (" ^ x ^ " )");
+    (fun x -> "(fn n -> n + 1) (" ^ x ^ " )");
+    (fun x -> "(fn a -> fn b -> a + b) (" ^ x ^ " )" ^ " ( " ^ x ^ " )");
 
   ]
 
@@ -182,7 +182,7 @@ module FunctionTypeTestModifierInput: TestModifierInput with type test_type = st
 
   let modifiers = [
     (fun x -> x);
-    (fun (x, y) -> "(lam m -> m) ( " ^ x ^ " )", y);
+    (fun (x, y) -> "(fn m -> m) ( " ^ x ^ " )", y);
     
   ]
 
@@ -379,26 +379,26 @@ let string_types = [
 ]
 
 let function_type_tests = [
-  "lam n -> n", "t1 -> t1";
-  "lam n -> n + 1", "int -> int";
-  "lam a -> lam b -> a + b", "int -> int -> int";
-  "lam n [int] -> n", "int -> int";
-  "lam n [int] -> n + 1", "int -> int";
-  "lam a [int] -> lam b [int] -> a + b", "int -> int -> int";
-  "lam a -> lam b -> a", "t1 -> t2 -> t1";
-  "lam a -> lam b -> b", "t1 -> t2 -> t2";
-  "lam a [int] -> lam b -> b", "int -> t1 -> t1";
-  "lam a -> lam b [int] -> b", "t1 -> int -> int";
-  "lam a [int] -> lam b [int] -> b", "int -> int -> int";
-  "lam a [int] -> lam b [int] -> a", "int -> int -> int";
-  "lam a [int] -> lam b [int] -> a + b", "int -> int -> int";
-  "lam a [int] -> lam b [int] -> a + b + 1", "int -> int -> int";
-  "lam a [int] -> lam b [int] -> a + b + 1 + 2", "int -> int -> int";
-  "lam (a, b) [(int, int)] -> a + b", "(int, int) -> int";
-  "lam (a, _) -> lam (_, b) -> a + b", "(int, t1) -> (t2, int) -> int";
-  "lam (a, _) -> lam (_, b) -> a || b", "(bool, t1) -> (t2, bool) -> bool";
-  {|lam (a, b) ->
-    lam (c, d) ->
+  "fn n -> n", "t1 -> t1";
+  "fn n -> n + 1", "int -> int";
+  "fn a -> fn b -> a + b", "int -> int -> int";
+  "fn n [int] -> n", "int -> int";
+  "fn n [int] -> n + 1", "int -> int";
+  "fn a [int] -> fn b [int] -> a + b", "int -> int -> int";
+  "fn a -> fn b -> a", "t1 -> t2 -> t1";
+  "fn a -> fn b -> b", "t1 -> t2 -> t2";
+  "fn a [int] -> fn b -> b", "int -> t1 -> t1";
+  "fn a -> fn b [int] -> b", "t1 -> int -> int";
+  "fn a [int] -> fn b [int] -> b", "int -> int -> int";
+  "fn a [int] -> fn b [int] -> a", "int -> int -> int";
+  "fn a [int] -> fn b [int] -> a + b", "int -> int -> int";
+  "fn a [int] -> fn b [int] -> a + b + 1", "int -> int -> int";
+  "fn a [int] -> fn b [int] -> a + b + 1 + 2", "int -> int -> int";
+  "fn (a, b) [(int, int)] -> a + b", "(int, int) -> int";
+  "fn (a, _) -> fn (_, b) -> a + b", "(int, t1) -> (t2, int) -> int";
+  "fn (a, _) -> fn (_, b) -> a || b", "(bool, t1) -> (t2, bool) -> bool";
+  {|fn (a, b) ->
+    fn (c, d) ->
     if a then b
     else if c then d
     else 1|}, "(bool, int) -> (bool, int) -> int";
@@ -406,7 +406,7 @@ let function_type_tests = [
   
 
   (* more complicated function type tests *)
-  "lam a -> lam b -> lam c -> a ( b ( c ) )", "(t1 -> t2) -> (t3 -> t1) -> t3 -> t2";
+  "fn a -> fn b -> fn c -> a ( b ( c ) )", "(t1 -> t2) -> (t3 -> t1) -> t3 -> t2";
 
   (* tests with syntax sugar bind expressions *)
 
@@ -431,17 +431,17 @@ let function_type_tests = [
   "bind f a [int] b [int] c [int] d [int] <- a in f 1 2 3 4", "int";
 
   (* with type variables *)
-  "lam a ['a] -> a", "t1 -> t1";
-  "lam a ['a] -> a + 1", "int -> int";
-  "lam a ['a] -> lam b ['a] -> a", "t1 -> t1 -> t1";
-  "lam a ['a] -> lam b ['a] -> b", "t1 -> t1 -> t1";
-  "lam a ['a] -> lam b ['b] -> a", "t1 -> t2 -> t1";
-  "lam a ['a] -> lam b ['a] -> a + b", "int -> int -> int";
-  "lam a ['a] -> lam b ['a] -> a + b + 1", "int -> int -> int";
+  "fn a ['a] -> a", "t1 -> t1";
+  "fn a ['a] -> a + 1", "int -> int";
+  "fn a ['a] -> fn b ['a] -> a", "t1 -> t1 -> t1";
+  "fn a ['a] -> fn b ['a] -> b", "t1 -> t1 -> t1";
+  "fn a ['a] -> fn b ['b] -> a", "t1 -> t2 -> t1";
+  "fn a ['a] -> fn b ['a] -> a + b", "int -> int -> int";
+  "fn a ['a] -> fn b ['a] -> a + b + 1", "int -> int -> int";
 
-  "lam f ['a -> 'b] -> lam x ['b] -> f x", "(t1 -> t1) -> t1 -> t1";
+  "fn f ['a -> 'b] -> fn x ['b] -> f x", "(t1 -> t1) -> t1 -> t1";
   (* this is an interesting example because it turns out that 'a = 'b here *)
-  "lam f ['a -> 'b] -> lam x ['a] -> f x", "(t1 -> t2) -> t1 -> t2";
+  "fn f ['a -> 'b] -> fn x ['a] -> f x", "(t1 -> t2) -> t1 -> t2";
   (* on the other hand, there is no constraint generated in this expression saying that 'a = 'b, so they are different *)
 
   "bind f a b [int] c [int] d [int] <- a in f", "t1 -> int -> int -> int -> t1";
@@ -454,30 +454,30 @@ let function_type_tests = [
   "bind f a b c d <- c in f", "t1 -> t2 -> t3 -> t4 -> t3";
   "bind f a b c d [str] <- d in f", "t1 -> t2 -> t3 -> str -> str";
 
-  "lam (a, _) -> a", "(t1, t2) -> t1";
-  "lam (a, _) -> a + 1", "(int, t1) -> int";
+  "fn (a, _) -> a", "(t1, t2) -> t1";
+  "fn (a, _) -> a + 1", "(int, t1) -> int";
 
-  "lam f -> lam x -> f x", "(t1 -> t2) -> t1 -> t2";
+  "fn f -> fn x -> f x", "(t1 -> t2) -> t1 -> t2";
 
-  {|lam f ['a -> 'b -> 'c] ->
-    lam a ['a] ->
-    lam b ['b] ->
+  {|fn f ['a -> 'b -> 'c] ->
+    fn a ['a] ->
+    fn b ['b] ->
     f a b|}, "(t1 -> t2 -> t3) -> t1 -> t2 -> t3";
 
   
-  "lam a [('a, 'b)] -> a", "(t1, t2) -> (t1, t2)";
-  "lam (a, _) [('a, 'b)] -> a", "(t1, t2) -> t1";
-  "lam (_, a) [('a, 'b)] -> a", "(t1, t2) -> t2";
-  "lam (a, b, c) [('a, 'b, 'c)] -> a", "(t1, t2, t3) -> t1";
+  "fn a [('a, 'b)] -> a", "(t1, t2) -> (t1, t2)";
+  "fn (a, _) [('a, 'b)] -> a", "(t1, t2) -> t1";
+  "fn (_, a) [('a, 'b)] -> a", "(t1, t2) -> t2";
+  "fn (a, b, c) [('a, 'b, 'c)] -> a", "(t1, t2, t3) -> t1";
 
   (* higher order function *)
-  {|lam f [('a, 'b) -> 'c] ->
-    lam a ['a] ->
-    lam b ['b] ->
+  {|fn f [('a, 'b) -> 'c] ->
+    fn a ['a] ->
+    fn b ['b] ->
     f (a, b)|}, "((t1, t2) -> t3) -> t1 -> t2 -> t3";
 
-  {|lam f ['a -> 'b -> 'c] ->
-    lam (a, b) ->
+  {|fn f ['a -> 'b -> 'c] ->
+    fn (a, b) ->
     f a b|}, "(t1 -> t2 -> t3) -> (t1, t2) -> t3";
 
 
@@ -549,10 +549,10 @@ let pair_type_tests = [
 ]
 
 let function_to_string_tests = [
-  "lam a -> a", "function";
-  "lam () -> ()", "function";
-  "lam () [ng] -> ()", "function";
-  "bind a [(int -> int) -> int] <- lam f -> f 1 in a", "function"
+  "fn a -> a", "function";
+  "fn () -> ()", "function";
+  "fn () [ng] -> ()", "function";
+  "bind a [(int -> int) -> int] <- fn f -> f 1 in a", "function"
 ]
 
 let vector_type_tests = [
@@ -702,12 +702,12 @@ let mult_div_mod_tests = [
 let complex_tests = [
      {|
     bind succ [int -> int] <-
-      lam n [int] -> n + 1
+      fn n [int] -> n + 1
     in
     
     bind sum [int -> int -> int] <-
-      lam a [int] ->
-      lam b [int] ->
+      fn a [int] ->
+      fn b [int] ->
       a + b
     in
     
@@ -716,7 +716,7 @@ let complex_tests = [
 
      {|
     bind succ [int-> int] <-
-      lam n [int] -> n + 1
+      fn n [int] -> n + 1
     in
 
     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
@@ -730,14 +730,14 @@ let complex_tests = [
 
      {|
     bind f <-
-      lam a [str] -> a
+      fn a [str] -> a
     in
     f ""
     |}, {|""|};
 
      {|
     bind f <-
-      lam () -> ()
+      fn () -> ()
     in
     f ()
     |}, {|()|};
@@ -768,7 +768,7 @@ let complex_tests = [
     (* function that takes a function and applies it to 1 *)
     {|
     bind apply_one f <- f 1 in
-    apply_one (lam n -> n + 1)
+    apply_one (fn n -> n + 1)
     |}, "2";
   
  

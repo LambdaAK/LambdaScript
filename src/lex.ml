@@ -185,7 +185,7 @@ let rec lex (lst: char list): token list =
     let new_token: token = {token_type = Let; line = !line_number} in
     new_token :: (lex t)
   
-  | 'l' :: 'a' :: 'm' :: t ->
+  | 'f' :: 'n' :: t ->
       let new_token: token = {token_type = Lam; line = !line_number} in
       new_token :: (lex t)
 
