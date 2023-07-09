@@ -43,14 +43,7 @@ let rec parse_compound_type (tokens: token list): compound_type * token list =
 
 
 and parse_factor_type (tokens: token list): factor_type * token list =
-  match tokens with
-  | {token_type = PairOpen; line = _} :: t ->
-    (* parse a list of compound types seperated by commas *)
-    let compound_type_list, tokens_after_compound_type_list = parse_compound_type_list_seperated_by_commas t in
-    (* the next token should be a PairClose *)
-    assert_next_token tokens_after_compound_type_list PairClose;
-    VectorType compound_type_list, remove_head tokens_after_compound_type_list
-    
+  match tokens with    
   | {token_type = IntegerType; line = _} :: t ->
       IntegerType, t
   | {token_type = BooleanType; line = _} :: t ->
@@ -559,14 +552,6 @@ and parse_pat (tokens: token list): pat * token list = match tokens with
   else
     VectorPat pat_list, remove_head tokens_after_pat_list
 
-
-
-| {token_type = PairOpen; line = _} :: t ->
-  (* parse a list of pats seperated by commas *)
-  let pat_list, tokens_after_pat_list = parse_pats_seperated_by_commas t in
-  (* the next token should be a PairClose *)
-  assert_next_token tokens_after_pat_list PairClose;
-  VectorPat pat_list, remove_head tokens_after_pat_list
 | _ -> raise ParseFailure
 
 
@@ -596,14 +581,6 @@ and parse_factor_not_app (tokens: token list): factor * token list =
       ParenFactor (List.hd expr_list), remove_head tokens_after_expr_list
     else
       Vector (expr_list), remove_head tokens_after_expr_list
-
-  | {token_type = PairOpen; line = _} :: t ->
-    (* parse a list of expressions seperated by commas *)
-    let expr_list, tokens_after_expr_list = parse_expressions_seperated_by_commas t in
-    (* the next token should be a PairClose *)
-    assert_next_token tokens_after_expr_list PairClose;
-    Vector(expr_list), remove_head tokens_after_expr_list
-
 
   (*| {token_type = LBrace; line = _} :: t ->
     (* infix *)

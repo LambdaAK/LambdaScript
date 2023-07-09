@@ -42,8 +42,6 @@ type token_type =
 | RBrace
 | Let
 | Rec
-| PairOpen
-| PairClose
 | Comma
 | WildcardPattern
 
@@ -264,14 +262,6 @@ let rec lex (lst: char list): token list =
     let new_token: token = {token_type = GE; line = !line_number} in
     new_token :: (lex t)
 
-  | '|' :: '>' :: t ->
-    let new_token: token = {token_type = PairClose; line = !line_number} in
-    new_token :: (lex t)
-
-  | '<' :: '|' :: t ->
-    let new_token: token = {token_type = PairOpen; line = !line_number} in
-    new_token :: (lex t)
-
   | ',' :: t ->
     let new_token: token = {token_type = Comma; line = !line_number} in
     new_token :: (lex t)
@@ -402,8 +392,6 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | RBrace -> "<rbrace>"
 | Let -> "<let>"
 | Rec -> "<rec>"
-| PairOpen -> "<pair open>"
-| PairClose -> "<pair close>"
 | Comma -> "<comma>"
 | WildcardPattern -> "<wildcard pattern>"
 | TypeVar s -> "<type var: " ^ s ^ ">"
