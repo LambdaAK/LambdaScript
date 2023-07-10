@@ -171,6 +171,7 @@ and string_of_c_expr (e: c_expr) (level: int) =
     ^ expressions_string
     ^ indentations_with_newline level
     ^ ")"
+    | ENil -> "[]"
     
 
 and string_of_c_bop: c_bop -> string =
@@ -188,6 +189,7 @@ and string_of_c_bop: c_bop -> string =
   | CGE -> ">="
   | CAnd -> "&&"
   | COr -> "||"
+  | CCons -> "::"
 
 
 
@@ -197,6 +199,9 @@ and string_of_c_type t =
   | StringType -> "str"
   | NothingType -> "ng"
   | IntType -> "int"
+  | CListType t ->
+    let t_string: string = string_of_c_type t in
+    "[" ^ t_string ^ "]"
   | FunctionType (i, o) ->
     (* if i is a function type it must be surrounded by ( ) *)
     let i_string: string =

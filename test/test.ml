@@ -206,6 +206,15 @@ module VectorTypeTestModifierInput: TestModifierInput with type test_type = stri
 
 end
 
+module ListTypeTestModifierInput: TestModifierInput with type test_type = string * string = struct
+  type test_type = string * string
+
+  let modifiers: (string * string -> string * string) list = [
+    (fun x -> x)
+  ]
+
+end
+
 module IntTestModifier = MakeTestModifier (IntTestModifierInput)
 module IntTypeTestModifier = MakeTestModifier (IntTypeTestModifierInput)
 module BoolTypeTestModifier = MakeTestModifier (BoolTypeTestModifierInput)
@@ -214,6 +223,7 @@ module TypeTestModifier = MakeTestModifier (TypeTestModifierInput)
 module FunctionTypeTestModifier = MakeTestModifier (FunctionTypeTestModifierInput)
 module PairTypeTestModifier = MakeTestModifier (PairTypeTestModiferInput)
 module VectorTypeTestModifier = MakeTestModifier (VectorTypeTestModifierInput)
+module ListTypeTestModifier = MakeTestModifier (ListTypeTestModifierInput)
 
 let eval_test (expr: string) (expected_output: string): test =
   expr ^ " SHOULD YIELD " ^ expected_output >:: fun _ ->
@@ -570,6 +580,26 @@ let vector_type_tests = [
   "(1, 2, true, false, 1 + 1, 1 + 1 + 1, (1, 2, true, false, 1 + 1, 1 + 1 + 1))", "(int, int, bool, bool, int, int, (int, int, bool, bool, int, int))";
 ]
 
+let list_type_tests = [
+  "[]", "[t1]";
+  "1 :: []", "[int]";
+  "1 :: 2 :: []", "[int]";
+  "1 :: 2 :: 3 :: []", "[int]";
+  "1 :: 2 :: 3 :: 4 :: []", "[int]";
+  "(1, 2) :: []", "[(int, int)]";
+  "(1, 2) :: (3, 4) :: []", "[(int, int)]";
+  (* with other types *)
+  "true :: []", "[bool]";
+  (* nested list *)
+  "(1 :: []) :: []", "[[int]]";
+  "(1 :: 2 :: []) :: []", "[[int]]";
+  "[] :: []", "[[t1]]";
+  "[] :: [] :: []", "[[t1]]";
+  "([] :: []) :: []","[[[t1]]]";
+  "(([] :: []) :: []) :: []", "[[[[t1]]]]";
+
+]
+
 
 let arithmetic_tests = [
    "1 + 2", "3";
@@ -695,6 +725,29 @@ let mult_div_mod_tests = [
    "100 / 2 % 49", "1";
    "2 * 5 % 4", "2";
    "11 % 3 % 1", "0";
+  
+]
+
+let list_tests = [
+  "[]", "[]";
+  "1 :: []", "[1]";
+  "1 :: 2 :: []", "[1, 2]";
+  "1 :: 2 :: 3 :: []", "[1, 2, 3]";
+  "1 :: 2 :: 3 :: 4 :: []", "[1, 2, 3, 4]";
+  (* with other types *)
+  "true :: []", "[true]";
+  (* nested list *)
+  "(1 :: []) :: []", "[[1]]";
+  "(1 :: 2 :: []) :: []", "[[1, 2]]";
+  (* do some operations in the list *)
+  "(1 + 2) :: []", "[3]";
+  "(1 + 2) :: (3 + 4) :: []", "[3, 7]";
+  "(1, 2) :: []", "[(1, 2)]";
+  {|
+  bind (a, b) <- (1, 2) in
+  bind res <- a + b in
+  a :: b :: res :: []
+  |}, "[1, 2, 3]";
   
 ]
 
@@ -890,7 +943,7 @@ let function_type_tests: test list = List.map (fun (a, b) -> type_test a b) (fun
 let pair_type_tests: test list = List.map (fun (a, b) -> type_test a b) (pair_type_tests |> PairTypeTestModifier.modify_tests)
 
 let vector_type_tests: test list = List.map (fun (a, b) -> type_test a b) (vector_type_tests |> VectorTypeTestModifier.modify_tests)
-
+let list_type_tests: test list = List.map (fun (a, b) -> type_test a b) (list_type_tests |> ListTypeTestModifier.modify_tests)
 let eval_test_data = [
   arithmetic_tests |> IntTestModifier.modify_tests;
   boolean_tests;
@@ -898,7 +951,8 @@ let eval_test_data = [
   minus_tests;
   mult_div_mod_tests;
   ternary_tests;
-  function_to_string_tests
+  function_to_string_tests;
+  list_tests
 ] |> List.flatten |> EvalTestModifier.modify_tests
 
 let eval_tests = List.map (fun (a, b) -> eval_test a b) eval_test_data
@@ -914,6 +968,7 @@ let all_tests =
       function_type_tests;
       pair_type_tests;
       vector_type_tests;
+      list_type_tests;
       
     ]
 

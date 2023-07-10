@@ -14,11 +14,11 @@ type c_bop =
   | CGE
   | CAnd
   | COr
+  | CCons
 
 
 and c_defn =
   | CDefn of pat * c_type option * c_expr
-
 
 and c_expr =
   | EFunction of pat * c_type option * c_expr
@@ -32,6 +32,7 @@ and c_expr =
   | EApp of c_expr * c_expr
   | EBop of c_bop * c_expr * c_expr
   | EVector of c_expr list
+  | ENil
 
 and c_type =
   | IntType
@@ -42,6 +43,7 @@ and c_type =
   | FunctionType of c_type * c_type
   | VectorType of c_type list
   | TypeVar of int
+  | CListType of c_type
 
 let ( => ) (t1: c_type) (t2: c_type): c_type =
   FunctionType (t1, t2)

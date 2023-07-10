@@ -13,6 +13,7 @@ type value =
   | FunctionClosure of env * pat * c_type option * c_expr
   | RecursiveFunctionClosure of env ref * pat * c_type option * c_expr
   | VectorValue of value list
+  | ListValue of value list
 
 and env = (string * value) list
 
@@ -33,6 +34,9 @@ and string_of_value = function
   | VectorValue values ->
     let values_string: string = values |> List.map string_of_value |> String.concat ", " in
     "(" ^ values_string ^ ")"
+  | ListValue values ->
+    let values_string: string = values |> List.map string_of_value |> String.concat ", " in
+    "[" ^ values_string ^ "]"
 
 
 let rec bind_pat (p: pat) (v: value): env option =
@@ -86,6 +90,7 @@ let rec eval_c_expr (ce: c_expr) (env: env) =
   | EInt i -> IntegerValue i
   | EString s -> StringValue s
   | EBool b -> BooleanValue b
+  | ENil -> ListValue []
   | ENothing -> NothingValue
   | EId s -> List.assoc s env
   | EBop (op, e1, e2) -> eval_bop op e1 e2 env
@@ -162,6 +167,7 @@ let rec eval_c_expr (ce: c_expr) (env: env) =
 
 and eval_bop (op: c_bop) (e1: c_expr) (e2: c_expr) (env: env) =
 
+  (* these are seperate because they require short circuit evaluation *)
   match op with
   | CAnd ->
     let v1: value = eval_c_expr e1 env in
@@ -196,6 +202,7 @@ and eval_bop (op: c_bop) (e1: c_expr) (e2: c_expr) (env: env) =
   | CLE, IntegerValue a, IntegerValue b -> BooleanValue (a <= b)
   | CGT, IntegerValue a, IntegerValue b -> BooleanValue (a > b)
   | CGE, IntegerValue a, IntegerValue b -> BooleanValue (a >= b)
+  | CCons, v, ListValue vs -> ListValue (v :: vs)
   
   | _ -> failwith "eval_bop unimplemented"
 

@@ -40,12 +40,29 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     List.assoc x env, []
   | EString _ -> StringType, []
   | ENothing -> NothingType, []
+  | ENil -> CListType (fresh_type_var ()), []
   | EBop (op, e1, e2) ->
     let t1, c1 = generate env e1 in
     let t2, c2 = generate env e2 in
     (* let type_of_expression: c_type = fresh_type_var () in *)
     (
     match op with
+    | CCons ->
+      (*
+      Type inference relation for cons
+      env |- e1 :: e2 : [t] -| C1, C2
+        env |- e1 : t -| C1
+        env |- e2 : [t] -| C2
+      *)
+
+      t2, (CListType t1, t2) :: c1 @ c2
+      (*
+      here, t2 should be [t] for some t
+      t1 should be t for some t
+      the constraint is that [t1] = t2
+      *)
+      
+
     | CPlus 
     | CMinus
     | CMul
@@ -161,6 +178,9 @@ let rec reduce_eq (c: type_equations): substitutions =
 
       | FunctionType (i1, o1), FunctionType (i2, o2) ->
         reduce_eq ((i1, i2) :: (o1, o2) :: c')
+
+      | CListType et1, CListType et2 ->
+        reduce_eq ((et1, et2) :: c')
       
       | VectorType types1, VectorType types2 ->
         (
@@ -174,14 +194,15 @@ let rec reduce_eq (c: type_equations): substitutions =
       | _ -> raise TypeFailure
     )
 
-and get_type (var: c_type) (subs: substitutions): c_type =
- 
+and get_type (var: c_type) (subs: substitutions): c_type = 
   match var with
   | TypeVar _ ->
     (
     let looked_up_type = get_type_of_type_var_if_possible var subs in
     match looked_up_type with
     | FunctionType (i, o) -> FunctionType (get_type i subs, get_type o subs)
+    | CListType et -> CListType (get_type et subs)
+    | VectorType types -> VectorType (List.map (fun t -> get_type t subs) types)
     | _ -> looked_up_type
     )
   | FunctionType (i, o) -> FunctionType (get_type i subs, get_type o subs)
@@ -190,6 +211,8 @@ and get_type (var: c_type) (subs: substitutions): c_type =
   | BoolType -> BoolType
   | StringType -> StringType
   | NothingType -> NothingType
+  | CListType et ->
+    CListType (get_type et subs)
   | _ -> failwith "not a type var2"
 
 
@@ -210,7 +233,6 @@ and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type
 
 and type_of_c_expr (e: c_expr) (static_env: static_env): c_type =
   let t, constraints = generate static_env e in
- 
   let constraints_without_written_type_vars = replace_written_types constraints in
   let solution: substitutions = reduce_eq constraints_without_written_type_vars in
   get_type t solution |> fix
@@ -233,6 +255,7 @@ and is_basic_type (t: c_type): bool =
   | TypeVarWritten _ -> false (* fix this later if necessary *)
   | FunctionType (i, o) -> is_basic_type i && is_basic_type o
   | VectorType types -> List.for_all is_basic_type types
+  | CListType et -> is_basic_type et
 
 
 and substitute (var_id: int) (t: c_type) (equations: type_equations): type_equations =
@@ -257,6 +280,8 @@ and substitute_in_type (type_subbing_in: c_type) (type_var_id_subbing_for: int) 
     VectorType (
       List.map (fun t -> substitute_in_type t type_var_id_subbing_for substitute_with) types
     )
+  | CListType et ->
+    CListType (substitute_in_type et type_var_id_subbing_for substitute_with)
   | _ ->
     failwith "not a type var"
 

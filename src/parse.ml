@@ -155,16 +155,14 @@ and parse_expr (tokens: token list) : expr * token list =
   | {token_type = Bind; line = _} :: {token_type = Rec; line = _} :: t -> (* bind rec expression *)
     parse_bind_rec t
 
-
   | {token_type = Bind; line = _} :: t -> (* bind expression *)
     parse_bind t
 
+  | _ -> let e, t = parse_cons tokens in ConsExpr e, t
 
-
-  | _ ->
-    (* parse an arith_expr *)
-    let (e, t): disjunction * token list = parse_disjunction tokens in
-    DisjunctionExpr e, t
+    (*let (e, t): disjunction * token list = parse_disjunction tokens in
+    DisjunctionExpr e, t*)
+    
 
 and parse_bind_rec (tokens_without_bind_rec: token list): expr * token list =
 
@@ -324,23 +322,24 @@ and parse_bind (tokens_without_bind: token list): expr * token list =
   in
 
   let e1_wrapped = wrap_e1_with_functions e1 pattern_list in
-
-  DisjunctionExpr (
-      ConjunctionUnderDisjunction (
-        EqualityUnderConjunction (
-          RelationUnderEqExpr (
-            ArithmeticUnderRelExpr (
-              Term (
-                Factor (
-                  App (
-                    ParenFactor (
-                      Function (
-                        pattern,
-                         cto,
-                        e2
-                      )
-                    ),
-                    ParenFactor (e1_wrapped)
+  ConsExpr(
+    DisjunctionUnderCons (
+        ConjunctionUnderDisjunction (
+          EqualityUnderConjunction (
+            RelationUnderEqExpr (
+              ArithmeticUnderRelExpr (
+                Term (
+                  Factor (
+                    App (
+                      ParenFactor (
+                        Function (
+                          pattern,
+                          cto,
+                          e2
+                        )
+                      ),
+                      ParenFactor (e1_wrapped)
+                    )
                   )
                 )
               )
@@ -349,6 +348,16 @@ and parse_bind (tokens_without_bind: token list): expr * token list =
         )
       )
     ), tokens_after_e2
+
+
+
+and parse_cons (tokens: token list): cons_expr * token list =
+  let first, tokens_after_first = parse_disjunction tokens in
+  match tokens_after_first with
+  | {token_type = Semicolon; line = _} :: t ->
+    let second, tokens_after_second = parse_cons t in
+    Cons (first, second), tokens_after_second
+  | _ -> DisjunctionUnderCons first, tokens_after_first
 
 
 and parse_disjunction (tokens: token list): disjunction * token list =
@@ -360,6 +369,9 @@ and parse_disjunction (tokens: token list): disjunction * token list =
 
   | _ -> ConjunctionUnderDisjunction first, tokens_after_first 
 
+
+
+  
 
 and parse_conjunction (tokens: token list): conjunction * token list =
   let first, tokens_after_first = parse_eq_expr tokens in
@@ -570,6 +582,8 @@ and parse_factor_not_app (tokens: token list): factor * token list =
     Nothing, t
   | {token_type = Id s; line = _} :: t ->
     Id s, t
+  | {token_type = LBracket; line = _} :: {token_type = RBracket; line = _} :: t ->
+    Nil, t
   | {token_type = LParen; line = _} :: t ->
     (* parse a list of expressions seperated by commas *)
     let expr_list, tokens_after_expr_list = parse_expressions_seperated_by_commas t in

@@ -28,6 +28,7 @@ and factor_type =
   | TypeVarWritten of string
   | ParenFactorType of compound_type
   | VectorType of compound_type list
+  | ListType of compound_type
 
 type defn =
   | Defn of pat * compound_type option * expr
@@ -36,8 +37,12 @@ type defn =
 and expr =
   | Function of pat * compound_type option * expr
   | Ternary of expr * expr * expr
-  | DisjunctionExpr of disjunction
+  | ConsExpr of cons_expr
   | BindRec of pat * compound_type option * expr * expr
+
+and cons_expr =
+  | Cons of disjunction * cons_expr
+  | DisjunctionUnderCons of disjunction
 
 
 and disjunction =
@@ -82,3 +87,4 @@ and factor =
   | App of factor * factor
   | Opposite of factor
   | Vector of expr list
+  | Nil

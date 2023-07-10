@@ -22,6 +22,7 @@ open Cexpr
       | BoolType -> ()
       | StringType -> ()
       | NothingType -> ()
+      | CListType et -> search et
       | TypeVarWritten _ -> () (* fix this later *)
       | TypeVar id ->
         if not (visited id !order) then
@@ -54,6 +55,8 @@ open Cexpr
       | FunctionType (i, o) ->
 
         FunctionType (replace i lst, replace o lst)
+
+      | CListType et -> CListType (replace et lst)
       
       | VectorType types ->
         VectorType (List.map (fun t -> replace t lst) types)

@@ -44,6 +44,7 @@ type token_type =
 | Rec
 | Comma
 | WildcardPattern
+| Semicolon
 
 
 type token = {token_type: token_type; line: int}
@@ -143,7 +144,10 @@ let rec lex (lst: char list): token list =
     {token_type = (Boolean true); line = !line_number} :: (lex t)
   | 'f' :: 'a' :: 'l' :: 's' :: 'e' :: t ->
       {token_type = (Boolean false); line = !line_number} :: (lex t)
-
+  
+  | ':' :: ':' :: t ->
+    let new_token: token = {token_type = Semicolon; line = !line_number} in
+    new_token :: (lex t)
 
   | 'i' :: 'n' :: 't' :: t ->
     let new_token: token = {token_type = IntegerType; line = !line_number} in
@@ -278,8 +282,6 @@ let rec lex (lst: char list): token list =
     let new_token: token = {token_type = EQ; line = !line_number} in
     new_token :: (lex t)
 
-  
-
   | '!' :: '=' :: t ->
     let new_token: token = {token_type = NE; line = !line_number} in
     new_token :: (lex t)
@@ -395,6 +397,7 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | Comma -> "<comma>"
 | WildcardPattern -> "<wildcard pattern>"
 | TypeVar s -> "<type var: " ^ s ^ ">"
+| Semicolon -> "<semicolon>"
 
 [@@coverage off]
 let rec print_tokens_list: token list -> unit = function

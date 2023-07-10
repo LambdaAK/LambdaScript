@@ -109,8 +109,12 @@ let rec string_of_expr (e: expr) (level: int): string = match e with
   ^ indentations_with_newline level
   ^ ")"
 
-| DisjunctionExpr e  ->
-  string_of_disjunction e level
+| ConsExpr e ->
+  "ConsExpr ("
+  ^ indentations_with_newline (level + 1)
+  ^ (string_of_cons_expr e (level + 1))
+  ^ indentations_with_newline level
+  ^ ")"
 
 | BindRec (p, cto, e1, e2) ->
   let p_string: string = string_of_pat p in
@@ -138,6 +142,21 @@ let rec string_of_expr (e: expr) (level: int): string = match e with
   ^ e2_string
   ^ indentations_with_newline level
   ^ ")"
+
+
+and string_of_cons_expr (ce: cons_expr) (level: int): string =
+  match ce with
+  | Cons (e1, e2) ->
+    "Cons ("
+    ^ indentations_with_newline (level + 1)
+    ^ (string_of_disjunction e1 (level + 1))
+    ^ ","
+    ^ indentations_with_newline (level + 1)
+    ^ (string_of_cons_expr e2 (level + 1))
+    ^ indentations_with_newline level
+    ^ ")"
+  | DisjunctionUnderCons d ->
+    string_of_disjunction d level
 
 
 and string_of_disjunction (d: disjunction) (level: int): string =
@@ -169,8 +188,6 @@ and string_of_conjunction (c: conjunction) (level: int): string =
     ^ (string_of_conjunction c (level + 1))
     ^ indentations_with_newline level
     ^ ")"
-
-
 
 
 
@@ -310,7 +327,7 @@ match af with
   ^ (String.concat (",\n" ^ indentations_with_newline (level + 1)) (List.map (fun e -> string_of_expr e (level + 1)) expressions))
   ^ indentations_with_newline level
   ^ ")"
-
+| Nil -> "Nil"
 
 let string_of_expr (e: expr) = string_of_expr e 0
 

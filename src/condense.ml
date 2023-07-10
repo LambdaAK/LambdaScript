@@ -26,12 +26,18 @@ and condense_expr: expr -> c_expr =
   
   , condense_expr expr)
   | Ternary (e1, e2, e3) -> ETernary (condense_expr e1, condense_expr e2, condense_expr e3)
-  | DisjunctionExpr disj -> condense_disjunction disj
+  | ConsExpr ce -> condense_cons_expr ce
   | BindRec (pat, cto, e1, e2) -> EBindRec (pat, (
     match cto with
     | None -> None
     | Some ct -> Some (condense_type ct)
     ), condense_expr e1, condense_expr e2)
+
+
+and condense_cons_expr: cons_expr -> c_expr =
+  function
+  | Cons (e1, e2) -> EBop(CCons, condense_disjunction e1, condense_cons_expr e2)
+  | DisjunctionUnderCons d -> condense_disjunction d
 
 
 and condense_disjunction: disjunction -> c_expr =
@@ -92,6 +98,7 @@ and condense_factor: factor -> c_expr =
   | Opposite factor -> EBop (CMinus, EInt 0, condense_factor factor)
   | Vector expressions ->
     EVector (List.map condense_expr expressions)
+  | Nil -> ENil
 
 
 and factor_type_to_t: factor_type -> c_type =
@@ -103,6 +110,7 @@ and factor_type_to_t: factor_type -> c_type =
   | TypeVarWritten i -> TypeVarWritten i
   | ParenFactorType expr -> condense_type expr
   | VectorType types -> VectorType (List.map condense_type types)
+  | ListType et -> CListType (condense_type et)
 
 
 and condense_type: compound_type -> c_type =
