@@ -55,7 +55,14 @@ and parse_factor_type (tokens: token list): factor_type * token list =
 
   | {token_type = TypeVar i; line = _} :: t ->
       TypeVarWritten i, t
-  
+
+  | {token_type = LBracket; line = _} :: t -> (* list type *)
+    (* parse a compound type *)
+    let compound_type, tokens_after_compound_type = parse_compound_type t in
+    (* the next token should be a RBracket *)
+    assert_next_token tokens_after_compound_type RBracket;
+    ListType compound_type, remove_head tokens_after_compound_type
+    
   | {token_type = LParen; line = _} :: t ->
 
     (* parse a list of compound types seperated by commas *)
