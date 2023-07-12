@@ -229,9 +229,9 @@ and string_of_c_bop: c_bop -> string =
 
 
 and string_of_c_type_scheme (universal_types, t) =
-  if List.length universal_types == 0 then
-    string_of_c_type t
-  else
+  match universal_types with
+  | [] -> string_of_c_type t
+  | _ ->
   let universal_types_string: string =
     List.fold_left
       (fun acc t ->
