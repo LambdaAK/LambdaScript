@@ -65,3 +65,10 @@ open Cexpr
 
     replace t !order
 
+
+let fix_type_scheme: c_type_scheme -> c_type_scheme =
+  fun (universal_types, t) ->
+    (universal_types, fix t)
+
+
+let () = ignore fix_type_scheme

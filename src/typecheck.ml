@@ -404,10 +404,9 @@ and generalize (constraints: type_equations) (env: static_env) (t: c_type): c_ty
   let type_vars: c_type list = get_type_vars u1 in
   (* get the list of types in env1 *)
   let env_types: c_type list = List.map snd env1 |> flatten_env_types in
-  (* print the env_types *)
-  env_types |> List.map string_of_c_type |> String.concat ", " |> print_endline;
+
   (* filter out the env_types from_type vars, which yields a list of free variables *)
-  let free_vars: c_type list = List.filter (fun t -> not (List.mem t env_types)) type_vars in
+  let free_vars: c_type list = List.filter (fun t -> not (List.mem t env_types)) type_vars |> List.sort_uniq compare in (* get rid of duplicates *)
   (* create a type scheme from the free variables and u1 *)
   let type_scheme: c_type_scheme = (free_vars, u1) in
   (* return the type scheme and the constraints *)
