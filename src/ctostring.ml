@@ -12,6 +12,7 @@ let rec string_of_pat pat =
   | IdPat s -> s
   | WildcardPat -> "_"
   | NothingPat -> "ng"
+  | NilPat -> "[]"
   | VectorPat patterns ->
     let patterns_string: string =
       List.fold_left

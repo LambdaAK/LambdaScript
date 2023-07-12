@@ -612,6 +612,9 @@ and parse_pat (tokens: token list): pat * token list = match tokens with
 | {token_type = StringToken s; line = _} :: t ->
   StringPat s, t
 
+| {token_type = LBracket; line = _} :: {token_type = RBracket; line = _} :: t ->
+  NilPat, t
+
 | {token_type = LParen; line = _} :: t ->
   (* parse a list of pats seperated by commas *)
   let pat_list, tokens_after_pat_list = parse_pats_seperated_by_commas t in

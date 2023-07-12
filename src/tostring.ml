@@ -10,6 +10,7 @@ let rec string_of_pat: pat -> string =
   | NothingPat -> "Nothing Pattern"
   | WildcardPat -> "Wildcard Pattern"
   | IdPat s -> "Id Pattern (" ^ s ^ ")"
+  | NilPat -> "Nil Pattern"
   | VectorPat patterns ->
     "Vector Pattern ("
     ^ indentations_with_newline 1

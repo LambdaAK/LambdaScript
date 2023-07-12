@@ -6,6 +6,7 @@ type pat =
   | IntPat of int
   | StringPat of string
   | BoolPat of bool
+  | NilPat
 
 
 type rel_op =

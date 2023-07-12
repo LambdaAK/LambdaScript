@@ -47,6 +47,7 @@ let rec bind_pat (p: pat) (v: value): env option =
   | IntPat i, IntegerValue j -> if i = j then Some [] else None
   | StringPat s, StringValue t -> if s = t then Some [] else None
   | BoolPat b, BooleanValue c -> if b = c then Some [] else None
+  | NilPat, ListValue [] -> Some []
   | VectorPat patterns, VectorValue values ->
     (
       match patterns, values with

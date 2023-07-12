@@ -181,6 +181,7 @@ and type_of_pat (p: pat): c_type * static_env =
   | IntPat _ -> IntType, []
   | BoolPat _ -> BoolType, []
   | StringPat _ -> StringType, []
+  | NilPat -> CListType (fresh_type_var ()), []
 
 let rec reduce_eq (c: type_equations): substitutions =
 
