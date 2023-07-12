@@ -1,5 +1,4 @@
 open Cexpr
-open Expr
 [@@@coverage off]
 
 let indentations (level: int) = String.make (2 * level) ' '
@@ -7,38 +6,46 @@ let indentations (level: int) = String.make (2 * level) ' '
 let indentations_with_newline (level: int) = "\n" ^ (indentations level)
 
 
-let rec string_of_pat pat =
-  match pat with
-  | IdPat s -> s
-  | WildcardPat -> "_"
-  | NothingPat -> "ng"
-  | NilPat -> "[]"
-  | VectorPat patterns ->
-    let patterns_string: string =
+let rec string_of_c_pat: c_pat -> string =
+  function
+  | CIntPat i -> "IntPat (" ^ (string_of_int i) ^ ")"
+  | CBoolPat b -> "BoolPat (" ^ (string_of_bool b) ^ ")"
+  | CNothingPat -> "NothingPat"
+  | CIdPat s -> "IdPat (" ^ s ^ ")"
+  | CConsPat (p1, p2) ->
+    let p1_string: string = string_of_c_pat p1 in
+    let p2_string: string = string_of_c_pat p2 in
+    "ConsPat ("
+    ^ p1_string
+    ^ ","
+    ^ p2_string
+    ^ ")"
+  | CNilPat -> "NilPat"
+  | CVectorPat ps ->
+    let ps_string: string =
       List.fold_left
         (fun acc p ->
-          let p_string: string = string_of_pat p in
+          let p_string: string = string_of_c_pat p in
           acc
           ^ p_string
-          ^ ", "
+          ^ ","
         )
         ""
-        patterns
+        ps
     in
-    "<|"
-    ^ (String.sub patterns_string 0 ((String.length patterns_string) - 2))
-    ^ "|>"
-  | IntPat n -> string_of_int n
-  | StringPat s -> s
-  | BoolPat b -> string_of_bool b
-
+    "VectorPat ("
+    ^ ps_string
+    ^ ")"
+  | CWildcardPat -> "WildcardPat"
+  | CStringPat s -> "StringPat (" ^ s ^ ")"
+  
 
 and string_of_c_defn (d: c_defn) =
   match d with
   | CDefn (pattern, cto, body_expression) -> ignore cto;
     "Definition ("
       ^ indentations_with_newline (1)
-      ^ (string_of_pat pattern)
+      ^ (string_of_c_pat pattern)
       ^ ","
       ^ (string_of_c_expr body_expression 1)
       ^ indentations_with_newline 1
@@ -80,7 +87,7 @@ and string_of_c_expr (e: c_expr) (level: int) =
     let branches_string: string =
       List.fold_left
         (fun acc (p, e) ->
-          let p_string: string = string_of_pat p in
+          let p_string: string = string_of_c_pat p in
           let e_string: string = string_of_c_expr e (level + 1) in
           acc
           ^ indentations_with_newline (level + 1)
@@ -107,7 +114,7 @@ and string_of_c_expr (e: c_expr) (level: int) =
     ^ s
     ^ ")"
   | EFunction (pattern, cto, body) ->
-      let pattern_string: string = string_of_pat pattern in
+      let pattern_string: string = string_of_c_pat pattern in
       let body_string: string = string_of_c_expr body (level + 1) in
       
       "Function ("
@@ -157,7 +164,7 @@ and string_of_c_expr (e: c_expr) (level: int) =
     ^ ")"
 
   | EBindRec (pattern, cto, body, e) ->
-    let pattern_string: string = string_of_pat pattern in
+    let pattern_string: string = string_of_c_pat pattern in
     let body_string: string = string_of_c_expr body (level + 1) in
     let e_string: string = string_of_c_expr e (level + 1) in
 
@@ -221,6 +228,28 @@ and string_of_c_bop: c_bop -> string =
   | CCons -> "::"
 
 
+and string_of_c_type_scheme (universal_types, t) =
+  if List.length universal_types == 0 then
+    string_of_c_type t
+  else
+  let universal_types_string: string =
+    List.fold_left
+      (fun acc t ->
+        let t_string: string = string_of_c_type t in
+        acc
+        ^ t_string
+        ^ ", "
+      )
+      ""
+      universal_types
+  in
+  "∀ "
+  ^ (String.sub universal_types_string 0 ((String.length universal_types_string) - 2))
+  ^ ". "
+  ^ (string_of_c_type t)
+
+
+
 
 and string_of_c_type t =
   match t with
@@ -261,7 +290,7 @@ and string_of_c_type t =
     ^ (String.sub types_string 0 ((String.length types_string) - 2))
     ^ ")"
 
-
 let string_of_c_expr e = string_of_c_expr e 0
 
 let () = ignore string_of_c_defn
+let () = ignore string_of_c_type_scheme

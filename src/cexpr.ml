@@ -1,4 +1,14 @@
-open Expr
+type c_pat =
+  | CIntPat of int
+  | CBoolPat of bool
+  | CNilPat
+  | CConsPat of c_pat * c_pat
+  | CWildcardPat
+  | CVectorPat of c_pat list
+  | CStringPat of string
+  | CIdPat of string
+  | CNothingPat
+
 
 type c_bop =
   | CPlus
@@ -18,13 +28,13 @@ type c_bop =
 
 
 and c_defn =
-  | CDefn of pat * c_type option * c_expr
+  | CDefn of c_pat * c_type option * c_expr
 
-and c_switch_branch = pat * c_expr
+and c_switch_branch = c_pat * c_expr
 
 and c_expr =
-  | EFunction of pat * c_type option * c_expr
-  | EBindRec of pat * c_type option * c_expr * c_expr
+  | EFunction of c_pat * c_type option * c_expr
+  | EBindRec of c_pat * c_type option * c_expr * c_expr
   | ETernary of c_expr * c_expr * c_expr
   | ESwitch of c_expr * c_switch_branch list
   | EBool of bool
@@ -47,6 +57,8 @@ and c_type =
   | VectorType of c_type list
   | TypeVar of int
   | CListType of c_type
+
+and c_type_scheme = c_type list * c_type
 
 let ( => ) (t1: c_type) (t2: c_type): c_type =
   FunctionType (t1, t2)

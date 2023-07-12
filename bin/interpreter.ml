@@ -16,8 +16,6 @@ let get_dir (): string =
 
 let run_run (dir: string): unit = 
   let contents: string = read dir in
-  let tokens: token list = contents |> list_of_string |> lex in
-  let _, _ = parse_expr tokens in
   (*
   print_endline "\n[AST]\n";
   ast |> condense_expr |> string_of_c_expr |> print_endline;
@@ -25,11 +23,14 @@ let run_run (dir: string): unit =
   print_endline "\n[Value]\n";
   *)print_newline ();
   contents |> c_eval |> print_endline; print_newline ();
-  type_of_c_expr (contents |> list_of_string |> lex |> parse_expr |> fst |> condense_expr) [] |> string_of_c_type |> print_endline;
+  type_of_c_expr (contents |> list_of_string |> lex |> parse_expr |> fst |> condense_expr) Language.Typecheck.initial_env |> string_of_c_type |> print_endline;
   print_endline "\n"
 
 let () = 
-
+(*
 try run_run (get_dir ())
 with
 | _ -> print_endline "Error"; exit 1
+*)
+
+run_run (get_dir ())

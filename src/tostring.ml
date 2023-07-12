@@ -4,8 +4,20 @@ let indentations (level: int) = String.make (2 * level) ' '
 
 let indentations_with_newline (level: int) = "\n" ^ (indentations level)
 
-
 let rec string_of_pat: pat -> string =
+  function
+  | SubPat sub_pat -> string_of_sub_pat sub_pat
+  | ConsPat (p1, p2) ->
+    "Cons Pattern ("
+    ^ indentations_with_newline 1
+    ^ (string_of_sub_pat p1)
+    ^ ","
+    ^ indentations_with_newline 1
+    ^ (string_of_pat p2)
+    ^ indentations_with_newline 0
+    ^ ")"
+
+and string_of_sub_pat: sub_pat -> string =
   function
   | NothingPat -> "Nothing Pattern"
   | WildcardPat -> "Wildcard Pattern"
@@ -20,6 +32,8 @@ let rec string_of_pat: pat -> string =
   | IntPat n -> "Int Pattern (" ^ (string_of_int n) ^ ")"
   | BoolPat b -> "Bool Pattern (" ^ (string_of_bool b) ^ ")"
   | StringPat s -> "String Pattern (" ^ s ^ ")"
+  | Pat p -> string_of_pat p
+
 
 
 let string_of_rel_op: rel_op -> string =
@@ -90,7 +104,7 @@ let rec string_of_expr (e: expr) (level: int): string = match e with
   ^ ")"
 | Switch (e, branches) ->
   let e_string: string = string_of_expr e (level + 1) in
-  let branches_string: string = String.concat (",\n" ^ indentations_with_newline (level + 1)) (List.map (fun (p, e) -> indentations_with_newline (level + 1) ^ string_of_pat p ^ ",\n" ^ indentations_with_newline (level + 1) ^ string_of_expr e (level + 1)) branches) in
+  let branches_string: string = String.concat (",\n" ^ indentations_with_newline (level + 1)) (List.map (fun (p, e) -> indentations_with_newline (level + 1) ^ (string_of_pat p) ^ ",\n" ^ indentations_with_newline (level + 1) ^ (string_of_expr e (level + 1))) branches) in
 
   "Switch ("
   ^ indentations_with_newline (level + 1)

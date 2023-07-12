@@ -405,7 +405,7 @@ and parse_bind (tokens_without_bind: token list): expr * token list =
 and parse_cons (tokens: token list): cons_expr * token list =
   let first, tokens_after_first = parse_disjunction tokens in
   match tokens_after_first with
-  | {token_type = Semicolon; line = _} :: t ->
+  | {token_type = ConsToken; line = _} :: t ->
     let second, tokens_after_second = parse_cons t in
     Cons (first, second), tokens_after_second
   | _ -> DisjunctionUnderCons first, tokens_after_first
@@ -594,7 +594,25 @@ and parse_pats_seperated_by_commas (tokens: token list): pat list * token list =
     first :: second, tokens_after_second
   | _ -> [first], tokens_after_first
 
-and parse_pat (tokens: token list): pat * token list = match tokens with
+
+and parse_pat (tokens: token list): pat * token list =
+    (* parse a sub_pat *)
+    let sub_pat, tokens_after_sub_pat = parse_sub_pat tokens in
+    (* print the next token *)
+
+    (* check the next token *)
+    match tokens_after_sub_pat with
+    | {token_type = ConsToken; line = _} :: t ->
+      (* parse another pat *)
+      (* return the cons *)
+      let second_pat, tokens_after_second_pat = parse_pat t in
+      ConsPat (sub_pat, second_pat), tokens_after_second_pat
+    | _ -> SubPat sub_pat, tokens_after_sub_pat
+
+
+
+and parse_sub_pat (tokens: token list): sub_pat * token list =
+match tokens with
 | [] -> failwith "empty list passed to parse_pat"
 | {token_type = Nothing; line = _} :: t ->
   NothingPat, t
@@ -623,7 +641,7 @@ and parse_pat (tokens: token list): pat * token list = match tokens with
   (* if the length of pat_list is 1, return a paren pat *)
   (* otherwise return a vector *)
   if List.length pat_list = 1 then
-    (List.hd pat_list), remove_head tokens_after_pat_list
+    Pat(List.hd pat_list), remove_head tokens_after_pat_list
   else
     VectorPat pat_list, remove_head tokens_after_pat_list
 

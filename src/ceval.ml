@@ -1,5 +1,4 @@
 open Cexpr
-open Expr
 open Lex
 open Parse
 open Condense
@@ -10,8 +9,8 @@ type value =
   | StringValue of string
   | BooleanValue of bool
   | NothingValue
-  | FunctionClosure of env * pat * c_type option * c_expr
-  | RecursiveFunctionClosure of env ref * pat * c_type option * c_expr
+  | FunctionClosure of env * c_pat * c_type option * c_expr
+  | RecursiveFunctionClosure of env ref * c_pat * c_type option * c_expr
   | VectorValue of value list
   | ListValue of value list
 
@@ -39,16 +38,30 @@ and string_of_value = function
     "[" ^ values_string ^ "]"
 
 
-let rec bind_pat (p: pat) (v: value): env option =
+let rec bind_pat (p: c_pat) (v: value): env option =
   match p, v with
-  | NothingPat, NothingValue -> Some []
-  | WildcardPat, _ -> Some []
-  | IdPat s, _ -> Some [(s, v)]
-  | IntPat i, IntegerValue j -> if i = j then Some [] else None
-  | StringPat s, StringValue t -> if s = t then Some [] else None
-  | BoolPat b, BooleanValue c -> if b = c then Some [] else None
-  | NilPat, ListValue [] -> Some []
-  | VectorPat patterns, VectorValue values ->
+  | CNothingPat, NothingValue -> Some []
+  | CWildcardPat, _ -> Some []
+  | CIdPat s, _ -> Some [(s, v)]
+  | CIntPat i, IntegerValue j -> if i = j then Some [] else None
+  | CStringPat s, StringValue t -> if s = t then Some [] else None
+  | CBoolPat b, BooleanValue c -> if b = c then Some [] else None
+  | CNilPat, ListValue [] -> Some []
+  | CConsPat (p1, p2), ListValue (v1 :: v2) ->
+    (*
+    v1 is matched against p1 and v2 is matched against p2
+    if both match, then the bindings from both are returned
+    *)
+    (
+      match bind_pat p1 v1 with
+      | None -> None
+      | Some bindings -> (
+        match bind_pat p2 (ListValue v2) with
+        | None -> None
+        | Some bindings' -> Some (bindings @ bindings')
+      )
+    )
+  | CVectorPat patterns, VectorValue values ->
     (
       match patterns, values with
       | [], [] -> Some []
@@ -57,7 +70,7 @@ let rec bind_pat (p: pat) (v: value): env option =
           match bind_pat p v with
           | None -> None
           | Some bindings -> (
-            match bind_pat (VectorPat pt) (VectorValue vt) with
+            match bind_pat (CVectorPat pt) (VectorValue vt) with
             | None -> None
             | Some bindings' -> Some (bindings @ bindings')
           )
@@ -66,12 +79,12 @@ let rec bind_pat (p: pat) (v: value): env option =
     )
   | _ -> None
 
-let rec bind_static (p: pat) (t: c_type): static_env option =
+let rec bind_static (p: c_pat) (t: c_type): static_env option =
   match p, t with
-  | NothingPat, NothingType -> Some []
-  | WildcardPat, _ -> Some []
-  | IdPat s, _ -> Some [(s, t)]
-  | VectorPat patterns, VectorType types ->
+  | CNothingPat, NothingType -> Some []
+  | CWildcardPat, _ -> Some []
+  | CIdPat s, _ -> Some [(s, t)]
+  | CVectorPat patterns, VectorType types ->
     (
       match patterns, types with
       | [], [] -> Some []
@@ -80,7 +93,7 @@ let rec bind_static (p: pat) (t: c_type): static_env option =
           match bind_static p t with
           | None -> None
           | Some bindings -> (
-            match bind_static (VectorPat pt) (VectorType tt) with
+            match bind_static (CVectorPat pt) (VectorType tt) with
             | None -> None
             | Some bindings' -> Some (bindings @ bindings')
           )
@@ -108,7 +121,7 @@ let rec eval_c_expr (ce: c_expr) (env: env) =
   | ESwitch (e, branches) ->
     let v: value = eval_c_expr e env in
     (* see if v matches any pattern in branches *)
-    let rec find_bindings_and_body_if_possible (branches: (pat * c_expr) list) (v: value): (env * c_expr) option =
+    let rec find_bindings_and_body_if_possible (branches: (c_pat * c_expr) list) (v: value): (env * c_expr) option =
       match branches with
       | [] -> None
       | (p, e) :: t ->
@@ -227,7 +240,38 @@ and eval_bop (op: c_bop) (e1: c_expr) (e2: c_expr) (env: env) =
   | CGT, IntegerValue a, IntegerValue b -> BooleanValue (a > b)
   | CGE, IntegerValue a, IntegerValue b -> BooleanValue (a >= b)
   | CCons, v, ListValue vs -> ListValue (v :: vs)
-  | _ -> failwith "eval_bop unimplemented"
+  | _ -> 
+    
+    (* print the operator *)
+    let op_string: string = (
+      match op with
+      | CPlus -> "+"
+      | CMinus -> "-"
+      | CMul -> "*"
+      | CDiv -> "/"
+      | CMod -> "%"
+      | CEQ -> "=="
+      | CNE -> "!="
+      | CLT -> "<"
+      | CLE -> "<="
+      | CGT -> ">"
+      | CGE -> ">="
+      | CAnd -> "&&"
+      | COr -> "||"
+      | CCons -> "::"
+    ) in
+
+    (* print the values *)
+    let v1_string: string = string_of_value v1 in
+    let v2_string: string = string_of_value v2 in
+
+    print_endline v1_string;
+    print_endline v2_string;
+    print_endline op_string;
+
+
+    
+    failwith "eval_bop unimplemented"
 
 
   let eval_c_empty_env (s: string): value =
@@ -272,12 +316,12 @@ let rec eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_
       | _ ->
         (
           match pattern with
-          | IdPat id ->
+          | CIdPat id ->
             let new_type: c_type = type_of_c_expr body_expression static_env in
             let new_env: env = new_bindings @ env in
             let new_static_env: static_env = (id, new_type) :: static_env in
             new_env, new_static_env, type_of_c_expr body_expression static_env, v
-          | VectorPat patterns ->
+          | CVectorPat patterns ->
             (
               match v with
               | VectorValue values ->
@@ -305,7 +349,7 @@ let rec eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_
 
 
 
-and handle_let_defn_with_vector_pat (patterns: pat list) (values: value list) =
+and handle_let_defn_with_vector_pat (patterns: c_pat list) (values: value list) =
   match patterns, values with
   | [], [] -> []
   | p :: pt, v :: vt ->

@@ -1,4 +1,8 @@
 type pat =
+  | ConsPat of sub_pat * pat
+  | SubPat of sub_pat
+
+and sub_pat =
   | IdPat of string
   | NothingPat
   | VectorPat of pat list
@@ -7,6 +11,7 @@ type pat =
   | StringPat of string
   | BoolPat of bool
   | NilPat
+  | Pat of pat
 
 
 type rel_op =

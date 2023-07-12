@@ -1,10 +1,30 @@
 open Expr
 open Cexpr
 
+
+let rec condense_pat: pat -> c_pat =
+  function
+  | SubPat sub_pat -> condense_sub_pat sub_pat
+  | ConsPat (sub_pat, pat) -> CConsPat (condense_sub_pat sub_pat, condense_pat pat)
+
+
+and condense_sub_pat: sub_pat -> c_pat =
+  function
+  | IntPat i -> CIntPat i
+  | BoolPat b -> CBoolPat b
+  | StringPat s -> CStringPat s
+  | NothingPat -> CNothingPat
+  | IdPat s -> CIdPat s
+  | NilPat -> CNilPat
+  | VectorPat pats -> CVectorPat (List.map condense_pat pats)
+  | WildcardPat -> CWildcardPat
+  | Pat pat -> condense_pat pat
+
+
 let rec condense_defn: defn -> c_defn =
   function
   | Defn (pattern, cto, body_expression) ->
-    let a: pat = pattern in
+    let a: c_pat = condense_pat pattern in
     let b: c_type option = (
       match cto with
       | None -> None
@@ -17,7 +37,7 @@ let rec condense_defn: defn -> c_defn =
 
 and condense_expr: expr -> c_expr =
   function
-  | Function (pat, ct_opt, expr) -> EFunction (pat, 
+  | Function (pat, ct_opt, expr) -> EFunction (condense_pat pat, 
   (
   match ct_opt with
   | None -> None
@@ -27,13 +47,17 @@ and condense_expr: expr -> c_expr =
   , condense_expr expr)
   | Ternary (e1, e2, e3) -> ETernary (condense_expr e1, condense_expr e2, condense_expr e3)
   | ConsExpr ce -> condense_cons_expr ce
-  | BindRec (pat, cto, e1, e2) -> EBindRec (pat, (
+  | BindRec (pat, cto, e1, e2) -> EBindRec (condense_pat pat, (
     match cto with
     | None -> None
     | Some ct -> Some (condense_type ct)
     ), condense_expr e1, condense_expr e2)
   | Switch (e, branches) ->
-    ESwitch (condense_expr e, List.map (fun (p, e) -> (p, condense_expr e)) branches)
+    ESwitch (condense_expr e, List.map 
+    (
+      fun (pat, expr) -> (condense_pat pat, condense_expr expr)
+    )
+    branches)
 
 
 and condense_cons_expr: cons_expr -> c_expr =

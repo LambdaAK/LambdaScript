@@ -1,5 +1,4 @@
 open Cexpr
-open Expr
 open Typefixer
 open Ctostring
 
@@ -100,7 +99,7 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
 
     ) in
     let output_type, c_output = generate (new_env_bindings @ env) body in
-    input_type => output_type, constraints_from_type_annotation @ c_output
+    (input_type => output_type), constraints_from_type_annotation @ c_output
 
   | ETernary (e1, e2, e3) ->
     let t1, c1 = generate env e1 in
@@ -112,16 +111,25 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
 
 
   | EApp (e1, e2) ->
+    (*
+    let t1, c1 = generate env e1 in
+    let t2, c2 = generate env e2 in
+    let type_of_expression: c_type = fresh_type_var () in
+    type_of_expression, (t1, t2 => type_of_expression) :: c1 @ c2
+    *)
+
+    (* e1 e2 *)
     let t1, c1 = generate env e1 in
     let t2, c2 = generate env e2 in
     let type_of_expression: c_type = fresh_type_var () in
     type_of_expression, (t1, t2 => type_of_expression) :: c1 @ c2
 
+
   | EBindRec (pattern, cto, e1, e2) ->
     (* perform the type inference as if it is a function application *)
     let function_id: string = (
       match pattern with
-      | IdPat id -> id
+      | CIdPat id -> id
       | _ -> failwith "not a valid pattern in typecheck.ml"
     ) in
 
@@ -167,23 +175,27 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     type_that_all_branch_expressions_must_be, c1 @ branch_constraints
     
 
-and type_of_pat (p: pat): c_type * static_env =
+and type_of_pat (p: c_pat): c_type * static_env =
   match p with
-  | IdPat id -> 
+  | CIdPat id -> 
     let new_var: c_type = fresh_type_var () in
     new_var, [(id, new_var)]
-  | NothingPat -> NothingType, []
-  | WildcardPat -> fresh_type_var (), []
-  | VectorPat patterns ->
+  | CNothingPat -> NothingType, []
+  | CWildcardPat -> fresh_type_var (), []
+  | CVectorPat patterns ->
     let list_of_types, list_of_lists_of_envs = List.split (List.map type_of_pat patterns) in
     VectorType list_of_types, List.flatten list_of_lists_of_envs
 
-  | IntPat _ -> IntType, []
-  | BoolPat _ -> BoolType, []
-  | StringPat _ -> StringType, []
-  | NilPat -> CListType (fresh_type_var ()), []
+  | CIntPat _ -> IntType, []
+  | CBoolPat _ -> BoolType, []
+  | CStringPat _ -> StringType, []
+  | CNilPat -> CListType (fresh_type_var ()), []
+  | CConsPat (p1, p2) ->
+    let t1, env1 = type_of_pat p1 in
+    let _, env2 = type_of_pat p2 in
+    CListType(t1), env1 @ env2 (* this might be wrong. check it later *)
 
-let rec reduce_eq (c: type_equations): substitutions =
+and reduce_eq (c: type_equations): substitutions =
 
   match c with
   | [] -> []
@@ -257,6 +269,7 @@ and type_of_c_expr (e: c_expr) (static_env: static_env): c_type =
   let t, constraints = generate static_env e in
   let constraints_without_written_type_vars = replace_written_types constraints in
   let solution: substitutions = reduce_eq constraints_without_written_type_vars in
+
   get_type t solution |> fix
 
 and inside (inside_type: c_type) (outside_type: c_type): bool =
@@ -353,3 +366,78 @@ and replace_written_types (equations: type_equations): type_equations =
       ) in
       let equations_with_subbed_type_var: type_equations = substitute_written_vars_in_equations fresh_type_var_int id equations in
       replace_written_types equations_with_subbed_type_var
+
+and instantiate: c_type_scheme -> c_type = fun (universal_types, t) ->
+  match universal_types with
+  | [] -> t
+  | _ ->
+    let replacements: (c_type * c_type) list = List.map (fun t -> (t, fresh_type_var ())) universal_types in
+    replace_types t replacements
+
+
+and replace_types t replacements =
+  match t with
+  | TypeVar _ -> (* find the replacement if it exists *)
+    (
+      try
+        List.assoc t replacements
+      with
+      | Not_found -> t (* if there is no replacement, simply return the variable as it is *)
+    )
+  | FunctionType (i, o) ->
+    FunctionType (replace_types i replacements, replace_types o replacements)
+  | VectorType types ->
+    VectorType (List.map (fun t -> replace_types t replacements) types)
+  | CListType et ->
+    CListType (replace_types et replacements)
+  | _ -> t (* otherwise, just return the type *)
+
+and generalize (constraints: type_equations) (env: static_env) (t: c_type): c_type_scheme =
+  (* fully finish inference of the binding expression *)
+  let unified: substitutions = reduce_eq constraints in
+  (* apply the resulting subtitutoin to env and t1, yielding env1 and u1 *)
+  let env1: static_env = List.map (fun (id, t) -> (id, get_type t unified)) env in
+  (* apply the substitution to t as well *)
+  let u1: c_type = get_type t unified in
+  (* generalize u1 with respect to env1, yielding a type scheme *)
+  (* get the list of type variables in t *)
+  let type_vars: c_type list = get_type_vars u1 in
+  (* get the list of types in env1 *)
+  let env_types: c_type list = List.map snd env1 |> flatten_env_types in
+  (* print the env_types *)
+  env_types |> List.map string_of_c_type |> String.concat ", " |> print_endline;
+  (* filter out the env_types from_type vars, which yields a list of free variables *)
+  let free_vars: c_type list = List.filter (fun t -> not (List.mem t env_types)) type_vars in
+  (* create a type scheme from the free variables and u1 *)
+  let type_scheme: c_type_scheme = (free_vars, u1) in
+  (* return the type scheme and the constraints *)
+  type_scheme
+
+
+
+and get_type_vars (t: c_type): c_type list =
+  match t with
+  | TypeVar _ -> [t]
+  | FunctionType (i, o) -> get_type_vars i @ get_type_vars o
+  | VectorType types -> List.flatten (List.map get_type_vars types)
+  | CListType et -> get_type_vars et
+  | _ -> []
+
+(**
+    
+we have a list of types, this function splits each type into the smallest type possible
+
+for example, [flatten_env_types [t1, t2, t3 -> t4, (int, t5)]] is [[t1, t2, t3, t4, int, t5]]]
+
+*)
+and flatten_env_types (types: c_type list): c_type list =
+  match types with
+  | [] -> []
+  | h :: t ->
+    (
+      match h with
+      | FunctionType (i, o) -> flatten_env_types (i :: o :: t)
+      | VectorType types -> flatten_env_types (types @ t)
+      | CListType et -> flatten_env_types (et :: t)
+      | _ -> h :: flatten_env_types t
+    )
