@@ -39,7 +39,7 @@ let rec repl_loop (env: env) (static_env: static_env): unit =
     repl_loop env static_env
 
 
-and repl_expr (env: env) (static_env: static_env) (e: string) = ignore env; ignore static_env;
+and repl_expr (env: env) (static_env: static_env) (e: string) =
   (
     try
     (*
@@ -54,7 +54,14 @@ and repl_expr (env: env) (static_env: static_env) (e: string) = ignore env; igno
     
     let input_string: string = e in
     let tokens: token list = attempt_lex input_string in
+    (* print the tokens *)
+    tokens |> List.map string_of_token |> String.concat " " |> print_endline;
+    (* end print *)
     let ce: c_expr = attempt_parse tokens in
+    (* print ce *)
+    let ce_string: string = string_of_c_expr ce in
+    print_endline ("\n" ^ ce_string ^ "\n");
+    (* end print *)
     let t: c_type = attempt_type_check ce static_env in
     let t_string: string = string_of_c_type t in
     print_endline ("\n" ^ t_string ^ ": ");

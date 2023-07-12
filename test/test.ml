@@ -6,7 +6,7 @@ open Language.Ctostring
 open Language.Parse
 open Language.Lex
 
-let modify_tests: bool = false
+let modify_tests: bool = true
 
 
 module type TestModifier = sig
@@ -215,6 +215,17 @@ module ListTypeTestModifierInput: TestModifierInput with type test_type = string
 
 end
 
+module SwitchTypeTestModifierInput: TestModifierInput with type test_type = string * string = struct
+  type test_type = string * string
+
+  let modifiers: (string * string -> string * string) list = [
+    (fun x -> x)
+  ]
+
+
+end
+
+
 module IntTestModifier = MakeTestModifier (IntTestModifierInput)
 module IntTypeTestModifier = MakeTestModifier (IntTypeTestModifierInput)
 module BoolTypeTestModifier = MakeTestModifier (BoolTypeTestModifierInput)
@@ -224,6 +235,7 @@ module FunctionTypeTestModifier = MakeTestModifier (FunctionTypeTestModifierInpu
 module PairTypeTestModifier = MakeTestModifier (PairTypeTestModiferInput)
 module VectorTypeTestModifier = MakeTestModifier (VectorTypeTestModifierInput)
 module ListTypeTestModifier = MakeTestModifier (ListTypeTestModifierInput)
+module SwitchTypeTestModifier = MakeTestModifier (SwitchTypeTestModifierInput)
 
 let eval_test (expr: string) (expected_output: string): test =
   expr ^ " SHOULD YIELD " ^ expected_output >:: fun _ ->
@@ -511,6 +523,8 @@ let function_type_tests = [
   "bind rec f [int -> int] x <- x in f", "int -> int";
   "bind rec f x [ng] <- x in f", "ng -> ng";
   "bind rec f x [int -> int] <- x in f", "(int -> int) -> int -> int";
+
+  "fn a [[int]] -> a", "[int] -> [int]";
   
 
   "bind rec f x <- if x == 0 then 0 else f (x - 1) in f", "int -> int";
@@ -598,8 +612,20 @@ let list_type_tests = [
   "([] :: []) :: []","[[[t1]]]";
   "(([] :: []) :: []) :: []", "[[[[t1]]]]";
 
-  
 
+
+]
+
+let switch_type_tests = [
+  "switch () => | () -> 1 end", "int";
+  "switch () => | () -> true end", "bool";
+  "switch () => | () -> () end", "ng";
+  "switch () => | () -> (1, 2) end", "(int, int)";
+  "switch () => | () -> (1, 2, 3) end", "(int, int, int)";
+  "switch 1 => | 1 -> 1 end", "int";
+  "switch 1 => | 1 -> true end", "bool";
+  "switch 1 => | 1 -> () end", "ng";
+  "switch 5 => | 1 -> 1 | 2 -> 2 | 3 -> 3 | 4 -> 4 | 5 -> 5 end", "int";
 ]
 
 
@@ -702,6 +728,16 @@ let ternary_tests = [
    "if not false then 0 else 1", "0";
    "if not false || not true then 0 else 1", "0";
 
+]
+
+let switch_tests = [
+  "switch () => | () -> 1 end", "1";
+  "switch () => | () -> true end", "true";
+  "switch () => | () -> () end", "()";
+  "switch () => | () -> (1, 2) end", "(1, 2)";
+  "switch () => | () -> (1, 2, 3) end", "(1, 2, 3)";
+  "switch 1 => | 1 -> 1 end", "1";
+  "switch 1 => | 1 -> true end", "true";
 ]
 
 
@@ -946,6 +982,7 @@ let pair_type_tests: test list = List.map (fun (a, b) -> type_test a b) (pair_ty
 
 let vector_type_tests: test list = List.map (fun (a, b) -> type_test a b) (vector_type_tests |> VectorTypeTestModifier.modify_tests)
 let list_type_tests: test list = List.map (fun (a, b) -> type_test a b) (list_type_tests |> ListTypeTestModifier.modify_tests)
+let switch_type_tests: test list = List.map (fun (a, b) -> type_test a b) (switch_type_tests |> SwitchTypeTestModifier.modify_tests)
 let eval_test_data = [
   arithmetic_tests |> IntTestModifier.modify_tests;
   boolean_tests;
@@ -954,7 +991,8 @@ let eval_test_data = [
   mult_div_mod_tests;
   ternary_tests;
   function_to_string_tests;
-  list_tests
+  list_tests;
+  switch_tests;
 ] |> List.flatten |> EvalTestModifier.modify_tests
 
 let eval_tests = List.map (fun (a, b) -> eval_test a b) eval_test_data
@@ -971,6 +1009,7 @@ let all_tests =
       pair_type_tests;
       vector_type_tests;
       list_type_tests;
+      switch_type_tests;
       
     ]
 

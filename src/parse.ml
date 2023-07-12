@@ -143,6 +143,28 @@ and parse_expressions_seperated_by_commas (tokens: token list): expr list * toke
   | _ -> [first], tokens_after_first
 
 
+and parse_switch_branches (tokens: token list): switch_branch list * token list =
+    match tokens with
+    | {token_type = Pipe; line = _} :: t ->
+      (* | p1 -> e1 *)
+      (* parse a pattern *)
+      let pattern, tokens_after_pattern = parse_pat t in
+      (* the next token should be an arrow *)
+      assert_next_token tokens_after_pattern Arrow;
+      let tokens_after_arrow = remove_head tokens_after_pattern in
+      (* parse an expression *)
+      let expression, tokens_after_expression = parse_expr tokens_after_arrow in
+      (* if the next token is pipe, continue parsing switch branches *)
+      (
+        match tokens_after_expression with
+        | {token_type = Pipe; line = _} :: _ ->
+          let rest, tokens_after_rest = parse_switch_branches tokens_after_expression in
+          (pattern, expression) :: rest, tokens_after_rest
+        | _ -> (pattern, expression) :: [], tokens_after_expression
+      )
+    | _ -> raise ParseFailure
+
+
 and parse_expr (tokens: token list) : expr * token list =
   match tokens with
   | {token_type = Lam; line = _} :: t -> (* anonymous function *)
@@ -164,6 +186,28 @@ and parse_expr (tokens: token list) : expr * token list =
 
   | {token_type = Bind; line = _} :: t -> (* bind expression *)
     parse_bind t
+
+  | {token_type = Switch; line = _} :: t -> (* switch expression *)
+    (*
+    switch e =>
+      | p1 -> e1
+      | p2 -> e2
+      ...
+      | pn -> en
+    end   
+    *)
+
+    (* parse e *)
+    let e, tokens_after_e = parse_expr t in
+    (* the next token should be a bind arrow *)
+    assert_next_token tokens_after_e SwitchArrow;
+    let tokens_after_arrow = remove_head tokens_after_e in
+    (* parse a list of switch branches *)
+    let switch_branches, tokens_after_switch_branches = parse_switch_branches tokens_after_arrow in
+    (* the next token should be an end *)
+    assert_next_token tokens_after_switch_branches End;
+    Switch (e, switch_branches), remove_head tokens_after_switch_branches
+
 
   | _ -> let e, t = parse_cons tokens in ConsExpr e, t
 
@@ -558,6 +602,15 @@ and parse_pat (tokens: token list): pat * token list = match tokens with
   WildcardPat, t
 | {token_type = Id s; line = _} :: t ->
   IdPat s, t
+
+| {token_type = Integer n; line = _} :: t ->
+  IntPat n, t
+
+| {token_type = Boolean b; line = _} :: t ->
+  BoolPat b, t
+
+| {token_type = StringToken s; line = _} :: t ->
+  StringPat s, t
 
 | {token_type = LParen; line = _} :: t ->
   (* parse a list of pats seperated by commas *)

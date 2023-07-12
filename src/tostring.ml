@@ -16,6 +16,9 @@ let rec string_of_pat: pat -> string =
     ^ (String.concat (",\n" ^ indentations_with_newline 1) (List.map string_of_pat patterns))
     ^ indentations_with_newline 0
     ^ ")"
+  | IntPat n -> "Int Pattern (" ^ (string_of_int n) ^ ")"
+  | BoolPat b -> "Bool Pattern (" ^ (string_of_bool b) ^ ")"
+  | StringPat s -> "String Pattern (" ^ s ^ ")"
 
 
 let string_of_rel_op: rel_op -> string =
@@ -84,7 +87,18 @@ let rec string_of_expr (e: expr) (level: int): string = match e with
   ^ e3_string
   ^ indentations_with_newline level
   ^ ")"
+| Switch (e, branches) ->
+  let e_string: string = string_of_expr e (level + 1) in
+  let branches_string: string = String.concat (",\n" ^ indentations_with_newline (level + 1)) (List.map (fun (p, e) -> indentations_with_newline (level + 1) ^ string_of_pat p ^ ",\n" ^ indentations_with_newline (level + 1) ^ string_of_expr e (level + 1)) branches) in
 
+  "Switch ("
+  ^ indentations_with_newline (level + 1)
+  ^ e_string
+  ^ ","
+  ^ indentations_with_newline (level + 1)
+  ^ branches_string
+  ^ indentations_with_newline level
+  ^ ")"
 
 | Function (pattern, cto, body) ->
   let pattern_string: string = string_of_pat pattern in

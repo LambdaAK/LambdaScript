@@ -44,6 +44,9 @@ let rec bind_pat (p: pat) (v: value): env option =
   | NothingPat, NothingValue -> Some []
   | WildcardPat, _ -> Some []
   | IdPat s, _ -> Some [(s, v)]
+  | IntPat i, IntegerValue j -> if i = j then Some [] else None
+  | StringPat s, StringValue t -> if s = t then Some [] else None
+  | BoolPat b, BooleanValue c -> if b = c then Some [] else None
   | VectorPat patterns, VectorValue values ->
     (
       match patterns, values with
@@ -100,6 +103,26 @@ let rec eval_c_expr (ce: c_expr) (env: env) =
     let transformer = fun e -> eval_c_expr e env in
     let values: value list = List.map transformer expressions in
     VectorValue values
+
+  | ESwitch (e, branches) ->
+    let v: value = eval_c_expr e env in
+    (* see if v matches any pattern in branches *)
+    let rec find_bindings_and_body_if_possible (branches: (pat * c_expr) list) (v: value): (env * c_expr) option =
+      match branches with
+      | [] -> None
+      | (p, e) :: t ->
+        (
+          match bind_pat p v with
+          | None -> find_bindings_and_body_if_possible t v
+          | Some bindings -> Some (bindings, e)
+        )
+      in
+
+      (
+        match find_bindings_and_body_if_possible branches v with
+        | None -> failwith "no pattern matched in switch"
+        | Some (bindings, e) -> eval_c_expr e (bindings @ env)
+      )
 
   | ETernary (e1, e2, e3) ->
     let v1: value = eval_c_expr e1 env in
@@ -203,7 +226,6 @@ and eval_bop (op: c_bop) (e1: c_expr) (e2: c_expr) (env: env) =
   | CGT, IntegerValue a, IntegerValue b -> BooleanValue (a > b)
   | CGE, IntegerValue a, IntegerValue b -> BooleanValue (a >= b)
   | CCons, v, ListValue vs -> ListValue (v :: vs)
-  
   | _ -> failwith "eval_bop unimplemented"
 
 

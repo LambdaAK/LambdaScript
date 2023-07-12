@@ -32,6 +32,8 @@ and condense_expr: expr -> c_expr =
     | None -> None
     | Some ct -> Some (condense_type ct)
     ), condense_expr e1, condense_expr e2)
+  | Switch (e, branches) ->
+    ESwitch (condense_expr e, List.map (fun (p, e) -> (p, condense_expr e)) branches)
 
 
 and condense_cons_expr: cons_expr -> c_expr =

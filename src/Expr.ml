@@ -3,6 +3,9 @@ type pat =
   | NothingPat
   | VectorPat of pat list
   | WildcardPat
+  | IntPat of int
+  | StringPat of string
+  | BoolPat of bool
 
 
 type rel_op =
@@ -33,12 +36,14 @@ and factor_type =
 type defn =
   | Defn of pat * compound_type option * expr
 
+and switch_branch = pat * expr
 
 and expr =
   | Function of pat * compound_type option * expr
   | Ternary of expr * expr * expr
   | ConsExpr of cons_expr
   | BindRec of pat * compound_type option * expr * expr
+  | Switch of expr * switch_branch list
 
 and cons_expr =
   | Cons of disjunction * cons_expr

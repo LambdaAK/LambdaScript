@@ -149,7 +149,24 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
 
       VectorType list_of_types, List.flatten list_of_lists_of_constraints
 
-  
+  | ESwitch(e, branches) ->
+    (* get the type of the switching expression *)
+    let t1, c1 = generate env e in
+    let type_that_all_branch_expressions_must_be: c_type = fresh_type_var () in (* use this in the constraints *)
+    (* get the type of each branch *)
+    let branch_constraints: type_equation list = List.map (fun (bp, be) -> 
+      (* the pattern has to be of the same type as t1 *)
+      let type_of_pattern, pattern_env = type_of_pat bp in
+      let type_of_branch_expression, branch_expression_constraints = generate (pattern_env @ env) be in (* use the pattern env here *)
+      (type_of_pattern, t1) :: (type_of_branch_expression, type_that_all_branch_expressions_must_be) :: branch_expression_constraints
+
+    ) branches |> List.flatten (* since each iteration through map returns multiple constraints, the list is flattened *)
+
+    in
+
+    type_that_all_branch_expressions_must_be, c1 @ branch_constraints
+    
+
 and type_of_pat (p: pat): c_type * static_env =
   match p with
   | IdPat id -> 
@@ -160,6 +177,10 @@ and type_of_pat (p: pat): c_type * static_env =
   | VectorPat patterns ->
     let list_of_types, list_of_lists_of_envs = List.split (List.map type_of_pat patterns) in
     VectorType list_of_types, List.flatten list_of_lists_of_envs
+
+  | IntPat _ -> IntType, []
+  | BoolPat _ -> BoolType, []
+  | StringPat _ -> StringType, []
 
 let rec reduce_eq (c: type_equations): substitutions =
 

@@ -14,7 +14,10 @@ type token_type =
 | LParen
 | RParen
 | Colon
-| InArrow
+| SwitchArrow
+| Pipe
+| Switch
+| End
 | Plus
 | Minus
 | Times
@@ -139,6 +142,13 @@ let rec lex (lst: char list): token list =
   | [] -> []
   | ' ' :: t -> lex t (* ignore white space *)
   | '\n' :: t -> line_number := !line_number + 1; lex t (* ignore new lines, increment the line number *)
+  | 's' :: 'w' :: 'i' :: 't' :: 'c' :: 'h' :: t ->
+    let new_token: token = {token_type = Switch; line = !line_number} in
+    new_token :: (lex t)
+  | 'e' :: 'n' :: 'd' :: t ->
+    let new_token: token = {token_type = End; line = !line_number} in
+    new_token :: (lex t)
+
   | 't' :: 'r' :: 'u' :: 'e' :: t ->
 
     {token_type = (Boolean true); line = !line_number} :: (lex t)
@@ -214,7 +224,7 @@ let rec lex (lst: char list): token list =
         new_token :: (lex t)
 
   | '=' :: '>' :: t ->
-    let new_token: token = {token_type = InArrow; line = !line_number} in
+    let new_token: token = {token_type = SwitchArrow; line = !line_number} in
     new_token :: (lex t)
   
   | '-' :: '>' :: t ->
@@ -288,6 +298,10 @@ let rec lex (lst: char list): token list =
   
   | '|' :: '|' :: t ->
     let new_token: token = {token_type = OR; line = !line_number} in
+    new_token :: (lex t)
+
+  | '|' :: t ->
+    let new_token: token = {token_type = Pipe; line = !line_number} in
     new_token :: (lex t)
 
   | '&' :: '&' :: t ->
@@ -366,7 +380,7 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | LParen -> "<lparen>"
 | RParen -> "<rparen>"
 | Colon-> "<colon>"
-| InArrow -> "<in arrow>"
+| SwitchArrow -> "<switch arrow>"
 | Plus -> "<plus>"
 | Minus -> "<minus>"
 | Times -> "<times>"
@@ -398,6 +412,10 @@ let string_of_token: token -> string = fun (tok: token) -> match tok.token_type 
 | WildcardPattern -> "<wildcard pattern>"
 | TypeVar s -> "<type var: " ^ s ^ ">"
 | Semicolon -> "<semicolon>"
+| Pipe -> "<pipe>"
+| Switch -> "<switch>"
+| End -> "<end>"
+
 
 [@@coverage off]
 let rec print_tokens_list: token list -> unit = function

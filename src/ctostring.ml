@@ -27,6 +27,9 @@ let rec string_of_pat pat =
     "<|"
     ^ (String.sub patterns_string 0 ((String.length patterns_string) - 2))
     ^ "|>"
+  | IntPat n -> string_of_int n
+  | StringPat s -> s
+  | BoolPat b -> string_of_bool b
 
 
 and string_of_c_defn (d: c_defn) =
@@ -71,6 +74,31 @@ and string_of_c_expr (e: c_expr) (level: int) =
       ^ e3_string
       ^ indentations_with_newline level
       ^ ")"
+  | ESwitch (e, branches) ->
+    let e_string: string = string_of_c_expr e (level + 1) in
+    let branches_string: string =
+      List.fold_left
+        (fun acc (p, e) ->
+          let p_string: string = string_of_pat p in
+          let e_string: string = string_of_c_expr e (level + 1) in
+          acc
+          ^ indentations_with_newline (level + 1)
+          ^ p_string
+          ^ " -> "
+          ^ e_string
+          ^ ","
+        )
+        ""
+        branches
+    in
+    "Switch ("
+    ^ indentations_with_newline (level + 1)
+    ^ e_string
+    ^ ","
+    ^ indentations_with_newline (level + 1)
+    ^ branches_string
+    ^ indentations_with_newline level
+    ^ ")"
   | ENothing ->
     "Nothing"
   | EId s ->

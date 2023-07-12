@@ -20,10 +20,13 @@ type c_bop =
 and c_defn =
   | CDefn of pat * c_type option * c_expr
 
+and c_switch_branch = pat * c_expr
+
 and c_expr =
   | EFunction of pat * c_type option * c_expr
   | EBindRec of pat * c_type option * c_expr * c_expr
   | ETernary of c_expr * c_expr * c_expr
+  | ESwitch of c_expr * c_switch_branch list
   | EBool of bool
   | EString of string
   | ENothing
