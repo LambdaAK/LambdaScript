@@ -4,10 +4,6 @@ open Ctostring
 
 type static_env = (string * c_type_scheme) list
 
-type type_scheme_equation = c_type_scheme * c_type_scheme
-
-type type_scheme_equations = type_scheme_equation list
-
 type type_equation = c_type * c_type
 
 type type_equations = type_equation list
@@ -19,19 +15,14 @@ exception TypeFailure
 let initial_env: (string * c_type_scheme) list = [("not", ([], BoolType => BoolType))]
 
 
-let string_of_type_equation ((t1, t2): type_scheme_equation): string = 
-  (string_of_c_type_scheme t1) ^ " = " ^ (string_of_c_type_scheme t2)
+let string_of_type_equation ((t1, t2): type_equation): string = 
+  (string_of_c_type t1) ^ " = " ^ (string_of_c_type t2)
 
 
-let rec string_of_type_scheme_equations (c: type_scheme_equations): string =
+let rec string_of_type_equations (c: type_equations): string =
   match c with
   | [] -> ""
-  | (t1, t2) :: c' -> (string_of_type_equation (t1, t2)) ^ "\n" ^ (string_of_type_scheme_equations c')
-
-
-let rec string_of_type_equations: type_equations -> string = function
-  | [] -> ""
-  | (t1, t2) :: c' -> (string_of_c_type t1) ^ " = " ^ (string_of_c_type t2) ^ "\n" ^ (string_of_type_equations c')
+  | (t1, t2) :: c' -> (string_of_type_equation (t1, t2)) ^ "\n" ^ (string_of_type_equations c')
 
 
 let rec string_of_static_env (env: static_env): string =
@@ -39,11 +30,12 @@ let rec string_of_static_env (env: static_env): string =
   | [] -> ""
   | (id, t) :: env' -> id ^ " : " ^ (string_of_c_type_scheme t) ^ "\n" ^ (string_of_static_env env')
 
-    
+
 let no_uni_ts: c_type -> c_type_scheme = fun t -> ([], t)
 
 
-let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_scheme_equations =
+
+let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_equations =
   match e with
   | EInt _ -> IntType |> no_uni_ts, []
   | EBool _ -> BoolType |> no_uni_ts, []
@@ -66,7 +58,7 @@ let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_scheme_equa
         env |- e2 : [t] -| C2
       *)
 
-      t2, (CListType (t1 |> instantiate) |> no_uni_ts, t2) :: c1 @ c2
+      t2, (CListType (t1 |> instantiate), t2 |> instantiate) :: c1 @ c2
       (*
       here, t2 should be [t] for some t
       t1 should be t for some t
@@ -80,13 +72,13 @@ let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_scheme_equa
     | CDiv
     | CMod
     ->
-      IntType |> no_uni_ts, (t1, IntType |> no_uni_ts) :: (t2, IntType |> no_uni_ts)  :: c1 @ c2
+      IntType |> no_uni_ts, (t1 |> instantiate, IntType) :: (t2 |> instantiate, IntType)  :: c1 @ c2
     | CGE
     | CGT
     | CLE
     | CLT
     ->
-      BoolType |> no_uni_ts, (t1, IntType |> no_uni_ts) :: (t2, IntType |> no_uni_ts)  :: c1 @ c2
+      BoolType |> no_uni_ts, (t1 |> instantiate, IntType) :: (t2 |> instantiate, IntType)  :: c1 @ c2
 
     | CEQ
     | CNE
@@ -97,24 +89,21 @@ let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_scheme_equa
     | CAnd
     | COr
     ->
-      BoolType |> no_uni_ts, (t1, BoolType |> no_uni_ts) :: (t2, BoolType |> no_uni_ts) :: c1 @ c2
+      BoolType |> no_uni_ts, (t1 |> instantiate, BoolType) :: (t2 |> instantiate, BoolType) :: c1 @ c2
     
     )
   | EFunction (pat, cto, body) ->
 
     let input_type, new_env_bindings = type_of_pat pat in
-    let constraints_from_type_annotation: type_scheme_equations = 
+    let constraints_from_type_annotation: type_equations = 
     (
       match cto with
-      | Some t -> [(input_type |> no_uni_ts, t |> no_uni_ts)] (* the input type must equal the annotated type *)
+      | Some t -> [(input_type, t)] (* the input type must equal the annotated type *)
       | None -> []
 
     ) in
     let output_type, c_output = generate (new_env_bindings @ env) body in
-    let type_of_function: c_type = FunctionType (input_type, output_type |> instantiate) in
-    let type_of_function_generalized: c_type_scheme = generalize (constraints_from_type_annotation @ c_output |> instantiate_schemes) env type_of_function in
-    ignore type_of_function_generalized;
-    type_of_function |> no_uni_ts, constraints_from_type_annotation @ c_output
+    (input_type => (output_type |> instantiate)) |> no_uni_ts, constraints_from_type_annotation @ c_output
 
   | ETernary (e1, e2, e3) ->
     let t1, c1 = generate env e1 in
@@ -122,7 +111,7 @@ let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_scheme_equa
     let t3, c3 = generate env e3 in
     let type_of_expression: c_type = fresh_type_var () in
     
-    type_of_expression |> no_uni_ts, (t1, BoolType |> no_uni_ts) :: (t2, type_of_expression |> no_uni_ts) :: (t3, type_of_expression |> no_uni_ts) :: c1 @ c2 @ c3
+    type_of_expression |> no_uni_ts, (t1 |> instantiate, BoolType) :: (t2 |> instantiate, type_of_expression) :: (t3 |> instantiate, type_of_expression) :: c1 @ c2 @ c3
 
 
   | EApp (e1, e2) ->
@@ -137,7 +126,7 @@ let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_scheme_equa
     let t1, c1 = generate env e1 in
     let t2, c2 = generate env e2 in
     let type_of_expression: c_type = fresh_type_var () in
-    type_of_expression |> no_uni_ts, (t1, ((t2 |> instantiate) => type_of_expression) |> no_uni_ts) :: c1 @ c2
+    type_of_expression |> no_uni_ts, (t1 |> instantiate, ((t2 |> instantiate) => type_of_expression)) :: c1 @ c2
 
 
   | EBindRec (pattern, cto, e1, e2) ->
@@ -178,12 +167,12 @@ let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_scheme_equa
     let t1, c1 = generate env e in
     let type_that_all_branch_expressions_must_be: c_type = fresh_type_var () in (* use this in the constraints *)
     (* get the type of each branch *)
-    let branch_constraints: type_scheme_equation list = List.map (fun (bp, be) ->
+    let branch_constraints: type_equation list = List.map (fun (bp, be) ->
       (* the pattern has to be of the same type as t1 *)
       let type_of_pattern, pattern_env = type_of_pat bp in
       let type_of_branch_expression, branch_expression_constraints = generate (pattern_env @ env) be in (* use the pattern env here *)
       let type_of_branch_expression = instantiate type_of_branch_expression in (* instantiate here *)
-      (type_of_pattern |> no_uni_ts, t1) :: (type_of_branch_expression |> no_uni_ts, type_that_all_branch_expressions_must_be |> no_uni_ts) :: branch_expression_constraints
+      (type_of_pattern, t1 |> instantiate) :: (type_of_branch_expression, type_that_all_branch_expressions_must_be) :: branch_expression_constraints
 
     ) branches |> List.flatten (* since each iteration through map returns multiple constraints, the list is flattened *)
 
@@ -212,14 +201,7 @@ and type_of_pat (p: c_pat): c_type * static_env =
     let _, env2 = type_of_pat p2 in
     CListType(t1), env1 @ env2 (* this might be wrong. check it later *)
 
-
-and instantiate_schemes: type_scheme_equations -> type_equations =
-  function
-  | [] -> []
-  | (t1, t2) :: c' ->
-    (instantiate t1, instantiate t2) :: instantiate_schemes c'
-
-and reduce_eq (c: type_equations): type_equations =
+and reduce_eq (c: type_equations): substitutions =
 
   match c with
   | [] -> []
@@ -233,11 +215,6 @@ and reduce_eq (c: type_equations): type_equations =
         (t1, t2) :: reduce_eq (substitute id t2 c')
 
       | _, TypeVar _ -> reduce_eq ((t2, t1) :: c') (* this switches the order of the types, then the branch before will be hit on the next iteration *)
-
-      | TypeVarWritten _, _ when not (inside t1 t2) ->
-        (t1, t2) :: reduce_eq (substitute_into_equations t1 t2 c')
-
-      | _, TypeVarWritten _ -> reduce_eq ((t2, t1) :: c') (* this switches the order of the types, then the branch before will be hit on the next iteration *)
 
       | FunctionType (i1, o1), FunctionType (i2, o2) ->
         reduce_eq ((i1, i2) :: (o1, o2) :: c')
@@ -254,17 +231,12 @@ and reduce_eq (c: type_equations): type_equations =
             raise TypeFailure
         )
 
-      | _ -> 
-        (* print the two types *)
-        print_endline "printing types";
-        print_endline ("t1: " ^ (string_of_c_type t1));
-        print_endline ("t2: " ^ (string_of_c_type t2));
-        raise TypeFailure
+      | _ -> raise TypeFailure
     )
 
 and get_type (var: c_type) (subs: substitutions): c_type = 
   match var with
-  | TypeVar _ | TypeVarWritten _->
+  | TypeVar _ ->
     (
     let looked_up_type = get_type_of_type_var_if_possible var subs in
     match looked_up_type with
@@ -281,6 +253,7 @@ and get_type (var: c_type) (subs: substitutions): c_type =
   | NothingType -> NothingType
   | CListType et ->
     CListType (get_type et subs)
+  | _ -> failwith "not a type var2"
 
 
 and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type =
@@ -299,14 +272,9 @@ and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type
   | _ -> failwith "not a type var3"
 
 and type_of_c_expr (e: c_expr) (static_env: static_env): c_type =
-  let t, scheme_equations = generate static_env e in
-  let type_equations: type_equations = instantiate_schemes scheme_equations in
-
-  let constraints_without_written_type_vars = replace_written_types type_equations in
-
-  let solution: type_equations = reduce_eq constraints_without_written_type_vars in
-
-  
+  let t, constraints = generate static_env e in
+  let constraints_without_written_type_vars = replace_written_types constraints in
+  let solution: substitutions = reduce_eq constraints_without_written_type_vars in
 
   get_type (t |> instantiate) solution |> fix
 
@@ -338,15 +306,6 @@ and substitute (var_id: int) (t: c_type) (equations: type_equations): type_equat
     (substitute_in_type t1 var_id t, substitute_in_type t2 var_id t) :: substitute var_id t equations'
 
 
-(* substitute function but takes in a type instead of a var_id *)
-
-and substitute_into_equations (replacing: c_type) (replacing_with: c_type) (equations: type_equations): type_equations =
-  match equations with
-  | [] -> []
-  | (t1, t2) :: equations' ->
-    (substitute_in_type_by_type t1 replacing replacing_with, substitute_in_type_by_type t2 replacing replacing_with) :: substitute_into_equations replacing replacing_with equations'
-
-
 and substitute_in_type (type_subbing_in: c_type) (type_var_id_subbing_for: int) (substitute_with: c_type): c_type =
   match type_subbing_in with
   | IntType -> IntType
@@ -364,29 +323,8 @@ and substitute_in_type (type_subbing_in: c_type) (type_var_id_subbing_for: int) 
     )
   | CListType et ->
     CListType (substitute_in_type et type_var_id_subbing_for substitute_with)
-  | TypeVarWritten _ -> type_subbing_in
-
-and substitute_in_type_by_type (type_subbing_in: c_type) (type_var_subbing_for: c_type) (substitute_with: c_type): c_type =
-  match type_subbing_in with
-  | IntType -> IntType
-  | BoolType -> BoolType
-  | StringType -> StringType
-  | NothingType -> NothingType
-  | TypeVar id ->
-    if type_subbing_in = type_var_subbing_for then substitute_with
-    else TypeVar id
-  | FunctionType (t1, t2) ->
-    FunctionType (substitute_in_type_by_type t1 type_var_subbing_for substitute_with, substitute_in_type_by_type t2 type_var_subbing_for substitute_with)
-  | VectorType types ->
-    VectorType (
-      List.map (fun t -> substitute_in_type_by_type t type_var_subbing_for substitute_with) types
-    )
-  | CListType et ->
-    CListType (substitute_in_type_by_type et type_var_subbing_for substitute_with)
-  | TypeVarWritten _ -> if type_subbing_in = type_var_subbing_for then substitute_with else type_subbing_in
-
-
-
+  | _ ->
+    failwith "not a type var"
 
 and substitute_written_var_with_type_var (var_id: int) (written_var_id: string) (t: c_type): c_type =
   match t with
@@ -401,12 +339,10 @@ and substitute_written_vars_in_equations (var_id: int) (written_var_id: string) 
   | (t1, t2) :: equations' ->
     (substitute_written_var_with_type_var var_id written_var_id t1, substitute_written_var_with_type_var var_id written_var_id t2) :: substitute_written_vars_in_equations var_id written_var_id equations'
 
-and replace_written_types: (c_type * c_type) list -> (c_type * c_type) list = function
-  | equations ->
-    let first, second = List.split equations in
-    let all_types: c_type list = first @ second in
-
-    (* find the first written type var *)
+and replace_written_types (equations: type_equations): type_equations =
+  let first, second = equations |> List.split in
+  let all_types: c_type list = first @ second in
+ 
   
   let rec find_written_type (types: c_type list): string option =
     match types with
@@ -438,7 +374,7 @@ and replace_written_types: (c_type * c_type) list -> (c_type * c_type) list = fu
       replace_written_types equations_with_subbed_type_var
 
 and instantiate: c_type_scheme -> c_type = fun (universal_types, t) ->
-  match List.sort_uniq compare universal_types with
+  match universal_types with
   | [] -> t
   | _ ->
     let replacements: (c_type * c_type) list = List.map (fun t -> (t, fresh_type_var ())) universal_types in
@@ -464,7 +400,7 @@ and replace_types t replacements =
 
 and generalize (constraints: type_equations) (env: static_env) (t: c_type): c_type_scheme =
   (* fully finish inference of the binding expression *)
-  let unified: type_equations = reduce_eq constraints in
+  let unified: substitutions = reduce_eq constraints in
   (* apply the resulting subtitutoin to env and t1, yielding env1 and u1 *)
   (* apply the substitution to t as well *)
   let u1: c_type = get_type t unified in
@@ -480,6 +416,7 @@ and generalize (constraints: type_equations) (env: static_env) (t: c_type): c_ty
   let type_scheme: c_type_scheme = (free_vars, u1) in
   (* return the type scheme and the constraints *)
   type_scheme
+
 
 
 and get_type_vars (t: c_type): c_type list =
