@@ -57,8 +57,8 @@ and c_type =
   | VectorType of c_type list
   | TypeVar of int
   | CListType of c_type
+  | UniversalType of int
 
-and c_type_scheme = c_type list * c_type
 
 let ( => ) (t1: c_type) (t2: c_type): c_type =
   FunctionType (t1, t2)
@@ -69,3 +69,9 @@ let fresh_type_var: unit -> c_type =
 fun () ->
   counter := !counter + 1;
   TypeVar !counter
+
+let counter_2: int ref = ref 0
+let fresh_universal_type: unit -> c_type =
+fun () ->
+  counter_2 := !counter_2 + 1;
+  UniversalType !counter_2

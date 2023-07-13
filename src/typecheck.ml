@@ -2,7 +2,8 @@ open Cexpr
 open Typefixer
 open Ctostring
 
-type static_env = (string * c_type_scheme) list
+
+type static_env = (string * c_type) list
 
 type type_equation = c_type * c_type
 
@@ -12,7 +13,7 @@ type substitutions = type_equations
 
 exception TypeFailure
 
-let initial_env: (string * c_type_scheme) list = [("not", ([], BoolType => BoolType))]
+let initial_env: (string * c_type) list = [("not", BoolType => BoolType)]
 
 
 let string_of_type_equation ((t1, t2): type_equation): string = 
@@ -28,22 +29,22 @@ let rec string_of_type_equations (c: type_equations): string =
 let rec string_of_static_env (env: static_env): string =
   match env with
   | [] -> ""
-  | (id, t) :: env' -> id ^ " : " ^ (string_of_c_type_scheme t) ^ "\n" ^ (string_of_static_env env')
-
-
-let no_uni_ts: c_type -> c_type_scheme = fun t -> ([], t)
+  | (id, t) :: env' -> id ^ " : " ^ (string_of_c_type t) ^ "\n" ^ (string_of_static_env env')
 
 
 
-let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_equations =
+
+
+
+let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
   match e with
-  | EInt _ -> IntType |> no_uni_ts, []
-  | EBool _ -> BoolType |> no_uni_ts, []
+  | EInt _ -> IntType, []
+  | EBool _ -> BoolType, []
   | EId x -> 
     List.assoc x env, []
-  | EString _ -> StringType |> no_uni_ts, []
-  | ENothing -> NothingType |> no_uni_ts, []
-  | ENil -> CListType (fresh_type_var ()) |> no_uni_ts, []
+  | EString _ -> StringType, []
+  | ENothing -> NothingType, []
+  | ENil -> CListType (fresh_type_var ()), []
   | EBop (op, e1, e2) ->
     let t1, c1 = generate env e1 in
     let t2, c2 = generate env e2 in
@@ -72,24 +73,24 @@ let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_equations =
     | CDiv
     | CMod
     ->
-      IntType |> no_uni_ts, (t1 |> instantiate, IntType) :: (t2 |> instantiate, IntType)  :: c1 @ c2
+      IntType, (t1 |> instantiate, IntType) :: (t2 |> instantiate, IntType)  :: c1 @ c2
     | CGE
     | CGT
     | CLE
     | CLT
     ->
-      BoolType |> no_uni_ts, (t1 |> instantiate, IntType) :: (t2 |> instantiate, IntType)  :: c1 @ c2
+      BoolType, (t1 |> instantiate, IntType) :: (t2 |> instantiate, IntType)  :: c1 @ c2
 
     | CEQ
     | CNE
     ->
-      BoolType |> no_uni_ts, c1 @ c2
+      BoolType, c1 @ c2
       (* the only constraint here is that the entire expression must be boolean *)
     
     | CAnd
     | COr
     ->
-      BoolType |> no_uni_ts, (t1 |> instantiate, BoolType) :: (t2 |> instantiate, BoolType) :: c1 @ c2
+      BoolType, (t1 |> instantiate, BoolType) :: (t2 |> instantiate, BoolType) :: c1 @ c2
     
     )
   | EFunction (pat, cto, body) ->
@@ -103,7 +104,7 @@ let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_equations =
 
     ) in
     let output_type, c_output = generate (new_env_bindings @ env) body in
-    (input_type => (output_type |> instantiate)) |> no_uni_ts, constraints_from_type_annotation @ c_output
+    (input_type => (output_type |> instantiate)), constraints_from_type_annotation @ c_output
 
   | ETernary (e1, e2, e3) ->
     let t1, c1 = generate env e1 in
@@ -111,7 +112,7 @@ let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_equations =
     let t3, c3 = generate env e3 in
     let type_of_expression: c_type = fresh_type_var () in
     
-    type_of_expression |> no_uni_ts, (t1 |> instantiate, BoolType) :: (t2 |> instantiate, type_of_expression) :: (t3 |> instantiate, type_of_expression) :: c1 @ c2 @ c3
+    type_of_expression, (t1 |> instantiate, BoolType) :: (t2 |> instantiate, type_of_expression) :: (t3 |> instantiate, type_of_expression) :: c1 @ c2 @ c3
 
 
   | EApp (e1, e2) ->
@@ -126,7 +127,7 @@ let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_equations =
     let t1, c1 = generate env e1 in
     let t2, c2 = generate env e2 in
     let type_of_expression: c_type = fresh_type_var () in
-    type_of_expression |> no_uni_ts, (t1 |> instantiate, ((t2 |> instantiate) => type_of_expression)) :: c1 @ c2
+    type_of_expression, (t1 |> instantiate, ((t2 |> instantiate) => type_of_expression)) :: c1 @ c2
 
 
   | EBindRec (pattern, cto, e1, e2) ->
@@ -141,7 +142,7 @@ let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_equations =
 
     let function_type: c_type = fresh_type_var () in
 
-    let new_env: static_env = (function_id, ([], function_type)) :: env in
+    let new_env: static_env = (function_id, function_type) :: env in
 
     generate new_env a
 
@@ -160,7 +161,7 @@ let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_equations =
       let list_of_types, list_of_lists_of_constraints = List.split (List.map (generate env) expressions) in
       let list_of_types: c_type list = List.map instantiate list_of_types in
 
-      VectorType list_of_types |> no_uni_ts, List.flatten list_of_lists_of_constraints
+      VectorType list_of_types, List.flatten list_of_lists_of_constraints
 
   | ESwitch(e, branches) ->
     (* get the type of the switching expression *)
@@ -178,14 +179,14 @@ let rec generate (env: static_env) (e: c_expr): c_type_scheme * type_equations =
 
     in
 
-    type_that_all_branch_expressions_must_be |> no_uni_ts, c1 @ branch_constraints
+    type_that_all_branch_expressions_must_be, c1 @ branch_constraints
     
 
 and type_of_pat (p: c_pat): c_type * static_env =
   match p with
   | CIdPat id -> 
     let new_var: c_type = fresh_type_var () in
-    new_var, [(id, ([], new_var))]
+    new_var, [(id, new_var)]
   | CNothingPat -> NothingType, []
   | CWildcardPat -> fresh_type_var (), []
   | CVectorPat patterns ->
@@ -292,11 +293,12 @@ and is_basic_type (t: c_type): bool =
   | BoolType
   | StringType
   | NothingType -> true
-  | TypeVar _ -> false
+  | TypeVar _ | UniversalType _ -> false
   | TypeVarWritten _ -> false (* fix this later if necessary *)
   | FunctionType (i, o) -> is_basic_type i && is_basic_type o
   | VectorType types -> List.for_all is_basic_type types
   | CListType et -> is_basic_type et
+
 
 
 and substitute (var_id: int) (t: c_type) (equations: type_equations): type_equations =
@@ -373,12 +375,23 @@ and replace_written_types (equations: type_equations): type_equations =
       let equations_with_subbed_type_var: type_equations = substitute_written_vars_in_equations fresh_type_var_int id equations in
       replace_written_types equations_with_subbed_type_var
 
-and instantiate: c_type_scheme -> c_type = fun (universal_types, t) ->
-  match universal_types with
-  | [] -> t
-  | _ ->
-    let replacements: (c_type * c_type) list = List.map (fun t -> (t, fresh_type_var ())) universal_types in
-    replace_types t replacements
+and instantiate (t: c_type): c_type =
+  (* find all universal type variables in the expression *)
+  let universal_type_vars: c_type list = get_universal_type_vars t in
+  (* generate a fresh type variable for each universal type variable *)
+  let fresh_type_vars_assoc: (c_type * c_type) list = List.map (fun u -> u, fresh_type_var ()) universal_type_vars in
+  (* replace them *)
+  replace_types t fresh_type_vars_assoc
+
+
+
+and get_universal_type_vars (t: c_type): c_type list =
+  match t with
+  | UniversalType _ -> [t]
+  | FunctionType (i, o) -> get_universal_type_vars i @ get_universal_type_vars o |> List.sort_uniq compare
+  | VectorType types -> List.flatten (List.map get_universal_type_vars types) |> List.sort_uniq compare
+  | CListType et -> get_universal_type_vars et |> List.sort_uniq compare
+  | _ -> []
 
 
 and replace_types t replacements =
@@ -398,7 +411,7 @@ and replace_types t replacements =
     CListType (replace_types et replacements)
   | _ -> t (* otherwise, just return the type *)
 
-and generalize (constraints: type_equations) (env: static_env) (t: c_type): c_type_scheme =
+and generalize (constraints: type_equations) (env: static_env) (t: c_type): c_type =
   (* fully finish inference of the binding expression *)
   let unified: substitutions = reduce_eq constraints in
   (* apply the resulting subtitutoin to env and t1, yielding env1 and u1 *)
@@ -408,14 +421,16 @@ and generalize (constraints: type_equations) (env: static_env) (t: c_type): c_ty
   (* get the list of type variables in t *)
   let type_vars: c_type list = get_type_vars u1 in
   (* get the list of types in env1 *)
-  let env_types: c_type list = env |> List.map snd |> List.map snd |> flatten_env_types in
-
+  let env_types: c_type list = env |> List.map snd |> flatten_env_types in
   (* filter out the env_types from_type vars, which yields a list of free variables *)
   let free_vars: c_type list = List.filter (fun t -> not (List.mem t env_types)) type_vars |> List.sort_uniq compare in (* get rid of duplicates *)
-  (* create a type scheme from the free variables and u1 *)
-  let type_scheme: c_type_scheme = (free_vars, u1) in
-  (* return the type scheme and the constraints *)
-  type_scheme
+  (* create a universal type variable for each type in free_vars *)
+  let variable_replacements: (c_type * c_type) list = List.map (fun t -> t, fresh_universal_type ()) free_vars in
+  (* replace the free variables in u1 with the universal type variables *)
+  replace_types u1 variable_replacements
+
+
+
 
 
 

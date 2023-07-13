@@ -83,7 +83,7 @@ let rec bind_static (p: c_pat) (t: c_type): static_env option =
   match p, t with
   | CNothingPat, NothingType -> Some []
   | CWildcardPat, _ -> Some []
-  | CIdPat s, _ -> Some [(s, ([], t))]
+  | CIdPat s, _ -> Some [(s, t)]
   | CVectorPat patterns, VectorType types ->
     (
       match patterns, types with
@@ -319,7 +319,7 @@ let rec eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_
           | CIdPat id ->
             let new_type: c_type = type_of_c_expr body_expression static_env in
             let new_env: env = new_bindings @ env in
-            let new_static_env: static_env = (id, ([], new_type)) :: static_env in
+            let new_static_env: static_env = (id, new_type) :: static_env in
             new_env, new_static_env, type_of_c_expr body_expression static_env, v
           | CVectorPat patterns ->
             (

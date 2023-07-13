@@ -23,6 +23,7 @@ open Cexpr
       | StringType -> ()
       | NothingType -> ()
       | CListType et -> search et
+      | UniversalType _ -> ()
       | TypeVarWritten _ -> () (* fix this later *)
       | TypeVar id ->
         if not (visited id !order) then
@@ -46,7 +47,9 @@ open Cexpr
       | BoolType -> BoolType
       | StringType -> StringType
       | NothingType -> NothingType
-      | TypeVar id ->
+      | TypeVar id
+      | UniversalType id ->
+
     
         TypeVar (get_replacement id lst)
       
@@ -66,9 +69,4 @@ open Cexpr
     replace t !order
 
 
-let fix_type_scheme: c_type_scheme -> c_type_scheme =
-  fun (universal_types, t) ->
-    (universal_types, fix t)
 
-
-let () = ignore fix_type_scheme

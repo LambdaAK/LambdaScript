@@ -289,6 +289,9 @@ and string_of_c_type t =
     "("
     ^ (String.sub types_string 0 ((String.length types_string) - 2))
     ^ ")"
+  | UniversalType u ->
+    let u_string: string = string_of_int u in
+    "u" ^ u_string
 
 let string_of_c_expr e = string_of_c_expr e 0
 
