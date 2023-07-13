@@ -396,7 +396,7 @@ and get_universal_type_vars (t: c_type): c_type list =
 
 and replace_types t replacements =
   match t with
-  | TypeVar _ -> (* find the replacement if it exists *)
+  | TypeVar _ | UniversalType _ -> (* find the replacement if it exists *)
     (
       try
         List.assoc t replacements
@@ -418,6 +418,9 @@ and generalize (constraints: type_equations) (env: static_env) (t: c_type): c_ty
   (* apply the substitution to t as well *)
   let u1: c_type = get_type t unified in
   (* generalize u1 with respect to env1, yielding a type scheme *)
+
+  (* make replacements in env *)
+  let env: static_env = List.map (fun (id, t) -> id, get_type t unified) env in
   (* get the list of type variables in t *)
   let type_vars: c_type list = get_type_vars u1 in
   (* get the list of types in env1 *)
