@@ -249,8 +249,6 @@ and string_of_c_type_scheme (universal_types, t) =
   ^ (string_of_c_type t)
 
 
-
-
 and string_of_c_type t =
   match t with
   | BoolType -> "bool"

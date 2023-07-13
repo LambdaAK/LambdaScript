@@ -1,1 +1,3 @@
-fn x -> fn y -> x
+(fn f ->
+ f 0 < 2 || (f true)
+) (fn x -> x + 1)
