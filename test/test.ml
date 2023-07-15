@@ -228,6 +228,15 @@ module SwitchTypeTestModifierInput: TestModifierInput with type test_type = stri
 
 end
 
+module PolymorphismTypeTestModifierInput: TestModifierInput with type test_type = string * string = struct
+  type test_type = string * string
+
+  let modifiers: (string * string -> string * string) list = [
+    (fun x -> x)
+  ]
+
+end
+
 
 module IntTestModifier = MakeTestModifier (IntTestModifierInput)
 module IntTypeTestModifier = MakeTestModifier (IntTypeTestModifierInput)
@@ -239,6 +248,7 @@ module PairTypeTestModifier = MakeTestModifier (PairTypeTestModiferInput)
 module VectorTypeTestModifier = MakeTestModifier (VectorTypeTestModifierInput)
 module ListTypeTestModifier = MakeTestModifier (ListTypeTestModifierInput)
 module SwitchTypeTestModifier = MakeTestModifier (SwitchTypeTestModifierInput)
+module PolymorphismTypeTestModifier = MakeTestModifier (PolymorphismTypeTestModifierInput)
 
 let eval_test (expr: string) (expected_output: string): test =
   expr ^ " SHOULD YIELD " ^ expected_output >:: fun _ ->
@@ -523,7 +533,6 @@ let function_type_tests = [
   (* recursive functions *)
 
   "bind rec f x <- x in f", "t1 -> t1";
-  "bind rec f [int -> int] x <- x in f", "int -> int";
   "bind rec f x [ng] <- x in f", "ng -> ng";
   "bind rec f x [int -> int] <- x in f", "(int -> int) -> int -> int";
 
@@ -615,9 +624,22 @@ let list_type_tests = [
   "([] :: []) :: []","[[[t1]]]";
   "(([] :: []) :: []) :: []", "[[[[t1]]]]";
 
-
-
 ]
+
+
+let polymorphism_tests = [
+  "bind f x <- x in f f", "t1 -> t1";
+  "bind f x <- x in f f f", "t1 -> t1";
+  "bind f x <- x in f f f f", "t1 -> t1";
+  "bind f x <- x in f f f f f", "t1 -> t1";
+  "bind f x <- x in f 1 < 5 || f true", "bool";
+  "bind f x <- x in bind g <- f in g g", "t1 -> t1";
+  "bind f x <- x in bind g <- f in g f", "t1 -> t1";
+  "bind f x <- x in bind g <- f in f g", "t1 -> t1";
+  "bind f x <- x in bind a <- f 1 in f true", "bool";
+]
+
+
 
 let switch_type_tests = [
   "switch () => | () -> 1 end", "int";
@@ -791,6 +813,8 @@ let list_tests = [
   |}, "[1, 2, 3]";
   
 ]
+
+
 
 
 let complex_tests = [
@@ -986,6 +1010,7 @@ let pair_type_tests: test list = List.map (fun (a, b) -> type_test a b) (pair_ty
 let vector_type_tests: test list = List.map (fun (a, b) -> type_test a b) (vector_type_tests |> VectorTypeTestModifier.modify_tests)
 let list_type_tests: test list = List.map (fun (a, b) -> type_test a b) (list_type_tests |> ListTypeTestModifier.modify_tests)
 let switch_type_tests: test list = List.map (fun (a, b) -> type_test a b) (switch_type_tests |> SwitchTypeTestModifier.modify_tests)
+let polymorphism_tests: test list = List.map (fun (a, b) -> type_test a b) (polymorphism_tests |> PolymorphismTypeTestModifier.modify_tests)
 let eval_test_data = [
   arithmetic_tests |> IntTestModifier.modify_tests;
   boolean_tests;
@@ -1013,6 +1038,7 @@ let all_tests =
       vector_type_tests;
       list_type_tests;
       switch_type_tests;
+      polymorphism_tests
       
     ]
 

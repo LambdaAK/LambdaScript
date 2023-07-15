@@ -32,16 +32,12 @@ let rec string_of_static_env (env: static_env): string =
   | (id, t) :: env' -> id ^ " : " ^ (string_of_c_type t) ^ "\n" ^ (string_of_static_env env')
 
 
-
-
-
-
 let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
   match e with
   | EInt _ -> IntType, []
   | EBool _ -> BoolType, []
   | EId x -> 
-    List.assoc x env, []
+    List.assoc x env |> instantiate, []
   | EString _ -> StringType, []
   | ENothing -> NothingType, []
   | ENil -> CListType (fresh_type_var ()), []
@@ -59,7 +55,7 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
         env |- e2 : [t] -| C2
       *)
 
-      t2, (CListType (t1 |> instantiate), t2 |> instantiate) :: c1 @ c2
+      t2, (CListType (t1), t2) :: c1 @ c2
       (*
       here, t2 should be [t] for some t
       t1 should be t for some t
@@ -73,13 +69,13 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     | CDiv
     | CMod
     ->
-      IntType, (t1 |> instantiate, IntType) :: (t2 |> instantiate, IntType)  :: c1 @ c2
+      IntType, (t1, IntType) :: (t2, IntType)  :: c1 @ c2
     | CGE
     | CGT
     | CLE
     | CLT
     ->
-      BoolType, (t1 |> instantiate, IntType) :: (t2 |> instantiate, IntType)  :: c1 @ c2
+      BoolType, (t1, IntType) :: (t2, IntType)  :: c1 @ c2
 
     | CEQ
     | CNE
@@ -90,7 +86,7 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     | CAnd
     | COr
     ->
-      BoolType, (t1 |> instantiate, BoolType) :: (t2 |> instantiate, BoolType) :: c1 @ c2
+      BoolType, (t1, BoolType) :: (t2, BoolType) :: c1 @ c2
     
     )
   | EFunction (pat, cto, body) ->
@@ -104,7 +100,7 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
 
     ) in
     let output_type, c_output = generate (new_env_bindings @ env) body in
-    (input_type => (output_type |> instantiate)), constraints_from_type_annotation @ c_output
+    (input_type => (output_type)), constraints_from_type_annotation @ c_output
 
   | ETernary (e1, e2, e3) ->
     let t1, c1 = generate env e1 in
@@ -112,24 +108,10 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     let t3, c3 = generate env e3 in
     let type_of_expression: c_type = fresh_type_var () in
     
-    type_of_expression, (t1 |> instantiate, BoolType) :: (t2 |> instantiate, type_of_expression) :: (t3 |> instantiate, type_of_expression) :: c1 @ c2 @ c3
+    type_of_expression, (t1, BoolType) :: (t2, type_of_expression) :: (t3, type_of_expression) :: c1 @ c2 @ c3
 
-
-  | EApp (e1, e2) ->
-    (*
-    let t1, c1 = generate env e1 in
-    let t2, c2 = generate env e2 in
-    let type_of_expression: c_type = fresh_type_var () in
-    type_of_expression, (t1, t2 => type_of_expression) :: c1 @ c2
-    *)
-
-    (* e1 e2 *)
-    let t1, c1 = generate env e1 in
-    let t2, c2 = generate env e2 in
-    let type_of_expression: c_type = fresh_type_var () in
-    type_of_expression, (t1 |> instantiate, ((t2 |> instantiate) => type_of_expression)) :: c1 @ c2
-
-
+  | EApp (first, second) -> generate_e_app env first second
+    
   | EBindRec (pattern, cto, e1, e2) ->
     (* perform the type inference as if it is a function application *)
     let function_id: string = (
@@ -137,7 +119,7 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
       | CIdPat id -> id
       | _ -> failwith "not a valid pattern in typecheck.ml"
     ) in
-
+    
     let a = EApp (EFunction (pattern, cto, e2), e1) in
 
     let function_type: c_type = fresh_type_var () in
@@ -145,7 +127,26 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     let new_env: static_env = (function_id, function_type) :: env in
 
     generate new_env a
+    
+    (* below is just some old code I was using to test features relating to polymorphism *)
 
+    (*
+    let input_type, new_env_bindings = type_of_pat pattern in
+    let constraints_from_type_annotation: type_equations = 
+    (
+      match cto with
+      | Some t -> [(input_type, t)] (* the input type must equal the annotated type *)
+      | None -> []
+
+    ) in
+
+    let t1, c1 = generate (new_env_bindings @ env) e1 in
+    (* use generalize *)
+    let generalized_type: c_type = generalize c1 (new_env_bindings @ env) t1 in
+    let t2, c2 = generate ((function_id, generalized_type) :: env) e2 in
+    let output_type = fresh_type_var () in
+    output_type, (t2, output_type) :: constraints_from_type_annotation @ c2
+    *)
   | EVector expressions ->
     (*
         type inference relation for vectors
@@ -173,13 +174,67 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
       let type_of_pattern, pattern_env = type_of_pat bp in
       let type_of_branch_expression, branch_expression_constraints = generate (pattern_env @ env) be in (* use the pattern env here *)
       let type_of_branch_expression = instantiate type_of_branch_expression in (* instantiate here *)
-      (type_of_pattern, t1 |> instantiate) :: (type_of_branch_expression, type_that_all_branch_expressions_must_be) :: branch_expression_constraints
+      (type_of_pattern, t1) :: (type_of_branch_expression, type_that_all_branch_expressions_must_be) :: branch_expression_constraints
 
     ) branches |> List.flatten (* since each iteration through map returns multiple constraints, the list is flattened *)
 
     in
 
     type_that_all_branch_expressions_must_be, c1 @ branch_constraints
+
+and generate_e_app (env: static_env) (first: c_expr) (second: c_expr): c_type * type_equations =
+(
+      match first with
+    | EFunction (pattern, cto, body) -> (* fn pattern -> body *)
+
+      (* perform the type inference as if it is a function application *)
+      let function_id: string = ( (* double check this later on *)
+        match pattern with
+        | CIdPat id -> id
+        | _ -> failwith "not a valid pattern in typecheck.ml"
+      ) in
+      (*
+      let a = EApp (EFunction (pattern, cto, e2), e1) in
+
+      let function_type: c_type = fresh_type_var () in
+
+      let new_env: static_env = (function_id, function_type) :: env in
+
+      generate new_env a
+      *)
+
+      let input_type, new_env_bindings = type_of_pat pattern in
+      let constraints_from_type_annotation: type_equations = 
+      (
+        match cto with
+        | Some t -> [(input_type, t)] (* the input type must equal the annotated type *)
+        | None -> []
+
+      ) in
+
+      let t1, c1 = generate (new_env_bindings @ env) second in
+      (* use generalize *)
+      let generalized_type: c_type = generalize c1 (new_env_bindings @ env) t1 in
+      let t2, c2 = generate ((function_id, generalized_type) :: env) body in
+      let output_type = fresh_type_var () in
+      output_type, (t2, output_type) :: constraints_from_type_annotation @ c2
+        
+    | _ ->
+    (*
+    let t1, c1 = generate env e1 in
+    let t2, c2 = generate env e2 in
+    let type_of_expression: c_type = fresh_type_var () in
+    type_of_expression, (t1, t2 => type_of_expression) :: c1 @ c2
+    *)
+
+    (* e1 e2 *)
+    let e1 = first in
+    let e2 = second in
+    let t1, c1 = generate env e1 in
+    let t2, c2 = generate env e2 in
+    let type_of_expression: c_type = fresh_type_var () in
+    type_of_expression, (t1, ((t2) => type_of_expression)) :: c1 @ c2
+    )
     
 
 and type_of_pat (p: c_pat): c_type * static_env =
@@ -232,10 +287,11 @@ and reduce_eq (c: type_equations): substitutions =
             raise TypeFailure
         )
 
-      | _ -> raise TypeFailure
+      | _ -> print_endline "FAILURE";       
+      raise TypeFailure
     )
 
-and get_type (var: c_type) (subs: substitutions): c_type = 
+and get_type (var: c_type) (subs: substitutions): c_type =
   match var with
   | TypeVar _ ->
     (
@@ -254,6 +310,7 @@ and get_type (var: c_type) (subs: substitutions): c_type =
   | NothingType -> NothingType
   | CListType et ->
     CListType (get_type et subs)
+  | UniversalType _ -> var
   | _ -> failwith "not a type var2"
 
 
@@ -274,10 +331,11 @@ and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type
 
 and type_of_c_expr (e: c_expr) (static_env: static_env): c_type =
   let t, constraints = generate static_env e in
-  let constraints_without_written_type_vars = replace_written_types constraints in
-  let solution: substitutions = reduce_eq constraints_without_written_type_vars in
 
-  get_type (t |> instantiate) solution |> fix
+  let constraints_without_written_type_vars = replace_written_types constraints in
+
+  let solution: substitutions = reduce_eq constraints_without_written_type_vars in
+  get_type t solution |> fix
 
 and inside (inside_type: c_type) (outside_type: c_type): bool =
   match outside_type with
@@ -412,6 +470,8 @@ and replace_types t replacements =
   | _ -> t (* otherwise, just return the type *)
 
 and generalize (constraints: type_equations) (env: static_env) (t: c_type): c_type =
+  (* remove written type variables from the constraints *)
+  let constraints: type_equations = replace_written_types constraints in
   (* fully finish inference of the binding expression *)
   let unified: substitutions = reduce_eq constraints in
   (* apply the resulting subtitutoin to env and t1, yielding env1 and u1 *)
