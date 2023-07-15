@@ -61,7 +61,6 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
       t1 should be t for some t
       the constraint is that [t1] = t2
       *)
-      
 
     | CPlus 
     | CMinus
@@ -127,31 +126,12 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     let new_env: static_env = (function_id, function_type) :: env in
 
     generate new_env a
-    
-    (* below is just some old code I was using to test features relating to polymorphism *)
 
-    (*
-    let input_type, new_env_bindings = type_of_pat pattern in
-    let constraints_from_type_annotation: type_equations = 
-    (
-      match cto with
-      | Some t -> [(input_type, t)] (* the input type must equal the annotated type *)
-      | None -> []
-
-    ) in
-
-    let t1, c1 = generate (new_env_bindings @ env) e1 in
-    (* use generalize *)
-    let generalized_type: c_type = generalize c1 (new_env_bindings @ env) t1 in
-    let t2, c2 = generate ((function_id, generalized_type) :: env) e2 in
-    let output_type = fresh_type_var () in
-    output_type, (t2, output_type) :: constraints_from_type_annotation @ c2
-    *)
   | EVector expressions ->
     (*
         type inference relation for vectors
 
-        env |- <|e1, e2, ..., en|> : <|t1, t2, ..., tn|> -| C1, C2, ..., Cn
+        env |- (e1, e2, ..., en) : (t1, t2, ..., tn) -| C1, C2, ..., Cn
         -----------------------------------------------------------------
           env |- e1 : t1 -| C1
           env |- e2 : t2 -| C2
@@ -184,27 +164,27 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
 
 and generate_e_app (env: static_env) (first: c_expr) (second: c_expr): c_type * type_equations =
 (
+      (* start by checking whether first is a function *)
       match first with
     | EFunction (pattern, cto, body) -> (* fn pattern -> body *)
+      (* 
+      
+      since first is a function, and first is being applied to second, the type of second must
+      be generalized in the body of first
 
-      (* perform the type inference as if it is a function application *)
-      let function_id: string = ( (* double check this later on *)
+      for example, if we have (fn f -> f 1 < 2 || f true) (fn x -> x), it is crucial that that the type of (fn x -> x), which is
+      initially t1 -> t1 after unification, is generalized to a type scheme t1. t1 -> t1, so that it can be applied to both an int and a bool
+
+      *)
+
+      let function_id: string = (
         match pattern with
         | CIdPat id -> id
         | _ -> failwith "not a valid pattern in typecheck.ml"
       ) in
-      (*
-      let a = EApp (EFunction (pattern, cto, e2), e1) in
-
-      let function_type: c_type = fresh_type_var () in
-
-      let new_env: static_env = (function_id, function_type) :: env in
-
-      generate new_env a
-      *)
 
       let input_type, new_env_bindings = type_of_pat pattern in
-      let constraints_from_type_annotation: type_equations = 
+      let constraints_from_type_annotation: type_equations =
       (
         match cto with
         | Some t -> [(input_type, t)] (* the input type must equal the annotated type *)
@@ -213,21 +193,15 @@ and generate_e_app (env: static_env) (first: c_expr) (second: c_expr): c_type * 
       ) in
 
       let t1, c1 = generate (new_env_bindings @ env) second in
-      (* use generalize *)
       let generalized_type: c_type = generalize c1 (new_env_bindings @ env) t1 in
       let t2, c2 = generate ((function_id, generalized_type) :: env) body in
+      (* here ^, (function_id, generlized_type) binds the generalized function in the static env inside of body *)
       let output_type = fresh_type_var () in
-      output_type, (t2, output_type) :: constraints_from_type_annotation @ c2
+      output_type, (t2, output_type) :: constraints_from_type_annotation @ c1 @ c2
         
     | _ ->
-    (*
-    let t1, c1 = generate env e1 in
-    let t2, c2 = generate env e2 in
-    let type_of_expression: c_type = fresh_type_var () in
-    type_of_expression, (t1, t2 => type_of_expression) :: c1 @ c2
-    *)
 
-    (* e1 e2 *)
+    (* first is not a function, so generalization is not necessary *)
     let e1 = first in
     let e2 = second in
     let t1, c1 = generate env e1 in
