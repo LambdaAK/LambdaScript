@@ -1,6 +1,6 @@
 # Fdb version 4
-["pdflatex"] 1689489488 "/Users/alex/Desktop/lambdascript revert 2/LambdaScript/documentation/LambdaScript.tex" "LambdaScript.pdf" "LambdaScript" 1689489488 0
-  "/Users/alex/Desktop/lambdascript revert 2/LambdaScript/documentation/LambdaScript.tex" 1689489488 9415 7126ddec12831c0b5b6bd148f8315692 ""
+["pdflatex"] 1689492893 "/Users/alex/Desktop/lambdascript revert 2/LambdaScript/documentation/LambdaScript.tex" "LambdaScript.pdf" "LambdaScript" 1689492894 0
+  "/Users/alex/Desktop/lambdascript revert 2/LambdaScript/documentation/LambdaScript.tex" 1689492893 11502 efc5ff5650c6d385023944c7f658b660 ""
   "/Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/jknappen/ec/tcrm1200.tfm" 1136768653 1536 74b7293ec3713bb7fdca8dd1bd1f469c ""
   "/Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/cmextra/cmex7.tfm" 1246382020 1004 54797486969f23fa377b128694d548df ""
   "/Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/cmextra/cmex8.tfm" 1246382020 988 bdf658c3bfc2d96d3c8b02cfc1c94c20 ""
@@ -34,6 +34,8 @@
   "/Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb" 1248133631 32626 4f5c1b83753b1dd3a97d1b399a005b4b ""
   "/Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb" 1248133631 36118 fad905eba93cff5bce1e185fe980a177 ""
   "/Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb" 1248133631 34694 ad62b13721ee8eda1dcc8993c8bd7041 ""
+  "/Users/alex/Library/TinyTeX/texmf-dist/tex/generic/iftex/iftex.sty" 1644112042 7237 bdd120a32c8fdb4b433cf9ca2e7cd98a ""
+  "/Users/alex/Library/TinyTeX/texmf-dist/tex/generic/iftex/ifvtex.sty" 1572645307 1057 525c2192b5febbd8c1f662c9468335bb ""
   "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/amsfonts.sty" 1359763108 5949 3f3fd50a8cc94c3d4cbf4fc66cd3df1c ""
   "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/umsa.fd" 1359763108 961 6518c6525a34feb5e8250ffa91731cff ""
   "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/umsb.fd" 1359763108 961 d02606146ba5601b5645f987c92e6193 ""
@@ -45,9 +47,11 @@
   "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/base/article.cls" 1667332637 20144 d5ecf0a5140c8d8d8b72cbe86e320eff ""
   "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/base/omscmr.fd" 1667332637 2469 24e8437abfd2393aed5f0ac9f00f801e ""
   "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/base/size10.clo" 1667332637 8448 c33a4e1cb35cee9b33c2b21033b73e39 ""
+  "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/geometry/geometry.sty" 1578002852 41601 9cf6c5257b1bc7af01a58859749dd37a ""
   "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/graphics-cfg/color.cfg" 1459978653 1213 620bba36b25224fa9b7e1ccb4ecb76fd ""
   "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/graphics-def/pdftex.def" 1663965824 19448 1e988b341dda20961a6b931bcde55519 ""
   "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/graphics/dvipsnam.def" 1654720880 5009 d242512eef244b70f2fc3fde14419206 ""
+  "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/graphics/keyval.sty" 1654720880 2671 7e67d78d9b88c845599a85b2d41f2e39 ""
   "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/graphics/mathcolor.ltx" 1667332637 2885 9c645d672ae17285bba324998918efd8 ""
   "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def" 1673989714 30429 213676d4c7327a21d91ddaed900e7b81 ""
   "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/mdwtools/syntax.sty" 1157582729 19268 1cc67e61681d15dc7bfddab7602a9cd1 ""
@@ -57,9 +61,9 @@
   "/Users/alex/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1200.600pk" 1689487058 14040 a0a3001741514798e8c0db9c56e27f0a ""
   "/Users/alex/Library/TinyTeX/texmf-var/web2c/pdftex/pdflatex.fmt" 1674703236 6475598 9680a4c56334054d8adac853d56da40d ""
   "/Users/alex/Library/TinyTeX/texmf.cnf" 1674703119 637 edd806fb06a89761a6034e1968af9017 ""
-  "LambdaScript.aux" 1689489488 1974 0dd23c7f5f5cd7edc6f930d515c4daaa "pdflatex"
-  "LambdaScript.tex" 1689489488 9415 7126ddec12831c0b5b6bd148f8315692 ""
-  "LambdaScript.toc" 1689489488 1203 31b8b8dfeec95905b4e8c71d0308a90c "pdflatex"
+  "LambdaScript.aux" 1689492893 2174 b001c7289db17f69a16f352788e8a3cc "pdflatex"
+  "LambdaScript.tex" 1689492893 11502 efc5ff5650c6d385023944c7f658b660 ""
+  "LambdaScript.toc" 1689492893 1321 ce7505dc6f97e654241e9bf00727b434 "pdflatex"
   (generated)
   "LambdaScript.aux"
   "LambdaScript.log"

@@ -3,6 +3,7 @@
 \usepackage{amsfonts}
 \usepackage{amsmath}
 \usepackage[dvipsnames]{xcolor}
+\usepackage[left=2cm, right=2cm]{geometry}
 
 
 
@@ -109,9 +110,9 @@ Unary operator
 
   Bind expression
 
-  Recursive function bind
+  Recursive function
 
-  Recursive function bind
+  Recursive function
 
   Function application
 
@@ -244,7 +245,7 @@ Cons pattern***
 
 For example, the type $t_1 \rightarrow t_2 \rightarrow t_3$ is parsed as $t_1 \rightarrow (t_2 \rightarrow t_3)$
 
-Parentheses are the highest precedence operator in the type grammar, and they can be used to counter act this.
+Parentheses are the highest precedence operator in the type grammar, and they can be used to counter the right associativity of the arrrow operator.
 
 For example
 
@@ -287,54 +288,7 @@ $$(\Delta, e) \Rightarrow v$$
 
 It means the following: Under environment $\Delta$, expression $e$ evaluates to value $v$
 
-\subsection{Basic Dynamic Semantics}
-
-\subsubsection{Value}
-
-$$(\Delta, v) \Rightarrow v$$
-
-A value always evaluates to itself
-
-\subsubsection{Variable Identifiers}
-$$(\Delta, x) \Rightarrow \Delta (x)$$
-
-To evaluate an identifier $x$, it is simply looked up in the environment $\Delta$
-
-\subsubsection{Vector}
-
-$$(\Delta, (e_1, e_2, ..., e_n)) \Rightarrow (v_1, v_2, ..., v_n)$$
-
-\noindent\makebox[\linewidth]{\rule{2.1in}{0.4pt}}
-$$(\Delta, e_1) \Rightarrow v_1$$
-$$(\Delta, e_2) \Rightarrow v_2$$
-$$\dots$$
-$$(\Delta, e_n) \Rightarrow v_n$$
-
-
-To evaluate a vector, evaluate each sub expression, then construct a new vector with the values
-
-\subsubsection{Cons}
-
-$$(\Delta, e_1 :: e_2) \Rightarrow v_1 :: v_2$$
-\noindent\makebox[\linewidth]{\rule{1.4in}{0.4pt}}
-$$(\Delta, e_1) \Rightarrow v_1$$
-$$(\Delta, e_2) \Rightarrow v_2$$
-
-To evaluate a cons expression, evaluate the two operands, then return the first argument prepended to the second
-
-\subsection{Switch Statement Semantics}
-
-A switch statement uses an expression, call it $e_0$ and a list of branches. Each branch consists of a pattern and a body.
-
-First, $e_0$ is evaluted to a value $v_0$ using the current environment $\Delta$
-
-Starting from the first branch, $v_0$ is compared to its pattern. If it matches, certain bindings are produced, which are used to evaluate its body. That value is then returned.
-
-This process of comparing $v_0$ to the pattern of a branch continues until a match is made.
-
-
-
-\subsubsection{Pattern Matching Relation}
+\subsection{Pattern Matching Relation}
 
 In order to model a value matching some pattern, and producing some bindings, we will use the following relation
 
@@ -448,9 +402,52 @@ $$v_1 :: v_2 \in p_1 :: p_2 \rightarrow \Delta_1 \circ \Delta_2$$
 $$v_1 \in p_1 \rightarrow \Delta_1$$
 $$v_2 \in p_2 \rightarrow \Delta_2$$
 
+\subsection{Basic Dynamic Semantics}
+
+\subsubsection{Value}
+
+$$(\Delta, v) \Rightarrow v$$
+
+A value always evaluates to itself
+
+\subsubsection{Variable Identifiers}
+$$(\Delta, x) \Rightarrow \Delta (x)$$
+
+To evaluate an identifier $x$, it is simply looked up in the environment $\Delta$
+
+\subsubsection{Vector}
+
+$$(\Delta, (e_1, e_2, ..., e_n)) \Rightarrow (v_1, v_2, ..., v_n)$$
+
+\noindent\makebox[\linewidth]{\rule{2.1in}{0.4pt}}
+$$(\Delta, e_1) \Rightarrow v_1$$
+$$(\Delta, e_2) \Rightarrow v_2$$
+$$\dots$$
+$$(\Delta, e_n) \Rightarrow v_n$$
 
 
-\subsubsection{The Semantics of Switch}
+To evaluate a vector, evaluate each sub expression, then construct a new vector with the values
+
+\subsubsection{Cons}
+
+$$(\Delta, e_1 :: e_2) \Rightarrow v_1 :: v_2$$
+\noindent\makebox[\linewidth]{\rule{1.4in}{0.4pt}}
+$$(\Delta, e_1) \Rightarrow v_1$$
+$$(\Delta, e_2) \Rightarrow v_2$$
+
+To evaluate a cons expression, evaluate the two operands, then return the first argument prepended to the second
+
+\subsection{Switch Statement Semantics}
+
+A switch statement uses an expression, call it $e_0$ and a list of branches. Each branch consists of a pattern and a body.
+
+First, $e_0$ is evaluted to a value $v_0$ using the current environment $\Delta$
+
+Starting from the first branch, $v_0$ is compared to its pattern. If it matches, certain bindings are produced, which are used to evaluate its body. That value is then returned.
+
+This process of comparing $v_0$ to the pattern of a branch continues until a match is made.
+
+
 
 $$(\Delta, \text{switch e} => | p_1 \rightarrow e_1 ... | p_n \rightarrow e_n \text{ end}) \implies v'$$
 \noindent\makebox[\linewidth]{\rule{3in}{0.4pt}}
@@ -468,13 +465,54 @@ Let's go through those statements one by one
 
 \item $v \notin p_i \text{ for } i < m$ shows that $v$ doesn't match the first $m - 1$ patterns
 
-\item $v \notin p_i \text{ for } i < m$ shows that $v$ matches the $m^ \text{th}$ pattern and produces bindings $\Delta_m$
+\item $v \in p_m \rightarrow \Delta_m \text{ where } 1 \leq m \leq n$ shows that $v$ matches the $m^ \text{th}$ pattern and produces bindings $\Delta_m$
 
 \item $(\Delta \circ \Delta_m, e_m) \implies v'$ shows that the body of the $m ^ \text{th}$ branch evaluates to a value $v'$ under the external environment $\Delta$ composed with the new bindings $\Delta_m$. $v'$ is what the entire switch expression evaluates to.
 
 \end{enumerate}
 
-\section{Static Semantics}
 
+
+\subsection{Ternary Expression}
+
+There are two rules regarding the dynamic semantics of ternary expressions. There is one for when the predicate is true and one for when the predicate is false.
+
+
+$$(\Delta, \text{if } e_1 \text{ then } e_2 \text{ else } e_3) \implies v$$
+\noindent\makebox[\linewidth]{\rule{2.2in}{0.4pt}}
+$$(\Delta, e_1) \implies \text{true}$$
+$$(\Delta, e_2) \implies v$$
+\noindent\makebox[\linewidth]{\rule{3in}{0.4pt}}
+$$(\Delta, \text{if } e_1 \text{ then } e_2 \text{ else } e_3) \implies v$$
+\noindent\makebox[\linewidth]{\rule{2.2in}{0.4pt}}
+$$(\Delta, e_1) \implies \text{false}$$
+$$(\Delta, e_3) \implies v$$
+
+\subsection{Function}
+
+A function in LambdaScript evaluates to a function closure, which consists of three parts: the environment, the pattern, and the body.
+
+$$(\Delta, \text{fn } p \rightarrow e) \implies (\Delta, p, e)$$
+
+\subsection{Function Application}
+
+$$(\Delta, e_1 \text{ } e_2) \implies v$$
+\noindent\makebox[\linewidth]{\rule{1.2in}{0.4pt}}
+
+$$(\Delta, e_1) \implies (\Delta_c, p_c, e_c)$$
+$$(\Delta, e_2) \implies v_2$$
+$$v_2 \in p_c \implies \Delta_n$$
+$$(\Delta_c \circ \Delta_n, e_c) \implies v$$
+
+Let's go through these statements one by one
+
+\begin{enumerate}
+\item $(\Delta, e_1) \implies (\Delta_c, p_c, e_c)$ states that $e_1$ evaluates to a function closure. This is crucial because if $e_1$ is not a function closure, it cannot be applied.
+\item $(\Delta, e_2) \implies v_n$ states that $e_2$, the argument, evaluates to a value $v_2$
+\item $v_2 \in p_c \implies \Delta_2$ states that $v_2$, the value of the argument, matches the pattern of the function closure $p_c$ and produces bindings $\Delta_n$
+\item $(\Delta_c \circ \Delta_n, e_c) \implies v$ states that $e_2$, the body of the function closure, evaluates to a value $v$ under the environment of the function closure, $\Delta_c$ composed with the new bindings $\Delta_n$, which result from matching the value of the argument $v$ against the pattern $p_c$. The entire expression evalutes to $v$.
+
+\end{enumerate}
+\section{Static Semantics}
 
 \end{document}
