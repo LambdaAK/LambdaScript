@@ -114,7 +114,10 @@ OUTPUT LambdaScript.pdf
 INPUT /Users/alex/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/cm/cmr12.tfm
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/cm/cmbx12.tfm
-INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/cm/cmbx12.tfm
+INPUT ./LambdaScript.toc
+INPUT LambdaScript.toc
+INPUT LambdaScript.toc
+INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/cm/cmbx10.tfm
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/cmextra/cmex7.tfm
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/cmextra/cmex7.tfm
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/symbols/msam10.tfm
@@ -123,12 +126,13 @@ INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/symbols/m
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/symbols/msbm10.tfm
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/symbols/msbm7.tfm
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/symbols/msbm5.tfm
+OUTPUT LambdaScript.toc
+INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/cm/cmbx12.tfm
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/cm/cmti10.tfm
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/tex/latex/base/omscmr.fd
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/tex/latex/base/omscmr.fd
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/tex/latex/base/omscmr.fd
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/tex/latex/base/omscmr.fd
-INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/cm/cmbx10.tfm
 INPUT LambdaScript.aux
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb

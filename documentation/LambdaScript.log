@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  15 JUL 2023 21:23
+This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  15 JUL 2023 22:01
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -69,59 +69,68 @@ File: l3backend-pdftex.def 2023-01-16 L3 backend support: PDF output (pdfTeX)
 ) (./LambdaScript.aux)
 \openout1 = `LambdaScript.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 10.
-LaTeX Font Info:    ... okay on input line 10.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 10.
-LaTeX Font Info:    ... okay on input line 10.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 10.
-LaTeX Font Info:    ... okay on input line 10.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 10.
-LaTeX Font Info:    ... okay on input line 10.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 10.
-LaTeX Font Info:    ... okay on input line 10.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 10.
-LaTeX Font Info:    ... okay on input line 10.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 10.
-LaTeX Font Info:    ... okay on input line 10.
-LaTeX Font Info:    Trying to load font information for U+msa on input line 16.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 11.
+LaTeX Font Info:    ... okay on input line 11.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 11.
+LaTeX Font Info:    ... okay on input line 11.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 11.
+LaTeX Font Info:    ... okay on input line 11.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 11.
+LaTeX Font Info:    ... okay on input line 11.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 11.
+LaTeX Font Info:    ... okay on input line 11.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 11.
+LaTeX Font Info:    ... okay on input line 11.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 11.
+LaTeX Font Info:    ... okay on input line 11.
+LaTeX Font Info:    Trying to load font information for U+msa on input line 17.
  (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 16.
+LaTeX Font Info:    Trying to load font information for U+msb on input line 17.
  (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 ) [1
 
-{/Users/alex/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}]
-Overfull \hbox (86.22643pt too wide) in paragraph at lines 23--53
+{/Users/alex/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}] (./LambdaScript.toc)
+\tf@toc=\write3
+\openout3 = `LambdaScript.toc'.
+
+ [1]
+Underfull \hbox (badness 10000) in paragraph at lines 39--40
+[]$\OMS/cmsy/m/n/10 ^^H$ $2$ $f\OT1/cmr/m/n/10 +\OML/cmm/m/it/10 ; \OMS/cmsy/m/n/10 ^^@\OML/cmm/m/it/10 ; \OMS/cmsy/m/n/10 ^^C\OML/cmm/m/it/10 ; =; \OT1/cmr/m/n/10 %\OML/cmm/m/it/10 ; <; >; <\OT1/cmr/m/n/10 =
+ []
+
+
+Overfull \hbox (17.22221pt too wide) in paragraph at lines 27--57
 [][] [] 
  []
 
-LaTeX Font Info:    Trying to load font information for OMS+cmr on input line 61.
+LaTeX Font Info:    Trying to load font information for OMS+cmr on input line 65.
 (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/base/omscmr.fd
 File: omscmr.fd 2022/07/10 v2.5l Standard LaTeX font definitions
 )
 LaTeX Font Info:    Font shape `OMS/cmr/m/n' in size <10> not available
-(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 61.
-
-Overfull \hbox (2.22221pt too wide) in paragraph at lines 179--213
+(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 65.
+ [2]
+Overfull \hbox (2.22221pt too wide) in paragraph at lines 189--221
 [] [] 
  []
 
-[1] [2] (./LambdaScript.aux) ) 
+[3] (./LambdaScript.aux) ) 
 Here is how much of TeX's memory you used:
- 1521 strings out of 478051
- 23066 string characters out of 5840003
- 1862330 words of memory out of 5000000
- 21672 multiletter control sequences out of 15000+600000
+ 1527 strings out of 478051
+ 23154 string characters out of 5840003
+ 1861330 words of memory out of 5000000
+ 21675 multiletter control sequences out of 15000+600000
  520496 words of font info for 64 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 34i,6n,47p,229b,259s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 34i,6n,47p,243b,257s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
-Output written on LambdaScript.pdf (3 pages, 126879 bytes).
+Output written on LambdaScript.pdf (4 pages, 133434 bytes).
 PDF statistics:
- 74 PDF objects out of 1000 (max. 8388607)
- 44 compressed objects within 1 object stream
+ 77 PDF objects out of 1000 (max. 8388607)
+ 46 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 

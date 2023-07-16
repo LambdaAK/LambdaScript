@@ -1,6 +1,6 @@
 # Fdb version 4
-["pdflatex"] 1689470590 "/Users/alex/Desktop/lambdascript revert 2/LambdaScript/documentation/LambdaScript.tex" "LambdaScript.pdf" "LambdaScript" 1689470590 0
-  "/Users/alex/Desktop/lambdascript revert 2/LambdaScript/documentation/LambdaScript.tex" 1689470589 2791 8969b14bf742dd698e2688e4f0196442 ""
+["pdflatex"] 1689472897 "/Users/alex/Desktop/lambdascript revert 2/LambdaScript/documentation/LambdaScript.tex" "LambdaScript.pdf" "LambdaScript" 1689472898 0
+  "/Users/alex/Desktop/lambdascript revert 2/LambdaScript/documentation/LambdaScript.tex" 1689472897 3975 441ba85d577c2e57c909ec7fad238f5a ""
   "/Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/cmextra/cmex7.tfm" 1246382020 1004 54797486969f23fa377b128694d548df ""
   "/Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/cmextra/cmex8.tfm" 1246382020 988 bdf658c3bfc2d96d3c8b02cfc1c94c20 ""
   "/Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/symbols/msam10.tfm" 1246382020 916 f87d7c45f9c908e672703b83b72241a3 ""
@@ -52,10 +52,12 @@
   "/Users/alex/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1674703214 92935 ab22f987f93038b61e05dc32d7c07157 ""
   "/Users/alex/Library/TinyTeX/texmf-var/web2c/pdftex/pdflatex.fmt" 1674703236 6475598 9680a4c56334054d8adac853d56da40d ""
   "/Users/alex/Library/TinyTeX/texmf.cnf" 1674703119 637 edd806fb06a89761a6034e1968af9017 ""
-  "LambdaScript.aux" 1689470590 32 ab05033ccbb38b00a31b200ccedf8001 "pdflatex"
-  "LambdaScript.tex" 1689470589 2791 8969b14bf742dd698e2688e4f0196442 ""
+  "LambdaScript.aux" 1689472898 634 929f65ab5d527a64bafc99ae3f65ea02 "pdflatex"
+  "LambdaScript.tex" 1689472897 3975 441ba85d577c2e57c909ec7fad238f5a ""
+  "LambdaScript.toc" 1689472898 356 c5ab205163f0f65d4b23f81ec9c1a521 "pdflatex"
   (generated)
   "LambdaScript.aux"
   "LambdaScript.log"
   "LambdaScript.pdf"
+  "LambdaScript.toc"
   (rewritten before read)

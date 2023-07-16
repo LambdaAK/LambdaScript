@@ -5,6 +5,7 @@
 
 
 
+
 \title{LambdaScript Syntax and Semantics}
 \author{Alex Kozik}
 \begin{document}
@@ -14,13 +15,16 @@
 
 
 \maketitle
-\section*{Syntax}
+\tableofcontents
+\newpage
 
-\subsection*{Metavariables}
+\section{Syntax}
+
+\subsection{Metavariables}
 
 Below is a list of meta-variables for different fundamental langauge constructs
 
-\begin{minipage}[t]{0.6\textwidth}
+\begin{minipage}[t]{0.4\textwidth}
 
 
 
@@ -50,7 +54,7 @@ Binary operator
 Unary operator
 
 \end{minipage}
-\subsection*{Expressions}
+\subsection{Expressions}
 
 \begin{minipage}[t]{0.6\textwidth}
 
@@ -131,7 +135,7 @@ Unary operator
 
 
 
-\subsection*{Patterns}
+\subsection{Patterns}
 \begin{minipage}[t]{0.5\textwidth}
 \begin{grammar}
 
@@ -155,9 +159,9 @@ Unary operator
  
 \end{minipage}
 \begin{minipage}[t]{0.3\textwidth}
-Wildcard pattern
+Wildcard pattern*
 
-Identifier pattern
+Identifier pattern**
 
 Nothing pattern
 
@@ -171,14 +175,18 @@ Vector pattern
 
 Nil pattern
 
-Cons pattern
+Cons pattern***
 
 \end{minipage}
-\subsection*{Values}
+
+* The wildcard pattern matches any value
+
+** The identifier pattern matches any value and produces a binding to it
+
+*** The cons pattern matches a non empty list, but only $p_1$ matches the head of the list and $p_2$ matches the remainder of the list
+\subsection{Values}
 
 \begin{minipage}[t]{0.5\textwidth}
-
-
 
 
 \begin{grammar}
@@ -210,5 +218,56 @@ Cons pattern
   Function Closure
 
 \end{minipage}
+
+\subsection{Types}
+\begin{minipage}[t]{0.5\textwidth}
+\begin{grammar}
+<t> ::= int
+\alt bool
+\alt str
+\alt ng
+\alt $t_i$
+\alt $t_1 \rightarrow t_2$
+\alt [\space $t$\space ]
+\alt ($t_1$, $t_2$, ..., $t_n$)
+\alt ( $t$ )
+\end{grammar}
+\end{minipage}%
+\begin{minipage}[t]{0.5\textwidth}
+  Integer type
+
+  Boolean type
+
+  String type
+
+  Nothing type
+
+  Type variable
+
+  Function type*
+
+  List type
+
+  Vector type
+
+  Parenthesized type*
+  \end{minipage}%
+
+\vspace{0.25in}
+* The function type operator $\rightarrow$ associates to the right
+
+For example, the type $t_1 \rightarrow t_2 \rightarrow t_3$ is parsed as $t_1 \rightarrow (t_2 \rightarrow t_3)$
+
+Parentheses are the highest precedence operator in the type grammar, and they can be used to counter act this.
+
+For example
+
+\begin{center}
+
+fn f $\rightarrow$ fn x $\rightarrow$ f x : $(t_1 \rightarrow t_2) \rightarrow t_1 \rightarrow t_2$
+
+\end{center}
+
 \end{document}
+
 
