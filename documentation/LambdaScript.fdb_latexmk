@@ -1,6 +1,7 @@
 # Fdb version 4
-["pdflatex"] 1689472897 "/Users/alex/Desktop/lambdascript revert 2/LambdaScript/documentation/LambdaScript.tex" "LambdaScript.pdf" "LambdaScript" 1689472898 0
-  "/Users/alex/Desktop/lambdascript revert 2/LambdaScript/documentation/LambdaScript.tex" 1689472897 3975 441ba85d577c2e57c909ec7fad238f5a ""
+["pdflatex"] 1689479907 "/Users/alex/Desktop/lambdascript revert 2/LambdaScript/documentation/LambdaScript.tex" "LambdaScript.pdf" "LambdaScript" 1689479908 0
+  "/Users/alex/Desktop/lambdascript revert 2/LambdaScript/documentation/LambdaScript.tex" 1689479907 6049 3e748dc650b3a7067c2d946cfcf5137a ""
+  "/Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/jknappen/ec/tcrm1000.tfm" 1136768653 1536 e07581a4bb3136ece9eeb4c3ffab8233 ""
   "/Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/cmextra/cmex7.tfm" 1246382020 1004 54797486969f23fa377b128694d548df ""
   "/Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/cmextra/cmex8.tfm" 1246382020 988 bdf658c3bfc2d96d3c8b02cfc1c94c20 ""
   "/Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/public/amsfonts/symbols/msam10.tfm" 1246382020 916 f87d7c45f9c908e672703b83b72241a3 ""
@@ -50,11 +51,12 @@
   "/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/xcolor/xcolor.sty" 1655066402 56148 51a9a8571c07b9921892ae11063ae853 ""
   "/Users/alex/Library/TinyTeX/texmf-dist/web2c/texmf.cnf" 1646502317 40171 cdab547de63d26590bebb3baff566530 ""
   "/Users/alex/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1674703214 92935 ab22f987f93038b61e05dc32d7c07157 ""
+  "/Users/alex/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1000.600pk" 1689477992 11524 3c9619090dbaa3b48844b370cc8cbaa6 ""
   "/Users/alex/Library/TinyTeX/texmf-var/web2c/pdftex/pdflatex.fmt" 1674703236 6475598 9680a4c56334054d8adac853d56da40d ""
   "/Users/alex/Library/TinyTeX/texmf.cnf" 1674703119 637 edd806fb06a89761a6034e1968af9017 ""
-  "LambdaScript.aux" 1689472898 634 929f65ab5d527a64bafc99ae3f65ea02 "pdflatex"
-  "LambdaScript.tex" 1689472897 3975 441ba85d577c2e57c909ec7fad238f5a ""
-  "LambdaScript.toc" 1689472898 356 c5ab205163f0f65d4b23f81ec9c1a521 "pdflatex"
+  "LambdaScript.aux" 1689479908 1608 677d58b363907355719ed26009715daf "pdflatex"
+  "LambdaScript.tex" 1689479907 6049 3e748dc650b3a7067c2d946cfcf5137a ""
+  "LambdaScript.toc" 1689479908 961 367c52b9a953d48c56097dc0c7d38e88 "pdflatex"
   (generated)
   "LambdaScript.aux"
   "LambdaScript.log"

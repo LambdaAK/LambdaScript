@@ -133,7 +133,9 @@ INPUT /Users/alex/Library/TinyTeX/texmf-dist/tex/latex/base/omscmr.fd
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/tex/latex/base/omscmr.fd
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/tex/latex/base/omscmr.fd
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/tex/latex/base/omscmr.fd
+INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/tfm/jknappen/ec/tcrm1000.tfm
 INPUT LambdaScript.aux
+INPUT /Users/alex/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1000.600pk
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb
 INPUT /Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb

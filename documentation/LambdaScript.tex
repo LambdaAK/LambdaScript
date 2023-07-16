@@ -121,20 +121,6 @@ Unary operator
 \end{minipage}
 
 
-
-
-
-
-  
-
-
-
-
-
-
-
-
-
 \subsection{Patterns}
 \begin{minipage}[t]{0.5\textwidth}
 \begin{grammar}
@@ -268,6 +254,75 @@ fn f $\rightarrow$ fn x $\rightarrow$ f x : $(t_1 \rightarrow t_2) \rightarrow t
 
 \end{center}
 
+
+
+\newpage
+\section{Dynamic Semantics}
+
+In order to discuss the dynamic semantics of the programming language, we first need to
+define a few things.
+
+
+\subsection{Dynamic Environment}
+LambdaScript uses an environment model to make substitutions in function bodies. The environment is an object defined as follows
+$$\Delta \in Var  \rightarrow Value$$
+
+
+It is essentally a function from a set of variable identifiers to a set of values. Note that it is a partial function because its domain will be a subset of $Var$
+\begin{itemize}
+\item $\Delta (x)$ represents the value $x$ maps to in environment $\Delta$
+\item $\{\}$ is the empty environment
+\item $\Delta [x \rightarrow v]$ represents the environment where $\Delta (y) = v$ if $y = x$, and $\Delta (y)$ otherwise
+\item $D(\Delta)$ is the domain of $\Delta$
+\end{itemize}
+
+\subsection{Evaluation Relation}
+
+The evaluation relation is what describes how an expression is evaluated to a value under a certain environment
+
+Define it as follows
+
+$$(\Delta, e) \Rightarrow v$$
+
+It means the following: Under environment $\Delta$, expression $e$ evaluates to value $v$
+
+\subsection{The Dynamic Semantics}
+
+\subsubsection{Value}
+
+$$(\Delta, v) \Rightarrow v$$
+
+A value always evaluates to itself
+
+\subsubsection{Variable Identifiers}
+$$(\Delta, x) \Rightarrow \Delta (x)$$
+
+To evaluate an identifier $x$, it is simply looked up in the environment $\Delta$
+
+\subsubsection{Vector}
+
+$$(\Delta, (e_1, e_2, ..., e_n)) \Rightarrow (v_1, v_2, ..., v_n)$$
+
+\noindent\makebox[\linewidth]{\rule{2.1in}{0.4pt}}
+$$(\Delta, e_1) \Rightarrow v_1$$
+$$(\Delta, e_2) \Rightarrow v_2$$
+$$\dots$$
+$$(\Delta, e_n) \Rightarrow v_n$$
+
+
+To evaluate a vector, evaluate each sub expression, then construct a new vector with the values
+
+\subsubsection{Cons}
+
+$$(\Delta, e_1 :: e_2) \Rightarrow v_1 :: v_2$$
+\noindent\makebox[\linewidth]{\rule{1.4in}{0.4pt}}
+$$(\Delta, e_1) \Rightarrow v_1$$
+$$(\Delta, e_2) \Rightarrow v_2$$
+
+To evaluate a cons expression, evaluate the two operands, then return the first argument prepended to the second
+
+
+
+\section{Static Semantics}
+
 \end{document}
-
-
