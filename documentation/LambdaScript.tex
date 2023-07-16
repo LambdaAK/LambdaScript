@@ -1,15 +1,15 @@
 \documentclass[titlepage]{article}
 \usepackage{syntax}
 \usepackage{amsfonts}
+\usepackage{amsmath}
 \usepackage[dvipsnames]{xcolor}
-
 
 
 
 \title{LambdaScript Syntax and Semantics}
 \author{Alex Kozik}
 \begin{document}
-
+\large
 \newcommand{\desc}[1]{\textit{\textcolor{Aquamarine}{#1}}}
 
 
@@ -274,6 +274,7 @@ It is essentally a function from a set of variable identifiers to a set of value
 \item $\{\}$ is the empty environment
 \item $\Delta [x \rightarrow v]$ represents the environment where $\Delta (y) = v$ if $y = x$, and $\Delta (y)$ otherwise
 \item $D(\Delta)$ is the domain of $\Delta$
+\item $\Delta_1 \circ \Delta_2$ represents the environment $\Delta$ where $\forall y \in D(\Delta_2)$, $\Delta(y) = \Delta_2(y)$, $\forall y \in D(\Delta_1) - D(\Delta_2)$, $\Delta(y) = \Delta_1(y)$. Otherwise, $\Delta(y)$ is not defined.
 \end{itemize}
 
 \subsection{Evaluation Relation}
@@ -286,7 +287,7 @@ $$(\Delta, e) \Rightarrow v$$
 
 It means the following: Under environment $\Delta$, expression $e$ evaluates to value $v$
 
-\subsection{The Dynamic Semantics}
+\subsection{Basic Dynamic Semantics}
 
 \subsubsection{Value}
 
@@ -321,8 +322,159 @@ $$(\Delta, e_2) \Rightarrow v_2$$
 
 To evaluate a cons expression, evaluate the two operands, then return the first argument prepended to the second
 
+\subsection{Switch Statement Semantics}
 
+A switch statement uses an expression, call it $e_0$ and a list of branches. Each branch consists of a pattern and a body.
+
+First, $e_0$ is evaluted to a value $v_0$ using the current environment $\Delta$
+
+Starting from the first branch, $v_0$ is compared to its pattern. If it matches, certain bindings are produced, which are used to evaluate its body. That value is then returned.
+
+This process of comparing $v_0$ to the pattern of a branch continues until a match is made.
+
+
+
+\subsubsection{Pattern Matching Relation}
+
+In order to model a value matching some pattern, and producing some bindings, we will use the following relation
+
+$$v \in p \rightarrow \Delta$$
+
+This can be read as "value $v$ matches pattern $p$ and produces bindings $\Delta$"
+
+We will also use the following relation
+
+$$v \notin p$$
+
+This can be read as "value $v$ does not patch pattern $p$"
+
+Below are the semantics for each pattern
+
+\vspace{1in}
+
+\begin{center}
+
+Wildcard
+
+\end{center}
+
+
+$$v \in \_ \rightarrow \{\}$$
+
+
+\begin{center}
+
+Variable Identifier
+  
+\end{center}
+  
+  
+$$v \in x \rightarrow \{\}[x \rightarrow v]$$
+
+
+\begin{center}
+
+Nothing
+
+\end{center}
+
+
+$$() \in () \rightarrow \{\}$$
+
+
+\begin{center}
+
+Boolean
+
+\end{center}
+
+
+$$b \in b \rightarrow \{\}$$
+
+\begin{center}
+
+Integer
+
+\end{center}
+
+
+$$i \in i \rightarrow \{\}$$
+
+
+\begin{center}
+
+String
+
+\end{center}
+
+
+$$s \in s \rightarrow \{\}$$
+
+\begin{center}
+
+Nil / Empty List
+
+\end{center}
+
+
+$$[] \in [] \rightarrow \{\}$$
+
+
+
+\begin{center}
+
+Vector
+
+\end{center}
+
+
+$$(v_1, v_2, ..., v_n) \in (p_1, p_2, ..., p_n) \rightarrow \Delta_1 \circ \Delta _2 \circ ... \circ ... \Delta_n$$
+\noindent\makebox[\linewidth]{\rule{3.65in}{0.4pt}}
+$$v_1 \in p_1 \rightarrow \Delta_1$$
+$$v_2 \in p_2 \rightarrow \Delta_2$$
+$$\dots$$
+$$v_n \in p_n \rightarrow \Delta_n$$
+
+
+\begin{center}
+
+Cons
+
+\end{center}
+
+
+$$v_1 :: v_2 \in p_1 :: p_2 \rightarrow \Delta_1 \circ \Delta_2$$
+\noindent\makebox[\linewidth]{\rule{2in}{0.4pt}}
+$$v_1 \in p_1 \rightarrow \Delta_1$$
+$$v_2 \in p_2 \rightarrow \Delta_2$$
+
+
+
+\subsubsection{The Semantics of Switch}
+
+$$(\Delta, \text{switch e} => | p_1 \rightarrow e_1 ... | p_n \rightarrow e_n \text{ end}) \implies v'$$
+\noindent\makebox[\linewidth]{\rule{3in}{0.4pt}}
+$$(\Delta, e) \implies v$$
+$$v \notin p_i \text{ for } i < m$$
+$$v \in p_m \rightarrow \Delta_m \text{ where } 1 \leq m \leq n$$
+$$(\Delta \circ \Delta_m, e_j) \implies v'$$
+
+
+Let's go through those statements one by one
+
+\begin{enumerate}
+
+\item $(\Delta, e) \implies v$ shows that $e$ evalutes to $v$ under environment $\Delta$
+
+\item $v \notin p_i \text{ for } i < m$ shows that $v$ doesn't match the first $m - 1$ patterns
+
+\item $v \notin p_i \text{ for } i < m$ shows that $v$ matches the $m^ \text{th}$ pattern and produces bindings $\Delta_m$
+
+\item $(\Delta \circ \Delta_m, e_m) \implies v'$ shows that the body of the $m ^ \text{th}$ branch evaluates to a value $v'$ under the external environment $\Delta$ composed with the new bindings $\Delta_m$. $v'$ is what the entire switch expression evaluates to.
+
+\end{enumerate}
 
 \section{Static Semantics}
+
 
 \end{document}

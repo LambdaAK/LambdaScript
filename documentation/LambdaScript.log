@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  15 JUL 2023 23:58
+This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  16 JUL 2023 02:38
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -42,6 +42,70 @@ Package: amsfonts 2013/01/14 v3.01 Basic AMSFonts support
 LaTeX Font Info:    Redeclaring math symbol \hbar on input line 98.
 LaTeX Font Info:    Overwriting math alphabet `\mathfrak' in version `bold'
 (Font)                  U/euf/m/n --> U/euf/b/n on input line 106.
+) (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsmath.sty
+Package: amsmath 2022/04/08 v2.17n AMS math features
+\@mathmargin=\skip56
+
+For additional information on amsmath, use the `?' option.
+(/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amstext.sty
+Package: amstext 2021/08/26 v2.01 AMS text
+ (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsgen.sty
+File: amsgen.sty 1999/11/30 v2.0 generic functions
+\@emptytoks=\toks17
+\ex@=\dimen145
+)) (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsbsy.sty
+Package: amsbsy 1999/11/29 v1.2d Bold Symbols
+\pmbraise@=\dimen146
+) (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsopn.sty
+Package: amsopn 2022/04/08 v2.04 operator names
+)
+\inf@bad=\count193
+LaTeX Info: Redefining \frac on input line 234.
+\uproot@=\count194
+\leftroot@=\count195
+LaTeX Info: Redefining \overline on input line 399.
+LaTeX Info: Redefining \colon on input line 410.
+\classnum@=\count196
+\DOTSCASE@=\count197
+LaTeX Info: Redefining \ldots on input line 496.
+LaTeX Info: Redefining \dots on input line 499.
+LaTeX Info: Redefining \cdots on input line 620.
+\Mathstrutbox@=\box51
+\strutbox@=\box52
+LaTeX Info: Redefining \big on input line 722.
+LaTeX Info: Redefining \Big on input line 723.
+LaTeX Info: Redefining \bigg on input line 724.
+LaTeX Info: Redefining \Bigg on input line 725.
+\big@size=\dimen147
+LaTeX Font Info:    Redeclaring font encoding OML on input line 743.
+LaTeX Font Info:    Redeclaring font encoding OMS on input line 744.
+\macc@depth=\count198
+LaTeX Info: Redefining \bmod on input line 905.
+LaTeX Info: Redefining \pmod on input line 910.
+LaTeX Info: Redefining \smash on input line 940.
+LaTeX Info: Redefining \relbar on input line 970.
+LaTeX Info: Redefining \Relbar on input line 971.
+\c@MaxMatrixCols=\count199
+\dotsspace@=\muskip16
+\c@parentequation=\count266
+\dspbrk@lvl=\count267
+\tag@help=\toks18
+\row@=\count268
+\column@=\count269
+\maxfields@=\count270
+\andhelp@=\toks19
+\eqnshift@=\dimen148
+\alignsep@=\dimen149
+\tagshift@=\dimen150
+\tagwidth@=\dimen151
+\totwidth@=\dimen152
+\lineht@=\dimen153
+\@envbody=\toks20
+\multlinegap=\skip57
+\multlinetaggap=\skip58
+\mathdisplay@stack=\toks21
+LaTeX Info: Redefining \[ on input line 2953.
+LaTeX Info: Redefining \] on input line 2954.
 ) (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/xcolor/xcolor.sty
 Package: xcolor 2022/06/12 v2.14 LaTeX color extensions (UK)
  (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/graphics-cfg/color.cfg
@@ -64,8 +128,8 @@ Package xcolor Info: Model `wave' substituted by `hsb' on input line 1376.
 File: dvipsnam.def 2016/06/17 v3.0m Driver-dependent file (DPC,SPQR)
 )) (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
 File: l3backend-pdftex.def 2023-01-16 L3 backend support: PDF output (pdfTeX)
-\l__color_backend_stack_int=\count193
-\l__pdf_internal_box=\box51
+\l__color_backend_stack_int=\count271
+\l__pdf_internal_box=\box53
 ) (./LambdaScript.aux)
 \openout1 = `LambdaScript.aux'.
 
@@ -97,12 +161,12 @@ File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 \openout3 = `LambdaScript.toc'.
 
  [1]
-Underfull \hbox (badness 10000) in paragraph at lines 39--40
-[]$\OMS/cmsy/m/n/10 ^^H$ $2$ $f\OT1/cmr/m/n/10 +\OML/cmm/m/it/10 ; \OMS/cmsy/m/n/10 ^^@\OML/cmm/m/it/10 ; \OMS/cmsy/m/n/10 ^^C\OML/cmm/m/it/10 ; =; \OT1/cmr/m/n/10 %\OML/cmm/m/it/10 ; <; >; <\OT1/cmr/m/n/10 =
+Underfull \hbox (badness 7925) in paragraph at lines 39--40
+[]$\OMS/cmsy/m/n/12 ^^H$ $2$ $f\OT1/cmr/m/n/12 +\OML/cmm/m/it/12 ; \OMS/cmsy/m/n/12 ^^@\OML/cmm/m/it/12 ; \OMS/cmsy/m/n/12 ^^C\OML/cmm/m/it/12 ; =; \OT1/cmr/m/n/12 %\OML/cmm/m/it/12 ; <; >
  []
 
 
-Overfull \hbox (17.22221pt too wide) in paragraph at lines 27--57
+Overfull \hbox (17.61108pt too wide) in paragraph at lines 27--57
 [][] [] 
  []
 
@@ -110,27 +174,52 @@ LaTeX Font Info:    Trying to load font information for OMS+cmr on input line 65
 (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/base/omscmr.fd
 File: omscmr.fd 2022/07/10 v2.5l Standard LaTeX font definitions
 )
-LaTeX Font Info:    Font shape `OMS/cmr/m/n' in size <10> not available
+LaTeX Font Info:    Font shape `OMS/cmr/m/n' in size <12> not available
 (Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 65.
- [2]
-Overfull \hbox (2.22221pt too wide) in paragraph at lines 175--207
+
+Underfull \hbox (badness 10000) in paragraph at lines 104--105
+[]\OT1/cmr/m/n/12 Cons (nonempty
+ []
+
+
+Underfull \hbox (badness 7595) in paragraph at lines 112--113
+[]\OT1/cmr/m/n/12 Recursive func-tion
+ []
+
+
+Underfull \hbox (badness 7595) in paragraph at lines 114--115
+[]\OT1/cmr/m/n/12 Recursive func-tion
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 116--117
+[]\OT1/cmr/m/n/12 Function ap-pli-ca-
+ []
+
+[2]
+Overfull \hbox (2.61108pt too wide) in paragraph at lines 175--207
 [] [] 
  []
 
-[3] [4] [5] (./LambdaScript.aux) ) 
+[3] [4] [5]
+Overfull \hbox (4.10909pt too wide) in paragraph at lines 327--328
+\OT1/cmr/m/n/12 A switch state-ment uses an ex-pres-sion, call it $\OML/cmm/m/it/12 e[]$ \OT1/cmr/m/n/12 and a list of branches.
+ []
+
+[6] [7] [8] [9] (./LambdaScript.aux) ) 
 Here is how much of TeX's memory you used:
- 1530 strings out of 478051
- 23190 string characters out of 5840003
- 1861330 words of memory out of 5000000
- 21677 multiletter control sequences out of 15000+600000
- 520831 words of font info for 65 fonts, out of 8000000 for 9000
+ 2231 strings out of 478051
+ 32606 string characters out of 5840003
+ 1860330 words of memory out of 5000000
+ 22364 multiletter control sequences out of 15000+600000
+ 519135 words of font info for 57 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 34i,6n,47p,271b,257s stack positions out of 10000i,1000n,20000p,200000b,200000s
- </Users/alex/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1000.600pk></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
-Output written on LambdaScript.pdf (6 pages, 141356 bytes).
+ 56i,8n,62p,372b,261s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ </Users/alex/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1200.600pk></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
+Output written on LambdaScript.pdf (10 pages, 148543 bytes).
 PDF statistics:
- 88 PDF objects out of 1000 (max. 8388607)
- 54 compressed objects within 1 object stream
+ 102 PDF objects out of 1000 (max. 8388607)
+ 64 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 
