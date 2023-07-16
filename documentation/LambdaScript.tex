@@ -1,0 +1,214 @@
+\documentclass[titlepage]{article}
+\usepackage{syntax}
+\usepackage{amsfonts}
+\usepackage[dvipsnames]{xcolor}
+
+
+
+\title{LambdaScript Syntax and Semantics}
+\author{Alex Kozik}
+\begin{document}
+
+\newcommand{\desc}[1]{\textit{\textcolor{Aquamarine}{#1}}}
+
+
+
+\maketitle
+\section*{Syntax}
+
+\subsection*{Metavariables}
+
+Below is a list of meta-variables for different fundamental langauge constructs
+
+\begin{minipage}[t]{0.6\textwidth}
+
+
+
+$x \in  Var$
+
+$b \in \{true, false\}$
+
+$n \in \mathbb{N}$
+
+$s \in \Sigma ^ *$
+
+$\oplus$ $\in$ $\{+, -, *, /, \%, <, >, <=, >=, ==, !=\}$
+
+
+\end{minipage}
+\begin{minipage}[t]{0.6\textwidth}
+Variable indentifier
+
+Boolean
+
+Natural number
+
+String
+
+Binary operator
+
+Unary operator
+
+\end{minipage}
+\subsection*{Expressions}
+
+\begin{minipage}[t]{0.6\textwidth}
+
+  \begin{grammar}
+
+
+    <e> ::= n 
+    \alt b 
+    \alt s 
+    \alt () 
+    \alt x
+    \alt $e_1 \oplus e_2$
+    \alt ($e_1$, $e_2$, ..., $e_n$)
+    \alt [\space]
+    \alt $e_1$ :: $e_2$
+    \alt \textbf{fn} $p$ $\rightarrow$ $e$
+    \alt \textbf{bind} p $\leftarrow$ $e_1$ \textbf{in} $e_2$
+    \alt \textbf{bind} $p$ \space $p_1$ ... $p_n$ $\leftarrow$ $e_1$ \textbf{in} $e_2$
+    \alt \textbf{bind rec} $f$ $\leftarrow$ \textbf{fn} p $\rightarrow$ $e_1$ \textbf{in} $e_2$
+    \alt \textbf{bind rec} $f$ \space $p_1$ ... $p_n$ $\leftarrow$ $e_1$ in $e_2$
+    \alt $e_1$ \space $e_2$
+    \alt \textbf{if} $e_1$ \textbf{then} $e_2$ \textbf{else} $e_3$
+    \alt \textbf{switch} $e_0$ $=>$ | $p_1 \rightarrow e_1$ ... | $p_n \rightarrow e_n$ \textbf{end}
+    
+    
+    \end{grammar}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.3\textwidth}
+
+  Integer
+
+  Boolean
+
+  String
+
+  Nothing
+
+  Identifier
+
+  Binary Operation
+
+  Vector
+
+  Nil (empty list)
+
+  Cons (nonempty list)
+
+  Function
+
+  Bind expression
+
+  Bind expression
+
+  Recursive function bind
+
+  Recursive function bind
+
+  Function application
+
+  Ternary expressions
+
+  Switch expression
+\end{minipage}
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+\subsection*{Patterns}
+\begin{minipage}[t]{0.5\textwidth}
+\begin{grammar}
+
+
+
+<p> ::= _
+\alt x
+\alt ()
+\alt b
+\alt n
+\alt s
+\alt ($p_1$, $p_2$, ..., $p_n$)
+\alt [\space]
+\alt $p_1$ :: $p_2$
+
+\end{grammar}
+\newpage
+
+
+
+ 
+\end{minipage}
+\begin{minipage}[t]{0.3\textwidth}
+Wildcard pattern
+
+Identifier pattern
+
+Nothing pattern
+
+Boolean pattern
+
+Integer pattern
+
+String pattern
+
+Vector pattern
+
+Nil pattern
+
+Cons pattern
+
+\end{minipage}
+\subsection*{Values}
+
+\begin{minipage}[t]{0.5\textwidth}
+
+
+
+
+\begin{grammar}
+
+  <v> ::= n
+  \alt s
+  \alt b
+  \alt ()
+  \alt [\space ]
+  \alt $v_1$ :: $v_2$
+  \alt ($\Delta$, p, e)
+  
+  
+  \end{grammar} 
+\end{minipage}
+\begin{minipage}[t]{0.5\textwidth}
+  Integer value
+
+  String value
+
+  Boolean value
+
+  Nothing value
+
+  Nil value
+
+  Cons value
+
+  Function Closure
+
+\end{minipage}
+\end{document}
+
