@@ -17,4 +17,5 @@
 \contentsline {subsection}{\numberline {2.6}Ternary Expression}{9}{}%
 \contentsline {subsection}{\numberline {2.7}Function}{9}{}%
 \contentsline {subsection}{\numberline {2.8}Function Application}{9}{}%
-\contentsline {section}{\numberline {3}Static Semantics}{10}{}%
+\contentsline {subsection}{\numberline {2.9}Bind Expression}{10}{}%
+\contentsline {section}{\numberline {3}Static Semantics}{11}{}%

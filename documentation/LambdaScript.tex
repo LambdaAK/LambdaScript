@@ -501,7 +501,7 @@ $$(\Delta, e_1 \text{ } e_2) \implies v$$
 
 $$(\Delta, e_1) \implies (\Delta_c, p_c, e_c)$$
 $$(\Delta, e_2) \implies v_2$$
-$$v_2 \in p_c \implies \Delta_n$$
+$$v_2 \in p_c \rightarrow \Delta_n$$
 $$(\Delta_c \circ \Delta_n, e_c) \implies v$$
 
 Let's go through these statements one by one
@@ -510,9 +510,53 @@ Let's go through these statements one by one
 \item $(\Delta, e_1) \implies (\Delta_c, p_c, e_c)$ states that $e_1$ evaluates to a function closure. This is crucial because if $e_1$ is not a function closure, it cannot be applied.
 \item $(\Delta, e_2) \implies v_n$ states that $e_2$, the argument, evaluates to a value $v_2$
 \item $v_2 \in p_c \implies \Delta_2$ states that $v_2$, the value of the argument, matches the pattern of the function closure $p_c$ and produces bindings $\Delta_n$
-\item $(\Delta_c \circ \Delta_n, e_c) \implies v$ states that $e_2$, the body of the function closure, evaluates to a value $v$ under the environment of the function closure, $\Delta_c$ composed with the new bindings $\Delta_n$, which result from matching the value of the argument $v$ against the pattern $p_c$. The entire expression evalutes to $v$.
+\item $(\Delta_c \circ \Delta_n, e_c) \rightarrow v$ states that $e_2$, the body of the function closure, evaluates to a value $v$ under the environment of the function closure, $\Delta_c$ composed with the new bindings $\Delta_n$, which result from matching the value of the argument $v$ against the pattern $p_c$. The entire expression evalutes to $v$.
 
 \end{enumerate}
+
+\subsection{Bind Expression}
+A bind expression is just syntactic sugar for the application of an anonymous function to an argument
+
+$$\text{bind } p \leftarrow e_1 \text{ in } e_2$$
+
+Is equivalent to
+
+$$(\text{fn } p \rightarrow e_2) \text{ } e_1$$
+
+Bind expressions also have syntactic sugar for function arguments as follows
+
+$$\text{bind } p \text{ } x_1 \text{ } x_2 \text{ }... \text{ } x_n \leftarrow e_1 \text{ in } e_2$$
+
+Is equivalent to
+
+$$(\text{fn } p \rightarrow e_2) \text{ } (\text{fn } x_1 \rightarrow \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1)$$
+
+Consequently, the dyanmic semantics of the bind expression is already defined by the dynamic semantics of the function and function application
+
+Moreover, a recursive function can be defined as follows
+
+$$\text{bind rec } f \text{ } x_1 \text{ } x_2 \text{ }... \text{ } x_n \leftarrow e_1 \text{ in } e_2$$
+
+The only difference between this and the standard bind expression is the following rule:
+
+Suppose we have a recursive bind expression of the following form
+$$\text{bind rec } f \text{ } x_1 \text{ } x_2 \text{ }... \text{ } x_n \leftarrow e_1 \text{ in } e_2$$
+
+De-sugar that to yield the following
+
+$$\text{bind rec } f \leftarrow \text{ fn } x_1 \rightarrow \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1 \text{ in } e_2$$
+
+Now, evaluate the expression between $\leftarrow$ and "in", to a function closure subject to the following modification: the environment of the closure contains a binding to itself
+$$(\Delta_r, x_1, \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1)$$
+where
+$$\Delta_r(f) = (\Delta_r, x_1, \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1)$$
+
+The remainder of the dynamic semantics for the recursive bind expression is the same as for the standard bind expression
+
+
+
+
+
 \section{Static Semantics}
 
 \end{document}
