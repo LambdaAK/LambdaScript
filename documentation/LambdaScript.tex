@@ -446,7 +446,7 @@ $$(\Delta, e_1) \implies \text{true}$$
 $$(\Delta, e_2) \implies v$$
 \noindent\makebox[\linewidth]{\rule{3in}{0.4pt}}
 $$(\Delta, \text{if } e_1 \text{ then } e_2 \text{ else } e_3) \implies v$$
-\noindent\makebox[\linewidth]{\rule{2.2in}{0.4pt}}
+\noindent\makebox[\linewidth]{\rule{2.2in}{0.4pt}}bro
 $$(\Delta, e_1) \implies \text{false}$$
 $$(\Delta, e_3) \implies v$$
 
@@ -548,6 +548,106 @@ $$(\text{fn } f \rightarrow e_2) (\Delta_{\text{recursive}}, x_1, \text{ fn } x_
 
 This expression can now be further evaluated using the dynamic semantics regarding function application.
 
+\newpage
+
 \section{Static Semantics}
 
+\subsection{Static Environment}
+
+Similar to the dynamic environment, which represents mappings from identifiers to values, we can define a static environment, which represents mappings from identifiers to types.
+
+The static environment is defined as follows
+
+$$\Sigma \in Var \rightarrow Type$$
+
+It is a partial function from identifiers to types
+
+It has the following operations
+
+\begin{itemize}
+  \item $\Sigma (x)$ represents the type $x$ maps to in environment $\Sigma$
+  \item $\{\}$ is the empty environment
+  \item $\Sigma [x \rightarrow v]$ represents the environment where $\Sigma (y) = v$ if $y = x$, and $\Sigma (y)$ otherwise
+  \item $D(\Sigma)$ is the domain of $\Sigma$
+  \item $\Sigma_1 \circ \Sigma_2$ represents the environment $\Sigma$ where $\forall y \in D(\Sigma_2)$, $\Sigma(y) = \Sigma_2(y)$, $\forall y \in D(\Sigma_1) - D(\Sigma_2)$, $\Sigma(y) = \Sigma_1(y)$. Otherwise, $\Sigma(y)$ is not defined.
+  \end{itemize}
+
+\subsection{Type Equations}
+
+A type equation can be thought of intuitively as an equality between two types.
+
+Formally, a system of type equations is defined as follows.
+
+$$\mathcal{E} \in Type \times Type$$
+
+Mathematically, it is nothing more than a set of pairs, where each pair consists of two types that are thought to be equal.
+
+\begin{enumerate}
+\item The empty system is denoted $\{\}$
+\item The union of two systems is denoted $\mathcal{E}_1 \cup \mathcal{E}_2$
+
+\end{enumerate}
+
+\newpage
+
+\subsection{Type Relation}
+
+In order to discuss the relationships between the expressions of LambdaScript and the corresponding types, we must first define a type relation.
+
+The type relation is defined as follows
+
+$$\Sigma \rightarrow e : t \rightarrow \mathcal{E}$$
+
+It can be read as follows: "under static environment $\Sigma$, expression $e$ is of type $t$ and produces a set of type equations $\mathcal{E}$"
+
+\subsection{Type Inference of Patterns}
+
+
+
+
+
+\subsection{Type Inference of Basic Expressions}
+
+\subsubsection{Integer}
+
+$$\Sigma \rightarrow i : int \rightarrow \{\}$$
+
+\subsubsection{Boolean}
+
+$$\Sigma \rightarrow b : bool \rightarrow \{\}$$
+
+\subsubsection{String}
+
+$$\Sigma \rightarrow s : str \rightarrow \{\}$$
+
+\subsubsection{Nothing}
+
+$$\Sigma \rightarrow () : ng \rightarrow \{\}$$
+
+\subsubsection{Nil}
+
+$$\Sigma \rightarrow [ \text{ } ] : [\space t \space ] \rightarrow \{\}$$
+
+\newpage
+
+\subsubsection{Vector}
+
+$$\Sigma \rightarrow (e_1, e_2, \dots, e_n) : (t_1, t_2, \dots, t_n) \rightarrow \bigcup_{i = 1} ^ n \mathcal{E}_i$$
+\noindent\makebox[\linewidth]{\rule{3.15in}{0.4pt}}
+
+$$\Sigma \rightarrow e_1 : t_1 \rightarrow \mathcal{E}_1$$
+$$\Sigma \rightarrow e_2 : t_2 \rightarrow \mathcal{E}_2$$
+$$\dots$$
+$$\Sigma \rightarrow e_n : t_n \rightarrow \mathcal{E}_n$$
+
+\subsubsection{Cons}
+
+$$\Sigma \rightarrow e_1 :: e_2 : t_2 \rightarrow \{[t_1] = t_2\} \cup \mathcal{E}_1 \cup \mathcal{E}_2$$
+\noindent\makebox[\linewidth]{\rule{2.8in}{0.4pt}}
+$$\Sigma \rightarrow e_1 : t_1 \rightarrow \mathcal{E}_1$$
+$$\Sigma \rightarrow e_2 : t_2 \rightarrow \mathcal{E}_2$$
+
+
+
 \end{document}
+
