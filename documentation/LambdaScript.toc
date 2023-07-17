@@ -8,14 +8,25 @@
 \contentsline {subsection}{\numberline {2.1}Dynamic Environment}{5}{}%
 \contentsline {subsection}{\numberline {2.2}Evaluation Relation}{5}{}%
 \contentsline {subsection}{\numberline {2.3}Pattern Matching Relation}{5}{}%
-\contentsline {subsection}{\numberline {2.4}Basic Dynamic Semantics}{7}{}%
-\contentsline {subsubsection}{\numberline {2.4.1}Value}{7}{}%
-\contentsline {subsubsection}{\numberline {2.4.2}Variable Identifiers}{7}{}%
-\contentsline {subsubsection}{\numberline {2.4.3}Vector}{7}{}%
-\contentsline {subsubsection}{\numberline {2.4.4}Cons}{8}{}%
-\contentsline {subsection}{\numberline {2.5}Switch Statement Semantics}{8}{}%
-\contentsline {subsection}{\numberline {2.6}Ternary Expression}{9}{}%
-\contentsline {subsection}{\numberline {2.7}Function}{9}{}%
-\contentsline {subsection}{\numberline {2.8}Function Application}{9}{}%
-\contentsline {subsection}{\numberline {2.9}Bind Expression}{10}{}%
+\contentsline {subsection}{\numberline {2.4}Dynamic Semantics For Patterns}{6}{}%
+\contentsline {subsubsection}{\numberline {2.4.1}Wildcard Pattern}{6}{}%
+\contentsline {subsubsection}{\numberline {2.4.2}Variable Identifier}{6}{}%
+\contentsline {subsubsection}{\numberline {2.4.3}Nothing Pattern}{6}{}%
+\contentsline {subsubsection}{\numberline {2.4.4}Boolean Pattern}{6}{}%
+\contentsline {subsubsection}{\numberline {2.4.5}Integer Pattern}{6}{}%
+\contentsline {subsubsection}{\numberline {2.4.6}String Pattern}{6}{}%
+\contentsline {subsubsection}{\numberline {2.4.7}Nil Pattern}{6}{}%
+\contentsline {subsubsection}{\numberline {2.4.8}Vector Pattern}{6}{}%
+\contentsline {subsubsection}{\numberline {2.4.9}Cons Pattern}{7}{}%
+\contentsline {subsection}{\numberline {2.5}Basic Dynamic Semantics}{7}{}%
+\contentsline {subsubsection}{\numberline {2.5.1}Value}{7}{}%
+\contentsline {subsubsection}{\numberline {2.5.2}Variable Identifiers}{7}{}%
+\contentsline {subsubsection}{\numberline {2.5.3}Vector}{7}{}%
+\contentsline {subsubsection}{\numberline {2.5.4}Cons}{7}{}%
+\contentsline {subsection}{\numberline {2.6}Switch Expression}{8}{}%
+\contentsline {subsection}{\numberline {2.7}Ternary Expression}{8}{}%
+\contentsline {subsection}{\numberline {2.8}Function}{9}{}%
+\contentsline {subsection}{\numberline {2.9}Function Application}{9}{}%
+\contentsline {subsection}{\numberline {2.10}Bind Expression}{10}{}%
+\contentsline {subsection}{\numberline {2.11}Recursive Bind Expression}{10}{}%
 \contentsline {section}{\numberline {3}Static Semantics}{11}{}%

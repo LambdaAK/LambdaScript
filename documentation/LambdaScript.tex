@@ -72,10 +72,10 @@ Unary operator
     \alt [\space]
     \alt $e_1$ :: $e_2$
     \alt \textbf{fn} $p$ $\rightarrow$ $e$
-    \alt \textbf{bind} p $\leftarrow$ $e_1$ \textbf{in} $e_2$
+    \alt \textbf{bind} $p$ $\leftarrow$ $e_1$ \textbf{in} $e_2$
     \alt \textbf{bind} $p$ \space $p_1$ ... $p_n$ $\leftarrow$ $e_1$ \textbf{in} $e_2$
     \alt \textbf{bind rec} $f$ $\leftarrow$ \textbf{fn} p $\rightarrow$ $e_1$ \textbf{in} $e_2$
-    \alt \textbf{bind rec} $f$ \space $p_1$ ... $p_n$ $\leftarrow$ $e_1$ in $e_2$
+    \alt \textbf{bind rec} $f$ \space $p_1$ ... $p_n$ $\leftarrow$ $e_1$ \textbf{in} $e_2$
     \alt $e_1$ \space $e_2$
     \alt \textbf{if} $e_1$ \textbf{then} $e_2$ \textbf{else} $e_3$
     \alt \textbf{switch} $e_0$ $=>$ | $p_1 \rightarrow e_1$ ... | $p_n \rightarrow e_n$ \textbf{end}
@@ -302,84 +302,50 @@ $$v \notin p$$
 
 This can be read as "value $v$ does not patch pattern $p$"
 
-Below are the semantics for each pattern
+\subsection{Dynamic Semantics For Patterns}
 
-\vspace{1in}
-
-\begin{center}
-
-Wildcard
-
-\end{center}
+\subsubsection{Wildcard Pattern}
 
 
 $$v \in \_ \rightarrow \{\}$$
 
 
-\begin{center}
-
-Variable Identifier
-  
-\end{center}
-  
+\subsubsection{Variable Identifier}
+   
   
 $$v \in x \rightarrow \{\}[x \rightarrow v]$$
 
 
-\begin{center}
-
-Nothing
-
-\end{center}
+\subsubsection{Nothing Pattern}
 
 
 $$() \in () \rightarrow \{\}$$
 
 
-\begin{center}
-
-Boolean
-
-\end{center}
+\subsubsection{Boolean Pattern}
 
 
 $$b \in b \rightarrow \{\}$$
 
-\begin{center}
-
-Integer
-
-\end{center}
+\subsubsection{Integer Pattern}
 
 
 $$i \in i \rightarrow \{\}$$
 
 
-\begin{center}
-
-String
-
-\end{center}
+\subsubsection{String Pattern}
 
 
 $$s \in s \rightarrow \{\}$$
 
-\begin{center}
-
-Nil / Empty List
-
-\end{center}
+\subsubsection{Nil Pattern}
 
 
 $$[] \in [] \rightarrow \{\}$$
 
 
 
-\begin{center}
-
-Vector
-
-\end{center}
+\subsubsection{Vector Pattern}
 
 
 $$(v_1, v_2, ..., v_n) \in (p_1, p_2, ..., p_n) \rightarrow \Delta_1 \circ \Delta _2 \circ ... \circ ... \Delta_n$$
@@ -390,11 +356,7 @@ $$\dots$$
 $$v_n \in p_n \rightarrow \Delta_n$$
 
 
-\begin{center}
-
-Cons
-
-\end{center}
+\subsubsection{Cons Pattern}
 
 
 $$v_1 :: v_2 \in p_1 :: p_2 \rightarrow \Delta_1 \circ \Delta_2$$
@@ -437,9 +399,9 @@ $$(\Delta, e_2) \Rightarrow v_2$$
 
 To evaluate a cons expression, evaluate the two operands, then return the first argument prepended to the second
 
-\subsection{Switch Statement Semantics}
+\subsection{Switch Expression}
 
-A switch statement uses an expression, call it $e_0$ and a list of branches. Each branch consists of a pattern and a body.
+A switch expression uses an expression, call it $e_0$ and a list of branches. Each branch consists of a pattern and a body.
 
 First, $e_0$ is evaluted to a value $v_0$ using the current environment $\Delta$
 
@@ -454,7 +416,7 @@ $$(\Delta, \text{switch e} => | p_1 \rightarrow e_1 ... | p_n \rightarrow e_n \t
 $$(\Delta, e) \implies v$$
 $$v \notin p_i \text{ for } i < m$$
 $$v \in p_m \rightarrow \Delta_m \text{ where } 1 \leq m \leq n$$
-$$(\Delta \circ \Delta_m, e_j) \implies v'$$
+$$(\Delta \circ \Delta_m, e_m) \implies v'$$
 
 
 Let's go through those statements one by one
@@ -531,7 +493,9 @@ Is equivalent to
 
 $$(\text{fn } p \rightarrow e_2) \text{ } (\text{fn } x_1 \rightarrow \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1)$$
 
-Consequently, the dyanmic semantics of the bind expression is already defined by the dynamic semantics of the function and function application
+Consequently, the dynamic semantics of the bind expression is already defined by the dynamic semantics of the function and function application
+
+\subsection{Recursive Bind Expression}
 
 Moreover, a recursive function can be defined as follows
 
@@ -546,16 +510,43 @@ De-sugar that to yield the following
 
 $$\text{bind rec } f \leftarrow \text{ fn } x_1 \rightarrow \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1 \text{ in } e_2$$
 
-Now, evaluate the expression between $\leftarrow$ and "in", to a function closure subject to the following modification: the environment of the closure contains a binding to itself
-$$(\Delta_r, x_1, \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1)$$
-where
-$$\Delta_r(f) = (\Delta_r, x_1, \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1)$$
+Now, suppose for the purposes of intuition that we are discussing a non-recursive bind expression, such at this
 
-The remainder of the dynamic semantics for the recursive bind expression is the same as for the standard bind expression
+$$\text{bind } f \leftarrow \text{ fn } x_1 \rightarrow \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1 \text{ in } e_2$$
+
+Evaluating the expression between $\leftarrow$ and "in" would yield the following
+
+$$(\Delta_{\text{standard}}, x_1, \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1)$$
+
+Now, create a special type of dynamic environment that satisfies the following two properties
+
+\begin{enumerate}
+\item $$\forall g \in Var - f, \text{ } \Delta_\text{recursive} (g) = \Delta_\text{standard}(g)$$
 
 
 
+\item $$\Delta_\text{recursive}(f) = (\Delta_{\text{recursive}}, x_1, \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1)$$
 
+
+\end{enumerate}
+
+Now we go back to discussing the recursive bind expression
+
+$$\text{bind rec } f \leftarrow \text{ fn } x_1 \rightarrow \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1 \text{ in } e_2$$
+
+The expression between $\leftarrow$ and "in" evaluates to
+
+$$(\Delta_{\text{recursive}}, x_1, \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1)$$
+
+So we now have the following. Note that this is a theoretical representation, not a syntactic one.
+
+$$\text{bind rec } f \leftarrow (\Delta_{\text{recursive}}, x_1, \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1) \text{ in } e_2$$
+
+Desugar this to yield the following
+
+$$(\text{fn } f \rightarrow e_2) (\Delta_{\text{recursive}}, x_1, \text{ fn } x_2 \rightarrow \dots \text{ fn } x_n \rightarrow e_1)$$
+
+This expression can now be further evaluated using the dynamic semantics regarding function application.
 
 \section{Static Semantics}
 
