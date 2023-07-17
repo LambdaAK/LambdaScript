@@ -590,6 +590,51 @@ Mathematically, it is nothing more than a set of pairs, where each pair consists
 
 \newpage
 
+\subsection{Universal Quantification of Type Variables}
+
+There is a scenario later on in which universal quantification of type variables is required for a sound type system.
+
+A type variable of the form $t_n$, where $n \in \mathbb{N}$, is a standard type variable with "a single identity"
+
+This means that, for example, the following system would be inconsistent
+
+$$t_1 = int$$
+$$t_1 = bool$$
+$$\implies$$
+$$int = bool$$
+
+In order to allow polymorphism, universally quantified variables are required. They are denoted $u_n$, where $n \in \mathbb{N}$.
+
+Now, suppose we have an polymorphic entity of type $u_1$, and we want to assert its equality to both int and bool in two different points in an expression.
+
+\newpage
+
+\subsection{Instantiation of Types}
+
+The instantiation function is a function from types to types. It takes a type and does the following:
+
+\begin{enumerate}
+\item For each unique univerally quantified type variable, generate a fresh type variable. Create a 1 to 1 mapping from the universal variables to the concrete ones.
+\item Using the mapping, replace the universally quantified variables with the concrete ones.
+\item Return this new type.
+
+\end{enumerate}
+Instantiate is defined rigerously as follows:
+
+$$I: Type \rightarrow Type$$
+\begin{enumerate}
+\item $$I(int) = int$$
+\item$$I(ng) = ng$$
+\item$$I(str) = str$$
+\item$$I(bool) = bool$$
+\item$$I(t_i) = t_i$$
+\item$$I(u_i) = fresh()$$
+\item$$I(x_1 \rightarrow x_2) = I(x_1) \rightarrow I(x_2)$$
+\item$$I([x_i]) = [I(x_i)]$$
+\item$$I((x_1, x_2, \dots, x_n)) = (I(x_1), I(x_2), \dots, I(x_n))$$
+\end{enumerate}
+In lines 1 - 5, $I$ acts as the identity function. On line 6, a universally quantified type variable is replaced with a fresh type variable. In lines 7 - 9, recursion is performed throughout the argument.
+
 \subsection{Type Relation}
 
 In order to discuss the relationships between the expressions of LambdaScript and the corresponding types, we must first define a type relation.
@@ -716,9 +761,28 @@ $$\mathcal{E}_\text{branches} = \bigcup _ {i = 1} ^ n \mathcal{E}_i$$
 The type of a switch expression is essentially the type of any given branch. The types of the branch bodies must all be the same.
 
 
+\subsection{Ternary Expression}
 
+$$\Sigma \rightarrow \text{if } e_1 \text{ then } e_2 \text{ else } e_3 : t \rightarrow \mathcal{E}_0 \cup \mathcal{E}_1 \cup \mathcal{E}_2 \cup \mathcal{E}_3$$
+\noindent\makebox[\linewidth]{\rule{3.4in}{0.4pt}}
 
+$$\Sigma \rightarrow e_1 : t_1 \rightarrow \mathcal{E}_1$$
+$$\Sigma \rightarrow e_2 : t_2 \rightarrow \mathcal{E}_2$$
+$$\Sigma \rightarrow e_3 : t_3 \rightarrow \mathcal{E}_3$$
+$$\mathcal{E}_0 = \{t_1 = bool, t = t_1, t = t_2\}$$
 
+\subsection{Function}
+
+$$\Sigma \rightarrow (\text{fn } p \rightarrow e) : (t_1 \rightarrow t_2) \rightarrow \mathcal{E}$$
+\noindent\makebox[\linewidth]{\rule{2.25in}{0.4pt}}
+$$p : t_1 \rightarrow \Sigma_p$$
+$$\Sigma \circ \Sigma_p \rightarrow e : t_2 \rightarrow \mathcal{E}$$
+
+\begin{enumerate}
+\item $p : t_1 \rightarrow \Sigma_b$ states that the functions pattern $p$ is of type $t_1$ and produces static bindings $\Sigma_p$
+\item $\Sigma \circ \Sigma_p \rightarrow e : t_2 \rightarrow \mathcal{E}$ states that the function's body $e$ is of type $t_2$ when evaluated under the external static environment $\Sigma$ composed with the new bindings produced by $p$, which are $\Sigma_p$. Additionally, type equations $\mathcal{E}$ are produced.
+\item The input type of the function is $t_1$, and the output type of the function is $t_2$. Therefore, the type of the entire expression is $t_1 \rightarrow t_2$. Additionally, the equations resulting from inference of the function body are returned.
+\end{enumerate}
 
 \end{document}
 

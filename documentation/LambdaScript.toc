@@ -32,24 +32,28 @@
 \contentsline {section}{\numberline {3}Static Semantics}{13}{}%
 \contentsline {subsection}{\numberline {3.1}Static Environment}{13}{}%
 \contentsline {subsection}{\numberline {3.2}Type Equations}{13}{}%
-\contentsline {subsection}{\numberline {3.3}Type Relation}{14}{}%
-\contentsline {subsection}{\numberline {3.4}Type Inference relation for Patterns}{14}{}%
-\contentsline {subsection}{\numberline {3.5}Type Inference for Patterns}{14}{}%
-\contentsline {subsubsection}{\numberline {3.5.1}Integer Pattern}{14}{}%
-\contentsline {subsubsection}{\numberline {3.5.2}Boolean Pattern}{14}{}%
-\contentsline {subsubsection}{\numberline {3.5.3}String Pattern}{14}{}%
-\contentsline {subsubsection}{\numberline {3.5.4}Nothing Pattern}{14}{}%
-\contentsline {subsubsection}{\numberline {3.5.5}Wildcard Pattern}{14}{}%
-\contentsline {subsubsection}{\numberline {3.5.6}Identifier Pattern}{14}{}%
-\contentsline {subsubsection}{\numberline {3.5.7}Nil Pattern}{15}{}%
-\contentsline {subsubsection}{\numberline {3.5.8}Cons Pattern}{15}{}%
-\contentsline {subsubsection}{\numberline {3.5.9}Vector Pattern}{15}{}%
-\contentsline {subsection}{\numberline {3.6}Type Inference of Basic Expressions}{15}{}%
-\contentsline {subsubsection}{\numberline {3.6.1}Integer}{15}{}%
-\contentsline {subsubsection}{\numberline {3.6.2}Boolean}{15}{}%
-\contentsline {subsubsection}{\numberline {3.6.3}String}{15}{}%
-\contentsline {subsubsection}{\numberline {3.6.4}Nothing}{15}{}%
-\contentsline {subsubsection}{\numberline {3.6.5}Nil}{16}{}%
-\contentsline {subsubsection}{\numberline {3.6.6}Vector}{16}{}%
-\contentsline {subsubsection}{\numberline {3.6.7}Cons}{16}{}%
-\contentsline {subsection}{\numberline {3.7}Switch Expression}{16}{}%
+\contentsline {subsection}{\numberline {3.3}Universal Quantification of Type Variables}{14}{}%
+\contentsline {subsection}{\numberline {3.4}Instantiation of Types}{15}{}%
+\contentsline {subsection}{\numberline {3.5}Type Relation}{16}{}%
+\contentsline {subsection}{\numberline {3.6}Type Inference relation for Patterns}{16}{}%
+\contentsline {subsection}{\numberline {3.7}Type Inference for Patterns}{16}{}%
+\contentsline {subsubsection}{\numberline {3.7.1}Integer Pattern}{16}{}%
+\contentsline {subsubsection}{\numberline {3.7.2}Boolean Pattern}{16}{}%
+\contentsline {subsubsection}{\numberline {3.7.3}String Pattern}{16}{}%
+\contentsline {subsubsection}{\numberline {3.7.4}Nothing Pattern}{16}{}%
+\contentsline {subsubsection}{\numberline {3.7.5}Wildcard Pattern}{16}{}%
+\contentsline {subsubsection}{\numberline {3.7.6}Identifier Pattern}{16}{}%
+\contentsline {subsubsection}{\numberline {3.7.7}Nil Pattern}{17}{}%
+\contentsline {subsubsection}{\numberline {3.7.8}Cons Pattern}{17}{}%
+\contentsline {subsubsection}{\numberline {3.7.9}Vector Pattern}{17}{}%
+\contentsline {subsection}{\numberline {3.8}Type Inference of Basic Expressions}{17}{}%
+\contentsline {subsubsection}{\numberline {3.8.1}Integer}{17}{}%
+\contentsline {subsubsection}{\numberline {3.8.2}Boolean}{17}{}%
+\contentsline {subsubsection}{\numberline {3.8.3}String}{17}{}%
+\contentsline {subsubsection}{\numberline {3.8.4}Nothing}{17}{}%
+\contentsline {subsubsection}{\numberline {3.8.5}Nil}{18}{}%
+\contentsline {subsubsection}{\numberline {3.8.6}Vector}{18}{}%
+\contentsline {subsubsection}{\numberline {3.8.7}Cons}{18}{}%
+\contentsline {subsection}{\numberline {3.9}Switch Expression}{18}{}%
+\contentsline {subsection}{\numberline {3.10}Ternary Expression}{19}{}%
+\contentsline {subsection}{\numberline {3.11}Function}{19}{}%
