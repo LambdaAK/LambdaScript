@@ -683,7 +683,7 @@ $$\Sigma \rightarrow () : ng \rightarrow \{\}$$
 
 $$\Sigma \rightarrow [ \text{ } ] : [\space t \space ] \rightarrow \{\}$$
 
-\newpage
+
 
 \subsubsection{Vector}
 
@@ -701,6 +701,22 @@ $$\Sigma \rightarrow e_1 :: e_2 : t_2 \rightarrow \{[t_1] = t_2\} \cup \mathcal{
 \noindent\makebox[\linewidth]{\rule{2.8in}{0.4pt}}
 $$\Sigma \rightarrow e_1 : t_1 \rightarrow \mathcal{E}_1$$
 $$\Sigma \rightarrow e_2 : t_2 \rightarrow \mathcal{E}_2$$
+
+\subsection{Switch Expression}
+
+
+$$\Sigma \rightarrow \text{switch } e => | p_1 \rightarrow e_1 | ... | p_n \rightarrow e_n \text{ end} : t \rightarrow \mathcal{E}_\text{branches} \cup \mathcal{E}_\text{types equal}$$
+\noindent\makebox[\linewidth]{\rule{4.9in}{0.4pt}}
+$$\Sigma : e_1 : t_1 \rightarrow \mathcal{E}_1$$
+$$\Sigma : e_2 : t_2 \rightarrow \mathcal{E}_2$$
+$$\dots$$
+$$\Sigma : e_n : t_n \rightarrow \mathcal{E}_n$$
+$$\mathcal{E}_\text{types equal} = \bigcup _ {i = 1} ^ n \{t = t_i\}$$
+$$\mathcal{E}_\text{branches} = \bigcup _ {i = 1} ^ n \mathcal{E}_i$$
+The type of a switch expression is essentially the type of any given branch. The types of the branch bodies must all be the same.
+
+
+
 
 
 
