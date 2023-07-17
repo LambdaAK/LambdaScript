@@ -33,12 +33,22 @@
 \contentsline {subsection}{\numberline {3.1}Static Environment}{13}{}%
 \contentsline {subsection}{\numberline {3.2}Type Equations}{13}{}%
 \contentsline {subsection}{\numberline {3.3}Type Relation}{14}{}%
-\contentsline {subsection}{\numberline {3.4}Type Inference of Patterns}{14}{}%
-\contentsline {subsection}{\numberline {3.5}Type Inference of Basic Expressions}{14}{}%
-\contentsline {subsubsection}{\numberline {3.5.1}Integer}{14}{}%
-\contentsline {subsubsection}{\numberline {3.5.2}Boolean}{14}{}%
-\contentsline {subsubsection}{\numberline {3.5.3}String}{14}{}%
-\contentsline {subsubsection}{\numberline {3.5.4}Nothing}{14}{}%
-\contentsline {subsubsection}{\numberline {3.5.5}Nil}{14}{}%
-\contentsline {subsubsection}{\numberline {3.5.6}Vector}{15}{}%
-\contentsline {subsubsection}{\numberline {3.5.7}Cons}{15}{}%
+\contentsline {subsection}{\numberline {3.4}Type Inference relation for Patterns}{14}{}%
+\contentsline {subsection}{\numberline {3.5}Type Inference for Patterns}{14}{}%
+\contentsline {subsubsection}{\numberline {3.5.1}Integer Pattern}{14}{}%
+\contentsline {subsubsection}{\numberline {3.5.2}Boolean Pattern}{14}{}%
+\contentsline {subsubsection}{\numberline {3.5.3}String Pattern}{14}{}%
+\contentsline {subsubsection}{\numberline {3.5.4}Nothing Pattern}{14}{}%
+\contentsline {subsubsection}{\numberline {3.5.5}Wildcard Pattern}{14}{}%
+\contentsline {subsubsection}{\numberline {3.5.6}Identifier Pattern}{14}{}%
+\contentsline {subsubsection}{\numberline {3.5.7}Nil Pattern}{15}{}%
+\contentsline {subsubsection}{\numberline {3.5.8}Cons Pattern}{15}{}%
+\contentsline {subsubsection}{\numberline {3.5.9}Vector Pattern}{15}{}%
+\contentsline {subsection}{\numberline {3.6}Type Inference of Basic Expressions}{15}{}%
+\contentsline {subsubsection}{\numberline {3.6.1}Integer}{15}{}%
+\contentsline {subsubsection}{\numberline {3.6.2}Boolean}{15}{}%
+\contentsline {subsubsection}{\numberline {3.6.3}String}{15}{}%
+\contentsline {subsubsection}{\numberline {3.6.4}Nothing}{15}{}%
+\contentsline {subsubsection}{\numberline {3.6.5}Nil}{16}{}%
+\contentsline {subsubsection}{\numberline {3.6.6}Vector}{17}{}%
+\contentsline {subsubsection}{\numberline {3.6.7}Cons}{17}{}%

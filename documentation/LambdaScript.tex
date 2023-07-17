@@ -600,10 +600,65 @@ $$\Sigma \rightarrow e : t \rightarrow \mathcal{E}$$
 
 It can be read as follows: "under static environment $\Sigma$, expression $e$ is of type $t$ and produces a set of type equations $\mathcal{E}$"
 
-\subsection{Type Inference of Patterns}
+\subsection{Type Inference relation for Patterns}
 
+Similar to dynamic semantics, patterns produce bindings from identifiers to Types
 
+The type inference relation for patterns is defined as follows
 
+$$p : t \rightarrow \Sigma$$
+
+This can be read as "pattern $p$ is of type $t$ and creates static bindings $\Sigma$"
+
+\subsection{Type Inference for Patterns}
+
+\subsubsection{Integer Pattern}
+
+$$i : int \rightarrow \{\}$$
+
+\subsubsection{Boolean Pattern}
+
+$$b : bool \rightarrow \{\}$$
+
+\subsubsection{String Pattern}
+
+$$s : str \rightarrow \{\}$$
+
+\subsubsection{Nothing Pattern}
+
+$$() : ng \rightarrow \{\}$$
+
+\subsubsection{Wildcard Pattern}
+
+$$\_ : t \rightarrow \{\}$$
+
+\subsubsection{Identifier Pattern}
+
+$$x : t \rightarrow \{x : t\}$$
+
+\subsubsection{Nil Pattern}
+
+$$[\text{ }] : [t] \rightarrow \{\}$$
+
+\subsubsection{Cons Pattern}
+
+$$p_1 :: p_2 : [t] \rightarrow \mathcal{E}_1 \cup \mathcal{E}_1$$
+
+\noindent\makebox[\linewidth]{\rule{1.2in}{0.4pt}}
+
+$$p_1 : t \rightarrow \mathcal{E}_1$$
+$$p_2 : [t] \rightarrow \mathcal{E}_2$$
+
+\subsubsection{Vector Pattern}
+
+$$(p_1, p_2, \dots, p_n) : (t_1, t_2, \dots, t_n) \rightarrow \bigcup _ {i = 1} ^ n \mathcal{E}_i$$
+
+\noindent\makebox[\linewidth]{\rule{1.2in}{0.4pt}}
+
+$$p_1 : t_1 \rightarrow \mathcal{E}_1$$
+$$p_2 : t_2 \rightarrow \mathcal{E}_2$$
+$$\dots$$
+$$p_n : t_n \rightarrow \mathcal{E}_n$$
 
 
 \subsection{Type Inference of Basic Expressions}
