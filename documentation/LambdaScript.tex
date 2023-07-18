@@ -670,6 +670,8 @@ $$I(t_1 \rightarrow u_1 \rightarrow u_2 ) = (t_1 \rightarrow t_2 \rightarrow t_3
 
 \subsection{Generalization of Types}
 
+
+
 \subsection{Type Relation}
 
 In order to discuss the relationships between the expressions of LambdaScript and the corresponding types, we must first define a type relation.
@@ -758,6 +760,13 @@ $$\Sigma \rightarrow s : str \rightarrow \{\}$$
 \subsubsection{Nothing}
 
 $$\Sigma \rightarrow () : ng \rightarrow \{\}$$
+
+\subsubsection{Identifier}
+
+$$\Sigma \rightarrow x : I(\Sigma(x)) \rightarrow \{\}$$
+
+Notice that $I$ is used to instantiate the type of $x$ is $\Sigma$. This is required since $\Sigma(x)$ may consist of universally quantified type variables, which must be replaced with concrete ones before insertion into type equations.
+
 
 \subsubsection{Nil}
 
