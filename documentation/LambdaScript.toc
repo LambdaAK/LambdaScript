@@ -36,27 +36,28 @@
 \contentsline {subsection}{\numberline {3.4}Universal Quantification of Type Variables}{14}{}%
 \contentsline {subsection}{\numberline {3.5}Reduction of Type Equations}{15}{}%
 \contentsline {subsection}{\numberline {3.6}Instantiation of Types}{15}{}%
-\contentsline {subsection}{\numberline {3.7}Generalization of Types}{15}{}%
-\contentsline {subsection}{\numberline {3.8}Type Relation}{15}{}%
-\contentsline {subsection}{\numberline {3.9}Type Inference relation for Patterns}{15}{}%
+\contentsline {subsection}{\numberline {3.7}Generalization of Types}{16}{}%
+\contentsline {subsection}{\numberline {3.8}Type Relation}{16}{}%
+\contentsline {subsection}{\numberline {3.9}Type Inference relation for Patterns}{16}{}%
 \contentsline {subsection}{\numberline {3.10}Type Inference for Patterns}{16}{}%
 \contentsline {subsubsection}{\numberline {3.10.1}Integer Pattern}{16}{}%
 \contentsline {subsubsection}{\numberline {3.10.2}Boolean Pattern}{16}{}%
 \contentsline {subsubsection}{\numberline {3.10.3}String Pattern}{16}{}%
 \contentsline {subsubsection}{\numberline {3.10.4}Nothing Pattern}{16}{}%
 \contentsline {subsubsection}{\numberline {3.10.5}Wildcard Pattern}{16}{}%
-\contentsline {subsubsection}{\numberline {3.10.6}Identifier Pattern}{16}{}%
-\contentsline {subsubsection}{\numberline {3.10.7}Nil Pattern}{16}{}%
-\contentsline {subsubsection}{\numberline {3.10.8}Cons Pattern}{16}{}%
+\contentsline {subsubsection}{\numberline {3.10.6}Identifier Pattern}{17}{}%
+\contentsline {subsubsection}{\numberline {3.10.7}Nil Pattern}{17}{}%
+\contentsline {subsubsection}{\numberline {3.10.8}Cons Pattern}{17}{}%
 \contentsline {subsubsection}{\numberline {3.10.9}Vector Pattern}{17}{}%
 \contentsline {subsection}{\numberline {3.11}Type Inference of Basic Expressions}{17}{}%
 \contentsline {subsubsection}{\numberline {3.11.1}Integer}{17}{}%
 \contentsline {subsubsection}{\numberline {3.11.2}Boolean}{17}{}%
 \contentsline {subsubsection}{\numberline {3.11.3}String}{17}{}%
-\contentsline {subsubsection}{\numberline {3.11.4}Nothing}{17}{}%
-\contentsline {subsubsection}{\numberline {3.11.5}Nil}{17}{}%
-\contentsline {subsubsection}{\numberline {3.11.6}Vector}{17}{}%
+\contentsline {subsubsection}{\numberline {3.11.4}Nothing}{18}{}%
+\contentsline {subsubsection}{\numberline {3.11.5}Nil}{18}{}%
+\contentsline {subsubsection}{\numberline {3.11.6}Vector}{18}{}%
 \contentsline {subsubsection}{\numberline {3.11.7}Cons}{18}{}%
 \contentsline {subsection}{\numberline {3.12}Switch Expression}{18}{}%
 \contentsline {subsection}{\numberline {3.13}Ternary Expression}{19}{}%
 \contentsline {subsection}{\numberline {3.14}Function}{19}{}%
+\contentsline {subsection}{\numberline {3.15}Function Application}{20}{}%

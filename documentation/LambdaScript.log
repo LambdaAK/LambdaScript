@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  17 JUL 2023 18:40
+This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  17 JUL 2023 22:21
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -238,7 +238,7 @@ Overfull \hbox (16.97205pt too wide) in paragraph at lines 448--450
 []\OT1/cmr/m/n/12 bro 
  []
 
-[9] [10] [11] [12] [13] [14] [15] [16] [17] [18] [19] (./LambdaScript.aux) ) 
+[9] [10] [11] [12] [13] [14] [15] [16] [17] [18] [19] [20] (./LambdaScript.aux) ) 
 Here is how much of TeX's memory you used:
  2834 strings out of 478051
  42280 string characters out of 5840003
@@ -248,10 +248,10 @@ Here is how much of TeX's memory you used:
  14 hyphenation exceptions out of 8191
  57i,8n,62p,463b,261s stack positions out of 10000i,1000n,20000p,200000b,200000s
  </Users/alex/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1200.600pk></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
-Output written on LambdaScript.pdf (20 pages, 180953 bytes).
+Output written on LambdaScript.pdf (21 pages, 183829 bytes).
 PDF statistics:
- 139 PDF objects out of 1000 (max. 8388607)
- 89 compressed objects within 1 object stream
+ 142 PDF objects out of 1000 (max. 8388607)
+ 91 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 

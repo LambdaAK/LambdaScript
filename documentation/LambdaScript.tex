@@ -521,7 +521,7 @@ $$(\Delta_{\text{standard}}, x_1, \text{ fn } x_2 \rightarrow \dots \text{ fn } 
 Now, create a special type of dynamic environment that satisfies the following two properties
 
 \begin{enumerate}
-\item $$\forall g \in Var - f, \text{ } \Delta_\text{recursive} (g) = \Delta_\text{standard}(g)$$
+\item $$\forall g \in Var - \{f\}, \text{ } \Delta_\text{recursive} (g) = \Delta_\text{standard}(g)$$
 
 
 
@@ -624,13 +624,33 @@ $$int = bool$$
 
 In order to allow polymorphism, universally quantified variables are required. They are denoted $u_n$, where $n \in \mathbb{N}$.
 
-
-
 \newpage
 
 \subsection{Reduction of Type Equations}
 
-The reduction of type equations is analogus to Gaussian elimination of linear systems of equations in linear algebra.
+The reduction of type equations is analogus to Gaussian elimination of linear systems of equations in linear algebra. The purpose of reduction is to take a system of type equations and, if possible, change it into a form that makes it easier to deduce the solution.
+
+The reduction function is defined as follows
+
+$$R: P(Type) \rightarrow P(Type)$$
+
+\begin{itemize}
+\item $R(\{\}) = \{\}$
+
+\item If $\mathcal{E} \neq \{\}$, pick an arbitrary type equation in $\mathcal{E}$, call it $\epsilon = (t_1, t_2)$
+
+\item Let $\mathcal{E}' = \{\epsilon' \in \mathcal{E} \text{ } | \text{ not } \epsilon' \cong \epsilon \}$ be the remainder of the type equations
+
+\item If $t_1 = t_2$, $R(\mathcal{E}) = R(\mathcal{E}')$
+
+\item If $t_1 = i_1 \rightarrow o_1$ and $t_2 = i_2 \rightarrow o_2$ are function types, $R(\mathcal{E}) = R(\{(i_1, i_2), (o_1, o_2)\}\cup\mathcal{E}')$
+
+\item If $t_1 = [l_1]$ and $t_2 = [l_2]$ are both list types, $R(\mathcal{E}) = R(\{(l_1, l_2)\}\cup\mathcal{E}')$
+\item If $t_1 = (t_{11}, t_{12}, \dots, t_{1n})$ and $t_2 = (t_{21}, t_{22}, \dots, t_{2n})$ are vector types, $R(\mathcal{E}) = R(\bigcup_{i = 1} ^ n \{(t_{1i}, t_{2i})\} \cup\mathcal{E}')$
+\item 
+
+\end{itemize}
+
 
 \subsection{Instantiation of Types}
 
@@ -804,6 +824,14 @@ $$\Sigma \circ \Sigma_p \rightarrow e : t_2 \rightarrow \mathcal{E}$$
 \item $\Sigma \circ \Sigma_p \rightarrow e : t_2 \rightarrow \mathcal{E}$ states that the function's body $e$ is of type $t_2$ when evaluated under the external static environment $\Sigma$ composed with the new bindings produced by $p$, which are $\Sigma_p$. Additionally, type equations $\mathcal{E}$ are produced.
 \item The input type of the function is $t_1$, and the output type of the function is $t_2$. Therefore, the type of the entire expression is $t_1 \rightarrow t_2$. Additionally, the equations resulting from inference of the function body are returned.
 \end{enumerate}
+
+\subsection{Function Application}
+
+$$\Sigma \rightarrow e_1 \text{ } e_2 : t \rightarrow \mathcal{E}_1 \cup \mathcal{E}_2 \cup \mathcal{E}_3$$
+\noindent\makebox[\linewidth]{\rule{2in}{0.4pt}}
+$$\Sigma \rightarrow e_1 : t_1 \rightarrow \mathcal{E}_1$$
+$$\Sigma \rightarrow e_2 : t_2 \rightarrow \mathcal{E}_2$$
+$$\mathcal{E}_3 = \{t_1 = t_2 \rightarrow t\}$$
 
 \end{document}
 
