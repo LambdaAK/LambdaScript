@@ -200,7 +200,7 @@ and generate_e_app (env: static_env) (first: c_expr) (second: c_expr): c_type * 
       output_type, (t2, output_type) :: constraints_from_type_annotation @ c1 @ c2
         
     | _ ->
-
+      print_endline "not a function";
     (* first is not a function, so generalization is not necessary *)
     let e1 = first in
     let e2 = second in
@@ -305,6 +305,14 @@ and get_type_of_type_var_if_possible (var: c_type) (subs: substitutions): c_type
 
 and type_of_c_expr (e: c_expr) (static_env: static_env): c_type =
   let t, constraints = generate static_env e in
+
+  print_endline "type equations";
+
+  constraints |> string_of_type_equations |> print_endline;
+
+  print_endline "type";
+
+  string_of_c_type t |> print_endline;
 
   let constraints_without_written_type_vars = replace_written_types constraints in
 
@@ -444,6 +452,7 @@ and replace_types t replacements =
   | _ -> t (* otherwise, just return the type *)
 
 and generalize (constraints: type_equations) (env: static_env) (t: c_type): c_type =
+  print_endline "generalizing";
   (* remove written type variables from the constraints *)
   let constraints: type_equations = replace_written_types constraints in
   (* fully finish inference of the binding expression *)

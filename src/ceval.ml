@@ -317,7 +317,7 @@ let rec eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_
         (
           match pattern with
           | CIdPat id ->
-            let new_type: c_type = type_of_c_expr body_expression static_env in
+            let new_type: c_type = type_of_c_expr body_expression static_env |> generalize [] [] in
             let new_env: env = new_bindings @ env in
             let new_static_env: static_env = (id, new_type) :: static_env in
             new_env, new_static_env, type_of_c_expr body_expression static_env, v
@@ -325,7 +325,7 @@ let rec eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_
             (
               match v with
               | VectorValue values ->
-                let new_type: c_type = type_of_c_expr body_expression static_env in
+                let new_type: c_type = type_of_c_expr body_expression static_env |> generalize [] [] in
                 let new_bindings: env = handle_let_defn_with_vector_pat patterns values in
                 let new_env: env = new_bindings @ env in
 
@@ -336,8 +336,8 @@ let rec eval_defn (d: c_defn) (env: env) (static_env: static_env): env * static_
                   match new_static_bindings with
                   | None -> failwith "unimplemented eval_defn"
                   | Some new_static_bindings -> (
-                    let new_static_end = new_static_bindings @ static_env in
-                    new_env, new_static_end, type_of_c_expr body_expression static_env, v
+                    let new_static_env = new_static_bindings @ static_env in
+                    new_env, new_static_env, type_of_c_expr body_expression static_env, v
                   )
                 )
               

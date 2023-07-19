@@ -632,8 +632,12 @@ let polymorphism_tests = [
   "bind f x <- x in f 1 < 5 || f true", "bool";
   "bind f x <- x in bind g <- f in g g", "t1 -> t1";
   "bind f x <- x in bind g <- f in g f", "t1 -> t1";
-  "bind f x <- x in bind g <- f in f g", "t1 -> t1";
+  "bind f x <- x in bind g <- f in f g f g", "t1 -> t1";
   "bind f x <- x in bind a <- f 1 in f true", "bool";
+  "(fn f -> f 1 < 5 || f true) (fn x -> x)", "bool";
+  "(fn f -> (f 0 1) < 5 || (f true 0)) (fn x -> fn y -> x)", "bool";
+  "(fn f -> (f 0 1) < 5 || (f true false)) (fn x -> fn y -> y)", "bool";
+  
 ]
 
 
@@ -1022,7 +1026,6 @@ let eval_test_data = [
 
 let eval_tests = List.map (fun (a, b) -> eval_test a b) eval_test_data
 
-
 let all_tests =
   List.flatten
     [
@@ -1036,7 +1039,6 @@ let all_tests =
       list_type_tests;
       switch_type_tests;
       polymorphism_tests
-      
     ]
 
 let suite = "suite" >::: all_tests
