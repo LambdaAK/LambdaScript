@@ -637,6 +637,35 @@ let polymorphism_tests = [
   "(fn f -> f 1 < 5 || f true) (fn x -> x)", "bool";
   "(fn f -> (f 0 1) < 5 || (f true 0)) (fn x -> fn y -> x)", "bool";
   "(fn f -> (f 0 1) < 5 || (f true false)) (fn x -> fn y -> y)", "bool";
+  {|
+    bind f x <- x in
+    bind g <- f in
+    bind h <- g in
+    h h
+  |}, "t1 -> t1";
+
+  {|
+    bind f x <- x in
+    bind g <- f in
+    bind h <- g in
+    bind i <- h in
+    (f f f f g g g g g g h h h h h h h i i i i i i f f f f f f f g g g g g g h h h h h i i i i i f f f f f f f f f f f f f f f f f f f g g g g g g g) 1 < 2 || (f g h f) true
+  |}, "bool";
+
+  {|
+    (fn f -> 
+      (fn g -> 
+        g 1 < 5 || g true) 
+      f) (fn x -> x)
+  |}, "bool";
+
+  {|
+    (fn x -> fn y -> fn z -> x y || x 1 < 2) (fn x -> x) true ()
+  |}, "bool";
+
+  {|
+    (fn x -> fn y -> fn z -> x y || x 1 < 2) (fn x -> x) true
+  |}, "t1 -> bool";
   
 ]
 
