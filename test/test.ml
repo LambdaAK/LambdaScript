@@ -670,7 +670,6 @@ let polymorphism_tests = [
 ]
 
 
-
 let switch_type_tests = [
   "switch () => | () -> 1 end", "int";
   "switch () => | () -> true end", "bool";

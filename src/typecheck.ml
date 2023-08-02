@@ -15,6 +15,15 @@ exception TypeFailure
 
 let initial_env: (string * c_type) list = [("not", BoolType => BoolType)]
 
+let split3 (lst: ('a * 'b * 'c) list): 'a list * 'b list * 'c list =
+  let rec split3_helper (lst: ('a * 'b * 'c) list) (a: 'a list) (b: 'b list) (c: 'c list): 'a list * 'b list * 'c list =
+    match lst with
+    | [] -> a, b, c
+    | (a', b', c') :: tail -> split3_helper tail (a' :: a) (b' :: b) (c' :: c)
+  in
+  let a, b, c = split3_helper lst [] [] [] in
+  List.rev a, List.rev b, List.rev c
+
 
 let string_of_type_equation ((t1, t2): type_equation): string = 
   (string_of_c_type t1) ^ " = " ^ (string_of_c_type t2)
@@ -90,7 +99,7 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     )
   | EFunction (pat, cto, body) ->
 
-    let input_type, new_env_bindings = type_of_pat pat in
+    let input_type, new_env_bindings, constraints_from_pattern = type_of_pat pat in
     let constraints_from_type_annotation: type_equations = 
     (
       match cto with
@@ -99,7 +108,7 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
 
     ) in
     let output_type, c_output = generate (new_env_bindings @ env) body in
-    (input_type => (output_type)), constraints_from_type_annotation @ c_output
+    (input_type => output_type), constraints_from_pattern @ constraints_from_type_annotation @ c_output
 
   | ETernary (e1, e2, e3) ->
     let t1, c1 = generate env e1 in
@@ -151,10 +160,12 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     (* get the type of each branch *)
     let branch_constraints: type_equation list = List.map (fun (bp, be) ->
       (* the pattern has to be of the same type as t1 *)
-      let type_of_pattern, pattern_env = type_of_pat bp in
+      let type_of_pattern, pattern_env, const = type_of_pat bp in
+
       let type_of_branch_expression, branch_expression_constraints = generate (pattern_env @ env) be in (* use the pattern env here *)
       let type_of_branch_expression = instantiate type_of_branch_expression in (* instantiate here *)
-      (type_of_pattern, t1) :: (type_of_branch_expression, type_that_all_branch_expressions_must_be) :: branch_expression_constraints
+
+      (type_of_pattern, t1) :: (type_of_branch_expression, type_that_all_branch_expressions_must_be) :: const @ branch_expression_constraints
 
     ) branches |> List.flatten (* since each iteration through map returns multiple constraints, the list is flattened *)
 
@@ -183,7 +194,7 @@ and generate_e_app (env: static_env) (first: c_expr) (second: c_expr): c_type * 
         | _ -> failwith "not a valid pattern in typecheck.ml"
       ) in
 
-      let input_type, new_env_bindings = type_of_pat pattern in
+      let input_type, new_env_bindings, constraints_from_pattern = type_of_pat pattern in
       let constraints_from_type_annotation: type_equations =
       (
         match cto with
@@ -197,7 +208,7 @@ and generate_e_app (env: static_env) (first: c_expr) (second: c_expr): c_type * 
       let t2, c2 = generate ((function_id, generalized_type) :: env) body in
       (* here ^, (function_id, generlized_type) binds the generalized function in the static env inside of body *)
       let output_type = fresh_type_var () in
-      output_type, (t2, output_type) :: constraints_from_type_annotation @ c1 @ c2
+      output_type, (t2, output_type) :: constraints_from_pattern @ constraints_from_type_annotation @ c1 @ c2
         
     | _ ->
       print_endline "not a function";
@@ -211,27 +222,38 @@ and generate_e_app (env: static_env) (first: c_expr) (second: c_expr): c_type * 
     )
     
 
-and type_of_pat (p: c_pat): c_type * static_env =
+and type_of_pat (p: c_pat): c_type * static_env * type_equations=
   match p with
   | CIdPat id -> 
     let new_var: c_type = fresh_type_var () in
-    new_var, [(id, new_var)]
-  | CNothingPat -> NothingType, []
-  | CWildcardPat -> fresh_type_var (), []
+    new_var, [(id, new_var)], []
+  | CNothingPat -> NothingType, [], []
+  | CWildcardPat -> fresh_type_var (), [], []
   | CVectorPat patterns ->
-    let list_of_types, list_of_lists_of_envs = List.split (List.map type_of_pat patterns) in
-    VectorType list_of_types, List.flatten list_of_lists_of_envs
+    let list_of_types, list_of_lists_of_envs, lists_of_equations = split3 (List.map type_of_pat patterns) in
+    VectorType list_of_types, List.flatten list_of_lists_of_envs, List.flatten lists_of_equations
 
-  | CIntPat _ -> IntType, []
-  | CBoolPat _ -> BoolType, []
-  | CStringPat _ -> StringType, []
-  | CNilPat -> CListType (fresh_type_var ()), []
+  | CIntPat _ -> IntType, [], []
+  | CBoolPat _ -> BoolType, [], []
+  | CStringPat _ -> StringType, [], []
+  | CNilPat -> CListType (fresh_type_var ()), [], []
   | CConsPat (p1, p2) ->
-    let t1, env1 = type_of_pat p1 in
-    let _, env2 = type_of_pat p2 in
-    CListType(t1), env1 @ env2 (* this might be wrong. check it later *)
+    let t1, env1, c1 = type_of_pat p1 in
+    let t2, env2, c2 = type_of_pat p2 in
 
-and reduce_eq (c: type_equations): substitutions =
+    print_endline "t1";
+    string_of_c_type t1 |> print_endline;
+    print_endline "t2";
+    string_of_c_type t2 |> print_endline;
+
+    (*
+      since h :: t is a list, and h : t1 and t : t2, it must hold that [t1] = t2   
+      return this constraint as well
+    *)
+    CListType(t1), env1 @ env2, (CListType(t1), t2) :: (c1 @ c2) (* this might be wrong. check it later *)
+
+
+    and reduce_eq (c: type_equations): substitutions =
 
   match c with
   | [] -> []
@@ -313,7 +335,9 @@ and type_of_c_expr (e: c_expr) (static_env: static_env): c_type =
   print_endline "type";
 
   string_of_c_type t |> print_endline;
-
+  
+  print_endline "end";
+  
   let constraints_without_written_type_vars = replace_written_types constraints in
 
   let solution: substitutions = reduce_eq constraints_without_written_type_vars in
@@ -423,8 +447,6 @@ and instantiate (t: c_type): c_type =
   (* replace them *)
   replace_types t fresh_type_vars_assoc
 
-
-
 and get_universal_type_vars (t: c_type): c_type list =
   match t with
   | UniversalType _ -> [t]
@@ -432,7 +454,6 @@ and get_universal_type_vars (t: c_type): c_type list =
   | VectorType types -> List.flatten (List.map get_universal_type_vars types) |> List.sort_uniq compare
   | CListType et -> get_universal_type_vars et |> List.sort_uniq compare
   | _ -> []
-
 
 and replace_types t replacements =
   match t with
@@ -476,10 +497,6 @@ and generalize (constraints: type_equations) (env: static_env) (t: c_type): c_ty
   replace_types u1 variable_replacements
 
 
-
-
-
-
 and get_type_vars (t: c_type): c_type list =
   match t with
   | TypeVar _ -> [t]
@@ -489,11 +506,8 @@ and get_type_vars (t: c_type): c_type list =
   | _ -> []
 
 (**
-    
-we have a list of types, this function splits each type into the smallest type possible
-
-for example, [flatten_env_types [t1, t2, t3 -> t4, (int, t5)]] is [[t1, t2, t3, t4, int, t5]]]
-
+  we have a list of types, this function splits each type into the smallest type possible
+  for example, [flatten_env_types [t1, t2, t3 -> t4, (int, t5)]] is [[t1, t2, t3, t4, int, t5]]]
 *)
 and flatten_env_types (types: c_type list): c_type list =
   match types with

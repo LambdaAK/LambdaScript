@@ -1,0 +1,7 @@
+bind fold op arr acc <-
+  switch arr =>
+  | [] -> acc
+  | h :: t -> op h (fold op t acc)
+  end
+in
+fold

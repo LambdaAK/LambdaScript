@@ -1,0 +1,9 @@
+bind filter f arr <-
+  switch arr =>
+    | [] -> []
+    | h :: t ->
+      if f h then h :: filter t
+      else filter t
+    end
+in
+filter
