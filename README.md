@@ -2,7 +2,7 @@
 
 ## An interpreted, functional programming language written using OCaml
 
-<br>
+<br><br>
 
 Lambdascript is a statically-typed functional programming language designed to
 make it easy to write elegant and expressive code. It has key features that
@@ -46,6 +46,8 @@ _output_
 int: 1
 ```
 
+<br><br>
+
 _input_
 
 ```
@@ -58,7 +60,7 @@ _output_
 int: 17
 ```
 
-<br>
+<br><br>
 
 ### bool
 
@@ -74,7 +76,7 @@ _output_
 bool: true
 ```
 
-<br>
+<br><br>
 
 _input_
 
@@ -88,7 +90,7 @@ _output_
 bool: false
 ```
 
-<br>
+<br><br>
 
 ### str
 
@@ -104,7 +106,7 @@ _output_
 str: "hello"
 ```
 
-<br>
+<br><br>
 
 _input_
 
@@ -118,7 +120,7 @@ _output_
 str: "world"
 ```
 
-<br>
+<br><br>
 
 ### ng ("nothing", also called "unit")
 
@@ -134,7 +136,7 @@ _output_
 ng: ()
 ```
 
-<br>
+<br><br>
 
 ## compound types
 
@@ -152,7 +154,7 @@ _output_
 [t1]: []
 ```
 
-<br>
+<br><br>
 
 _input_
 
@@ -166,7 +168,7 @@ _output_
 [int]: [1, 2, 3, 4, 5]
 ```
 
-<br>
+<br><br>
 
 _input_
 
@@ -180,7 +182,7 @@ _output_
 [[t1]]: [[]]
 ```
 
-<br>
+<br><br>
 
 ### vector
 
@@ -196,7 +198,7 @@ _output_
 (int, bool): (1, true)
 ```
 
-<br>
+<br><br>
 
 _input_
 
@@ -210,7 +212,7 @@ _output_
 (int, (bool, ng, str)): (1, (true, (), "a"))
 ```
 
-<br>
+<br><br>
 
 ## function types
 
@@ -226,7 +228,7 @@ _output_
 t1 -> t1: function
 ```
 
-<br>
+<br><br>
 
 _input_
 
@@ -240,7 +242,7 @@ _output_
 int -> int: function
 ```
 
-<br>
+<br><br>
 
 _input_
 
@@ -254,7 +256,7 @@ _output_
 int -> int -> int: function
 ```
 
-<br>
+<br><br>
 
 ## bind expressions
 
@@ -272,7 +274,7 @@ _output_
 int: 3
 ```
 
-<br>
+<br><br>
 
 _input_
 
@@ -286,7 +288,7 @@ _output_
 (int -> t1) -> int -> int -> t1: function
 ```
 
-<br>
+<br><br>
 
 _input_
 
@@ -314,7 +316,7 @@ _output_
 int: 3
 ```
 
-<br>
+<br><br>
 
 ## ternary expressions
 
@@ -330,7 +332,7 @@ _output_
 int: 1
 ```
 
-<br>
+<br><br>
 
 _input_
 
@@ -344,7 +346,7 @@ _output_
 int: 2
 ```
 
-<br>
+<br><br>
 
 # 
 
@@ -365,7 +367,7 @@ _output_
 bool: true
 ```
 
-<br>
+<br><br>
 
 _input_
 
@@ -404,7 +406,7 @@ _output_
 (t1 -> t2) -> [t1] -> [t2]: function
 ```
 
-<br>
+<br><br>
 
 _input_
 
@@ -424,7 +426,7 @@ _output_
 [-1, -2, -3, -4, -5]
 ```
 
-<br>
+<br><br>
 
 ## filter
 
