@@ -501,3 +501,51 @@ _output_
 ```c
 int: 89
 ```
+
+# known issues
+
+## fold_left and fold_right are not type-checking properly
+
+_input_
+```c
+bind rec fold op arr acc <-
+  switch arr =>
+  | [] -> acc
+  | h :: t -> fold op t (op acc h)
+  end
+in
+fold
+```
+
+_output_
+```c
+(t1 -> t2 -> t3) -> [t2] -> t1 -> t1: function
+```
+
+_expected output_
+```c
+(t1 -> t2 -> t1) -> [t2] -> t1 -> t1: function
+```
+
+<br><br>
+
+_input_
+```c
+bind fold op arr acc <-
+  switch arr =>
+  | [] -> acc
+  | h :: t -> op h (fold op t acc)
+  end
+in
+fold
+```
+
+_output_
+```c
+(t1 -> t2 -> t3) -> [t1] -> t3 -> t3: function
+```
+
+_expected output_
+```c
+(t1 -> t2 -> t2) -> [t1] -> t2 -> t2: function
+```

@@ -1,11 +1,7 @@
-bind rec fib n <-
-  switch n =>
-    | 0 -> 1
-    | 1 -> 1
-    | _ ->
-      bind a <- fib (n - 1) in
-      bind b <- fib (n - 2) in
-      a + b
+bind fold op arr acc <-
+  switch arr =>
+  | [] -> acc
+  | h :: t -> op h (fold op t acc)
   end
 in
-fib 10
+fold
