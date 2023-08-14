@@ -1,7 +1,7 @@
-bind rec fold op arr acc <-
+fn op ->
+fn arr ->
+fn acc ->
   switch arr =>
-  | [] -> acc
-  | h :: t -> fold op t (op acc h)
+    | [] -> acc
+    | h :: t -> (op acc h)
   end
-in
-fold

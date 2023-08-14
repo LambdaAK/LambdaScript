@@ -42,6 +42,12 @@ let rec string_of_static_env (env: static_env): string =
 
 
 let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
+
+  print_endline "GENERATING";
+  print_endline "env";
+  env |> string_of_static_env |> print_endline;
+  print_endline "end env";
+
   match e with
   | EInt _ -> IntType, []
   | EBool _ -> BoolType, []
@@ -119,7 +125,8 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     type_of_expression, (t1, BoolType) :: (t2, type_of_expression) :: (t3, type_of_expression) :: c1 @ c2 @ c3
 
   | EApp (first, second) -> generate_e_app env first second
-    
+
+
   | EBindRec (pattern, cto, e1, e2) ->
     (* perform the type inference as if it is a function application *)
     let function_id: string = (
@@ -157,19 +164,29 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     (* get the type of the switching expression *)
     let t1, c1 = generate env e in
     let type_that_all_branch_expressions_must_be: c_type = fresh_type_var () in (* use this in the constraints *)
+    
     (* get the type of each branch *)
+
     let branch_constraints: type_equation list = List.map (fun (bp, be) ->
+
       (* the pattern has to be of the same type as t1 *)
       let type_of_pattern, pattern_env, const = type_of_pat bp in
 
       let type_of_branch_expression, branch_expression_constraints = generate (pattern_env @ env) be in (* use the pattern env here *)
       let type_of_branch_expression = instantiate type_of_branch_expression in (* instantiate here *)
 
+
+      (* the type of the branch expression must be the same as the type that all branch expressions must be *)
+
       (type_of_pattern, t1) :: (type_of_branch_expression, type_that_all_branch_expressions_must_be) :: const @ branch_expression_constraints
 
     ) branches |> List.flatten (* since each iteration through map returns multiple constraints, the list is flattened *)
 
     in
+
+    print_endline "type that all branch expressions must be";
+    string_of_c_type type_that_all_branch_expressions_must_be |> print_endline;
+    print_endline "end";
 
     type_that_all_branch_expressions_must_be, c1 @ branch_constraints
 
@@ -224,8 +241,9 @@ and generate_e_app (env: static_env) (first: c_expr) (second: c_expr): c_type * 
 
 and type_of_pat (p: c_pat): c_type * static_env * type_equations=
   match p with
-  | CIdPat id -> 
+  | CIdPat id ->
     let new_var: c_type = fresh_type_var () in
+    p |> string_of_c_pat |> print_endline;
     new_var, [(id, new_var)], []
   | CNothingPat -> NothingType, [], []
   | CWildcardPat -> fresh_type_var (), [], []
@@ -341,7 +359,8 @@ and type_of_c_expr (e: c_expr) (static_env: static_env): c_type =
   let constraints_without_written_type_vars = replace_written_types constraints in
 
   let solution: substitutions = reduce_eq constraints_without_written_type_vars in
-  get_type t solution |> fix
+  ignore fix;
+  get_type t solution |> fix;
 
 and inside (inside_type: c_type) (outside_type: c_type): bool =
   match outside_type with

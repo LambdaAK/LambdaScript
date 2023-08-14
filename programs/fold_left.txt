@@ -5,3 +5,13 @@ bind rec fold op arr acc <-
   end
 in
 fold
+
+bind rec fold <-
+fn op ->
+fn arr ->
+fn acc ->
+  switch arr =>
+    | [] -> acc
+    | h :: t -> fold t (op acc h)
+  end
+in fold

@@ -1,210 +1,33 @@
 # LambdaScript
 
-# todo
-
-- Type aliases
-- Enum (a type of definition)
-- Sequence type
-- Type variables
+## An interpreted, functional programming language written using OCaml
 
 <br>
 
-# precedence
+Lambdascript is a statically-typed functional programming language designed to
+make it easy to write elegant and expressive code. It has key features that
+allow users to write clean and expressive code.
 
-Grouping symbols (Highest precedence)
+# Features
 
-- (
-- )
+- Basic and compound data types: int, bool, str, unit, list, vector, et cetera
 
-Unary operators
+- Functional constructs: ternary expressions, anonymous functions, let
+  expressions, currying, structural pattern matching
 
-- ~-
+- Type inference algorithm: uses a type constraint generator and a unification
+  algorithm to infer types
 
-Function application
+- A REPL allowing a user to type expressions and receive their value and type
 
-- f x
+- Rigorous OUnit test suite that utilizes functors, taking pre-built unit tests
+  and outputting modified ones
 
-Multiplicative arithmetic operators
+# Semantics
 
-- \*
-- /
-- %
+- To view the rigerously-defined semantics for LambdaScript, please refer to
+  this document:
 
-Additive arithmetic operators
+# Examples
 
-- \+
-- \-
-
-Relational operators
-
-- <
-- \>
-- <=
-- \>=
-
-Equality operators
-
-- ==
-- !=
-
-Logical "and"
-
-- &&
-
-Logical "or"
-
-- ||
-
-Ternary conditional operator (if then else statement)
-
-- if e1 then e2 else e3
-
-Function literal
-
-- lam pat -> e
-
-Bind expression
-
-- bind pat <- e1 in e2 (lowest precedence)
-
-# grammar
-
-<br><br>
-
-## Type
-
-compound_type ::=
-
-| factor_type '->' compound_type
-
-| factor_type
-
-<br>
-factor_type ::=
-
-| integer
-
-| boolean
-
-| string
-
-| '(' compound_type ')'
-<br><br>
-
-## Binding pattern
-
-pat ::=
-
-| '()'
-
-| ID
-
-<br><br>
-
-## General expression
-
-expr ::=
-
-| 'lam' pat '->' expr (* function *)
-
-| 'lam' pat '[' compound_type ']' '->' expr (* function *)
-
-| bind pat <- expr 'in' expr
-
-| bind pat '[' compound_type ']'<- expr 'in' expr
-
-| 'if' expr 'then' expr 'else' expr
-
-| disjunction
-
-<br><br>
-
-## Disjunction
-
-disjunction ::=
-
-| conjunction '||' disjunction
-
-| conjunction
-
-<br><br>
-
-## Conjunction
-
-conjunction ::=
-
-| eq_expr '&&' conjunction
-
-| eq_expr
-
-<br><br>
-
-## Equality
-
-eq_expr ::=
-
-| rel_expr '==' eq_expr
-
-| rel_expr '!=' eq_expr
-
-| rel_expr
-<br><br>
-
-## Relation
-
-rel_expr ::=
-
-| arith_expr '<' rel_expr
-
-| arith_expr '>' rel_expr
-
-| arith_expr '<=' rel_expr
-
-| arith_expr '>=' rel_expr
-
-| arith_expr
-<br><br>
-
-## Arithmetic expressions
-
-arith_expr ::=
-
-| term '+' arith_expr
-
-| term '-' arith_expr
-
-| term
-<br><br>
-
-## Arithmetic term
-
-term ::=
-
-| factor '*' term
-
-| factor '/' term
-
-| factor '%' term
-
-| factor
-<br><br>
-
-## Arithmetic factor
-
-factor ::=
-
-| INT
-
-| BOOL
-
-| STRING
-
-| '()'
-
-| ID
-
-| '(' expr ')'
-
-| '~-' factor
-
-| factor factor
+## Basic Types
