@@ -36,13 +36,13 @@ allow users to write clean and expressive code.
 
 _input_
 
-```
+```c
 1
 ```
 
 _output_
 
-```
+```c
 int: 1
 ```
 
@@ -50,13 +50,13 @@ int: 1
 
 _input_
 
-```
+```c
 17
 ```
 
 _output_
 
-```
+```c
 int: 17
 ```
 
@@ -66,13 +66,13 @@ int: 17
 
 _input_
 
-```
+```c
 true
 ```
 
 _output_
 
-```
+```c
 bool: true
 ```
 
@@ -80,13 +80,13 @@ bool: true
 
 _input_
 
-```
+```c
 false
 ```
 
 _output_
 
-```
+```c
 bool: false
 ```
 
@@ -96,13 +96,13 @@ bool: false
 
 _input_
 
-```
+```c
 "hello"
 ```
 
 _output_
 
-```
+```c
 str: "hello"
 ```
 
@@ -110,13 +110,13 @@ str: "hello"
 
 _input_
 
-```
+```c
 "world"
 ```
 
 _output_
 
-```
+```c
 str: "world"
 ```
 
@@ -126,13 +126,13 @@ str: "world"
 
 _input_
 
-```
+```c
 ()
 ```
 
 _output_
 
-```
+```c
 ng: ()
 ```
 
@@ -144,13 +144,13 @@ ng: ()
 
 _input_
 
-```
+```c
 []
 ```
 
 _output_
 
-```
+```c
 [t1]: []
 ```
 
@@ -158,13 +158,13 @@ _output_
 
 _input_
 
-```
+```c
 1 :: 2 :: 3 :: 4 :: 5 :: []
 ```
 
 _output_
 
-```
+```c
 [int]: [1, 2, 3, 4, 5]
 ```
 
@@ -172,13 +172,13 @@ _output_
 
 _input_
 
-```
+```c
 [] :: []
 ```
 
 _output_
 
-```
+```c
 [[t1]]: [[]]
 ```
 
@@ -188,13 +188,13 @@ _output_
 
 _input_
 
-```
+```c
 (1, true)
 ```
 
 _output_
 
-```
+```c
 (int, bool): (1, true)
 ```
 
@@ -202,13 +202,13 @@ _output_
 
 _input_
 
-```
+```c
 (1, (true, (), "a"))
 ```
 
 _output_
 
-```
+```c
 (int, (bool, ng, str)): (1, (true, (), "a"))
 ```
 
@@ -218,13 +218,13 @@ _output_
 
 _input_
 
-```
+```c
 fn x -> x
 ```
 
 _output_
 
-```
+```c
 t1 -> t1: function
 ```
 
@@ -232,13 +232,13 @@ t1 -> t1: function
 
 _input_
 
-```
+```c
 fn x -> x + 1
 ```
 
 _output_
 
-```
+```c
 int -> int: function
 ```
 
@@ -246,13 +246,13 @@ int -> int: function
 
 _input_
 
-```
+```c
 fn x -> fn y -> x + y
 ```
 
 _output_
 
-```
+```c
 int -> int -> int: function
 ```
 
@@ -262,7 +262,7 @@ int -> int -> int: function
 
 _input_
 
-```
+```c
 bind x <- 1 in
 bind y <- 2 in
 x + y
@@ -270,7 +270,7 @@ x + y
 
 _output_
 
-```
+```c
 int: 3
 ```
 
@@ -278,13 +278,13 @@ int: 3
 
 _input_
 
-```
+```c
 bind f x y z <- x (y + z) in f
 ```
 
 _output_
 
-```
+```c
 (int -> t1) -> int -> int -> t1: function
 ```
 
@@ -292,27 +292,27 @@ _output_
 
 _input_
 
-```
+```c
 bind f x y z <- x (y + z) in
 f (fn x -> x > 0) 1 2
 ```
 
 _output_
 
-```
+```c
 bool: true
 ```
 
 _input_
 
-```
+```c
 bind (a, b) <- (1, 2) in
 a + b
 ```
 
 _output_
 
-```
+```c
 int: 3
 ```
 
@@ -322,13 +322,13 @@ int: 3
 
 _input_
 
-```
+```c
 if true then 1 else 2
 ```
 
 _output_
 
-```
+```c
 int: 1
 ```
 
@@ -336,13 +336,13 @@ int: 1
 
 _input_
 
-```
+```c
 if false then 1 else 2
 ```
 
 _output_
 
-```
+```c
 int: 2
 ```
 
@@ -354,7 +354,7 @@ int: 2
 
 _input_
 
-```
+```c
 switch [] =>
   | [] -> true
   | _ :: _ -> false
@@ -363,7 +363,7 @@ end
 
 _output_
 
-```
+```c
 bool: true
 ```
 
@@ -371,7 +371,7 @@ bool: true
 
 _input_
 
-```
+```c
 switch 1 :: 2 :: [] =>
   | [] -> true
   | _ :: _ -> false
@@ -380,7 +380,7 @@ end
 
 _output_
 
-```
+```c
 bool: false
 ```
 
@@ -390,7 +390,7 @@ bool: false
 
 _input_
 
-```
+```c
 bind rec map f arr <-
   switch arr =>
     | [] -> []
@@ -402,7 +402,7 @@ map
 
 _output_
 
-```
+```c
 (t1 -> t2) -> [t1] -> [t2]: function
 ```
 
