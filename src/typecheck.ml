@@ -124,8 +124,17 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
     
     type_of_expression, (t1, BoolType) :: (t2, type_of_expression) :: (t3, type_of_expression) :: c1 @ c2 @ c3
 
-  | EApp (first, second) -> generate_e_app env first second
+  | EApp (first, second) -> 
 
+    (
+      match first with
+      | EFunction(CIdPat _, _, _) -> generate_e_app_function_pat_is_id env first second
+      | _ ->
+        let t1, c1 = generate env first in
+        let t2, c2 = generate env second in
+        let type_of_expression: c_type = fresh_type_var () in
+        type_of_expression, (t1 |> instantiate, ((t2 |> instantiate) => type_of_expression)) :: c1 @ c2
+    )
 
   | EBindRec (pattern, cto, e1, e2) ->
     (* perform the type inference as if it is a function application *)
@@ -190,7 +199,7 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
 
     type_that_all_branch_expressions_must_be, c1 @ branch_constraints
 
-and generate_e_app (env: static_env) (first: c_expr) (second: c_expr): c_type * type_equations =
+and generate_e_app_function_pat_is_id (env: static_env) (first: c_expr) (second: c_expr): c_type * type_equations =
 (
       (* start by checking whether first is a function *)
       match first with
@@ -210,6 +219,9 @@ and generate_e_app (env: static_env) (first: c_expr) (second: c_expr): c_type * 
         | CIdPat id -> id
         | _ -> failwith "not a valid pattern in typecheck.ml"
       ) in
+
+      print_endline "function id is";
+      function_id |> print_endline;
 
       let input_type, new_env_bindings, constraints_from_pattern = type_of_pat pattern in
       let constraints_from_type_annotation: type_equations =
