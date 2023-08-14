@@ -26,7 +26,7 @@ allow users to write clean and expressive code.
 # Semantics
 
 - To view the rigerously-defined semantics for LambdaScript, please refer to
-  this document:
+  https://github.com/LambdaAK/LambdaScript/blob/main/documentation/LambdaScript.pdf
 
 # Examples
 
