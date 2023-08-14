@@ -223,7 +223,7 @@ fn x -> x
 _output_
 
 ```
-t1 -> t1: <function>
+t1 -> t1: function
 ```
 
 <br>
@@ -237,7 +237,7 @@ fn x -> x + 1
 _output_
 
 ```
-int -> int: <function>
+int -> int: function
 ```
 
 <br>
@@ -251,7 +251,7 @@ fn x -> fn y -> x + y
 _output_
 
 ```
-int -> int -> int: <function>
+int -> int -> int: function
 ```
 
 <br>
@@ -348,5 +348,102 @@ int: 2
 
 # 
 
+## switch expresssions
+
+_input_
+
 ```
+switch [] =>
+  | [] -> true
+  | _ :: _ -> false
+end
+```
+
+_output_
+
+```
+bool: true
+```
+
+<br>
+
+_input_
+
+```
+switch 1 :: 2 :: [] =>
+  | [] -> true
+  | _ :: _ -> false
+end
+```
+
+_output_
+
+```
+bool: false
+```
+
+# some more advanced examples
+
+## map
+
+_input_
+
+```
+bind rec map f arr <-
+  switch arr =>
+    | [] -> []
+    | h :: t -> f h :: map f t
+  end
+in
+map
+```
+
+_output_
+
+```
+(t1 -> t2) -> [t1] -> [t2]: function
+```
+
+<br>
+
+_input_
+
+```
+bind rec map f arr <-
+  switch arr =>
+    | [] -> []
+    | h :: t -> f h :: map f t
+  end
+in
+map (fn x -> ~- x) (1 :: 2 :: 3 :: 4 :: 5 :: [])
+```
+
+_output_
+
+```
+[-1, -2, -3, -4, -5]
+```
+
+<br>
+
+## filter
+
+_input_
+
+```
+bind filter f arr <-
+  switch arr =>
+    | [] -> []
+    | h :: t ->
+      if f h then h :: filter t
+      else filter t
+    end
+in
+filter
+```
+
+_output_
+
+```
+(t1 -> bool) -> [t1] -> [t1]: function
 ```
