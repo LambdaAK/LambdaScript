@@ -1,7 +1,1 @@
-fn op ->
-fn arr ->
-fn acc ->
-  switch arr =>
-    | [] -> acc
-    | h :: t -> (op acc h)
-  end
+(fn (a, b) -> a + b)(1, 2)
