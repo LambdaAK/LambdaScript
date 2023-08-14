@@ -449,3 +449,55 @@ _output_
 ```
 (t1 -> bool) -> [t1] -> [t1]: function
 ```
+
+# fibonacci
+
+_input_
+
+```
+bind rec fib n <-
+  switch n =>
+    | 0 -> 1
+    | 1 -> 1
+    | _ ->
+      bind a <- fib (n - 1) in
+      bind b <- fib (n - 2) in
+      a + b
+  end
+in
+fib
+```
+
+<br><br>
+
+_output_
+
+```
+int -> int: function
+```
+
+<br><br>
+
+_input_
+
+```c
+bind rec fib n <-
+  switch n =>
+    | 0 -> 1
+    | 1 -> 1
+    | _ ->
+      bind a <- fib (n - 1) in
+      bind b <- fib (n - 2) in
+      a + b
+  end
+in
+fib 10
+```
+
+<br><br>
+
+_output_
+
+```c
+int: 89
+```

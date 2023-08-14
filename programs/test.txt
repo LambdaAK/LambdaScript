@@ -1,7 +1,11 @@
-bind rec map f arr <-
-  switch arr =>
-    | [] -> []
-    | h :: t -> f h :: map f t
+bind rec fib n <-
+  switch n =>
+    | 0 -> 1
+    | 1 -> 1
+    | _ ->
+      bind a <- fib (n - 1) in
+      bind b <- fib (n - 2) in
+      a + b
   end
 in
-map (fn x -> ~- x) (1 :: 2 :: 3 :: 4 :: 5 :: [])
+fib 10
