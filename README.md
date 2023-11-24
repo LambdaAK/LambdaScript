@@ -433,7 +433,7 @@ _output_
 _input_
 
 ```
-bind filter f arr <-
+bind rec filter f arr <-
   switch arr =>
     | [] -> []
     | h :: t ->
@@ -531,7 +531,7 @@ _expected output_
 
 _input_
 ```c
-bind fold op arr acc <-
+bind rec fold op arr acc <-
   switch arr =>
   | [] -> acc
   | h :: t -> op h (fold op t acc)
