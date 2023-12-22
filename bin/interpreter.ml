@@ -3,7 +3,7 @@ open Language.Parse
 open Language.Lex
 open Language.Reader
 open Language.Typecheck
-open Language.Ctostringtree.CToStringTree
+open Language.Ctostringcode.CToStringCode
 open Language.Condense
 
 let get_dir () : string =
@@ -14,10 +14,9 @@ let get_dir () : string =
 
 let run_run (dir : string) : unit =
   let contents : string = read dir in
-  (* print_endline "\n[AST]\n"; ast |> condense_expr |> string_of_c_expr |>
-     print_endline;
+  contents |> list_of_string |> lex |> parse_expr |> fst |> condense_expr
+  |> string_of_c_expr |> print_endline;
 
-     print_endline "\n[Value]\n"; *)
   print_newline ();
   contents |> c_eval |> print_endline;
   print_newline ();

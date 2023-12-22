@@ -1,7 +1,32 @@
-bind rec fold op arr acc <-
-  switch arr =>
+bind rec fold op acc lst <-
+  switch lst =>
   | [] -> acc
-  | h :: t -> op h (fold op t acc)
+  | h :: t -> fold op (op h acc) t
   end
 in
-fold
+
+bind rec append a b <-
+  switch a =>
+  | [] -> b
+  | h :: t -> h :: append t b
+  end
+
+in
+
+bind rec rev lst <-
+  switch lst =>
+  | [] -> []
+  | h :: t -> append (rev t) (h :: [])
+  end
+
+in
+
+bind rec double lst <-
+  switch lst =>
+  | [] -> []
+  | h :: t -> h :: (append (double t) (double t))
+  end
+
+in
+
+double (rev (1 :: 2 :: 3 :: 4 :: 5 :: []))

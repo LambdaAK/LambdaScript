@@ -606,6 +606,45 @@ let function_type_tests =
        then 2 else if x == 3 then 3 else if x == 4 then 4 else f (x - 1) + f \
        (x - 2) + f (x - 3) + f (x - 4) + f (x - 5) in f",
       "int -> int" );
+    (* map implemented using fold_right *)
+    ( "bind rec fold op lst acc <-\n\
+      \    switch lst =>\n\
+      \    | [] -> acc\n\
+      \    | h :: t -> op h (fold op t acc)\n\
+      \    end\n\
+      \  in\n\
+      \  \n\
+      \  bind rec map f lst <-\n\
+      \    fold (fn x -> fn acc -> f x :: acc) lst []\n\
+      \  \n\
+      \  in\n\
+      \  \n\
+      \  map",
+      "(t1 -> t2) -> [t1] -> [t2]" );
+    (* filter implemented using fold_right *)
+    ( {|bind rec fold op lst acc <-
+    switch lst =>
+    | [] -> acc
+    | h :: t -> op h (fold op t acc)
+    end
+  in
+  
+  bind filter pred <- fold (fn x -> fn acc -> if pred x then x :: acc else acc) []
+  
+  in filter|},
+      "(t1 -> bool) -> [t1] -> [t1]" );
+    (* filter implemented using fold_left *)
+    ( {|bind rec fold op acc lst <-
+    switch lst =>
+    | [] -> acc
+    | h :: t -> fold op t (op h acc)
+    end
+  in
+  
+  bind filter pred <- fold (fn x -> fn acc -> if pred x then x :: acc else acc) []
+  
+  in filter|},
+      "(t1 -> bool) -> [t1] -> [t1]" );
   ]
 
 let pair_type_tests =
