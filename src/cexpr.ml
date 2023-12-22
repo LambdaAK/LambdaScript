@@ -9,7 +9,6 @@ type c_pat =
   | CIdPat of string
   | CNothingPat
 
-
 type c_bop =
   | CPlus
   | CMinus
@@ -26,10 +25,7 @@ type c_bop =
   | COr
   | CCons
 
-
-and c_defn =
-  | CDefn of c_pat * c_type option * c_expr
-
+and c_defn = CDefn of c_pat * c_type option * c_expr
 and c_switch_branch = c_pat * c_expr
 
 and c_expr =
@@ -59,19 +55,17 @@ and c_type =
   | CListType of c_type
   | UniversalType of int
 
+let ( => ) (t1 : c_type) (t2 : c_type) : c_type = FunctionType (t1, t2)
+let counter : int ref = ref 0
 
-let ( => ) (t1: c_type) (t2: c_type): c_type =
-  FunctionType (t1, t2)
-
-
-let counter: int ref = ref 0
-let fresh_type_var: unit -> c_type =
-fun () ->
+let fresh_type_var : unit -> c_type =
+ fun () ->
   counter := !counter + 1;
   TypeVar !counter
 
-let counter_2: int ref = ref 0
-let fresh_universal_type: unit -> c_type =
-fun () ->
+let counter_2 : int ref = ref 0
+
+let fresh_universal_type : unit -> c_type =
+ fun () ->
   counter_2 := !counter_2 + 1;
   UniversalType !counter_2
