@@ -1,6 +1,6 @@
 open Cexpr
 open Typefixer
-open Ctostring
+open Ctostringtree.CToStringTree
 
 type static_env = (string * c_type) list
 type type_equation = c_type * c_type

@@ -2,7 +2,7 @@ open OUnit2
 open Language.Ceval
 open Language.Typecheck
 open Language.Condense
-open Language.Ctostring
+open Language.Ctostringtree.CToStringTree
 open Language.Parse
 open Language.Lex
 
