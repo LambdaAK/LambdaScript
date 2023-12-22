@@ -844,6 +844,28 @@ let list_tests = [
 ]
 
 
+let fold_type_tests = [
+  {|
+    bind rec fold op arr acc <-
+      switch arr =>
+      | [] -> acc
+      | h :: t -> fold op t (op acc h)
+      end
+    in
+    fold
+  |},
+  "(t1 -> t2 -> t1) -> [t2] -> t1 -> t1";
+  {|
+  bind rec fold op arr acc <-
+    switch arr =>
+    | [] -> acc
+    | h :: t -> op h (fold op t acc)
+    end
+  in
+  fold
+  |},
+  "(t1 -> t2 -> t2) -> [t1] -> t2 -> t2";
+]
 
 
 let complex_tests = [
@@ -1026,20 +1048,21 @@ let complex_tests = [
     f 100
     |}, "false";
 
-
 ]
 
 
 let int_type_tests: test list = List.map (fun expression -> type_is_int expression) (int_types |> TypeTestModifier.modify_tests |> IntTypeTestModifier.modify_tests)
 let bool_type_tests: test list = List.map (fun expression -> type_is_bool expression) (bool_types |> TypeTestModifier.modify_tests |> BoolTypeTestModifier.modify_tests)
 let string_type_tests: test list = List.map (fun expression -> type_is_string expression) string_types
-let function_type_tests: test list = List.map (fun (a, b) -> type_test a b) (function_type_tests |> FunctionTypeTestModifier.modify_tests)
+let function_type_tests: test list = List.map (fun (a, b) -> type_test a b) ((function_type_tests @ fold_type_tests) |> FunctionTypeTestModifier.modify_tests)
 let pair_type_tests: test list = List.map (fun (a, b) -> type_test a b) (pair_type_tests |> PairTypeTestModifier.modify_tests)
 
 let vector_type_tests: test list = List.map (fun (a, b) -> type_test a b) (vector_type_tests |> VectorTypeTestModifier.modify_tests)
 let list_type_tests: test list = List.map (fun (a, b) -> type_test a b) (list_type_tests |> ListTypeTestModifier.modify_tests)
 let switch_type_tests: test list = List.map (fun (a, b) -> type_test a b) (switch_type_tests |> SwitchTypeTestModifier.modify_tests)
 let polymorphism_tests: test list = List.map (fun (a, b) -> type_test a b) (polymorphism_tests |> PolymorphismTypeTestModifier.modify_tests)
+
+
 let eval_test_data = [
   arithmetic_tests |> IntTestModifier.modify_tests;
   boolean_tests;

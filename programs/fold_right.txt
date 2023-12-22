@@ -1,7 +1,10 @@
-bind fold op arr acc <-
+bind rec fold op arr acc <-
   switch arr =>
   | [] -> acc
   | h :: t -> op h (fold op t acc)
   end
 in
 fold
+
+(t7 -> t13 -> t6) -> [t7] -> t6 -> t6
+(t6 -> t12 -> t5) -> [t6] -> t5 -> t12
