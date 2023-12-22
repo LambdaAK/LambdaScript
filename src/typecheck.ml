@@ -61,10 +61,7 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
           (IntType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
       | CGE | CGT | CLE | CLT ->
           (BoolType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
-      | CEQ | CNE ->
-          (BoolType, c1 @ c2)
-          (* the only constraint here is that the entire expression must be
-             boolean *)
+      | CEQ | CNE -> (BoolType, ((t1, t2) :: c1) @ c2)
       | CAnd | COr -> (BoolType, ((t1, BoolType) :: (t2, BoolType) :: c1) @ c2))
   | EFunction (pat, cto, body) ->
       let input_type, new_env_bindings, constraints_from_pattern =

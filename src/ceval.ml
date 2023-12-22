@@ -17,9 +17,9 @@ type value =
 and env = (string * value) list
 
 let rec string_of_env (env : env) =
-  match env with
-  | [] -> ""
-  | (id, v) :: t -> "(" ^ id ^ ", " ^ string_of_value v ^ ") " ^ string_of_env t
+  List.fold_left
+    (fun acc (id, v) -> acc ^ "(" ^ id ^ ", " ^ string_of_value v ^ ") ")
+    "" env
 
 and string_of_value = function
   | IntegerValue i -> string_of_int i
@@ -193,8 +193,8 @@ and eval_bop (op : c_bop) (e1 : c_expr) (e2 : c_expr) (env : env) =
       | CMul, IntegerValue a, IntegerValue b -> IntegerValue (a * b)
       | CDiv, IntegerValue a, IntegerValue b -> IntegerValue (a / b)
       | CMod, IntegerValue a, IntegerValue b -> IntegerValue (a mod b)
-      | CEQ, IntegerValue a, IntegerValue b -> BooleanValue (a = b)
-      | CNE, IntegerValue a, IntegerValue b -> BooleanValue (a <> b)
+      | CEQ, a, b -> BooleanValue (a = b)
+      | CNE, a, b -> BooleanValue (a <> b)
       | CLT, IntegerValue a, IntegerValue b -> BooleanValue (a < b)
       | CLE, IntegerValue a, IntegerValue b -> BooleanValue (a <= b)
       | CGT, IntegerValue a, IntegerValue b -> BooleanValue (a > b)
@@ -288,7 +288,7 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env) :
                   | VectorValue values -> (
                       let new_type : c_type =
                         type_of_c_expr body_expression static_env
-                        |> generalize [] []
+                        |> generalize [] [] (* TODO: Is this right? *)
                       in
                       let new_bindings : env =
                         handle_let_defn_with_vector_pat patterns values
