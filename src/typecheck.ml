@@ -44,7 +44,7 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
       let t = List.assoc x env |> instantiate in
       (t, [])
   | EString _ -> (StringType, [])
-  | ENothing -> (NothingType, [])
+  | EUnit -> (UnitType, [])
   | ENil -> (CListType (fresh_type_var ()), [])
   | EBop (op, e1, e2) -> (
       let t1, c1 = generate env e1 in
@@ -230,7 +230,7 @@ and type_of_pat (p : c_pat) : c_type * static_env * type_equations =
   | CIdPat id ->
       let new_var : c_type = fresh_type_var () in
       (new_var, [ (id, new_var) ], [])
-  | CNothingPat -> (NothingType, [], [])
+  | CUnitPat -> (UnitType, [], [])
   | CWildcardPat -> (fresh_type_var (), [], [])
   | CVectorPat patterns ->
       let list_of_types, list_of_lists_of_envs, lists_of_equations =
@@ -295,7 +295,7 @@ and get_type (var : c_type) (subs : substitutions) : c_type =
   | IntType -> IntType
   | BoolType -> BoolType
   | StringType -> StringType
-  | NothingType -> NothingType
+  | UnitType -> UnitType
   | CListType et -> CListType (get_type et subs)
   | UniversalType _ -> var
   | _ -> failwith "not a type var2"
@@ -333,7 +333,7 @@ and inside (inside_type : c_type) (outside_type : c_type) : bool =
 
 and is_basic_type (t : c_type) : bool =
   match t with
-  | IntType | BoolType | StringType | NothingType -> true
+  | IntType | BoolType | StringType | UnitType -> true
   | TypeVar _ | UniversalType _ -> false
   | TypeVarWritten _ -> false (* fix this later if necessary *)
   | FunctionType (i, o) -> is_basic_type i && is_basic_type o
@@ -354,7 +354,7 @@ and substitute_in_type (type_subbing_in : c_type)
   | IntType -> IntType
   | BoolType -> BoolType
   | StringType -> StringType
-  | NothingType -> NothingType
+  | UnitType -> UnitType
   | TypeVar id ->
       if id = type_var_id_subbing_for then substitute_with else TypeVar id
   | FunctionType (t1, t2) ->

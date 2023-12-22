@@ -554,7 +554,7 @@ let function_type_tests =
 
     (* recursive functions *)
     ("bind rec f x <- x in f", "t1 -> t1");
-    ("bind rec f x [ng] <- x in f", "ng -> ng");
+    ("bind rec f x [unit] <- x in f", "ng -> ng");
     ("bind rec f x [int -> int] <- x in f", "(int -> int) -> int -> int");
     ("fn a [[int]] -> a", "[int] -> [int]");
     ("bind rec f x <- if x == 0 then 0 else f (x - 1) in f", "int -> int");
@@ -663,7 +663,7 @@ let function_to_string_tests =
   [
     ("fn a -> a", "function");
     ("fn () -> ()", "function");
-    ("fn () [ng] -> ()", "function");
+    ("fn () [unit] -> ()", "function");
     ("bind a [(int -> int) -> int] <- fn f -> f 1 in a", "function");
   ]
 

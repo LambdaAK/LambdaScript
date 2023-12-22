@@ -15,7 +15,7 @@ let rec string_of_pat : pat -> string = function
       ^ ")"
 
 and string_of_sub_pat : sub_pat -> string = function
-  | NothingPat -> "Nothing Pattern"
+  | UnitPat -> "Unit Pattern"
   | WildcardPat -> "Wildcard Pattern"
   | IdPat s -> "Id Pattern (" ^ s ^ ")"
   | NilPat -> "Nil Pattern"
@@ -47,7 +47,7 @@ let rec string_of_basic_type (ft : factor_type) (level : int) : string =
   | IntegerType -> "IntegerType"
   | BooleanType -> "BooleanType"
   | StringType -> "StringType"
-  | NothingType -> "NothingType"
+  | UnitType -> "UnitType"
   | ParenFactorType c -> string_of_compound_type c level
   | VectorType types ->
       "VectorType ("
@@ -284,7 +284,7 @@ and string_of_arith_factor (af : factor) (level : int) =
   | Integer n -> "Integer (" ^ string_of_int n ^ ")"
   | Boolean b -> "Boolean (" ^ string_of_bool b ^ ")"
   | String s -> "String (" ^ s ^ ")"
-  | Nothing -> "Nothing"
+  | Unit -> "Unit"
   | Id s -> "Id (" ^ s ^ ")"
   | ParenFactor e ->
       "Paren ("

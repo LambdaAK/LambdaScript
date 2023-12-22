@@ -47,7 +47,7 @@ and parse_factor_type (tokens : token list) : factor_type * token list =
   | { token_type = IntegerType; line = _ } :: t -> (IntegerType, t)
   | { token_type = BooleanType; line = _ } :: t -> (BooleanType, t)
   | { token_type = StringType; line = _ } :: t -> (StringType, t)
-  | { token_type = NothingType; line = _ } :: t -> (NothingType, t)
+  | { token_type = UnitType; line = _ } :: t -> (UnitType, t)
   | { token_type = TypeVar i; line = _ } :: t -> (TypeVarWritten i, t)
   | { token_type = LBracket; line = _ } :: t ->
       (* list type *)
@@ -562,7 +562,7 @@ and parse_pat (tokens : token list) : pat * token list =
 and parse_sub_pat (tokens : token list) : sub_pat * token list =
   match tokens with
   | [] -> failwith "empty list passed to parse_pat"
-  | { token_type = Nothing; line = _ } :: t -> (NothingPat, t)
+  | { token_type = Unit; line = _ } :: t -> (UnitPat, t)
   | { token_type = WildcardPattern; line = _ } :: t -> (WildcardPat, t)
   | { token_type = Id s; line = _ } :: t -> (IdPat s, t)
   | { token_type = Integer n; line = _ } :: t -> (IntPat n, t)
@@ -591,7 +591,7 @@ and parse_factor_not_app (tokens : token list) : factor * token list =
       (Opposite inside, remaining_tokens)
   | { token_type = Boolean b; line = _ } :: t -> (Boolean b, t)
   | { token_type = StringToken s; line = _ } :: t -> (String s, t)
-  | { token_type = Nothing; line = _ } :: t -> (Nothing, t)
+  | { token_type = Unit; line = _ } :: t -> (Unit, t)
   | { token_type = Id s; line = _ } :: t -> (Id s, t)
   | { token_type = LBracket; line = _ }
     :: { token_type = RBracket; line = _ }

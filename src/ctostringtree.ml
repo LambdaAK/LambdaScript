@@ -10,7 +10,7 @@ module CToStringTree : CToString = struct
   let rec string_of_c_pat : c_pat -> string = function
     | CIntPat i -> "IntPat (" ^ string_of_int i ^ ")"
     | CBoolPat b -> "BoolPat (" ^ string_of_bool b ^ ")"
-    | CNothingPat -> "NothingPat"
+    | CUnitPat -> "UnitPat"
     | CIdPat s -> "IdPat (" ^ s ^ ")"
     | CConsPat (p1, p2) ->
         let p1_string : string = string_of_c_pat p1 in
@@ -78,7 +78,7 @@ module CToStringTree : CToString = struct
         ^ branches_string
         ^ indentations_with_newline level
         ^ ")"
-    | ENothing -> "Nothing"
+    | EUnit -> "Unit"
     | EId s -> "Id (" ^ s ^ ")"
     | EFunction (pattern, cto, body) ->
         let pattern_string : string = string_of_c_pat pattern in
@@ -192,7 +192,7 @@ module CToStringTree : CToString = struct
     match t with
     | BoolType -> "bool"
     | StringType -> "str"
-    | NothingType -> "ng"
+    | UnitType -> "ng"
     | IntType -> "int"
     | CListType t ->
         let t_string : string = string_of_c_type t in

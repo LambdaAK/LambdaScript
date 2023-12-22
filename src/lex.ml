@@ -2,7 +2,7 @@ type token_type =
   | Integer of int
   | Boolean of bool
   | StringToken of string
-  | Nothing
+  | Unit
   | Id of string
   | TypeVar of string
   | Assign
@@ -35,7 +35,7 @@ type token_type =
   | IntegerType
   | BooleanType
   | StringType
-  | NothingType
+  | UnitType
   | LBracket
   | RBracket
   | Bind
@@ -155,9 +155,9 @@ let lex (lst : char list) : token list =
           { token_type = StringType; line = !line_number }
         in
         new_token :: lex t
-    | 'n' :: 'g' :: t ->
+    | 'u' :: 'n' :: 'i' :: 't' :: t ->
         let new_token : token =
-          { token_type = NothingType; line = !line_number }
+          { token_type = UnitType; line = !line_number }
         in
         new_token :: lex t
     | '\'' :: tokens_after_single_quote ->
@@ -217,7 +217,7 @@ let lex (lst : char list) : token list =
         let new_token : token = { token_type = Colon; line = !line_number } in
         new_token :: lex t
     | '(' :: ')' :: t ->
-        let new_token : token = { token_type = Nothing; line = !line_number } in
+        let new_token : token = { token_type = Unit; line = !line_number } in
         new_token :: lex t
     | '+' :: t ->
         let new_token : token = { token_type = Plus; line = !line_number } in
@@ -320,7 +320,7 @@ let string_of_token : token -> string =
       let s : string = string_of_int n in
       "<integer: " ^ s ^ ">"
   | StringToken s -> "<string: " ^ s ^ ">"
-  | Nothing -> "<nothing>"
+  | Unit -> "<unit>"
   | Id s -> "<id: " ^ s ^ ">"
   | Fn -> "<fn>"
   | Arrow -> "<arrow>"
@@ -349,7 +349,7 @@ let string_of_token : token -> string =
   | IntegerType -> "<integer type>"
   | BooleanType -> "<boolean type>"
   | StringType -> "<string type>"
-  | NothingType -> "<nothing type>"
+  | UnitType -> "<unit type>"
   | LBracket -> "<left bracket>"
   | RBracket -> "<right bracket>"
   | Bind -> "<bind>"

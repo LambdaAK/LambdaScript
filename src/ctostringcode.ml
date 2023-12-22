@@ -7,7 +7,7 @@ module CToStringCode : CToString = struct
   let rec string_of_c_pat = function
     | CIntPat i -> string_of_int i
     | CBoolPat b -> string_of_bool b
-    | CNothingPat -> "()"
+    | CUnitPat -> "()"
     | CIdPat s -> s
     | CConsPat (p1, p2) -> string_of_c_pat p1 ^ "::" ^ string_of_c_pat p2
     | CNilPat -> "[]"
@@ -39,7 +39,7 @@ module CToStringCode : CToString = struct
     match e with
     | EInt i -> string_of_int i
     | EBool b -> string_of_bool b
-    | ENothing -> "()"
+    | EUnit -> "()"
     | EId s -> s
     | EBop (b, e1, e2) ->
         string_of_c_expr e1 level ^ " " ^ string_of_c_bop b ^ " "
@@ -92,7 +92,7 @@ module CToStringCode : CToString = struct
   let rec string_of_c_type = function
     | BoolType -> "bool"
     | StringType -> "str"
-    | NothingType -> "ng"
+    | UnitType -> "ng"
     | IntType -> "int"
     | CListType t ->
         let t_string : string = string_of_c_type t in

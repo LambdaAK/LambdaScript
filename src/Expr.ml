@@ -4,7 +4,7 @@ type pat =
 
 and sub_pat =
   | IdPat of string
-  | NothingPat
+  | UnitPat
   | VectorPat of pat list
   | WildcardPat
   | IntPat of int
@@ -31,7 +31,7 @@ and factor_type =
   | IntegerType
   | StringType
   | BooleanType
-  | NothingType
+  | UnitType
   | TypeVarWritten of string
   | ParenFactorType of compound_type
   | VectorType of compound_type list
@@ -81,7 +81,7 @@ and term =
 and factor =
   | Boolean of bool
   | String of string
-  | Nothing
+  | Unit
   | Integer of int
   | Id of string
   | ParenFactor of expr

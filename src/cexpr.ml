@@ -7,7 +7,7 @@ type c_pat =
   | CVectorPat of c_pat list
   | CStringPat of string
   | CIdPat of string
-  | CNothingPat
+  | CUnitPat
 
 type c_bop =
   | CPlus
@@ -35,7 +35,7 @@ and c_expr =
   | ESwitch of c_expr * c_switch_branch list
   | EBool of bool
   | EString of string
-  | ENothing
+  | EUnit
   | EInt of int
   | EId of string
   | EApp of c_expr * c_expr
@@ -47,7 +47,7 @@ and c_type =
   | IntType
   | BoolType
   | StringType
-  | NothingType
+  | UnitType
   | TypeVarWritten of string
   | FunctionType of c_type * c_type
   | VectorType of c_type list

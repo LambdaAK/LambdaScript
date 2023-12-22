@@ -8,7 +8,7 @@ type value =
   | IntegerValue of int
   | StringValue of string
   | BooleanValue of bool
-  | NothingValue
+  | UnitValue
   | FunctionClosure of env * c_pat * c_type option * c_expr
   | RecursiveFunctionClosure of env ref * c_pat * c_type option * c_expr
   | VectorValue of value list
@@ -25,7 +25,7 @@ and string_of_value = function
   | IntegerValue i -> string_of_int i
   | StringValue s -> "\"" ^ s ^ "\""
   | BooleanValue b -> string_of_bool b
-  | NothingValue -> "()"
+  | UnitValue -> "()"
   | FunctionClosure _ -> "function"
   | RecursiveFunctionClosure _ -> "function"
   | VectorValue values ->
@@ -41,7 +41,7 @@ and string_of_value = function
 
 let rec bind_pat (p : c_pat) (v : value) : env option =
   match (p, v) with
-  | CNothingPat, NothingValue -> Some []
+  | CUnitPat, UnitValue -> Some []
   | CWildcardPat, _ -> Some []
   | CIdPat s, _ -> Some [ (s, v) ]
   | CIntPat i, IntegerValue j -> if i = j then Some [] else None
@@ -72,7 +72,7 @@ let rec bind_pat (p : c_pat) (v : value) : env option =
 
 let rec bind_static (p : c_pat) (t : c_type) : static_env option =
   match (p, t) with
-  | CNothingPat, NothingType -> Some []
+  | CUnitPat, UnitType -> Some []
   | CWildcardPat, _ -> Some []
   | CIdPat s, _ -> Some [ (s, t) ]
   | CVectorPat patterns, VectorType types -> (
@@ -94,7 +94,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) =
   | EString s -> StringValue s
   | EBool b -> BooleanValue b
   | ENil -> ListValue []
-  | ENothing -> NothingValue
+  | EUnit -> UnitValue
   | EId s -> List.assoc s env
   | EBop (op, e1, e2) -> eval_bop op e1 e2 env
   | EFunction (p, _, e) -> FunctionClosure (env, p, None, e)

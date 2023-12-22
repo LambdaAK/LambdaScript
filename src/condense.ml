@@ -10,7 +10,7 @@ and condense_sub_pat : sub_pat -> c_pat = function
   | IntPat i -> CIntPat i
   | BoolPat b -> CBoolPat b
   | StringPat s -> CStringPat s
-  | NothingPat -> CNothingPat
+  | UnitPat -> CUnitPat
   | IdPat s -> CIdPat s
   | NilPat -> CNilPat
   | VectorPat pats -> CVectorPat (List.map condense_pat pats)
@@ -107,7 +107,7 @@ and condense_term : term -> c_expr = function
 and condense_factor : factor -> c_expr = function
   | Boolean b -> EBool b
   | String s -> EString s
-  | Nothing -> ENothing
+  | Unit -> EUnit
   | Integer i -> EInt i
   | Id s -> EId s
   | ParenFactor expr -> condense_expr expr
@@ -120,7 +120,7 @@ and condense_factor : factor -> c_expr = function
 and factor_type_to_t : factor_type -> c_type = function
   | BooleanType -> BoolType
   | StringType -> StringType
-  | NothingType -> NothingType
+  | UnitType -> UnitType
   | IntegerType -> IntType
   | TypeVarWritten i -> TypeVarWritten i
   | ParenFactorType expr -> condense_type expr
