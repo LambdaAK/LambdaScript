@@ -128,8 +128,16 @@ let rec generate (env: static_env) (e: c_expr): c_type * type_equations =
 
     (
       match first with
-      | EFunction(CIdPat _, _, _) -> generate_e_app_function_pat_is_id env first second
+      | EFunction(CIdPat _, _, _) -> 
+        generate_e_app_function_pat_is_id env first second
       | _ ->
+        print_endline "generating function app";
+        print_endline "e1";
+        string_of_c_expr first |> print_endline;
+        print_endline "end e1";
+        print_endline "e2";
+        string_of_c_expr second |> print_endline;
+        print_endline "end e2";
         let t1, c1 = generate env first in
         let t2, c2 = generate env second in
         let type_of_expression: c_type = fresh_type_var () in
@@ -366,21 +374,22 @@ and type_of_c_expr (e: c_expr) (static_env: static_env): c_type =
 
   string_of_c_type t |> print_endline;
   
-  print_endline "end";
+  print_endline "end type";
   
   let constraints_without_written_type_vars = replace_written_types constraints in
 
   let solution: substitutions = reduce_eq constraints_without_written_type_vars in
   ignore fix;
-  get_type t solution |> fix;
+  get_type t solution;
 
 and inside (inside_type: c_type) (outside_type: c_type): bool =
   match outside_type with
   | _ when inside_type = outside_type -> true
   | FunctionType (i, o) -> inside inside_type i || inside inside_type o
   (* there needs to be a case here for vectors *)
-  | _ -> false 
-
+  | VectorType types -> List.exists (fun t -> inside inside_type t) types
+  | CListType et -> inside inside_type et
+  | _ -> false
 
 and is_basic_type (t: c_type): bool =
   match t with
