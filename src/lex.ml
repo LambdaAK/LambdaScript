@@ -182,7 +182,7 @@ let lex (lst : char list) : token list =
     | 'l' :: 'e' :: 't' :: t ->
         let new_token : token = { token_type = Let; line = !line_number } in
         new_token :: lex t
-    | 'f' :: 'n' :: t ->
+    | '\\' :: t ->
         let new_token : token = { token_type = Fn; line = !line_number } in
         new_token :: lex t
     | 'i' :: 'f' :: t ->

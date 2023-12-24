@@ -237,7 +237,7 @@ let eval_c_empty_env (s : string) : value =
 
 let not_function : value =
   eval_c_empty_env {|
- fn a -> 
+ \ a -> 
     if a then false else true
   |}
 
