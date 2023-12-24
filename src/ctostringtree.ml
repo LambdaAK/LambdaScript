@@ -155,6 +155,17 @@ module CToStringTree : CToString = struct
         ^ indentations_with_newline level
         ^ ")"
     | ENil -> "[]"
+    | EListEnumeration (e1, e2) ->
+        let e1_string : string = string_of_c_expr e1 (level + 1) in
+        let e2_string : string = string_of_c_expr e2 (level + 1) in
+
+        "ListEnumeration ("
+        ^ indentations_with_newline (level + 1)
+        ^ e1_string ^ ","
+        ^ indentations_with_newline (level + 1)
+        ^ e2_string
+        ^ indentations_with_newline level
+        ^ ")"
 
   and string_of_c_bop : c_bop -> string = function
     | CPlus -> "+"

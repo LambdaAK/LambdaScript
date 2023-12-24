@@ -86,6 +86,8 @@ module CToStringCode : CToString = struct
         ^ indentations_with_newline level
         ^ "end"
     | EString s -> "\"" ^ s ^ "\""
+    | EListEnumeration (e1, e2) ->
+        string_of_c_expr e1 level ^ " .. " ^ string_of_c_expr e2 level
 
   let string_of_c_expr e = string_of_c_expr e 0
 

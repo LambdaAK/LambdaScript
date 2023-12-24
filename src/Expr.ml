@@ -90,3 +90,4 @@ and factor =
   | Vector of expr list
   | Nil
   | ListSugar of expr list (* list represents a list literal like [1;2;3;4;5] *)
+  | ListEnumeration of expr * expr

@@ -42,6 +42,7 @@ and c_expr =
   | EBop of c_bop * c_expr * c_expr
   | EVector of c_expr list
   | ENil
+  | EListEnumeration of c_expr * c_expr
 
 and c_type =
   | IntType

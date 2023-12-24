@@ -170,6 +170,10 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
       in
 
       (type_that_all_branch_expressions_must_be, c1 @ branch_constraints)
+  | EListEnumeration (e1, e2) ->
+      let t1, c1 = generate env e1 in
+      let t2, c2 = generate env e2 in
+      (CListType IntType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
 
 and generate_e_app_function_pat_is_id (env : static_env) (first : c_expr)
     (second : c_expr) : c_type * type_equations =

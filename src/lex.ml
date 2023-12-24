@@ -49,6 +49,7 @@ type token_type =
   | WildcardPattern
   | ConsToken
   | Semicolon
+  | Enum
 
 type token = {
   token_type : token_type;
@@ -128,6 +129,9 @@ let lex (lst : char list) : token list =
         lex t (* ignore new lines, increment the line number *)
     | 's' :: 'w' :: 'i' :: 't' :: 'c' :: 'h' :: t ->
         let new_token : token = { token_type = Switch; line = !line_number } in
+        new_token :: lex t
+    | '.' :: '.' :: '.' :: t ->
+        let new_token : token = { token_type = Enum; line = !line_number } in
         new_token :: lex t
     | 'e' :: 'n' :: 'd' :: t ->
         let new_token : token = { token_type = End; line = !line_number } in
@@ -373,6 +377,7 @@ let string_of_token : token -> string =
   | Switch -> "<switch>"
   | End -> "<end>"
   | Semicolon -> "<semicolon>"
+  | Enum -> "<enum>"
 [@@coverage off]
 
 let rec print_tokens_list : token list -> unit = function

@@ -119,6 +119,8 @@ and condense_factor : factor -> c_expr = function
   | ListSugar e_list ->
       let c_e_list : c_expr list = List.map condense_expr e_list in
       cons_from_list c_e_list
+  | ListEnumeration (e1, e2) ->
+      EListEnumeration (condense_expr e1, condense_expr e2)
 
 and cons_from_list : c_expr list -> c_expr = function
   | [] -> ENil

@@ -324,5 +324,14 @@ and string_of_arith_factor (af : factor) (level : int) =
           (List.map (fun e -> string_of_expr e (level + 1)) e_list)
       ^ indentations_with_newline level
       ^ ")"
+  | ListEnumeration (e1, e2) ->
+      "ListEnumeration ("
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_expr e1 (level + 1)
+      ^ ","
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_expr e2 (level + 1)
+      ^ indentations_with_newline level
+      ^ ")"
 
 let string_of_expr (e : expr) = string_of_expr e 0

@@ -98,6 +98,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) =
   | EId s -> List.assoc s env
   | EBop (op, e1, e2) -> eval_bop op e1 e2 env
   | EFunction (p, _, e) -> FunctionClosure (env, p, None, e)
+  | EListEnumeration (e1, e2) -> eval_list_enumeration e1 e2 env
   | EVector expressions ->
       (* evalute each sub expression to a value *)
       let transformer e = eval_c_expr e env in
@@ -229,6 +230,18 @@ and eval_bop (op : c_bop) (e1 : c_expr) (e2 : c_expr) (env : env) =
           print_endline op_string;
 
           failwith "eval_bop unimplemented")
+
+and eval_list_enumeration e1 e2 env =
+  let v1 = eval_c_expr e1 env in
+  let v2 = eval_c_expr e2 env in
+  match (v1, v2) with
+  | IntegerValue a, IntegerValue b ->
+      let rec make_list_tr a b acc =
+        if a > b then List.rev acc
+        else make_list_tr (a + 1) b (IntegerValue a :: acc)
+      in
+      ListValue (make_list_tr a b [])
+  | _ -> failwith "eval_list_enumeration failed"
 
 let eval_c_empty_env (s : string) : value =
   eval_c_expr

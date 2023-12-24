@@ -609,18 +609,28 @@ and parse_factor_not_app (tokens : token list) : factor * token list =
   | { token_type = LBracket; line = _ }
     :: { token_type = RBracket; line = _ }
     :: t -> (Nil, t)
-  | { token_type = LBracket; line = _ } :: t ->
+  | { token_type = LBracket; line = _ } :: t -> (
       (* list syntactic sugar *)
+
+      (* need to decide whether to parse a listsugar or listenumeration
+
+         we have [x ____
+
+         parse x. if the token that follows is ..., then it's a listenumeration
+
+         else, it's a list sugar *)
+
       (* parse a list of expressions seperated by ; *)
-      let inside_expressions, tokens_after_expr_list =
-        parse_expressions_seperated_by_commas t
-      in
-      (* the next token should be a RBracket *)
-      assert_next_token tokens_after_expr_list RBracket;
-
-      let after_tokens : token list = remove_head tokens_after_expr_list in
-
-      (ListSugar inside_expressions, after_tokens)
+      let _, tokens_after_e1 = parse_expr t in
+      (* check what the next token is *)
+      match tokens_after_e1 with
+      | [] -> raise FactorParseFailure
+      | { token_type = Enum; line = _ } :: _ ->
+          (* it's a list enumeration *)
+          parse_list_enumeration t
+      | _ ->
+          (* it's a list sugar *)
+          parse_list_sugar t)
   | { token_type = LParen; line = _ } :: t ->
       (* parse a list of expressions seperated by commas *)
       let expr_list, tokens_after_expr_list =
@@ -633,14 +643,30 @@ and parse_factor_not_app (tokens : token list) : factor * token list =
       if List.length expr_list = 1 then
         (ParenFactor (List.hd expr_list), remove_head tokens_after_expr_list)
       else (Vector expr_list, remove_head tokens_after_expr_list)
-  (*| {token_type = LBrace; line = _} :: t -> (* infix *) (* the first token in
-    t is the infix operator *) let infix_op: token_type = (List.hd t).token_type
-    in (* the next token is the first operand *) let
-    tokens_after_infix_op_and_r_brace: token list = t |> remove_head |>
-    remove_head in
-
-    Infix (token_type_to_infix_op infix_op), tokens_after_infix_op_and_r_brace*)
   | _ -> raise FactorParseFailure
+
+and parse_list_sugar (t : token list) : factor * token list =
+  (* parse a list of expressions seperated by ; *)
+  let inside_expressions, tokens_after_expr_list =
+    parse_expressions_seperated_by_commas t
+  in
+  (* the next token should be a RBracket *)
+  assert_next_token tokens_after_expr_list RBracket;
+
+  let after_tokens : token list = remove_head tokens_after_expr_list in
+
+  (ListSugar inside_expressions, after_tokens)
+
+and parse_list_enumeration (t : token list) : factor * token list =
+  let e1, tokens_after_e1 = parse_expr t in
+  (* the next token should be ... *)
+  assert_next_token tokens_after_e1 Enum;
+  let tokens_after_enum = remove_head tokens_after_e1 in
+  let e2, tokens_after_e2 = parse_expr tokens_after_enum in
+  (* the next token should be a RBracket *)
+  assert_next_token tokens_after_e2 RBracket;
+  let tokens_after_enumeration = remove_head tokens_after_e2 in
+  (ListEnumeration (e1, e2), tokens_after_enumeration)
 
 and get_factor_list (tokens : token list) (acc : factor list) :
     factor list * token list =
