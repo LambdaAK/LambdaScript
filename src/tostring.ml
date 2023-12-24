@@ -316,5 +316,13 @@ and string_of_arith_factor (af : factor) (level : int) =
       ^ indentations_with_newline level
       ^ ")"
   | Nil -> "Nil"
+  | ListSugar e_list ->
+      "ListSugar ("
+      ^ indentations_with_newline (level + 1)
+      ^ String.concat
+          (",\n" ^ indentations_with_newline (level + 1))
+          (List.map (fun e -> string_of_expr e (level + 1)) e_list)
+      ^ indentations_with_newline level
+      ^ ")"
 
 let string_of_expr (e : expr) = string_of_expr e 0

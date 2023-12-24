@@ -54,20 +54,19 @@ and repl_expr (env : env) (static_env : static_env) (e : string) =
     let input_string : string = e in
     let tokens : token list = attempt_lex input_string in
     (* print the tokens *)
-    tokens |> List.map string_of_token |> String.concat " " |> print_endline;
     (* end print *)
     let ce : c_expr = attempt_parse tokens in
+
     (* print ce *)
-    let ce_string : string = string_of_c_expr ce in
-    print_endline ("\n" ^ ce_string ^ "\n");
+
     (* end print *)
     let t : c_type = attempt_type_check ce static_env in
     let t_string : string = string_of_c_type t in
-    print_endline ("\n" ^ t_string ^ ": ");
+    print_string ("\n" ^ t_string ^ ": ");
     (* evaluate ce *)
     (* don't typecheck *)
     let result : string = attempt_eval ce env in
-    print_endline ("\n" ^ result ^ "\n")
+    print_endline (result ^ "\n")
   with
   | LexFailure -> print_endline "Lex Failure\n"
   | ParseFailure -> print_endline "Parse Failure\n"

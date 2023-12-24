@@ -48,6 +48,7 @@ type token_type =
   | Comma
   | WildcardPattern
   | ConsToken
+  | Semicolon
 
 type token = {
   token_type : token_type;
@@ -138,6 +139,11 @@ let lex (lst : char list) : token list =
     | ':' :: ':' :: t ->
         let new_token : token =
           { token_type = ConsToken; line = !line_number }
+        in
+        new_token :: lex t
+    | ';' :: t ->
+        let new_token : token =
+          { token_type = Semicolon; line = !line_number }
         in
         new_token :: lex t
     | 'i' :: 'n' :: 't' :: t ->
@@ -366,6 +372,7 @@ let string_of_token : token -> string =
   | Pipe -> "<pipe>"
   | Switch -> "<switch>"
   | End -> "<end>"
+  | Semicolon -> "<semicolon>"
 [@@coverage off]
 
 let rec print_tokens_list : token list -> unit = function

@@ -116,6 +116,13 @@ and condense_factor : factor -> c_expr = function
   | Opposite factor -> EBop (CMinus, EInt 0, condense_factor factor)
   | Vector expressions -> EVector (List.map condense_expr expressions)
   | Nil -> ENil
+  | ListSugar e_list ->
+      let c_e_list : c_expr list = List.map condense_expr e_list in
+      cons_from_list c_e_list
+
+and cons_from_list : c_expr list -> c_expr = function
+  | [] -> ENil
+  | e :: es -> EBop (CCons, e, cons_from_list es)
 
 and factor_type_to_t : factor_type -> c_type = function
   | BooleanType -> BoolType

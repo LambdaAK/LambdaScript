@@ -139,6 +139,19 @@ and parse_expressions_seperated_by_commas (tokens : token list) :
       (first :: second, tokens_after_second)
   | _ -> ([ first ], tokens_after_first)
 
+and parse_expressions_seperated_by_semicolons (tokens : token list) :
+    expr list * token list =
+  let first, tokens_after_first = parse_expr tokens in
+  match tokens_after_first with
+  (* if the next token is a comma, remove the comma and parse another
+     expression *)
+  | { token_type = Semicolon; line = _ } :: t ->
+      let second, tokens_after_second =
+        parse_expressions_seperated_by_semicolons t
+      in
+      (first :: second, tokens_after_second)
+  | _ -> ([ first ], tokens_after_first)
+
 and parse_switch_branches (tokens : token list) :
     switch_branch list * token list =
   match tokens with
@@ -596,6 +609,18 @@ and parse_factor_not_app (tokens : token list) : factor * token list =
   | { token_type = LBracket; line = _ }
     :: { token_type = RBracket; line = _ }
     :: t -> (Nil, t)
+  | { token_type = LBracket; line = _ } :: t ->
+      (* list syntactic sugar *)
+      (* parse a list of expressions seperated by ; *)
+      let inside_expressions, tokens_after_expr_list =
+        parse_expressions_seperated_by_semicolons t
+      in
+      (* the next token should be a RBracket *)
+      assert_next_token tokens_after_expr_list RBracket;
+
+      let after_tokens : token list = remove_head tokens_after_expr_list in
+
+      (ListSugar inside_expressions, after_tokens)
   | { token_type = LParen; line = _ } :: t ->
       (* parse a list of expressions seperated by commas *)
       let expr_list, tokens_after_expr_list =
