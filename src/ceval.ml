@@ -35,7 +35,7 @@ and string_of_value = function
       "(" ^ values_string ^ ")"
   | ListValue values ->
       let values_string : string =
-        values |> List.map string_of_value |> String.concat "; "
+        values |> List.map string_of_value |> String.concat ", "
       in
       "[" ^ values_string ^ "]"
 

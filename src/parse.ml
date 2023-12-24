@@ -613,7 +613,7 @@ and parse_factor_not_app (tokens : token list) : factor * token list =
       (* list syntactic sugar *)
       (* parse a list of expressions seperated by ; *)
       let inside_expressions, tokens_after_expr_list =
-        parse_expressions_seperated_by_semicolons t
+        parse_expressions_seperated_by_commas t
       in
       (* the next token should be a RBracket *)
       assert_next_token tokens_after_expr_list RBracket;
