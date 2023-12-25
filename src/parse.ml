@@ -190,10 +190,10 @@ and parse_expr (tokens : token list) : expr * token list =
       assert_next_token tokens_after_e1 Else;
       let e2, tokens_after_e2 = parse_expr (remove_head tokens_after_e1) in
       (Ternary (guard, e1, e2), tokens_after_e2)
-  | { token_type = Bind; line = _ } :: { token_type = Rec; line = _ } :: t ->
+  | { token_type = Let; line = _ } :: { token_type = Rec; line = _ } :: t ->
       (* bind rec expression *)
       parse_bind_rec t
-  | { token_type = Bind; line = _ } :: t ->
+  | { token_type = Let; line = _ } :: t ->
       (* bind expression *)
       parse_bind t
   | { token_type = Switch; line = _ } :: t ->
