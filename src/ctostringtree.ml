@@ -236,7 +236,7 @@ module CToStringTree : CToString = struct
         in
         let o_string : string = string_of_c_type o in
         i_string ^ " -> " ^ o_string
-    | TypeVar n -> "t" ^ string_of_int n
+    | TypeVar n -> string_of_type_var n
     | TypeVarWritten i -> "'" ^ i
     | VectorType types ->
         let types_string : string =
@@ -250,6 +250,28 @@ module CToStringTree : CToString = struct
     | UniversalType u ->
         let u_string : string = string_of_int u in
         "u" ^ u_string
+
+  and string_of_type_var n =
+    (* if n = 1, then a if n = 2, then b if n = 3, then c .... if n = 26, then z
+       if n = 27, then a1 if n = 28, then b1 ....
+
+       if it's between 1 and 26, then it's a letter if it's between 27 and 52,
+       then it's a letter followed by a 1 if it's between 53 and 78, then it's a
+       letter followed by a 2 if it's between 79 and 104, then it's a letter
+       followed by a 3 *)
+    if n <= 26 then
+      (* get the letter from the index *)
+      let letter = Char.chr (n + 96) in
+      String.make 1 letter
+    else
+      (* get the index of the letter *)
+      let index = n mod 26 in
+      (* get the letter from the index *)
+      let letter = Char.chr (index + 96) in
+
+      let number = n / 26 in
+      let number_string = string_of_int number in
+      String.make 1 letter ^ number_string
 
   let string_of_c_expr e = string_of_c_expr e 0
   let () = ignore string_of_c_defn

@@ -118,7 +118,7 @@ module CToStringCode : CToString = struct
         in
         let o_string : string = string_of_c_type o in
         i_string ^ " -> " ^ o_string
-    | TypeVar n -> "t" ^ string_of_int n
+    | TypeVar n -> string_of_type_var n
     | TypeVarWritten i -> "'" ^ i
     | VectorType types ->
         let types_string : string =
@@ -132,4 +132,20 @@ module CToStringCode : CToString = struct
     | UniversalType u ->
         let u_string : string = string_of_int u in
         "u" ^ u_string
+
+  and string_of_type_var n =
+    if n <= 26 then
+      (* if n is less than 26, then it is a letter *)
+      let letter = Char.chr (n + 96) in
+      String.make 1 letter
+    else
+      (* if n is greater than 26, then it is a letter followed by a number *)
+      (* get the index of the letter *)
+      let index = n mod 26 in
+      (* get the letter from the index *)
+      let letter = Char.chr (index + 96) in
+
+      let number = n / 26 in
+      let number_string = string_of_int number in
+      String.make 1 letter ^ number_string
 end

@@ -1,7 +1,7 @@
 bind rec fold op acc lst <-
   switch lst =>
   | [] -> acc
-  | h :: t -> fold op (op h acc) t
+  | h :: t -> fold op (op acc h) t
   end
 in
 
@@ -29,4 +29,4 @@ bind rec double lst <-
 
 in
 
-double (rev (1 :: 2 :: 3 :: 4 :: 5 :: []))
+fold

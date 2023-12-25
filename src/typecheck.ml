@@ -195,7 +195,8 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
       (* generate the type and constraints of the expression *)
       let type_of_expression, expression_constraints = generate env e in
 
-      (type_of_expression, expression_constraints @ generator_constraints)
+      ( CListType type_of_expression,
+        expression_constraints @ generator_constraints )
 
 and generate_e_app_function_pat_is_id (env : static_env) (first : c_expr)
     (second : c_expr) : c_type * type_equations =

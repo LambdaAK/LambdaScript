@@ -415,24 +415,24 @@ let string_types = [ {|""|}; {|"hello"|} ]
 
 let function_type_tests =
   [
-    ("\\ n -> n", "t1 -> t1");
+    ("\\ n -> n", "a -> a");
     ("\\ n -> n + 1", "int -> int");
     ("\\ a -> \\ b -> a + b", "int -> int -> int");
     ("\\ n [int] -> n", "int -> int");
     ("\\ n [int] -> n + 1", "int -> int");
     ("\\ a [int] -> \\ b [int] -> a + b", "int -> int -> int");
-    ("\\ a -> \\ b -> a", "t1 -> t2 -> t1");
-    ("\\ a -> \\ b -> b", "t1 -> t2 -> t2");
-    ("\\ a [int] -> \\ b -> b", "int -> t1 -> t1");
-    ("\\ a -> \\ b [int] -> b", "t1 -> int -> int");
+    ("\\ a -> \\ b -> a", "a -> b -> a");
+    ("\\ a -> \\ b -> b", "a -> b -> b");
+    ("\\ a [int] -> \\ b -> b", "int -> a -> a");
+    ("\\ a -> \\ b [int] -> b", "a -> int -> int");
     ("\\ a [int] -> \\ b [int] -> b", "int -> int -> int");
     ("\\ a [int] -> \\ b [int] -> a", "int -> int -> int");
     ("\\ a [int] -> \\ b [int] -> a + b", "int -> int -> int");
     ("\\ a [int] -> \\ b [int] -> a + b + 1", "int -> int -> int");
     ("\\ a [int] -> \\ b [int] -> a + b + 1 + 2", "int -> int -> int");
     ("\\ (a, b) [(int, int)] -> a + b", "(int, int) -> int");
-    ("\\ (a, _) -> \\ (_, b) -> a + b", "(int, t1) -> (t2, int) -> int");
-    ("\\ (a, _) -> \\ (_, b) -> a || b", "(bool, t1) -> (t2, bool) -> bool");
+    ("\\ (a, _) -> \\ (_, b) -> a + b", "(int, a) -> (b, int) -> int");
+    ("\\ (a, _) -> \\ (_, b) -> a || b", "(bool, a) -> (b, bool) -> bool");
     ( {|\ (a, b) ->
     \ (c, d) ->
     if a then b
@@ -440,10 +440,9 @@ let function_type_tests =
     else 1|},
       "(bool, int) -> (bool, int) -> int" );
     (* more complicated function type tests *)
-    ( "\\ a -> \\ b -> \\ c -> a ( b ( c ) )",
-      "(t1 -> t2) -> (t3 -> t1) -> t3 -> t2" );
+    ("\\ a -> \\ b -> \\ c -> a ( b ( c ) )", "(a -> b) -> (c -> a) -> c -> b");
     (* tests with syntax sugar bind expressions *)
-    ("bind f x <- x in f", "t1 -> t1");
+    ("bind f x <- x in f", "a -> a");
     ("bind f x <- x + 1 in f", "int -> int");
     ("bind f x <- x + 1 in f 1", "int");
     ("bind f x <- x + 1 in f 1 + 1", "int");
@@ -453,7 +452,7 @@ let function_type_tests =
     ("bind f a b c <- a + b + c in f 1", "int -> int -> int");
     ("bind f a b c <- a + b + c in f 1 2", "int -> int");
     ("bind f a b c <- a + b + c in f 1 2 3", "int");
-    ("bind f a b c d <- a in f", "t1 -> t2 -> t3 -> t4 -> t1");
+    ("bind f a b c d <- a in f", "a -> b -> c -> d -> a");
     (* typed arguments *)
     ( "bind f a [int] b [int] c [int] d [int] <- a in f",
       "int -> int -> int -> int -> int" );
@@ -463,66 +462,65 @@ let function_type_tests =
     ("bind f a [int] b [int] c [int] d [int] <- a in f 1 2 3", "int -> int");
     ("bind f a [int] b [int] c [int] d [int] <- a in f 1 2 3 4", "int");
     (* with type variables *)
-    ("\\ a ['a] -> a", "t1 -> t1");
+    ("\\ a ['a] -> a", "a -> a");
     ("\\ a ['a] -> a + 1", "int -> int");
-    ("\\ a ['a] -> \\ b ['a] -> a", "t1 -> t1 -> t1");
-    ("\\ a ['a] -> \\ b ['a] -> b", "t1 -> t1 -> t1");
-    ("\\ a ['a] -> \\ b ['b] -> a", "t1 -> t2 -> t1");
+    ("\\ a ['a] -> \\ b ['a] -> a", "a -> a -> a");
+    ("\\ a ['a] -> \\ b ['a] -> b", "a -> a -> a");
+    ("\\ a ['a] -> \\ b ['b] -> a", "a -> b -> a");
     ("\\ a ['a] -> \\ b ['a] -> a + b", "int -> int -> int");
     ("\\ a ['a] -> \\ b ['a] -> a + b + 1", "int -> int -> int");
-    ("\\ f ['a -> 'b] -> \\ x ['b] -> f x", "(t1 -> t1) -> t1 -> t1");
+    ("\\ f ['a -> 'b] -> \\ x ['b] -> f x", "(a -> a) -> a -> a");
     (* this is an interesting example because it turns out that 'a = 'b here *)
-    ("\\ f ['a -> 'b] -> \\ x ['a] -> f x", "(t1 -> t2) -> t1 -> t2");
+    ("\\ f ['a -> 'b] -> \\ x ['a] -> f x", "(a -> b) -> a -> b");
     (* on the other hand, there is no constraint generated in this expression
        saying that 'a = 'b, so they are different *)
-    ( "bind f a b [int] c [int] d [int] <- a in f",
-      "t1 -> int -> int -> int -> t1" );
-    ("bind f a b [int] c [int] d <- a in f", "t1 -> int -> int -> t2 -> t1");
-    ("bind f a b [int] c d [int] <- a in f", "t1 -> int -> t2 -> int -> t1");
-    ("bind f a b [int] c d <- a in f", "t1 -> int -> t2 -> t3 -> t1");
-    ("bind f a b c [int] d [int] <- b in f", "t1 -> t2 -> int -> int -> t2");
-    ("bind f a b c [int] d <- b in f", "t1 -> t2 -> int -> t3 -> t2");
-    ("bind f a b c d [str] <- c in f", "t1 -> t2 -> t3 -> str -> t3");
-    ("bind f a b c d <- c in f", "t1 -> t2 -> t3 -> t4 -> t3");
-    ("bind f a b c d [str] <- d in f", "t1 -> t2 -> t3 -> str -> str");
-    ("\\ (a, _) -> a", "(t1, t2) -> t1");
-    ("\\ (a, _) -> a + 1", "(int, t1) -> int");
-    ("\\ f -> \\ x -> f x", "(t1 -> t2) -> t1 -> t2");
+    ("bind f a b [int] c [int] d [int] <- a in f", "a -> int -> int -> int -> a");
+    ("bind f a b [int] c [int] d <- a in f", "a -> int -> int -> b -> a");
+    ("bind f a b [int] c d [int] <- a in f", "a -> int -> b -> int -> a");
+    ("bind f a b [int] c d <- a in f", "a -> int -> b -> c -> a");
+    ("bind f a b c [int] d [int] <- b in f", "a -> b -> int -> int -> b");
+    ("bind f a b c [int] d <- b in f", "a -> b -> int -> c -> b");
+    ("bind f a b c d [str] <- c in f", "a -> b -> c -> str -> c");
+    ("bind f a b c d <- c in f", "a -> b -> c -> d -> c");
+    ("bind f a b c d [str] <- d in f", "a -> b -> c -> str -> str");
+    ("\\ (a, _) -> a", "(a, b) -> a");
+    ("\\ (a, _) -> a + 1", "(int, a) -> int");
+    ("\\ f -> \\ x -> f x", "(a -> b) -> a -> b");
     ( {|\ f ['a -> 'b -> 'c] ->
     \ a ['a] ->
     \ b ['b] ->
     f a b|},
-      "(t1 -> t2 -> t3) -> t1 -> t2 -> t3" );
-    ("\\ a [('a, 'b)] -> a", "(t1, t2) -> (t1, t2)");
-    ("\\ (a, _) [('a, 'b)] -> a", "(t1, t2) -> t1");
-    ("\\ (_, a) [('a, 'b)] -> a", "(t1, t2) -> t2");
-    ("\\ (a, b, c) [('a, 'b, 'c)] -> a", "(t1, t2, t3) -> t1");
+      "(a -> b -> c) -> a -> b -> c" );
+    ("\\ a [('a, 'b)] -> a", "(a, b) -> (a, b)");
+    ("\\ (a, _) [('a, 'b)] -> a", "(a, b) -> a");
+    ("\\ (_, a) [('a, 'b)] -> a", "(a, b) -> b");
+    ("\\ (a, b, c) [('a, 'b, 'c)] -> a", "(a, b, c) -> a");
     (* higher order function *)
     ( {|\ f [('a, 'b) -> 'c] ->
     \ a ['a] ->
     \ b ['b] ->
     f (a, b)|},
-      "((t1, t2) -> t3) -> t1 -> t2 -> t3" );
+      "((a, b) -> c) -> a -> b -> c" );
     ( {|\ f ['a -> 'b -> 'c] ->
     \ (a, b) ->
     f a b|},
-      "(t1 -> t2 -> t3) -> (t1, t2) -> t3" );
+      "(a -> b -> c) -> (a, b) -> c" );
     (* long function with 10 arguments and return the first *)
     ( "bind f a b c d e f g h i j <- a in f",
-      "t1 -> t2 -> t3 -> t4 -> t5 -> t6 -> t7 -> t8 -> t9 -> t10 -> t1" );
+      "a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> a" );
     (* long function with 20 arguments *)
     ( "bind f a b c d e f g h i j k l m n o p q r s t <- a in f",
-      "t1 -> t2 -> t3 -> t4 -> t5 -> t6 -> t7 -> t8 -> t9 -> t10 -> t11 -> t12 \
-       -> t13 -> t14 -> t15 -> t16 -> t17 -> t18 -> t19 -> t20 -> t1" );
+      "a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l -> m -> n -> o \
+       -> p -> q -> r -> s -> t -> a" );
     (* long function with 30 arguments. name the arguments the word of the
        number *)
     ( "bind f one two three four five six seven eight nine ten eleven twelve \
        thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty \
        twentyone twentytwo twentythree twentyfour twentyfive twentysix \
        twentyseven twentyeight twentynine thirty <- one in f",
-      "t1 -> t2 -> t3 -> t4 -> t5 -> t6 -> t7 -> t8 -> t9 -> t10 -> t11 -> t12 \
-       -> t13 -> t14 -> t15 -> t16 -> t17 -> t18 -> t19 -> t20 -> t21 -> t22 \
-       -> t23 -> t24 -> t25 -> t26 -> t27 -> t28 -> t29 -> t30 -> t1" );
+      "a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l -> m -> n -> o \
+       -> p -> q -> r -> s -> t -> u -> v -> w -> x -> y -> z -> a1 -> b1 -> \
+       c1 -> d1 -> a" );
     (* long function with 40 arguments. name the arguments the word of the
        number *)
     ( "bind f one two three four five six seven eight nine ten eleven twelve \
@@ -531,10 +529,8 @@ let function_type_tests =
        twentyseven twentyeight twentynine thirty thirtyone thirtytwo \
        thirtythree thirtyfour thirtyfive thirtysix thirtyseven thirtyeight \
        thirtynine forty <- one in f",
-      "t1 -> t2 -> t3 -> t4 -> t5 -> t6 -> t7 -> t8 -> t9 -> t10 -> t11 -> t12 \
-       -> t13 -> t14 -> t15 -> t16 -> t17 -> t18 -> t19 -> t20 -> t21 -> t22 \
-       -> t23 -> t24 -> t25 -> t26 -> t27 -> t28 -> t29 -> t30 -> t31 -> t32 \
-       -> t33 -> t34 -> t35 -> t36 -> t37 -> t38 -> t39 -> t40 -> t1" );
+      {|a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l -> m -> n -> o -> p -> q -> r -> s -> t -> u -> v -> w -> x -> y -> z -> a1 -> b1 -> c1 -> d1 -> e1 -> f1 -> g1 -> h1 -> i1 -> j1 -> k1 -> l1 -> m1 -> n1 -> a|}
+    );
     (* long function with 50 arguments. name the arguments the word of the
        number *)
     ( "bind f one two three four five six seven eight nine ten eleven twelve \
@@ -544,16 +540,22 @@ let function_type_tests =
        thirtythree thirtyfour thirtyfive thirtysix thirtyseven thirtyeight \
        thirtynine forty fortyone fortytwo fortythree fortyfour fortyfive \
        fortysix fortyseven fortyeight fortynine fifty <- one in f",
-      "t1 -> t2 -> t3 -> t4 -> t5 -> t6 -> t7 -> t8 -> t9 -> t10 -> t11 -> t12 \
-       -> t13 -> t14 -> t15 -> t16 -> t17 -> t18 -> t19 -> t20 -> t21 -> t22 \
-       -> t23 -> t24 -> t25 -> t26 -> t27 -> t28 -> t29 -> t30 -> t31 -> t32 \
-       -> t33 -> t34 -> t35 -> t36 -> t37 -> t38 -> t39 -> t40 -> t41 -> t42 \
-       -> t43 -> t44 -> t45 -> t46 -> t47 -> t48 -> t49 -> t50 -> t1" );
+      {|a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l -> m -> n -> o -> p -> q -> r -> s -> t -> u -> v -> w -> x -> y -> z -> a1 -> b1 -> c1 -> d1 -> e1 -> f1 -> g1 -> h1 -> i1 -> j1 -> k1 -> l1 -> m1 -> n1 -> o1 -> p1 -> q1 -> r1 -> s1 -> t1 -> u1 -> v1 -> w1 -> x1 -> a|}
+    );
     (* long function with 60 arguments. name the arguments the word of the
        number *)
-
+    ( {|bind f one two three four five six seven eight nine ten eleven twelve
+      thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty
+      twentyone twentytwo twentythree twentyfour twentyfive twentysix
+      twentyseven twentyeight twentynine thirty thirtyone thirtytwo
+      thirtythree thirtyfour thirtyfive thirtysix thirtyseven thirtyeight
+      thirtynine forty fortyone fortytwo fortythree fortyfour fortyfive
+      fortysix fortyseven fortyeight fortynine fifty fiftyone fiftytwo fiftythree fiftyfour fiftyfive
+      fiftysix fiftyseven fiftyeight fiftynine sixty <- one in f|},
+      {|a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l -> m -> n -> o -> p -> q -> r -> s -> t -> u -> v -> w -> x -> y -> z -> a1 -> b1 -> c1 -> d1 -> e1 -> f1 -> g1 -> h1 -> i1 -> j1 -> k1 -> l1 -> m1 -> n1 -> o1 -> p1 -> q1 -> r1 -> s1 -> t1 -> u1 -> v1 -> w1 -> x1 -> y1 -> `2 -> a2 -> b2 -> c2 -> d2 -> e2 -> f2 -> g2 -> h2 -> a|}
+    );
     (* recursive functions *)
-    ("bind rec f x <- x in f", "t1 -> t1");
+    ("bind rec f x <- x in f", "a -> a");
     ("bind rec f x [unit] <- x in f", "ng -> ng");
     ("bind rec f x [int -> int] <- x in f", "(int -> int) -> int -> int");
     ("\\ a [[int]] -> a", "[int] -> [int]");
@@ -620,7 +622,7 @@ let function_type_tests =
       \  in\n\
       \  \n\
       \  map",
-      "(t1 -> t2) -> [t1] -> [t2]" );
+      "(a -> b) -> [a] -> [b]" );
     (* filter implemented using fold_right *)
     ( {|bind rec fold op lst acc <-
     switch lst =>
@@ -632,7 +634,7 @@ let function_type_tests =
   bind filter pred <- fold (\ x -> \ acc -> if pred x then x :: acc else acc) []
   
   in filter|},
-      "(t1 -> bool) -> [t1] -> [t1]" );
+      "(a -> bool) -> [a] -> [a]" );
     (* filter implemented using fold_left *)
     ( {|bind rec fold op acc lst <-
     switch lst =>
@@ -644,7 +646,7 @@ let function_type_tests =
   bind filter pred <- fold (\ x -> \ acc -> if pred x then x :: acc else acc) []
   
   in filter|},
-      "(t1 -> bool) -> [t1] -> [t1]" );
+      "(a -> bool) -> [a] -> [a]" );
   ]
 
 let pair_type_tests =
@@ -687,7 +689,7 @@ let vector_type_tests =
 
 let list_type_tests =
   [
-    ("[]", "[t1]");
+    ("[]", "[a]");
     ("1 :: []", "[int]");
     ("1 :: 2 :: []", "[int]");
     ("1 :: 2 :: 3 :: []", "[int]");
@@ -699,25 +701,32 @@ let list_type_tests =
     (* nested list *)
     ("(1 :: []) :: []", "[[int]]");
     ("(1 :: 2 :: []) :: []", "[[int]]");
-    ("[] :: []", "[[t1]]");
-    ("[] :: [] :: []", "[[t1]]");
-    ("([] :: []) :: []", "[[[t1]]]");
-    ("(([] :: []) :: []) :: []", "[[[[t1]]]]");
+    ("[] :: []", "[[a]]");
+    ("[] :: [] :: []", "[[a]]");
+    ("([] :: []) :: []", "[[[a]]]");
+    ("(([] :: []) :: []) :: []", "[[[[a]]]]");
     ("[1 ... 10000]", "[int]");
     ("[1 ... 10000000]", "[int]");
     ("[1 ... 0]", "[int]");
+    ("[x * x | x <- [1, 2, 3, 4, 5]]", "[int]");
+    ( {|[(x, y, z) | x <- [1, 2, 3], y <- ["hello", "world"], z <- [true, false]]|},
+      "[(int, str, bool)]" );
+    ({|
+      [x | x <- [1, 2, 3, 4, 5], x <- [true, false]]
+      |}, "[bool]");
+    ({|[x | x <- [1, 2, 3, 4, 5], x <- []]|}, "[a]");
   ]
 
 let polymorphism_tests =
   [
-    ("bind f x <- x in f f", "t1 -> t1");
-    ("bind f x <- x in f f f", "t1 -> t1");
-    ("bind f x <- x in f f f f", "t1 -> t1");
-    ("bind f x <- x in f f f f f", "t1 -> t1");
+    ("bind f x <- x in f f", "a -> a");
+    ("bind f x <- x in f f f", "a -> a");
+    ("bind f x <- x in f f f f", "a -> a");
+    ("bind f x <- x in f f f f f", "a -> a");
     ("bind f x <- x in f 1 < 5 || f true", "bool");
-    ("bind f x <- x in bind g <- f in g g", "t1 -> t1");
-    ("bind f x <- x in bind g <- f in g f", "t1 -> t1");
-    ("bind f x <- x in bind g <- f in f g f g", "t1 -> t1");
+    ("bind f x <- x in bind g <- f in g g", "a -> a");
+    ("bind f x <- x in bind g <- f in g f", "a -> a");
+    ("bind f x <- x in bind g <- f in f g f g", "a -> a");
     ("bind f x <- x in bind a <- f 1 in f true", "bool");
     ("(\\ f -> f 1 < 5 || f true) (\\ x -> x)", "bool");
     ("(\\ f -> (f 0 1) < 5 || (f true 0)) (\\ x -> \\ y -> x)", "bool");
@@ -728,7 +737,7 @@ let polymorphism_tests =
     bind h <- g in
     h h
   |},
-      "t1 -> t1" );
+      "a -> a" );
     ( {|
     bind f x <- x in
     bind g <- f in
@@ -751,7 +760,7 @@ let polymorphism_tests =
     ( {|
     (\ x -> \ y -> \ z -> x y || x 1 < 2) (\ x -> x) true
   |},
-      "t1 -> bool" );
+      "a -> bool" );
   ]
 
 let switch_type_tests =
@@ -977,7 +986,7 @@ let fold_type_tests =
     in
     fold
   |},
-      "(t1 -> t2 -> t1) -> [t2] -> t1 -> t1" );
+      "(a -> b -> a) -> [b] -> a -> a" );
     ( {|
   bind rec fold op arr acc <-
     switch arr =>
@@ -987,7 +996,7 @@ let fold_type_tests =
   in
   fold
   |},
-      "(t1 -> t2 -> t2) -> [t1] -> t2 -> t2" );
+      "(a -> b -> b) -> [a] -> b -> b" );
   ]
 
 let complex_tests =

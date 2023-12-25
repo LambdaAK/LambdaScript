@@ -15,6 +15,8 @@ let attempt_parse (tokens : token list) : c_expr =
 let attempt_parse_defn (tokens : token list) : c_defn =
   tokens |> parse_defn |> fst |> condense_defn
 
+let () = ignore attempt_parse_defn
+
 let attempt_type_check (ce : c_expr) (env : static_env) : c_type =
   type_of_c_expr ce env
 
@@ -31,18 +33,17 @@ let rec repl_loop (env : env) (static_env : static_env) : unit =
   print_string "> ";
   let input_string : string = read_line () in
   let tokens : token list = attempt_lex input_string in
-  match tokens with
-  | { token_type = Let; line = _ } :: _ ->
-      let d : c_defn = attempt_parse_defn tokens in
-      let new_env, new_static_env, t, v = eval_defn d env static_env in
-      let t_string : string = string_of_c_type t in
-      let v_string : string = string_of_value v in
-      print_endline ("\n" ^ t_string ^ ": " ^ v_string ^ "\n");
+  ignore tokens;
+  (* match tokens with | { token_type = Let; line = _ } :: _ -> let d : c_defn =
+     attempt_parse_defn tokens in let new_env, new_static_env, t, v = eval_defn
+     d env static_env in let t_string : string = string_of_c_type t in let
+     v_string : string = string_of_value v in print_endline ("\n" ^ t_string ^
+     ": " ^ v_string ^ "\n");
 
-      repl_loop new_env new_static_env
-  | _ ->
-      repl_expr env static_env input_string;
-      repl_loop env static_env
+     repl_loop new_env new_static_env | _ -> repl_expr env static_env
+     input_string; repl_loop env static_env *)
+  repl_expr env static_env input_string;
+  repl_loop env static_env
 
 and repl_expr (env : env) (static_env : static_env) (e : string) =
   try
