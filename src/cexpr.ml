@@ -25,7 +25,10 @@ type c_bop =
   | COr
   | CCons
 
-and c_defn = CDefn of c_pat * c_type option * c_expr
+and c_defn =
+  | CDefn of c_pat * c_type option * c_expr
+  | CDefnRec of c_pat * c_type option * c_expr
+
 and c_switch_branch = c_pat * c_expr
 
 and c_expr =

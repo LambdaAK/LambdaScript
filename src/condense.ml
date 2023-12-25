@@ -28,6 +28,16 @@ let rec condense_defn : defn -> c_defn = function
 
       let c : c_expr = condense_expr body_expression in
       CDefn (a, b, c)
+  | DefnRec (pattern, cto, body_expression) ->
+      let a : c_pat = condense_pat pattern in
+      let b : c_type option =
+        match cto with
+        | None -> None
+        | Some t -> Some (condense_type t)
+      in
+
+      let c : c_expr = condense_expr body_expression in
+      CDefnRec (a, b, c)
 
 and condense_expr : expr -> c_expr = function
   | Function (pat, ct_opt, expr) ->

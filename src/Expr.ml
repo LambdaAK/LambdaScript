@@ -37,7 +37,10 @@ and factor_type =
   | VectorType of compound_type list
   | ListType of compound_type
 
-type defn = Defn of pat * compound_type option * expr
+type defn =
+  | Defn of pat * compound_type option * expr
+  | DefnRec of pat * compound_type option * expr
+
 and switch_branch = pat * expr
 
 and expr =

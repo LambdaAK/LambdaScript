@@ -300,50 +300,24 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env) :
     env * static_env * string list =
   match d with
   | CDefn (pattern, _, body_expression) -> (
+      (* let p <- e evaluate e to a value v *)
       let v : value = eval_c_expr body_expression env in
-      let new_bindings_option : env option = bind_pat pattern v in
-
-      match new_bindings_option with
-      | None -> failwith "no pattern matched"
+      match bind_pat pattern v with
+      | None -> failwith "eval_defn: no pattern matched"
       | Some new_bindings -> (
-          match new_bindings with
-          | [] -> failwith "unimplemented eval_defn"
-          | _ -> (
-              match pattern with
-              | CIdPat id ->
-                  let new_type : c_type =
-                    type_of_c_expr body_expression static_env
-                    |> generalize [] []
-                  in
-                  let new_env : env = new_bindings @ env in
-                  let new_static_env : static_env =
-                    (id, new_type) :: static_env
-                  in
-                  (new_env, new_static_env, new_bindings |> List.map fst)
-              | CVectorPat patterns -> (
-                  match v with
-                  | VectorValue values -> (
-                      let new_type : c_type =
-                        type_of_c_expr body_expression static_env
-                        |> generalize [] [] (* TODO: Is this right? *)
-                      in
-                      let new_bindings : env =
-                        handle_let_defn_with_vector_pat patterns values
-                      in
-                      let new_env : env = new_bindings @ env in
-
-                      (* get the new static env bindings *)
-                      let new_static_bindings = bind_static pattern new_type in
-                      match new_static_bindings with
-                      | None -> failwith "unimplemented eval_defn"
-                      | Some new_static_bindings ->
-                          let new_static_env =
-                            new_static_bindings @ static_env
-                          in
-                          (new_env, new_static_env, new_bindings |> List.map fst)
-                      )
-                  | _ -> failwith "expected a vector value")
-              | _ -> failwith "unimplemented eval_defn")))
+          let new_env : env = new_bindings @ env in
+          let t : c_type = type_of_c_expr body_expression static_env in
+          match bind_static pattern t with
+          | None -> failwith "eval_defn: no pattern matched"
+          | Some new_static_bindings ->
+              let new_static_env : static_env =
+                new_static_bindings @ static_env
+              in
+              (new_env, new_static_env, List.map fst new_bindings)))
+  | CDefnRec (pattern, _, body_expression) ->
+      ignore pattern;
+      ignore body_expression;
+      failwith "eval_defn: CDefnRec"
 
 and handle_let_defn_with_vector_pat (patterns : c_pat list)
     (values : value list) =

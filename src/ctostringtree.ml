@@ -39,6 +39,14 @@ module CToStringTree : CToString = struct
         ^ string_of_c_expr body_expression 1
         ^ indentations_with_newline 1
         ^ ")"
+    | CDefnRec (pattern, cto, body_expression) ->
+        ignore cto;
+        "DefinitionRec ("
+        ^ indentations_with_newline 1
+        ^ string_of_c_pat pattern ^ ","
+        ^ string_of_c_expr body_expression 1
+        ^ indentations_with_newline 1
+        ^ ")"
 
   and string_of_c_expr (e : c_expr) (level : int) =
     match e with
