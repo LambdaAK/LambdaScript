@@ -1,11 +1,11 @@
-bind rec fold op acc lst <-
+let rec fold op acc lst <-
   switch lst =>
   | [] -> acc
   | h :: t -> fold op (op acc h) t
   end
 in
 
-bind rec append a b <-
+let rec append a b <-
   switch a =>
   | [] -> b
   | h :: t -> h :: append t b
@@ -13,7 +13,7 @@ bind rec append a b <-
 
 in
 
-bind rec rev lst <-
+let rec rev lst <-
   switch lst =>
   | [] -> []
   | h :: t -> append (rev t) (h :: [])
@@ -21,7 +21,7 @@ bind rec rev lst <-
 
 in
 
-bind rec double lst <-
+let rec double lst <-
   switch lst =>
   | [] -> []
   | h :: t -> h :: (append (double t) (double t))
@@ -30,3 +30,10 @@ bind rec double lst <-
 in
 
 fold
+
+filter p lst <- 
+  switch lst =>
+  | [] -> []
+  | h :: t -> if p h then h :: filter p t else filter p t
+  end
+

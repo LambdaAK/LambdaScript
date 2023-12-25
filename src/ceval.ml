@@ -297,7 +297,7 @@ let c_eval (s : string) : string =
     a is the new dynamic environment b is the new static environment c is the
     type of the expression d is the value of the expression *)
 let rec eval_defn (d : c_defn) (env : env) (static_env : static_env) :
-    env * static_env * c_type * value =
+    env * static_env * string list =
   match d with
   | CDefn (pattern, _, body_expression) -> (
       let v : value = eval_c_expr body_expression env in
@@ -319,10 +319,7 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env) :
                   let new_static_env : static_env =
                     (id, new_type) :: static_env
                   in
-                  ( new_env,
-                    new_static_env,
-                    type_of_c_expr body_expression static_env,
-                    v )
+                  (new_env, new_static_env, new_bindings |> List.map fst)
               | CVectorPat patterns -> (
                   match v with
                   | VectorValue values -> (
@@ -343,10 +340,8 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env) :
                           let new_static_env =
                             new_static_bindings @ static_env
                           in
-                          ( new_env,
-                            new_static_env,
-                            type_of_c_expr body_expression static_env,
-                            v ))
+                          (new_env, new_static_env, new_bindings |> List.map fst)
+                      )
                   | _ -> failwith "expected a vector value")
               | _ -> failwith "unimplemented eval_defn")))
 
