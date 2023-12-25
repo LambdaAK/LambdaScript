@@ -106,8 +106,12 @@ let rec lex_string (lst : char list) (acc : string) : token * char list =
   | [] -> failwith "expected closing double quote in lexing string"
 
 let rec lex_id (lst : char list) (acc : string) : token * char list =
+  (* the first char has to be a letter the following characters can be letters,
+     numbers, or underscores *)
   match lst with
-  | c :: t when is_letter c -> lex_id t (acc ^^ c)
+  | c :: t when is_letter c -> lex_id t (acc ^^ c) (* a letter *)
+  | c :: t when is_num c && not (acc = "") ->
+      lex_id t (acc ^^ c) (* a digit, and not the first character *)
   | _ -> ({ token_type = Id acc; line = 0 }, lst)
 
 (* A type variable has the following form 'x where x is an identifier *)
