@@ -43,6 +43,7 @@ and c_expr =
   | EVector of c_expr list
   | ENil
   | EListEnumeration of c_expr * c_expr
+  | EListComprehension of c_expr * (c_pat * c_expr) list
 
 and c_type =
   | IntType

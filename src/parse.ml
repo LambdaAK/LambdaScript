@@ -612,13 +612,16 @@ and parse_factor_not_app (tokens : token list) : factor * token list =
   | { token_type = LBracket; line = _ } :: t -> (
       (* list syntactic sugar *)
 
-      (* need to decide whether to parse a listsugar or listenumeration
+      (* need to decide whether to parse a listsugar, listenumeration, or
+         listcomprehension
 
          we have [x ____
 
          parse x. if the token that follows is ..., then it's a listenumeration
 
-         else, it's a list sugar *)
+         if the token that follows is |, then it's a listcomprehension
+
+         otherwise, it's a listsugar *)
 
       (* parse a list of expressions seperated by ; *)
       let _, tokens_after_e1 = parse_expr t in
@@ -628,6 +631,7 @@ and parse_factor_not_app (tokens : token list) : factor * token list =
       | { token_type = Enum; line = _ } :: _ ->
           (* it's a list enumeration *)
           parse_list_enumeration t
+      | { token_type = Pipe; line = _ } :: _ -> parse_list_comprehension t
       | _ ->
           (* it's a list sugar *)
           parse_list_sugar t)
@@ -667,6 +671,37 @@ and parse_list_enumeration (t : token list) : factor * token list =
   assert_next_token tokens_after_e2 RBracket;
   let tokens_after_enumeration = remove_head tokens_after_e2 in
   (ListEnumeration (e1, e2), tokens_after_enumeration)
+
+and parse_generator (tokens : token list) : generator * token list =
+  let pattern, tokens_after_pattern = parse_pat tokens in
+  (* next token should be a bind arrow *)
+  assert_next_token tokens_after_pattern BindArrow;
+  let tokens_after_bind_arrow = remove_head tokens_after_pattern in
+  let e, tokens_after_e = parse_expr tokens_after_bind_arrow in
+  let generator : generator = (pattern, e) in
+  (generator, tokens_after_e)
+
+and parse_generator_list (tokens : token list) : generator list * token list =
+  let first, tokens_after_first = parse_generator tokens in
+  match tokens_after_first with
+  | { token_type = Comma; line = _ } :: t ->
+      let rest, tokens_after_rest = parse_generator_list t in
+      (first :: rest, tokens_after_rest)
+  | _ -> ([ first ], tokens_after_first)
+
+and parse_list_comprehension (tokens : token list) : factor * token list =
+  (* e | generators ] *)
+  let e, tokens_after_e = parse_expr tokens in
+  (* the next token should be a pipe *)
+  assert_next_token tokens_after_e Pipe;
+  let tokens_after_pipe = remove_head tokens_after_e in
+  let generator_list, tokens_after_generator_list =
+    parse_generator_list tokens_after_pipe
+  in
+  (* the next token should be a r bracket *)
+  assert_next_token tokens_after_generator_list RBracket;
+  let tokens_after_r_bracket = remove_head tokens_after_generator_list in
+  (ListComprehension (e, generator_list), tokens_after_r_bracket)
 
 and get_factor_list (tokens : token list) (acc : factor list) :
     factor list * token list =

@@ -174,6 +174,28 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
       let t1, c1 = generate env e1 in
       let t2, c2 = generate env e2 in
       (CListType IntType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
+  | EListComprehension (e, generators) ->
+      let env, generator_constraints =
+        List.fold_left
+          (fun (env, constraints) (p, e) ->
+            let type_of_pattern, pattern_env, const = type_of_pat p in
+            let type_of_expression, expression_constraints =
+              generate (pattern_env @ env) e
+            in
+            let type_of_expression = instantiate type_of_expression in
+            let new_constraint =
+              (type_of_expression, CListType type_of_pattern)
+            in
+            ( pattern_env @ env,
+              (new_constraint :: const) @ expression_constraints @ constraints
+            ))
+          (env, []) generators
+      in
+
+      (* generate the type and constraints of the expression *)
+      let type_of_expression, expression_constraints = generate env e in
+
+      (type_of_expression, expression_constraints @ generator_constraints)
 
 and generate_e_app_function_pat_is_id (env : static_env) (first : c_expr)
     (second : c_expr) : c_type * type_equations =

@@ -166,6 +166,25 @@ module CToStringTree : CToString = struct
         ^ e2_string
         ^ indentations_with_newline level
         ^ ")"
+    | EListComprehension (e, generators) ->
+        let e_string : string = string_of_c_expr e (level + 1) in
+        let generators_string : string =
+          List.fold_left
+            (fun acc (p, e) ->
+              let p_string : string = string_of_c_pat p in
+              let e_string : string = string_of_c_expr e (level + 1) in
+              acc
+              ^ indentations_with_newline (level + 1)
+              ^ p_string ^ " <- " ^ e_string ^ ",")
+            "" generators
+        in
+        "ListComprehension ("
+        ^ indentations_with_newline (level + 1)
+        ^ e_string ^ ","
+        ^ indentations_with_newline (level + 1)
+        ^ generators_string
+        ^ indentations_with_newline level
+        ^ ")"
 
   and string_of_c_bop : c_bop -> string = function
     | CPlus -> "+"

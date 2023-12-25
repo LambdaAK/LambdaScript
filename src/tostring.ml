@@ -333,5 +333,22 @@ and string_of_arith_factor (af : factor) (level : int) =
       ^ string_of_expr e2 (level + 1)
       ^ indentations_with_newline level
       ^ ")"
+  | ListComprehension (e, generators) ->
+      "ListComprehension ("
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_expr e (level + 1)
+      ^ ","
+      ^ indentations_with_newline (level + 1)
+      ^ String.concat
+          (",\n" ^ indentations_with_newline (level + 1))
+          (List.map
+             (fun (p, e) ->
+               indentations_with_newline (level + 1)
+               ^ string_of_pat p ^ ",\n"
+               ^ indentations_with_newline (level + 1)
+               ^ string_of_expr e (level + 1))
+             generators)
+      ^ indentations_with_newline level
+      ^ ")"
 
 let string_of_expr (e : expr) = string_of_expr e 0

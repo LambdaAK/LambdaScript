@@ -121,6 +121,12 @@ and condense_factor : factor -> c_expr = function
       cons_from_list c_e_list
   | ListEnumeration (e1, e2) ->
       EListEnumeration (condense_expr e1, condense_expr e2)
+  | ListComprehension (e, generators) ->
+      EListComprehension
+        (condense_expr e, List.map condense_generator generators)
+
+and condense_generator ((pat, expr) : generator) : c_pat * c_expr =
+  (condense_pat pat, condense_expr expr)
 
 and cons_from_list : c_expr list -> c_expr = function
   | [] -> ENil

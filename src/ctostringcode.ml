@@ -88,6 +88,16 @@ module CToStringCode : CToString = struct
     | EString s -> "\"" ^ s ^ "\""
     | EListEnumeration (e1, e2) ->
         string_of_c_expr e1 level ^ " .. " ^ string_of_c_expr e2 level
+    | EListComprehension (e, generators) ->
+        "[ " ^ string_of_c_expr e level ^ " | "
+        ^ String.concat
+            (indentations_with_newline level ^ "| ")
+            (List.map
+               (fun (p, e) ->
+                 string_of_c_pat p ^ " <- " ^ string_of_c_expr e (level + 1))
+               generators)
+        ^ indentations_with_newline level
+        ^ "]"
 
   let string_of_c_expr e = string_of_c_expr e 0
 

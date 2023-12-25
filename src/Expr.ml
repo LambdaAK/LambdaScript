@@ -91,3 +91,6 @@ and factor =
   | Nil
   | ListSugar of expr list (* list represents a list literal like [1;2;3;4;5] *)
   | ListEnumeration of expr * expr
+  | ListComprehension of expr * generator list
+
+and generator = pat * expr

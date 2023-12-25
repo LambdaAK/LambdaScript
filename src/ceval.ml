@@ -1,8 +1,8 @@
-open Cexpr
 open Lex
 open Parse
 open Condense
 open Typecheck
+open Cexpr
 
 type value =
   | IntegerValue of int
@@ -99,6 +99,10 @@ let rec eval_c_expr (ce : c_expr) (env : env) =
   | EBop (op, e1, e2) -> eval_bop op e1 e2 env
   | EFunction (p, _, e) -> FunctionClosure (env, p, None, e)
   | EListEnumeration (e1, e2) -> eval_list_enumeration e1 e2 env
+  | EListComprehension (e, generators) ->
+      let envs : env list = generate_envs_from_generators generators env in
+      let values = List.map (fun en -> eval_c_expr e en) envs in
+      ListValue values
   | EVector expressions ->
       (* evalute each sub expression to a value *)
       let transformer e = eval_c_expr e env in
@@ -169,6 +173,29 @@ let rec eval_c_expr (ce : c_expr) (env : env) =
           match new_bindings_option with
           | None -> failwith "no pattern matched"
           | Some new_bindings -> eval_c_expr e2 (new_bindings @ env)))
+
+and generate_envs_from_generators generators env =
+  match generators with
+  | [] -> [ env ]
+  | (p, e) :: t -> (
+      let v = eval_c_expr e env in
+      match v with
+      | ListValue values ->
+          let bindings =
+            List.map
+              (fun value ->
+                match bind_pat p value with
+                | None ->
+                    failwith "generate envs from generators: no pattern matched"
+                | Some bindings -> bindings)
+              values
+          in
+          let envs = List.map (fun bindings -> bindings @ env) bindings in
+          let envs' =
+            List.map (fun env -> generate_envs_from_generators t env) envs
+          in
+          List.flatten envs'
+      | _ -> failwith "generate envs from generators: expected a list value")
 
 and eval_bop (op : c_bop) (e1 : c_expr) (e2 : c_expr) (env : env) =
   (* these are seperate because they require short circuit evaluation *)
