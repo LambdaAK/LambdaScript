@@ -4,6 +4,26 @@ open Condense
 open Typecheck
 open Cexpr
 
+module type Monad = sig
+  type 'a t
+
+  val return : 'a -> 'a t
+  val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
+end
+
+module Option : Monad with type 'a t = 'a option = struct
+  type 'a t = 'a option
+
+  let return (x : 'a) : 'a t = Some x
+
+  let ( >>= ) (x : 'a t) (f : 'a -> 'b t) : 'b t =
+    match x with
+    | None -> None
+    | Some x -> f x
+end
+
+open Option
+
 type value =
   | IntegerValue of int
   | StringValue of string
@@ -292,39 +312,52 @@ let c_eval (s : string) : string =
     initial_env
   |> string_of_value
 
-(** returns a tuple (a, b, c, d)
+let rec create_generic_type : c_pat -> c_type = function
+  | CUnitPat -> UnitType
+  | CWildcardPat -> fresh_type_var ()
+  | CIdPat _ -> fresh_type_var ()
+  | CIntPat _ -> IntType
+  | CStringPat _ -> StringType
+  | CBoolPat _ -> BoolType
+  | CNilPat -> CListType (fresh_type_var ())
+  | CConsPat _ -> CListType (fresh_type_var ())
+  | CVectorPat patterns ->
+      VectorType (List.map (fun p -> create_generic_type p) patterns)
 
-    a is the new dynamic environment b is the new static environment c is the
-    type of the expression d is the value of the expression *)
+let rec expr_of_pat : c_pat -> c_expr = function
+  | CUnitPat -> EUnit
+  | CWildcardPat -> failwith "expr_of_pat: wildcard pattern not allowed"
+  | CIdPat s -> EId s
+  | CIntPat i -> EInt i
+  | CStringPat s -> EString s
+  | CBoolPat b -> EBool b
+  | CNilPat -> ENil
+  | CConsPat (p1, p2) -> EBop (CCons, expr_of_pat p1, expr_of_pat p2)
+  | CVectorPat patterns -> EVector (List.map expr_of_pat patterns)
+
 let rec eval_defn (d : c_defn) (env : env) (static_env : static_env) :
     env * static_env * string list =
   match d with
   | CDefn (pattern, _, body_expression) -> (
-      (* let p <- e evaluate e to a value v *)
       let v : value = eval_c_expr body_expression env in
-      match bind_pat pattern v with
-      | None -> failwith "eval_defn: no pattern matched"
-      | Some new_bindings -> (
-          let new_env : env = new_bindings @ env in
-          let t : c_type = type_of_c_expr body_expression static_env in
-          match bind_static pattern t with
-          | None -> failwith "eval_defn: no pattern matched"
-          | Some new_static_bindings ->
-              let new_static_env : static_env =
-                new_static_bindings @ static_env
-              in
-              (new_env, new_static_env, List.map fst new_bindings)))
-  | CDefnRec (pattern, _, body_expression) ->
-      ignore pattern;
-      ignore body_expression;
-      failwith "eval_defn: CDefnRec"
+      let o =
+        bind_pat pattern v >>= fun new_bindings ->
+        let new_env : env = new_bindings @ env in
+        let t : c_type = type_of_c_expr body_expression static_env in
+        bind_static pattern t >>= fun new_static_bindings ->
+        let new_static_env = new_static_bindings @ static_env in
+        (new_env, new_static_env, List.map fst new_bindings) |> return
+      in
 
-and handle_let_defn_with_vector_pat (patterns : c_pat list)
-    (values : value list) =
-  match (patterns, values) with
-  | [], [] -> []
-  | p :: pt, v :: vt -> (
-      match bind_pat p v with
-      | None -> failwith "handle_let_defn_with_vector_pat: no pattern matched"
-      | Some bindings -> bindings @ handle_let_defn_with_vector_pat pt vt)
-  | _ -> failwith "handle_let_defn_with_vector_pat: pattern/value mismatch"
+      match o with
+      | None -> failwith "eval_defn: no pattern matched"
+      | Some x -> x)
+  | CDefnRec (pattern, _, body_expression) ->
+      let let_defn : c_defn =
+        CDefn
+          ( pattern,
+            None,
+            EBindRec (pattern, None, body_expression, expr_of_pat pattern) )
+      in
+
+      eval_defn let_defn env static_env

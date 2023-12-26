@@ -1,8 +1,4 @@
-let rec fold op acc lst <-
-  switch lst =>
-  | [] -> acc
-  | h :: t -> fold op (op acc h) t
-  end
+let rec fold <- \op -> \acc -> \lst -> switch lst => | [] -> acc | h :: t -> fold op (op acc h) t end in fold
 in
 
 let rec append a b <-
@@ -31,9 +27,5 @@ in
 
 fold
 
-filter p lst <- 
-  switch lst =>
-  | [] -> []
-  | h :: t -> if p h then h :: filter p t else filter p t
-  end
+let rec fib <- \x -> if x == 0 then 0 else if x == 1 then 1 else fib (x - 1) + fib (x - 2)
 
