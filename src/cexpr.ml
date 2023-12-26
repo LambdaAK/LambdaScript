@@ -76,6 +76,10 @@ and builtin_function =
   | Print
   | IntToString
   | StringToInt
+  | Map
+  | Filter
+  | ReduceLeft
+  | ReduceRight
 
 and env = (string * value) list
 

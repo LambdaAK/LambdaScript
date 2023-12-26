@@ -1,4 +1,4 @@
-bind map f arr <-
+let rec map f arr <-
   switch arr =>
     | [] -> []
     | h :: t -> f h :: map f t

@@ -1,5 +1,7 @@
-let x <- 1
 
-let () <- println "aaaa"
 
-let () <- println "bbbb"
+let print_list <- \lst -> reduce_left (\() -> \x -> println x) () lst
+
+let lst <- [1 ... 25]
+
+let () <- print_list (map int_to_str lst)

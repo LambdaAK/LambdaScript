@@ -1,9 +1,11 @@
-bind filter f arr <-
-  switch arr =>
-    | [] -> []
-    | h :: t ->
-      if f h then h :: filter t
-      else filter t
+let rec filter p lst <-
+  switch lst =>
+  | [] -> []
+  | h :: t ->
+    if p h then
+      h :: filter p t
+    else
+      filter p t
     end
-in
-filter
+  
+in filter
