@@ -9,7 +9,8 @@ type substitutions = type_equations
 
 exception TypeFailure
 
-let initial_env : (string * c_type) list = [ ("not", BoolType => BoolType) ]
+let initial_env : (string * c_type) list =
+  [ ("not", BoolType => BoolType); ("println", StringType => UnitType) ]
 
 let split3 (lst : ('a * 'b * 'c) list) : 'a list * 'b list * 'c list =
   let rec split3_helper (lst : ('a * 'b * 'c) list) (a : 'a list) (b : 'b list)

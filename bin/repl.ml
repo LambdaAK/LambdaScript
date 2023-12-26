@@ -95,10 +95,11 @@ and repl_expr (env : env) (static_env : static_env) (e : string) =
     (* end print *)
     let t : c_type = attempt_type_check ce static_env in
     let t_string : string = string_of_c_type t in
-    print_string ("\n" ^ t_string ^ ": ");
+
     (* evaluate ce *)
     (* don't typecheck *)
     let result : string = attempt_eval ce env in
+    print_string (t_string ^ ": ");
     print_endline (result ^ "\n")
   with
   | LexFailure -> print_endline "Lex Failure\n"

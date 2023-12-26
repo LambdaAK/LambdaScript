@@ -33,7 +33,9 @@ type value =
   | RecursiveFunctionClosure of env ref * c_pat * c_type option * c_expr
   | VectorValue of value list
   | ListValue of value list
+  | BuiltInFunction of builtin_function
 
+and builtin_function = Println
 and env = (string * value) list
 
 let rec string_of_env (env : env) =
@@ -46,8 +48,8 @@ and string_of_value = function
   | StringValue s -> "\"" ^ s ^ "\""
   | BooleanValue b -> string_of_bool b
   | UnitValue -> "()"
-  | FunctionClosure _ -> "function"
-  | RecursiveFunctionClosure _ -> "function"
+  | FunctionClosure _ | RecursiveFunctionClosure _ | BuiltInFunction _ ->
+      "function"
   | VectorValue values ->
       let values_string : string =
         values |> List.map string_of_value |> String.concat ", "
@@ -155,6 +157,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) =
       let v1 : value = eval_c_expr e1 env in
       let v2 : value = eval_c_expr e2 env in
       match v1 with
+      | BuiltInFunction f -> eval_builtin f v2
       | FunctionClosure (env', p, _, e) -> (
           match bind_pat p v2 with
           | Some env'' -> eval_c_expr e (env'' @ env')
@@ -193,6 +196,13 @@ let rec eval_c_expr (ce : c_expr) (env : env) =
           match new_bindings_option with
           | None -> failwith "no pattern matched"
           | Some new_bindings -> eval_c_expr e2 (new_bindings @ env)))
+
+and eval_builtin (f : builtin_function) (v : value) : value =
+  match (f, v) with
+  | Println, StringValue s ->
+      print_endline s;
+      UnitValue
+  | _ -> failwith "eval_builtin: unimplemented"
 
 and generate_envs_from_generators generators env =
   match generators with
@@ -301,7 +311,8 @@ let not_function : value =
     if a then false else true
   |}
 
-let initial_env : env = [ ("not", not_function) ]
+let initial_env : env =
+  [ ("not", not_function); ("println", BuiltInFunction Println) ]
 
 let c_eval_ce (ce : c_expr) : string =
   eval_c_expr ce initial_env |> string_of_value
