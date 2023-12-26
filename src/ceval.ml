@@ -1,42 +1,7 @@
 open Lex
 open Parse
 open Condense
-open Typecheck
 open Cexpr
-
-module type Monad = sig
-  type 'a t
-
-  val return : 'a -> 'a t
-  val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
-end
-
-module Option : Monad with type 'a t = 'a option = struct
-  type 'a t = 'a option
-
-  let return (x : 'a) : 'a t = Some x
-
-  let ( >>= ) (x : 'a t) (f : 'a -> 'b t) : 'b t =
-    match x with
-    | None -> None
-    | Some x -> f x
-end
-
-open Option
-
-type value =
-  | IntegerValue of int
-  | StringValue of string
-  | BooleanValue of bool
-  | UnitValue
-  | FunctionClosure of env * c_pat * c_type option * c_expr
-  | RecursiveFunctionClosure of env ref * c_pat * c_type option * c_expr
-  | VectorValue of value list
-  | ListValue of value list
-  | BuiltInFunction of builtin_function
-
-and builtin_function = Println
-and env = (string * value) list
 
 let rec string_of_env (env : env) =
   List.fold_left
@@ -92,7 +57,7 @@ let rec bind_pat (p : c_pat) (v : value) : env option =
       | _ -> None)
   | _ -> None
 
-let rec bind_static (p : c_pat) (t : c_type) : static_env option =
+let rec bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
   match (p, t) with
   | CUnitPat, UnitType -> Some []
   | CWildcardPat, _ -> Some []
@@ -345,30 +310,3 @@ let rec expr_of_pat : c_pat -> c_expr = function
   | CNilPat -> ENil
   | CConsPat (p1, p2) -> EBop (CCons, expr_of_pat p1, expr_of_pat p2)
   | CVectorPat patterns -> EVector (List.map expr_of_pat patterns)
-
-let rec eval_defn (d : c_defn) (env : env) (static_env : static_env) :
-    env * static_env * string list =
-  match d with
-  | CDefn (pattern, _, body_expression) -> (
-      let v : value = eval_c_expr body_expression env in
-      let o =
-        bind_pat pattern v >>= fun new_bindings ->
-        let new_env : env = new_bindings @ env in
-        let t : c_type = type_of_c_expr body_expression static_env in
-        bind_static pattern t >>= fun new_static_bindings ->
-        let new_static_env = new_static_bindings @ static_env in
-        (new_env, new_static_env, List.map fst new_bindings) |> return
-      in
-
-      match o with
-      | None -> failwith "eval_defn: no pattern matched"
-      | Some x -> x)
-  | CDefnRec (pattern, _, body_expression) ->
-      let let_defn : c_defn =
-        CDefn
-          ( pattern,
-            None,
-            EBindRec (pattern, None, body_expression, expr_of_pat pattern) )
-      in
-
-      eval_defn let_defn env static_env

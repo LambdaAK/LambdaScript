@@ -155,3 +155,5 @@ and factor_type_to_t : factor_type -> c_type = function
 and condense_type : compound_type -> c_type = function
   | BasicType bt -> factor_type_to_t bt
   | FunctionType (i, o) -> FunctionType (factor_type_to_t i, condense_type o)
+
+let condense_program = List.map condense_defn

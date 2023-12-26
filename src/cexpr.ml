@@ -60,6 +60,23 @@ and c_type =
   | CListType of c_type
   | UniversalType of int
 
+and value =
+  | IntegerValue of int
+  | StringValue of string
+  | BooleanValue of bool
+  | UnitValue
+  | FunctionClosure of env * c_pat * c_type option * c_expr
+  | RecursiveFunctionClosure of env ref * c_pat * c_type option * c_expr
+  | VectorValue of value list
+  | ListValue of value list
+  | BuiltInFunction of builtin_function
+
+and builtin_function = Println
+and env = (string * value) list
+
+type static_env = (string * c_type) list
+type c_program = c_defn list
+
 let ( => ) (t1 : c_type) (t2 : c_type) : c_type = FunctionType (t1, t2)
 let counter : int ref = ref 0
 

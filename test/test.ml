@@ -263,7 +263,7 @@ let type_test (expr : string) (expected_output : string) : test =
   let result : string =
     type_of_c_expr
       (expr |> list_of_string |> lex |> parse_expr |> fst |> condense_expr)
-      initial_env
+      Language.Env.initial_static_env
     |> string_of_c_type
   in
   assert_equal result expected_output

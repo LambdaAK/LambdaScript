@@ -735,3 +735,9 @@ and create_factor_app_chain_from_factor_list (factors : factor list) : factor =
   | factors_list ->
       let last, factors_without_last = remove_last factors_list in
       App (create_factor_app_chain_from_factor_list factors_without_last, last)
+
+let rec parse_program = function
+  | [] -> []
+  | tokens ->
+      let defn, tokens_after_defn = parse_defn tokens in
+      defn :: parse_program tokens_after_defn

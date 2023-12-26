@@ -1,31 +1,5 @@
-let rec fold <- \op -> \acc -> \lst -> switch lst => | [] -> acc | h :: t -> fold op (op acc h) t end in fold
-in
+let x <- 1
 
-let rec append a b <-
-  switch a =>
-  | [] -> b
-  | h :: t -> h :: append t b
-  end
+let () <- println "aaaa"
 
-in
-
-let rec rev lst <-
-  switch lst =>
-  | [] -> []
-  | h :: t -> append (rev t) (h :: [])
-  end
-
-in
-
-let rec double lst <-
-  switch lst =>
-  | [] -> []
-  | h :: t -> h :: (append (double t) (double t))
-  end
-
-in
-
-fold
-
-let rec fib <- \x -> if x == 0 then 0 else if x == 1 then 1 else fib (x - 1) + fib (x - 2)
-
+let () <- println "bbbb"

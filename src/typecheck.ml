@@ -2,15 +2,11 @@ open Cexpr
 open Typefixer
 open Ctostringtree.CToStringTree
 
-type static_env = (string * c_type) list
 type type_equation = c_type * c_type
 type type_equations = type_equation list
 type substitutions = type_equations
 
 exception TypeFailure
-
-let initial_env : (string * c_type) list =
-  [ ("not", BoolType => BoolType); ("println", StringType => UnitType) ]
 
 let split3 (lst : ('a * 'b * 'c) list) : 'a list * 'b list * 'c list =
   let rec split3_helper (lst : ('a * 'b * 'c) list) (a : 'a list) (b : 'b list)
@@ -550,3 +546,32 @@ and flatten_env_types (types : c_type list) : c_type list =
       | VectorType types -> flatten_env_types (types @ tail)
       | CListType et -> flatten_env_types (et :: tail)
       | _ -> t :: flatten_env_types tail)
+
+let rec type_of_value x =
+  print_endline "a";
+  x |> function
+  | IntegerValue _ -> IntType
+  | BooleanValue _ -> BoolType
+  | StringValue _ -> StringType
+  | UnitValue -> UnitType
+  | VectorValue values ->
+      let types : c_type list = List.map type_of_value values in
+      VectorType types
+  | ListValue [] ->
+      (* the empty list is of type [a] where a is fresh *)
+      CListType (fresh_type_var ())
+  | ListValue (h :: _) ->
+      let h_type = type_of_value h in
+      CListType h_type
+  | FunctionClosure (env, pat, _, body) ->
+      print_endline "function closure";
+      let input_type, _, _ = type_of_pat pat in
+      print_endline "a";
+      let static_env = static_env_from_dynamic_env env in
+      print_endline "b";
+      let output_type = type_of_c_expr body static_env in
+      FunctionType (input_type, output_type)
+  | _ -> failwith "not a value"
+
+and static_env_from_dynamic_env (env : env) : static_env =
+  List.map (fun (id, v) -> (id, type_of_value v)) env

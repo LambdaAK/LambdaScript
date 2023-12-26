@@ -1,10 +1,8 @@
-open Language.Ceval
 open Language.Parse
 open Language.Lex
 open Language.Reader
-open Language.Typecheck
-open Language.Ctostringcode.CToStringCode
 open Language.Condense
+open Language.Ceval_defn
 
 let get_dir () : string =
   if Array.length Sys.argv = 1 then
@@ -12,19 +10,23 @@ let get_dir () : string =
     exit 1
   else Sys.argv.(1)
 
+let execute_definitions env static_env =
+  List.fold_left
+    (fun (env, static_env) defn ->
+      let new_env, new_static_env, _ = eval_defn defn env static_env in
+      (new_env, new_static_env))
+    (env, static_env)
+
 let run_run (dir : string) : unit =
   let contents : string = read dir in
-  contents |> list_of_string |> lex |> parse_expr |> fst |> condense_expr
-  |> string_of_c_expr |> print_endline;
 
-  print_newline ();
-  contents |> c_eval |> print_endline;
-  print_newline ();
-  type_of_c_expr
-    (contents |> list_of_string |> lex |> parse_expr |> fst |> condense_expr)
-    Language.Typecheck.initial_env
-  |> string_of_c_type |> print_endline;
-  print_endline "\n"
+  let tokens = contents |> list_of_string |> lex in
+  let program = parse_program tokens |> condense_program in
+
+  let env = Language.Ceval.initial_env in
+  let static_env = Language.Env.initial_static_env in
+
+  execute_definitions env static_env program |> ignore
 
 let () =
   (* try run_run (get_dir ()) with | _ -> print_endline "Error"; exit 1 *)

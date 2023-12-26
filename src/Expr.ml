@@ -97,3 +97,5 @@ and factor =
   | ListComprehension of expr * generator list
 
 and generator = pat * expr
+
+type program = defn list
