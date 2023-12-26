@@ -7,6 +7,7 @@ open Language.Typecheck
 open Language.Ctostringtree.CToStringTree
 open Language.Typefixer
 open Language.Ceval_defn
+open Language.Env
 
 let attempt_lex (input_string : string) : token list =
   input_string |> list_of_string |> lex
@@ -122,6 +123,26 @@ and repl_expr (env : env) (static_env : static_env) (e : string) =
 
 let run_repl () : unit =
   print_endline "[LambdaScript REPL]\n";
-  repl_loop Language.Env.initial_env Language.Env.initial_static_env
+  let env =
+    List.map
+      (fun (id, code) ->
+        let v = eval_c_empty_env code in
+        (id, v))
+      code_mapping
+    @ built_ins_values
+  in
+  let static_env =
+    List.map
+      (fun (id, code) ->
+        (* get the type of the value *)
+        let tokens : token list = code |> list_of_string |> lex in
+        let e, _ = parse_expr tokens in
+        let c_e = condense_expr e in
+        let t = type_of_c_expr c_e [] in
+        (id, t))
+      code_mapping
+    @ built_ins_types
+  in
+  repl_loop env static_env
 
 let () = run_repl ()

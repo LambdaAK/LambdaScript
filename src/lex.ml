@@ -85,8 +85,29 @@ let is_letter : char -> bool =
     true
   else false
 
+let is_alpha_num (c : char) = is_letter c || is_num c
 let string_of_char = String.make 1
 let ( ^^ ) (s : string) (c : char) = s ^ string_of_char c
+
+let keywords : (string * token_type) list =
+  [
+    ("true", Boolean true);
+    ("false", Boolean false);
+    ("int", IntegerType);
+    ("bool", BooleanType);
+    ("string", StringType);
+    ("unit", UnitType);
+    ("if", If);
+    ("then", Then);
+    ("else", Else);
+    ("in", In);
+    ("let", Let);
+    ("rec", Rec);
+    ("bind", Bind);
+    ("switch", Switch);
+    ("end", End);
+    ("enum", Enum);
+  ]
 
 let rec lex_int (lst : char list) (acc : int) : token * char list =
   match lst with
@@ -155,10 +176,7 @@ let lex (lst : char list) : token list =
         in
         new_token :: lex t
     | 'i' :: 'n' :: 't' :: t ->
-        let new_token : token =
-          { token_type = IntegerType; line = !line_number }
-        in
-        new_token :: lex t
+        { token_type = IntegerType; line = !line_number } :: lex t
     | 'b' :: 'o' :: 'o' :: 'l' :: t ->
         let new_token : token =
           { token_type = BooleanType; line = !line_number }

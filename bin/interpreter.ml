@@ -3,6 +3,9 @@ open Language.Lex
 open Language.Reader
 open Language.Condense
 open Language.Ceval_defn
+open Language.Typecheck
+open Language.Env
+open Language.Ceval
 
 let get_dir () : string =
   if Array.length Sys.argv = 1 then
@@ -23,8 +26,26 @@ let run_run (dir : string) : unit =
   let tokens = contents |> list_of_string |> lex in
   let program = parse_program tokens |> condense_program in
 
-  let env = Language.Ceval.initial_env in
-  let static_env = Language.Env.initial_static_env in
+  let env =
+    List.map
+      (fun (id, code) ->
+        let v = eval_c_empty_env code in
+        (id, v))
+      code_mapping
+    @ built_ins_values
+  in
+  let static_env =
+    List.map
+      (fun (id, code) ->
+        (* get the type of the value *)
+        let tokens : token list = code |> list_of_string |> lex in
+        let e, _ = parse_expr tokens in
+        let c_e = condense_expr e in
+        let t = type_of_c_expr c_e [] in
+        (id, t))
+      code_mapping
+    @ built_ins_types
+  in
 
   execute_definitions env static_env program |> ignore
 

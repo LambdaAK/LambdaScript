@@ -2,6 +2,7 @@ open Lex
 open Parse
 open Condense
 open Cexpr
+open Env
 
 let rec string_of_env (env : env) =
   List.fold_left
@@ -167,6 +168,10 @@ and eval_builtin (f : builtin_function) (v : value) : value =
   | Println, StringValue s ->
       print_endline s;
       UnitValue
+  | Print, StringValue s ->
+      print_string s;
+      UnitValue
+  | IntToString, IntegerValue i -> StringValue (string_of_int i)
   | _ -> failwith "eval_builtin: unimplemented"
 
 and generate_envs_from_generators generators env =
@@ -270,14 +275,13 @@ let eval_c_empty_env (s : string) : value =
     (s |> list_of_string |> lex |> parse_expr |> fst |> condense_expr)
     []
 
-let not_function : value =
-  eval_c_empty_env {|
- \ a -> 
-    if a then false else true
-  |}
-
-let initial_env : env =
-  [ ("not", not_function); ("println", BuiltInFunction Println) ]
+let initial_env : (string * value) list =
+  List.map
+    (fun (id, code) ->
+      let v : value = eval_c_empty_env code in
+      (id, v))
+    code_mapping
+  @ built_ins_values
 
 let c_eval_ce (ce : c_expr) : string =
   eval_c_expr ce initial_env |> string_of_value

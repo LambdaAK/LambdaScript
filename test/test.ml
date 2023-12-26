@@ -5,6 +5,7 @@ open Language.Condense
 open Language.Ctostringtree.CToStringTree
 open Language.Parse
 open Language.Lex
+open Language.Env
 
 let modify_tests : bool = false
 
@@ -260,10 +261,22 @@ let eval_test (expr : string) (expected_output : string) : test =
 
 let type_test (expr : string) (expected_output : string) : test =
   expr ^ " SHOULD BE OF TYPE " ^ expected_output >:: fun _ ->
+  let static_env =
+    List.map
+      (fun (id, code) ->
+        (* get the type of the value *)
+        let tokens : token list = code |> list_of_string |> lex in
+        let e, _ = parse_expr tokens in
+        let c_e = condense_expr e in
+        let t = type_of_c_expr c_e [] in
+        (id, t))
+      code_mapping
+    @ built_ins_types
+  in
   let result : string =
     type_of_c_expr
       (expr |> list_of_string |> lex |> parse_expr |> fst |> condense_expr)
-      Language.Env.initial_static_env
+      static_env
     |> string_of_c_type
   in
   assert_equal result expected_output

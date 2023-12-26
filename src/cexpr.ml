@@ -71,7 +71,12 @@ and value =
   | ListValue of value list
   | BuiltInFunction of builtin_function
 
-and builtin_function = Println
+and builtin_function =
+  | Println
+  | Print
+  | IntToString
+  | StringToInt
+
 and env = (string * value) list
 
 type static_env = (string * c_type) list
