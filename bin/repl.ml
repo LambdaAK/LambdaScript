@@ -36,7 +36,10 @@ let rec repl_loop (env : env) (static_env : static_env) : unit =
   print_string "> ";
   let input_string : string = read_line () in
   let tokens : token list = attempt_lex input_string in
+  (* print the tokens *)
+  tokens |> List.map string_of_token |> String.concat " " |> print_endline;
 
+  (* end print *)
   match tokens with
   | { token_type = Let; line = _ } :: _ -> (
       (* This is one of a few things 1. Let definition 2. Let rec definition 3.
