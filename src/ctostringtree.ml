@@ -87,6 +87,7 @@ module CToStringTree : CToString = struct
         ^ indentations_with_newline level
         ^ ")"
     | EUnit -> "Unit"
+    | EFloat f -> "Float (" ^ string_of_float f ^ ")"
     | EId s -> "Id (" ^ s ^ ")"
     | EFunction (pattern, cto, body) ->
         let pattern_string : string = string_of_c_pat pattern in
@@ -232,6 +233,7 @@ module CToStringTree : CToString = struct
     | StringType -> "str"
     | UnitType -> "ng"
     | IntType -> "int"
+    | FloatType -> "float"
     | CListType t ->
         let t_string : string = string_of_c_type t in
         "[" ^ t_string ^ "]"

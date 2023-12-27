@@ -119,6 +119,7 @@ and condense_factor : factor -> c_expr = function
   | String s -> EString s
   | Unit -> EUnit
   | Integer i -> EInt i
+  | FloatFactor f -> EFloat f
   | Id s -> EId s
   | ParenFactor expr -> condense_expr expr
   | App (factor1, factor2) ->
@@ -147,6 +148,7 @@ and factor_type_to_t : factor_type -> c_type = function
   | StringType -> StringType
   | UnitType -> UnitType
   | IntegerType -> IntType
+  | FloatType -> FloatType
   | TypeVarWritten i -> TypeVarWritten i
   | ParenFactorType expr -> condense_type expr
   | VectorType types -> VectorType (List.map condense_type types)

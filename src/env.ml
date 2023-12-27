@@ -7,6 +7,8 @@ let built_ins : (string * value * c_type) list =
     ("println", BuiltInFunction Println, StringType => UnitType);
     ("print", BuiltInFunction Print, StringType => UnitType);
     ("int_to_str", BuiltInFunction IntToString, IntType => StringType);
+    ("int_to_float", BuiltInFunction IntToFloat, IntType => FloatType);
+    ("float_to_int", BuiltInFunction FloatToInt, FloatType => IntType);
   ]
 
 let built_ins_values : (string * value) list =

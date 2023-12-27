@@ -40,6 +40,7 @@ and c_expr =
   | EString of string
   | EUnit
   | EInt of int
+  | EFloat of float
   | EId of string
   | EApp of c_expr * c_expr
   | EBop of c_bop * c_expr * c_expr
@@ -50,6 +51,7 @@ and c_expr =
 
 and c_type =
   | IntType
+  | FloatType
   | BoolType
   | StringType
   | UnitType
@@ -62,6 +64,7 @@ and c_type =
 
 and value =
   | IntegerValue of int
+  | FloatValue of float
   | StringValue of string
   | BooleanValue of bool
   | UnitValue
@@ -76,6 +79,8 @@ and builtin_function =
   | Print
   | IntToString
   | StringToInt
+  | IntToFloat
+  | FloatToInt
   | Map
   | Filter
   | ReduceLeft

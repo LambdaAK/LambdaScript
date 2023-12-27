@@ -282,6 +282,7 @@ and string_of_arith_term (at : term) (level : int) =
 and string_of_arith_factor (af : factor) (level : int) =
   match af with
   | Integer n -> "Integer (" ^ string_of_int n ^ ")"
+  | FloatFactor f -> "Float (" ^ string_of_float f ^ ")"
   | Boolean b -> "Boolean (" ^ string_of_bool b ^ ")"
   | String s -> "String (" ^ s ^ ")"
   | Unit -> "Unit"

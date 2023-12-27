@@ -20,6 +20,7 @@ let fix (t : c_type) : c_type =
     | BoolType -> ()
     | StringType -> ()
     | UnitType -> ()
+    | FloatType -> ()
     | CListType et -> search et
     | UniversalType _ -> ()
     | TypeVarWritten _ -> () (* fix this later *)
@@ -40,6 +41,7 @@ let fix (t : c_type) : c_type =
     | BoolType -> BoolType
     | StringType -> StringType
     | UnitType -> UnitType
+    | FloatType -> FloatType
     | TypeVar id | UniversalType id -> TypeVar (get_replacement id lst)
     | TypeVarWritten _ -> t
     | FunctionType (i, o) -> FunctionType (replace i lst, replace o lst)

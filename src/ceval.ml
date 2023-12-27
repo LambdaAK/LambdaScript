@@ -11,6 +11,7 @@ let rec string_of_env (env : env) =
 
 and string_of_value = function
   | IntegerValue i -> string_of_int i
+  | FloatValue f -> string_of_float f
   | StringValue s -> "\"" ^ s ^ "\""
   | BooleanValue b -> string_of_bool b
   | UnitValue -> "()"
@@ -79,6 +80,7 @@ let rec bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
 let rec eval_c_expr (ce : c_expr) (env : env) =
   match ce with
   | EInt i -> IntegerValue i
+  | EFloat f -> FloatValue f
   | EString s -> StringValue s
   | EBool b -> BooleanValue b
   | ENil -> ListValue []
@@ -172,6 +174,8 @@ and eval_builtin (f : builtin_function) (v : value) : value =
       print_string s;
       UnitValue
   | IntToString, IntegerValue i -> StringValue (string_of_int i)
+  | IntToFloat, IntegerValue i -> FloatValue (float_of_int i)
+  | FloatToInt, FloatValue f -> IntegerValue (int_of_float f)
   | _ -> failwith "eval_builtin: unimplemented"
 
 and generate_envs_from_generators generators env =

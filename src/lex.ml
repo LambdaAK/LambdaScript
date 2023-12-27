@@ -1,5 +1,6 @@
 type token_type =
   | Integer of int
+  | FloatToken of float
   | Boolean of bool
   | StringToken of string
   | Unit
@@ -36,6 +37,7 @@ type token_type =
   | BooleanType
   | StringType
   | UnitType
+  | FloatType
   | LBracket
   | RBracket
   | Bind
@@ -107,6 +109,7 @@ let keywords =
     ("switch", Switch);
     ("end", End);
     ("enum", Enum);
+    ("float", FloatType);
   ]
   |> List.map (fun (s, t) -> (list_of_string s, t))
 
@@ -141,6 +144,21 @@ let rec lex_int (lst : char list) (acc : int) : token * char list =
       let n_int : int = int_from_char n in
       lex_int t ((acc * 10) + n_int)
   | _ -> ({ token_type = Integer acc; line = 0 }, lst)
+
+let is_num_or_dot : char -> bool = function
+  | '.' -> true
+  | c -> is_num c
+
+let rec lex_num (lst : char list) (acc : string) : token * char list =
+  match lst with
+  | n :: t when is_num_or_dot n ->
+      let n_string : string = string_of_char n in
+      lex_num t (acc ^ n_string)
+  | _ ->
+      (* if theres a ., it's an int if there is not a ., it's a float *)
+      if String.contains acc '.' then
+        ({ token_type = FloatToken (float_of_string acc); line = 0 }, lst)
+      else ({ token_type = Integer (int_of_string acc); line = 0 }, lst)
 
 let rec lex_string (lst : char list) (acc : string) : token * char list =
   match lst with
@@ -329,8 +347,8 @@ let lex (lst : char list) : token list =
               { token_type = RBrace; line = !line_number }
             in
             new_token :: lex t
-        | n :: _ when is_num n ->
-            let int_token, tail = lex_int lst 0 in
+        | n :: _ when is_num_or_dot n ->
+            let int_token, tail = lex_num lst "" in
             int_token :: lex tail
         | c :: _ when is_letter c ->
             let id_token, tail = lex_id lst "" in
@@ -364,7 +382,11 @@ let string_of_token : token -> string =
       let s : string = string_of_int n in
       "<integer: " ^ s ^ ">"
   | StringToken s -> "<string: " ^ s ^ ">"
+  | FloatToken f ->
+      let s : string = string_of_float f in
+      "<float: " ^ s ^ ">"
   | Unit -> "<unit>"
+  | FloatType -> "<float type>"
   | Id s -> "<id: " ^ s ^ ">"
   | Fn -> "<fn>"
   | Arrow -> "<arrow>"

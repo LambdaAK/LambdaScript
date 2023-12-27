@@ -86,6 +86,7 @@ module CToStringCode : CToString = struct
         ^ indentations_with_newline level
         ^ "end"
     | EString s -> "\"" ^ s ^ "\""
+    | EFloat f -> string_of_float f
     | EListEnumeration (e1, e2) ->
         string_of_c_expr e1 level ^ " .. " ^ string_of_c_expr e2 level
     | EListComprehension (e, generators) ->
@@ -106,6 +107,7 @@ module CToStringCode : CToString = struct
     | StringType -> "str"
     | UnitType -> "ng"
     | IntType -> "int"
+    | FloatType -> "float"
     | CListType t ->
         let t_string : string = string_of_c_type t in
         "[" ^ t_string ^ "]"

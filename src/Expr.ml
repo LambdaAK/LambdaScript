@@ -32,6 +32,7 @@ and factor_type =
   | StringType
   | BooleanType
   | UnitType
+  | FloatType
   | TypeVarWritten of string
   | ParenFactorType of compound_type
   | VectorType of compound_type list
@@ -86,6 +87,7 @@ and factor =
   | String of string
   | Unit
   | Integer of int
+  | FloatFactor of float
   | Id of string
   | ParenFactor of expr
   | App of factor * factor

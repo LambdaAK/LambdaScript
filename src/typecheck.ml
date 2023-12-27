@@ -36,6 +36,7 @@ let rec string_of_static_env (env : static_env) : string =
 let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
   match e with
   | EInt _ -> (IntType, [])
+  | EFloat _ -> (FloatType, [])
   | EBool _ -> (BoolType, [])
   | EId x ->
       let t = List.assoc x env |> instantiate in
@@ -317,6 +318,7 @@ and get_type (var : c_type) (subs : substitutions) : c_type =
   | FunctionType (i, o) -> FunctionType (get_type i subs, get_type o subs)
   | VectorType types -> VectorType (List.map (fun t -> get_type t subs) types)
   | IntType -> IntType
+  | FloatType -> FloatType
   | BoolType -> BoolType
   | StringType -> StringType
   | UnitType -> UnitType
@@ -357,7 +359,7 @@ and inside (inside_type : c_type) (outside_type : c_type) : bool =
 
 and is_basic_type (t : c_type) : bool =
   match t with
-  | IntType | BoolType | StringType | UnitType -> true
+  | IntType | FloatType | BoolType | StringType | UnitType -> true
   | TypeVar _ | UniversalType _ -> false
   | TypeVarWritten _ -> false (* fix this later if necessary *)
   | FunctionType (i, o) -> is_basic_type i && is_basic_type o
