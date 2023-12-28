@@ -51,30 +51,31 @@ let rec parse_repeat parse_fun get_sep_if_exists tokens =
       in
       (rest_exprs @ [ first ], rest_seperators @ [ sep ], tokens_after_rest)
 
-(* given structures a, b, c, ...... and operators +1 +2 +3 ..... combine into a
-   structure a +1 b +2 ..... using left associativity *)
+let combine_expressions exprs seps =
+  let rec combine_expressions_aux exprs_rev seps_rev terminal_function
+      combine_function =
+    match (exprs_rev, seps_rev) with
+    | [], [] -> failwith "impossible"
+    | e :: [], [] -> terminal_function e
+    | e :: e_rest, s :: s_rest ->
+        combine_function
+          (combine_expressions_aux e_rest s_rest terminal_function
+             combine_function)
+          e s
+    | _ -> failwith "impossible"
+  in
+  combine_expressions_aux exprs seps
 
-let rec combine_expressions exprs_rev seps_rev terminal_function
-    combine_function =
-  match (exprs_rev, seps_rev) with
-  | [], [] -> failwith "impossible"
-  | e :: [], [] -> terminal_function e
-  | e :: e_rest, s :: s_rest ->
-      combine_function
-        (combine_expressions e_rest s_rest terminal_function combine_function)
-        e s
-  | _ -> failwith "impossible"
-
-let combine_terms_into_arith_expr terms_reversed addops_reversed =
-  combine_expressions terms_reversed addops_reversed
+let combine_terms_into_arith_expr terms addops =
+  combine_expressions terms addops
     (fun t -> Term t)
     (fun arith_expr term addop ->
       match addop with
       | AddopPlus -> Plus (arith_expr, term)
       | AddopMinus -> Minus (arith_expr, term))
 
-let combine_factors_into_term factors_reversed mulops_reversed =
-  combine_expressions factors_reversed mulops_reversed
+let combine_factors_into_term factors mulops =
+  combine_expressions factors mulops
     (fun f -> Factor f)
     (fun term factor mulop ->
       match mulop with
