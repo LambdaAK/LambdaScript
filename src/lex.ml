@@ -304,6 +304,9 @@ let lex (lst : char list) : token list =
               { token_type = Comma; line = !line_number }
             in
             new_token :: lex t
+        | '<' :: '>' :: t ->
+            let new_token : token = { token_type = NE; line = !line_number } in
+            new_token :: lex t
         | '<' :: t ->
             let new_token : token = { token_type = LT; line = !line_number } in
             new_token :: lex t
@@ -312,9 +315,6 @@ let lex (lst : char list) : token list =
             new_token :: lex t
         | '=' :: '=' :: t ->
             let new_token : token = { token_type = EQ; line = !line_number } in
-            new_token :: lex t
-        | '!' :: '=' :: t ->
-            let new_token : token = { token_type = NE; line = !line_number } in
             new_token :: lex t
         | '|' :: '|' :: t ->
             let new_token : token = { token_type = OR; line = !line_number } in

@@ -376,12 +376,12 @@ let bool_types =
     "1 < 2 && 13414 > 11413413";
     "1 < 2 && false";
     "1 == 1";
-    "1 != 1";
+    "1 <> 1";
     "if true then true else false";
     "true || true";
     "1 < 2 || false";
     "1 == 1";
-    "1 != 1";
+    "1 <> 1";
     "if true then true else false";
     "if false then true else false";
     "if 1 < 2 then true else false";
@@ -873,7 +873,7 @@ let boolean_tests =
     ("1 < 2 && false", "false");
     (* equality *)
     ("1 == 1", "true");
-    ("1 != 1", "false");
+    ("1 <> 1", "false");
     (* big tests with just + and - *)
     ("1 + 2 - 3 + 4 - 5 + 6", "5");
     ("1 + 2 + 3 - 4 - 5 - 6", "-9");

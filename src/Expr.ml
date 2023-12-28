@@ -50,14 +50,17 @@ and expr =
   | Switch of expr * switch_branch list
 
 and cons_expr =
+  (* :: *)
   | Cons of disjunction * cons_expr
   | DisjunctionUnderCons of disjunction
 
 and disjunction =
+  (* || *)
   | Disjunction of conjunction * disjunction
   | ConjunctionUnderDisjunction of conjunction
 
 and conjunction =
+  (* && *)
   | Conjunction of rel_expr * conjunction
   | RelationUnderConjunction of rel_expr
 
@@ -66,11 +69,13 @@ and rel_expr =
   | ArithmeticUnderRelExpr of arith_expr
 
 and arith_expr =
+  (* +... -... *)
   | Plus of arith_expr * term
   | Minus of arith_expr * term
   | Term of term
 
 and term =
+  (* *... /... %... *)
   | Mul of term * app_factor
   | Div of term * app_factor
   | Mod of term * app_factor
