@@ -51,6 +51,37 @@ let rec parse_repeat parse_fun get_sep_if_exists tokens =
       in
       (rest_exprs @ [ first ], rest_seperators @ [ sep ], tokens_after_rest)
 
+(* given structures a, b, c, ...... and operators +1 +2 +3 ..... combine into a
+   structure a +1 b +2 ..... using left associativity *)
+
+let rec combine_expressions exprs_rev seps_rev terminal_function
+    combine_function =
+  match (exprs_rev, seps_rev) with
+  | [], [] -> failwith "impossible"
+  | e :: [], [] -> terminal_function e
+  | e :: e_rest, s :: s_rest ->
+      combine_function
+        (combine_expressions e_rest s_rest terminal_function combine_function)
+        e s
+  | _ -> failwith "impossible"
+
+let combine_terms_into_arith_expr terms_reversed addops_reversed =
+  combine_expressions terms_reversed addops_reversed
+    (fun t -> Term t)
+    (fun arith_expr term addop ->
+      match addop with
+      | AddopPlus -> Plus (arith_expr, term)
+      | AddopMinus -> Minus (arith_expr, term))
+
+let combine_factors_into_term factors_reversed mulops_reversed =
+  combine_expressions factors_reversed mulops_reversed
+    (fun f -> Factor f)
+    (fun term factor mulop ->
+      match mulop with
+      | MulopTimes -> Mul (term, factor)
+      | MulopDiv -> Div (term, factor)
+      | MulopMod -> Mod (term, factor))
+
 exception UnexpectedToken of token_type * token_type option * int
 
 let assert_next_token (tokens : token list) (expected_value : token_type) =
@@ -491,77 +522,17 @@ and parse_rel_expr (tokens : token list) : rel_expr * token list =
   | _ -> (ArithmeticUnderRelExpr first, tokens_after_first)
 
 and parse_arith_expr (tokens : token list) : arith_expr * token list =
-  (* start by parsing a term *)
-  let first, tokens_after_first = parse_term tokens in
-  (* then check what the next symbol is *)
-  (* if it's a PLUS or MINUS, parse another arith_expr and return the
-     sum/difference *)
-  match tokens_after_first with
-  | { token_type = Plus; line = _ } :: t ->
-      (* parse another level_one expression *)
-      (* return the sum of those expressions *)
-      let second, tokens_after_second = parse_arith_expr t in
-
-      (Plus (first, second), tokens_after_second)
-  | { token_type = Minus; line = _ } :: t -> (
-      let second, tokens_after_second = parse_arith_expr t in
-      (* if second is a Minus, the expression a - b - c has been incorrectly
-         parsed as a - (b - c)
-
-         a - b - c is equivalent to the following (a - b) - c = a - b - c = a -
-         (b + c)
-
-         change it to that
-
-         if second is a Plus, the expression a - b + c has been incorrectly
-         parsed as a - (b + c)
-
-         a - b + c is equivalent to a - b + c = a - (b - c)
-
-         change it to that *)
-      match second with
-      | Minus (b, c) ->
-          (Minus (first, Plus (b, c)), tokens_after_second)
-          (* Minus (arith_expr_to_term (Minus (first, Term b)), c),
-             tokens_after_second *)
-      | Plus (b, c) ->
-          (Minus (first, Minus (b, c)), tokens_after_second)
-          (* Plus (arith_expr_to_term (Minus(first, Term b)), c),
-             tokens_after_second *)
-      | _ -> (Minus (first, second), tokens_after_second))
-  | _ -> (Term first, tokens_after_first)
+  let term_list, addop_list, tokens_after_term_list = parse_term_list tokens in
+  let term = combine_terms_into_arith_expr term_list addop_list in
+  (term, tokens_after_term_list)
 
 and parse_term (tokens : token list) : term * token list =
   let factor_list, mulop_list, tokens_after_factor_list =
     parse_factor_list tokens
   in
 
-  let term =
-    construct_term_from_factor_list_and_mulop_list_helper factor_list mulop_list
-  in
+  let term = combine_factors_into_term factor_list mulop_list in
   (term, tokens_after_factor_list)
-
-and construct_term_from_factor_list_and_mulop_list_helper
-    (factor_list_reversed : factor list) (mulop_list_reversed : mulop list) :
-    term =
-  match (factor_list_reversed, mulop_list_reversed) with
-  | [], [] -> failwith "impossible"
-  | f :: [], [] -> Factor f
-  | f :: f_rest, m :: m_rest -> (
-      match m with
-      | MulopTimes ->
-          Mul
-            ( construct_term_from_factor_list_and_mulop_list_helper f_rest m_rest,
-              f )
-      | MulopDiv ->
-          Div
-            ( construct_term_from_factor_list_and_mulop_list_helper f_rest m_rest,
-              f )
-      | MulopMod ->
-          Mod
-            ( construct_term_from_factor_list_and_mulop_list_helper f_rest m_rest,
-              f ))
-  | _ -> failwith "impossible"
 
 and parse_factor (tokens : token list) : factor * token list =
   let factors, tokens_after_factors = get_factor_list tokens [] in

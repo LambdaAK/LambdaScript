@@ -72,8 +72,8 @@ and rel_expr =
   | ArithmeticUnderRelExpr of arith_expr
 
 and arith_expr =
-  | Plus of term * arith_expr
-  | Minus of term * arith_expr
+  | Plus of arith_expr * term
+  | Minus of arith_expr * term
   | Term of term
 
 and term =

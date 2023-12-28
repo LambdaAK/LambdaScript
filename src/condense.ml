@@ -102,10 +102,10 @@ and condense_rel_expr : rel_expr -> c_expr = function
   | ArithmeticUnderRelExpr arith_expr -> condense_arith_expr arith_expr
 
 and condense_arith_expr : arith_expr -> c_expr = function
-  | Plus (term, arith_expr) ->
-      EBop (CPlus, condense_term term, condense_arith_expr arith_expr)
-  | Minus (term, arith_expr) ->
-      EBop (CMinus, condense_term term, condense_arith_expr arith_expr)
+  | Plus (arith_expr, term) ->
+      EBop (CPlus, condense_arith_expr arith_expr, condense_term term)
+  | Minus (arith_expr, term) ->
+      EBop (CMinus, condense_arith_expr arith_expr, condense_term term)
   | Term term -> condense_term term
 
 and condense_term : term -> c_expr = function

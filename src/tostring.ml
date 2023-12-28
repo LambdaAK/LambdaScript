@@ -228,22 +228,22 @@ and string_of_rel_expr (re : rel_expr) (level : int) : string =
 
 and string_of_arith_expr (ae : arith_expr) (level : int) =
   match ae with
-  | Plus (t, e) ->
+  | Plus (e, t) ->
       "Plus ("
       ^ indentations_with_newline (level + 1)
-      ^ string_of_arith_term t (level + 1)
+      ^ string_of_arith_expr e (level + 1)
       ^ ","
       ^ indentations_with_newline (level + 1)
-      ^ string_of_arith_expr e (level + 1)
+      ^ string_of_arith_term t (level + 1)
       ^ indentations_with_newline level
       ^ ")"
-  | Minus (t, e) ->
+  | Minus (e, t) ->
       "Minus ("
       ^ indentations_with_newline (level + 1)
-      ^ string_of_arith_term t (level + 1)
+      ^ string_of_arith_expr e (level + 1)
       ^ ","
       ^ indentations_with_newline (level + 1)
-      ^ string_of_arith_expr e (level + 1)
+      ^ string_of_arith_term t (level + 1)
       ^ indentations_with_newline level
       ^ ")"
   | Term t -> string_of_arith_term t (level + 1)
