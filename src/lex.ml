@@ -52,6 +52,9 @@ type token_type =
   | ConsToken
   | Semicolon
   | Enum
+  | Relop of string (* start with = < or >, and are not = *)
+  | Addop of string (* start with + or - *)
+  | Mulop of string (* start with * / or % *)
 
 type token = {
   token_type : token_type;
@@ -88,6 +91,47 @@ let is_letter : char -> bool =
   else false
 
 let is_alpha_num (c : char) = is_letter c || is_num c
+
+let is_special = (* + - * / % < > = & | : ; , *)
+  function
+  | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' | '&' | '|' | ':' | ';' | ','
+    -> true
+  | _ -> false
+
+let is_addop_prefix = function
+  | '+' | '-' -> true
+  | _ -> false
+
+let is_mulop_prefix = function
+  | '*' | '/' | '%' -> true
+  | _ -> false
+
+let is_relop_prefix = function
+  | '<' | '>' | '=' -> true
+  | _ -> false
+
+(* whenever there's a special character, parse an operator *)
+
+let bop_from_char_list (lst : char list) =
+  let s : string = List.fold_left (fun acc c -> acc ^ String.make 1 c) "" lst in
+  match lst with
+  | h :: _ when is_addop_prefix h -> Addop s
+  | h :: _ when is_mulop_prefix h -> Mulop s
+  | h :: _ when is_relop_prefix h -> Relop s
+  | _ -> failwith "invalid bop passed to bop_from_char_list"
+
+let lex_bop (lst : char list) =
+  let rec get_bop_chars (lst : char list) (acc : char list) :
+      char list * char list =
+    match lst with
+    | h :: t when is_special h -> get_bop_chars t (h :: acc)
+    | _ ->
+        (* no more chars are added to the bop *)
+        (List.rev acc, lst)
+  in
+  let bop_chars, remaining_chars = get_bop_chars lst [] in
+  (bop_from_char_list bop_chars, remaining_chars)
+
 let string_of_char = String.make 1
 let ( ^^ ) (s : string) (c : char) = s ^ string_of_char c
 
@@ -434,6 +478,9 @@ let string_of_token : token -> string =
   | End -> "<end>"
   | Semicolon -> "<semicolon>"
   | Enum -> "<enum>"
+  | Relop s -> "<relop: " ^ s ^ ">"
+  | Addop s -> "<addop: " ^ s ^ ">"
+  | Mulop s -> "<mulop: " ^ s ^ ">"
 [@@coverage off]
 
 let rec print_tokens_list : token list -> unit = function

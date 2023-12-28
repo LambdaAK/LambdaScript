@@ -65,6 +65,7 @@ and conjunction =
   | RelationUnderConjunction of rel_expr
 
 and rel_expr =
+  (* =... <... >... *)
   | Relation of rel_op * arith_expr * rel_expr
   | ArithmeticUnderRelExpr of arith_expr
 
