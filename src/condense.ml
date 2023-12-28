@@ -75,21 +75,17 @@ and condense_disjunction : disjunction -> c_expr = function
   | ConjunctionUnderDisjunction conj -> condense_conjunction conj
 
 and condense_conjunction : conjunction -> c_expr = function
-  | Conjunction (eq_expr, conj) ->
-      EBop (CAnd, condense_eq_expr eq_expr, condense_conjunction conj)
-  | EqualityUnderConjunction eq_expr -> condense_eq_expr eq_expr
-
-and condense_eq_expr : eq_expr -> c_expr = function
-  | Equality (eq_op, rel_expr, eq_expr) -> begin
-      match eq_op with
-      | EQ -> EBop (CEQ, condense_rel_expr rel_expr, condense_eq_expr eq_expr)
-      | NE -> EBop (CNE, condense_rel_expr rel_expr, condense_eq_expr eq_expr)
-    end
-  | RelationUnderEqExpr rel_expr -> condense_rel_expr rel_expr
+  | Conjunction (rel_expr, conj) ->
+      EBop (CAnd, condense_rel_expr rel_expr, condense_conjunction conj)
+  | RelationUnderConjunction rel_expr -> condense_rel_expr rel_expr
 
 and condense_rel_expr : rel_expr -> c_expr = function
   | Relation (rel_op, arith_expr, rel_expr) -> begin
       match rel_op with
+      | EQ ->
+          EBop (CEQ, condense_arith_expr arith_expr, condense_rel_expr rel_expr)
+      | NE ->
+          EBop (CNE, condense_arith_expr arith_expr, condense_rel_expr rel_expr)
       | LT ->
           EBop (CLT, condense_arith_expr arith_expr, condense_rel_expr rel_expr)
       | GT ->
@@ -109,10 +105,15 @@ and condense_arith_expr : arith_expr -> c_expr = function
   | Term term -> condense_term term
 
 and condense_term : term -> c_expr = function
-  | Mul (t, f) -> EBop (CMul, condense_term t, condense_factor f)
-  | Div (t, f) -> EBop (CDiv, condense_term t, condense_factor f)
-  | Mod (t, f) -> EBop (CMod, condense_term t, condense_factor f)
-  | Factor factor -> condense_factor factor
+  | Mul (t, af) -> EBop (CMul, condense_term t, condense_app_factor af)
+  | Div (t, af) -> EBop (CDiv, condense_term t, condense_app_factor af)
+  | Mod (t, af) -> EBop (CMod, condense_term t, condense_app_factor af)
+  | Factor app_factor -> condense_app_factor app_factor
+
+and condense_app_factor : app_factor -> c_expr = function
+  | Application (app_factor, factor) ->
+      EApp (condense_app_factor app_factor, condense_factor factor)
+  | FactorUnderApplication factor -> condense_factor factor
 
 and condense_factor : factor -> c_expr = function
   | Boolean b -> EBool b
@@ -122,8 +123,6 @@ and condense_factor : factor -> c_expr = function
   | FloatFactor f -> EFloat f
   | Id s -> EId s
   | ParenFactor expr -> condense_expr expr
-  | App (factor1, factor2) ->
-      EApp (condense_factor factor1, condense_factor factor2)
   | Opposite factor -> EBop (CMinus, EInt 0, condense_factor factor)
   | Vector expressions -> EVector (List.map condense_expr expressions)
   | Nil -> ENil

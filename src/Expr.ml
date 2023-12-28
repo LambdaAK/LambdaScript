@@ -14,14 +14,12 @@ and sub_pat =
   | Pat of pat
 
 type rel_op =
+  | EQ
+  | NE
   | LT
   | GT
   | LE
   | GE
-
-type eq_op =
-  | EQ
-  | NE
 
 type compound_type =
   | FunctionType of factor_type * compound_type
@@ -60,12 +58,8 @@ and disjunction =
   | ConjunctionUnderDisjunction of conjunction
 
 and conjunction =
-  | Conjunction of eq_expr * conjunction
-  | EqualityUnderConjunction of eq_expr
-
-and eq_expr =
-  | Equality of eq_op * rel_expr * eq_expr
-  | RelationUnderEqExpr of rel_expr
+  | Conjunction of rel_expr * conjunction
+  | RelationUnderConjunction of rel_expr
 
 and rel_expr =
   | Relation of rel_op * arith_expr * rel_expr
@@ -77,10 +71,14 @@ and arith_expr =
   | Term of term
 
 and term =
-  | Mul of term * factor
-  | Div of term * factor
-  | Mod of term * factor
-  | Factor of factor
+  | Mul of term * app_factor
+  | Div of term * app_factor
+  | Mod of term * app_factor
+  | Factor of app_factor
+
+and app_factor =
+  | Application of app_factor * factor
+  | FactorUnderApplication of factor
 
 and factor =
   | Boolean of bool
@@ -90,7 +88,6 @@ and factor =
   | FloatFactor of float
   | Id of string
   | ParenFactor of expr
-  | App of factor * factor
   | Opposite of factor
   | Vector of expr list
   | Nil

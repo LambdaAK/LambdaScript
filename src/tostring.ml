@@ -33,14 +33,12 @@ and string_of_sub_pat : sub_pat -> string = function
   | Pat p -> string_of_pat p
 
 let string_of_rel_op : rel_op -> string = function
+  | EQ -> "EQ"
+  | NE -> "NE"
   | LT -> "LT"
   | GT -> "GT"
   | LE -> "LE"
   | GE -> "GE"
-
-let string_of_eq_op : eq_op -> string = function
-  | EQ -> "EQ"
-  | NE -> "NE"
 
 let rec string_of_basic_type (ft : factor_type) (level : int) : string =
   match ft with
@@ -185,29 +183,14 @@ and string_of_disjunction (d : disjunction) (level : int) : string =
 
 and string_of_conjunction (c : conjunction) (level : int) : string =
   match c with
-  | EqualityUnderConjunction e -> string_of_eq_expr e level
-  | Conjunction (e, c) ->
+  | RelationUnderConjunction r -> string_of_rel_expr r level
+  | Conjunction (r, c) ->
       "Conjunction ("
       ^ indentations_with_newline (level + 1)
-      ^ string_of_eq_expr e (level + 1)
+      ^ string_of_rel_expr r (level + 1)
       ^ ","
       ^ indentations_with_newline (level + 1)
       ^ string_of_conjunction c (level + 1)
-      ^ indentations_with_newline level
-      ^ ")"
-
-and string_of_eq_expr (ee : eq_expr) (level : int) : string =
-  match ee with
-  | RelationUnderEqExpr re -> string_of_rel_expr re level
-  | Equality (op, re, ee) ->
-      "Equality ("
-      ^ indentations_with_newline (level + 1)
-      ^ string_of_eq_op op ^ ","
-      ^ indentations_with_newline (level + 1)
-      ^ string_of_rel_expr re (level + 1)
-      ^ ","
-      ^ indentations_with_newline (level + 1)
-      ^ string_of_eq_expr ee (level + 1)
       ^ indentations_with_newline level
       ^ ")"
 
@@ -250,79 +233,73 @@ and string_of_arith_expr (ae : arith_expr) (level : int) =
 
 and string_of_arith_term (at : term) (level : int) =
   match at with
-  | Mul (f, t) ->
+  | Mul (f, af) ->
       "Mul ("
       ^ indentations_with_newline (level + 1)
       ^ string_of_arith_term f (level + 1)
       ^ ","
       ^ indentations_with_newline (level + 1)
-      ^ string_of_arith_factor t (level + 1)
+      ^ string_of_app_factor af (level + 1)
       ^ indentations_with_newline level
       ^ ")"
-  | Div (f, t) ->
+  | Div (f, af) ->
       "Div ("
       ^ indentations_with_newline (level + 1)
       ^ string_of_arith_term f (level + 1)
       ^ ","
       ^ indentations_with_newline (level + 1)
-      ^ string_of_arith_factor t (level + 1)
+      ^ string_of_app_factor af (level + 1)
       ^ indentations_with_newline level
       ^ ")"
-  | Mod (f, t) ->
+  | Mod (f, af) ->
       "Mod ("
       ^ indentations_with_newline (level + 1)
       ^ string_of_arith_term f (level + 1)
       ^ ","
       ^ indentations_with_newline (level + 1)
-      ^ string_of_arith_factor t (level + 1)
+      ^ string_of_app_factor af (level + 1)
       ^ indentations_with_newline level
       ^ ")"
-  | Factor f -> string_of_arith_factor f (level + 1)
+  | Factor af -> string_of_app_factor af (level + 1)
 
-and string_of_arith_factor (af : factor) (level : int) =
+and string_of_app_factor (af : app_factor) (level : int) =
   match af with
-  | Integer n -> "Integer (" ^ string_of_int n ^ ")"
-  | FloatFactor f -> "Float (" ^ string_of_float f ^ ")"
-  | Boolean b -> "Boolean (" ^ string_of_bool b ^ ")"
-  | String s -> "String (" ^ s ^ ")"
-  | Unit -> "Unit"
-  | Id s -> "Id (" ^ s ^ ")"
-  | ParenFactor e ->
-      "Paren ("
-      ^ indentations_with_newline (level + 1)
-      ^ string_of_expr e (level + 1)
-      ^ indentations_with_newline level
-      ^ ")"
-  | App (e1, e2) ->
+  | Application (ap, f) ->
       "App ("
       ^ indentations_with_newline (level + 1)
-      ^ string_of_arith_factor e1 (level + 1)
+      ^ string_of_app_factor ap (level + 1)
       ^ ","
       ^ indentations_with_newline (level + 1)
-      ^ string_of_arith_factor e2 (level + 1)
+      ^ string_of_factor f (level + 1)
+      ^ indentations_with_newline level
+      ^ ")"
+  | FactorUnderApplication f -> string_of_factor f (level + 1)
+
+and string_of_factor (factor : factor) (level : int) =
+  match factor with
+  | Boolean b -> "Boolean (" ^ string_of_bool b ^ ")"
+  | Integer n -> "Integer (" ^ string_of_int n ^ ")"
+  | String s -> "String (" ^ s ^ ")"
+  | Unit -> "Unit"
+  | Vector es ->
+      "Vector ("
+      ^ indentations_with_newline (level + 1)
+      ^ String.concat
+          (",\n" ^ indentations_with_newline (level + 1))
+          (List.map (fun e -> string_of_expr e (level + 1)) es)
+      ^ indentations_with_newline level
+      ^ ")"
+  | Id s -> "Id (" ^ s ^ ")"
+  | ParenFactor e ->
+      "ParenFactor ("
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_expr e (level + 1)
       ^ indentations_with_newline level
       ^ ")"
   | Opposite f ->
       "Opposite ("
       ^ indentations_with_newline (level + 1)
-      ^ string_of_arith_factor f (level + 1)
-      ^ indentations_with_newline level
-      ^ ")"
-  | Vector expressions ->
-      "Vector ("
-      ^ indentations_with_newline (level + 1)
-      ^ String.concat
-          (",\n" ^ indentations_with_newline (level + 1))
-          (List.map (fun e -> string_of_expr e (level + 1)) expressions)
-      ^ indentations_with_newline level
-      ^ ")"
-  | Nil -> "Nil"
-  | ListSugar e_list ->
-      "ListSugar ("
-      ^ indentations_with_newline (level + 1)
-      ^ String.concat
-          (",\n" ^ indentations_with_newline (level + 1))
-          (List.map (fun e -> string_of_expr e (level + 1)) e_list)
+      ^ string_of_factor f (level + 1)
       ^ indentations_with_newline level
       ^ ")"
   | ListEnumeration (e1, e2) ->
@@ -334,22 +311,29 @@ and string_of_arith_factor (af : factor) (level : int) =
       ^ string_of_expr e2 (level + 1)
       ^ indentations_with_newline level
       ^ ")"
-  | ListComprehension (e, generators) ->
+  | ListComprehension (e1, gen_list) ->
       "ListComprehension ("
       ^ indentations_with_newline (level + 1)
-      ^ string_of_expr e (level + 1)
+      ^ string_of_expr e1 (level + 1)
       ^ ","
       ^ indentations_with_newline (level + 1)
       ^ String.concat
           (",\n" ^ indentations_with_newline (level + 1))
           (List.map
              (fun (p, e) ->
-               indentations_with_newline (level + 1)
-               ^ string_of_pat p ^ ",\n"
+               string_of_pat p ^ ",\n"
                ^ indentations_with_newline (level + 1)
                ^ string_of_expr e (level + 1))
-             generators)
+             gen_list)
       ^ indentations_with_newline level
+      ^ ")"
+  | Nil -> "Nil"
+  | FloatFactor f -> "FloatFactor (" ^ string_of_float f ^ ")"
+  | ListSugar es ->
+      "ListSugar ("
+      ^ String.concat
+          (",\n" ^ indentations_with_newline (level + 1))
+          (List.map (fun e -> string_of_expr e (level + 1)) es)
       ^ ")"
 
 let string_of_expr (e : expr) = string_of_expr e 0

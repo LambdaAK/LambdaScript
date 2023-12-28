@@ -460,14 +460,14 @@ and parse_bind (tokens_without_bind : token list) : expr * token list =
   ( ConsExpr
       (DisjunctionUnderCons
          (ConjunctionUnderDisjunction
-            (EqualityUnderConjunction
-               (RelationUnderEqExpr
-                  (ArithmeticUnderRelExpr
-                     (Term
-                        (Factor
-                           (App
-                              ( ParenFactor (Function (pattern, cto, e2)),
-                                ParenFactor e1_wrapped ))))))))),
+            (RelationUnderConjunction
+               (ArithmeticUnderRelExpr
+                  (Term
+                     (Factor
+                        (Application
+                           ( FactorUnderApplication
+                               (ParenFactor (Function (pattern, cto, e2))),
+                             ParenFactor e1_wrapped )))))))),
     tokens_after_e2 )
 
 and parse_cons (tokens : token list) : cons_expr * token list =
@@ -487,27 +487,22 @@ and parse_disjunction (tokens : token list) : disjunction * token list =
   | _ -> (ConjunctionUnderDisjunction first, tokens_after_first)
 
 and parse_conjunction (tokens : token list) : conjunction * token list =
-  let first, tokens_after_first = parse_eq_expr tokens in
+  let first, tokens_after_first = parse_rel_expr tokens in
   match tokens_after_first with
   | { token_type = AND; line = _ } :: t ->
       let second, tokens_after_second = parse_conjunction t in
       (Conjunction (first, second), tokens_after_second)
-  | _ -> (EqualityUnderConjunction first, tokens_after_first)
-
-and parse_eq_expr (tokens : token list) : eq_expr * token list =
-  let first, tokens_after_first = parse_rel_expr tokens in
-  match tokens_after_first with
-  | { token_type = EQ; line = _ } :: t ->
-      let second, tokens_after_second = parse_eq_expr t in
-      (Equality (EQ, first, second), tokens_after_second)
-  | { token_type = NE; line = _ } :: t ->
-      let second, tokens_after_second = parse_eq_expr t in
-      (Equality (NE, first, second), tokens_after_second)
-  | _ -> (RelationUnderEqExpr first, tokens_after_first)
+  | _ -> (RelationUnderConjunction first, tokens_after_first)
 
 and parse_rel_expr (tokens : token list) : rel_expr * token list =
   let first, tokens_after_first = parse_arith_expr tokens in
   match tokens_after_first with
+  | { token_type = EQ; line = _ } :: t ->
+      let second, tokens_after_second = parse_rel_expr t in
+      (Relation (EQ, first, second), tokens_after_second)
+  | { token_type = NE; line = _ } :: t ->
+      let second, tokens_after_second = parse_rel_expr t in
+      (Relation (NE, first, second), tokens_after_second)
   | { token_type = LT; line = _ } :: t ->
       let second, tokens_after_second = parse_rel_expr t in
       (Relation (LT, first, second), tokens_after_second)
@@ -535,15 +530,15 @@ and parse_term (tokens : token list) : term * token list =
   let term = combine_factors_into_term factor_list mulop_list in
   (term, tokens_after_factor_list)
 
-and parse_factor (tokens : token list) : factor * token list =
+and parse_app_factor (tokens : token list) : app_factor * token list =
   let factors, tokens_after_factors = get_factor_list tokens [] in
   if List.length factors = 0 then raise ParseFailure
   else if List.length factors > 1 then
     (create_factor_app_chain_from_factor_list factors, tokens_after_factors)
-  else (List.hd factors, tokens_after_factors)
+  else (FactorUnderApplication (List.hd factors), tokens_after_factors)
 
 and parse_factor_list (tokens : token list) =
-  parse_repeat parse_factor get_mulop_if_exists tokens
+  parse_repeat parse_app_factor get_mulop_if_exists tokens
 
 and parse_term_list (tokens : token list) =
   parse_repeat parse_term get_addop_if_exists tokens
@@ -712,13 +707,15 @@ and get_factor_list (tokens : token list) (acc : factor list) :
     get_factor_list remaining_tokens (new_expr :: acc)
   with FactorParseFailure -> (List.rev acc, tokens (* return no new exprs *))
 
-and create_factor_app_chain_from_factor_list (factors : factor list) : factor =
+and create_factor_app_chain_from_factor_list (factors : factor list) :
+    app_factor =
   match factors with
   | [] -> failwith "impossible"
-  | f :: [] -> f
+  | f :: [] -> FactorUnderApplication f
   | factors_list ->
       let last, factors_without_last = remove_last factors_list in
-      App (create_factor_app_chain_from_factor_list factors_without_last, last)
+      Application
+        (create_factor_app_chain_from_factor_list factors_without_last, last)
 
 let rec parse_program = function
   | [] -> []
