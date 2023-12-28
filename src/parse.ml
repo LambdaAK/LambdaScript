@@ -13,10 +13,43 @@ let remove_last (lst : 'a list) : 'a * 'a list =
   | [] -> raise ParseFailure
   | last :: rest -> (last, List.rev rest)
 
+type addop =
+  | AddopPlus
+  | AddopMinus
+
 type mulop =
-  | Times
-  | Div
-  | Mod
+  | MulopTimes
+  | MulopDiv
+  | MulopMod
+
+let get_addop_if_exists (tokens : token list) =
+  match tokens with
+  | { token_type = Plus; line = _ } :: t -> (Some AddopPlus, t)
+  | { token_type = Minus; line = _ } :: t -> (Some AddopMinus, t)
+  | _ -> (None, tokens)
+
+let get_mulop_if_exists (tokens : token list) =
+  match tokens with
+  | { token_type = Times; line = _ } :: t -> (Some MulopTimes, t)
+  | { token_type = Divide; line = _ } :: t -> (Some MulopDiv, t)
+  | { token_type = Mod; line = _ } :: t -> (Some MulopMod, t)
+  | _ -> (None, tokens)
+
+(* parse a list of expressions seperated by seperators return the list of
+   expressions, the list of seperators, and the remaining tokens *)
+let rec parse_repeat parse_fun get_sep_if_exists tokens =
+  (* parse the first one *)
+  let first, tokens_after_first = parse_fun tokens in
+  (* check if there's a seperator *)
+  let sep_opt, tokens_after_sep = get_sep_if_exists tokens_after_first in
+  match sep_opt with
+  | None -> (* no seperator *) ([ first ], [], tokens_after_first)
+  | Some sep ->
+      (* sep is the seperator, we need to parse more *)
+      let rest_exprs, rest_seperators, tokens_after_rest =
+        parse_repeat parse_fun get_sep_if_exists tokens_after_sep
+      in
+      (rest_exprs @ [ first ], rest_seperators @ [ sep ], tokens_after_rest)
 
 exception UnexpectedToken of token_type * token_type option * int
 
@@ -502,39 +535,11 @@ and parse_term (tokens : token list) : term * token list =
   let factor_list, mulop_list, tokens_after_factor_list =
     parse_factor_list tokens
   in
+
   let term =
     construct_term_from_factor_list_and_mulop_list_helper factor_list mulop_list
   in
   (term, tokens_after_factor_list)
-
-and parse_factor_list (tokens : token list) :
-    factor list * mulop list * token list =
-  let first, tokens_after_first = parse_factor tokens in
-  let factor_list : factor list ref = ref [ first ] in
-  let remaining_tokens : token list ref = ref tokens_after_first in
-  let mulop_list : mulop list ref = ref [] in
-  let guard : bool ref = ref true in
-
-  while !guard do
-    match !remaining_tokens with
-    | { token_type = Times; line = _ } :: t ->
-        mulop_list := !mulop_list @ [ Times ];
-        let next_factor, tokens_after_next_factor = parse_factor t in
-        factor_list := !factor_list @ [ next_factor ];
-        remaining_tokens := tokens_after_next_factor
-    | { token_type = Divide; line = _ } :: t ->
-        mulop_list := !mulop_list @ [ Div ];
-        let next_factor, tokens_after_next_factor = parse_factor t in
-        factor_list := !factor_list @ [ next_factor ];
-        remaining_tokens := tokens_after_next_factor
-    | { token_type = Mod; line = _ } :: t ->
-        mulop_list := !mulop_list @ [ Mod ];
-        let next_factor, tokens_after_next_factor = parse_factor t in
-        factor_list := !factor_list @ [ next_factor ];
-        remaining_tokens := tokens_after_next_factor
-    | _ -> guard := false
-  done;
-  (List.rev !factor_list, List.rev !mulop_list, !remaining_tokens)
 
 and construct_term_from_factor_list_and_mulop_list_helper
     (factor_list_reversed : factor list) (mulop_list_reversed : mulop list) :
@@ -544,15 +549,15 @@ and construct_term_from_factor_list_and_mulop_list_helper
   | f :: [], [] -> Factor f
   | f :: f_rest, m :: m_rest -> (
       match m with
-      | Times ->
+      | MulopTimes ->
           Mul
             ( construct_term_from_factor_list_and_mulop_list_helper f_rest m_rest,
               f )
-      | Div ->
+      | MulopDiv ->
           Div
             ( construct_term_from_factor_list_and_mulop_list_helper f_rest m_rest,
               f )
-      | Mod ->
+      | MulopMod ->
           Mod
             ( construct_term_from_factor_list_and_mulop_list_helper f_rest m_rest,
               f ))
@@ -564,6 +569,12 @@ and parse_factor (tokens : token list) : factor * token list =
   else if List.length factors > 1 then
     (create_factor_app_chain_from_factor_list factors, tokens_after_factors)
   else (List.hd factors, tokens_after_factors)
+
+and parse_factor_list (tokens : token list) =
+  parse_repeat parse_factor get_mulop_if_exists tokens
+
+and parse_term_list (tokens : token list) =
+  parse_repeat parse_term get_addop_if_exists tokens
 
 and parse_pats_seperated_by_commas (tokens : token list) : pat list * token list
     =
