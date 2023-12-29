@@ -632,6 +632,18 @@ and parse_sub_pat (tokens : token list) : sub_pat * token list =
 
 and parse_factor_not_app (tokens : token list) : factor * token list =
   match tokens with
+  | { token_type = LParen; line = _ }
+    :: { token_type = Addop s; line = _ }
+    :: { token_type = RParen; line = _ }
+    :: t
+  | { token_type = LParen; line = _ }
+    :: { token_type = Mulop s; line = _ }
+    :: { token_type = RParen; line = _ }
+    :: t
+  | { token_type = LParen; line = _ }
+    :: { token_type = Relop s; line = _ }
+    :: { token_type = RParen; line = _ }
+    :: t -> (Id s, t)
   | { token_type = Integer n; line = _ } :: t -> (Integer n, t)
   | { token_type = FloatToken n; line = _ } :: t -> (FloatFactor n, t)
   | { token_type = Opposite; line = _ } :: t ->

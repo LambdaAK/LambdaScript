@@ -1,7 +1,4 @@
-let rec fold <-
-  \op ->
-  \acc ->
-  \arr ->
+let rec fold op acc arr <-
   switch arr =>
   | [] -> acc
   | h :: t -> fold op t (op acc h)
@@ -13,18 +10,13 @@ let rec map f lst <-
   | h :: t -> f h :: map f t
   end
 
-let rec iter <-
-  \f ->
-  \lst ->
+let rec iter f lst <-
   switch lst =>
   | [] -> ()
   | h :: t -> 
     let () <- f h in
     iter f t
   end
-
-let rec (--) lower upper <-
-  if lower > upper then [] else lower :: (lower + 1) -- upper
 
 let rec (++) arr1 arr2 <-
   switch arr1 =>
@@ -38,29 +30,23 @@ let rec flatten lst <-
   | h :: t -> h ++ flatten t
   end
 
+let print_int x <-
+  println (int_to_str x)
+
+let print_int_list <- iter print_int
 
 let return x <- [x]
 
 let (>>=) lst f <-
   flatten (map f lst)
 
-let a <- [1,2,3,4,5]
-let b <- [6,7,8,9,10]
+let (-->) x f <- f x
 
-let c <- return 10
-
-let d <- 
-  c >>= (\e -> [1 ... e])
-  >>= (\e -> [e, e * e])
-
-let print_int x <-
-  println (int_to_str x)
-
-let print_int_list <- iter print_int
-
-let () <- print_int_list d
+let (<->) f g x <- f (g x)
 
 
+let id <- ((+) 1) <-> (\x -> x - 1)
 
+let squares a b <- [x * x | x <- [a ... b]]
 
 
