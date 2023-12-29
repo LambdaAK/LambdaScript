@@ -24,15 +24,15 @@ type mulop =
 
 let get_addop_if_exists (tokens : token list) =
   match tokens with
-  | { token_type = Plus; line = _ } :: t -> (Some AddopPlus, t)
-  | { token_type = Minus; line = _ } :: t -> (Some AddopMinus, t)
+  | { token_type = Addop "+"; line = _ } :: t -> (Some AddopPlus, t)
+  | { token_type = Addop "-"; line = _ } :: t -> (Some AddopMinus, t)
   | _ -> (None, tokens)
 
 let get_mulop_if_exists (tokens : token list) =
   match tokens with
-  | { token_type = Times; line = _ } :: t -> (Some MulopTimes, t)
-  | { token_type = Divide; line = _ } :: t -> (Some MulopDiv, t)
-  | { token_type = Mod; line = _ } :: t -> (Some MulopMod, t)
+  | { token_type = Mulop "*"; line = _ } :: t -> (Some MulopTimes, t)
+  | { token_type = Mulop "/"; line = _ } :: t -> (Some MulopDiv, t)
+  | { token_type = Mulop "%"; line = _ } :: t -> (Some MulopMod, t)
   | _ -> (None, tokens)
 
 (* parse a list of expressions seperated by seperators return the list of
@@ -107,6 +107,31 @@ let rec parse_compound_type (tokens : token list) : compound_type * token list =
       (* return the basic type *)
       (BasicType left_type, tokens_after_left_type)
 
+and parse_compound_type_if_possible (tokens : token list) :
+    compound_type option * token list =
+  match tokens with
+  | { token_type = LBracket; line = _ } :: tokens_after_l_bracket ->
+      let ct, tokens_after_ct = parse_compound_type tokens_after_l_bracket in
+      (* the next token should be a r bracket *)
+      assert_next_token tokens_after_ct RBracket;
+      (Some ct, remove_head tokens_after_ct)
+  | _ -> (None, tokens)
+
+and parse_pats_while_next_token_is_not_bind_arrow (tokens : token list)
+    (acc : (pat * compound_type option) list) :
+    (pat * compound_type option) list * token list =
+  match tokens with
+  | { token_type = BindArrow; line = _ } :: _ ->
+      (acc, tokens (* I don't think you need List.rev here *))
+  | _ ->
+      let next_pat, tokens_after_next_pat = parse_pat tokens in
+      (* parse a compound type if possible *)
+      let cto, tokens_after_cto =
+        parse_compound_type_if_possible tokens_after_next_pat
+      in
+      parse_pats_while_next_token_is_not_bind_arrow tokens_after_cto
+        ((next_pat, cto) :: acc)
+
 and parse_factor_type (tokens : token list) : factor_type * token list =
   match tokens with
   | { token_type = IntegerType; line = _ } :: t -> (IntegerType, t)
@@ -166,6 +191,7 @@ and parse_defn_contents (t : token list) :
 
       (* the next token should be a bind arrow *)
       let () = assert_next_token tokens_after_r_bracket BindArrow in
+
       let tokens_after_bind_arrow = remove_head tokens_after_r_bracket in
 
       (* parse an expression *)
@@ -182,6 +208,7 @@ and parse_defn_contents (t : token list) :
 
       (* the next token should be a bind arrow *)
       let () = assert_next_token tokens_after_pattern BindArrow in
+
       let tokens_after_bind_arrow = remove_head tokens_after_pattern in
 
       (* parse an expression *)
@@ -192,22 +219,50 @@ and parse_defn_contents (t : token list) :
       (pattern, None, body_expression, tokens_after_body_expression)
 
 and parse_defn (tokens : token list) : defn * token list =
-  match tokens with
-  | { token_type = Let; line = _ } :: { token_type = Rec; line = _ } :: t ->
-      (* bind rec expression *)
-      let pattern, cto, body_expression, tokens_after_body_expression =
-        parse_defn_contents t
-      in
+  let tokens_without_let, is_rec =
+    match tokens with
+    | { token_type = Let; line = _ } :: { token_type = Rec; line = _ } :: t ->
+        (t, true)
+    | { token_type = Let; line = _ } :: t -> (t, false)
+    | _ ->
+        print_endline "parse defn failed";
+        raise ParseFailure
+  in
 
-      (DefnRec (pattern, cto, body_expression), tokens_after_body_expression)
-  | { token_type = Let; line = _ } :: t ->
-      (* bind expression *)
-      let pattern, cto, body_expression, tokens_after_body_expression =
-        parse_defn_contents t
-      in
+  let pattern, tokens_after_pattern = parse_pat tokens_without_let in
 
-      (Defn (pattern, cto, body_expression), tokens_after_body_expression)
-  | _ -> raise ParseFailure
+  let cto, tokens_after_annotated_type =
+    (* if there is a type annotation, get it here *)
+    match tokens_after_pattern with
+    | { token_type = LBracket; line = _ } :: tokens_after_l_bracket ->
+        let ct, tokens_after_ct = parse_compound_type tokens_after_l_bracket in
+        (* the next token should be a r bracket *)
+        assert_next_token tokens_after_ct RBracket;
+        (Some ct, remove_head tokens_after_ct)
+    | _ -> (None, tokens_after_pattern)
+  in
+
+  let pattern_list, tokens_after_pattern_list =
+    parse_pats_while_next_token_is_not_bind_arrow tokens_after_annotated_type []
+  in
+
+  let () = assert_next_token tokens_after_pattern_list BindArrow in
+  assert_next_token tokens_after_pattern_list BindArrow;
+  let body_tokens : token list = remove_head tokens_after_pattern_list in
+  let e, tokens_after_body = parse_expr body_tokens in
+
+  let rec wrap_e1_with_functions (e1 : expr)
+      (pattern_list : (pat * compound_type option) list) : expr =
+    match pattern_list with
+    | [] -> e1
+    | (pattern, cto) :: rest ->
+        wrap_e1_with_functions (Function (pattern, cto, e1)) rest
+  in
+
+  let e_wrapped = wrap_e1_with_functions e pattern_list in
+
+  if is_rec then (DefnRec (pattern, cto, e_wrapped), tokens_after_body)
+  else (Defn (pattern, cto, e_wrapped), tokens_after_body)
 
 and parse_expressions_seperated_by_commas (tokens : token list) :
     expr list * token list =
@@ -316,33 +371,6 @@ and parse_bind_rec (tokens_without_bind_rec : token list) : expr * token list =
     | _ -> (None, tokens_after_pattern)
   in
 
-  let parse_compound_type_if_possible (tokens : token list) :
-      compound_type option * token list =
-    match tokens with
-    | { token_type = LBracket; line = _ } :: tokens_after_l_bracket ->
-        let ct, tokens_after_ct = parse_compound_type tokens_after_l_bracket in
-        (* the next token should be a r bracket *)
-        assert_next_token tokens_after_ct RBracket;
-        (Some ct, remove_head tokens_after_ct)
-    | _ -> (None, tokens)
-  in
-
-  let rec parse_pats_while_next_token_is_not_bind_arrow (tokens : token list)
-      (acc : (pat * compound_type option) list) :
-      (pat * compound_type option) list * token list =
-    match tokens with
-    | { token_type = BindArrow; line = _ } :: _ ->
-        (acc, tokens (* I don't think you need List.rev here *))
-    | _ ->
-        let next_pat, tokens_after_next_pat = parse_pat tokens in
-        (* parse a compound type if possible *)
-        let cto, tokens_after_cto =
-          parse_compound_type_if_possible tokens_after_next_pat
-        in
-        parse_pats_while_next_token_is_not_bind_arrow tokens_after_cto
-          ((next_pat, cto) :: acc)
-  in
-
   let pattern_list, tokens_after_pattern_list =
     parse_pats_while_next_token_is_not_bind_arrow tokens_after_annotated_type []
   in
@@ -403,33 +431,6 @@ and parse_bind (tokens_without_bind : token list) : expr * token list =
         assert_next_token tokens_after_ct RBracket;
         (Some ct, remove_head tokens_after_ct)
     | _ -> (None, tokens_after_pattern)
-  in
-
-  let parse_compound_type_if_possible (tokens : token list) :
-      compound_type option * token list =
-    match tokens with
-    | { token_type = LBracket; line = _ } :: tokens_after_l_bracket ->
-        let ct, tokens_after_ct = parse_compound_type tokens_after_l_bracket in
-        (* the next token should be a r bracket *)
-        assert_next_token tokens_after_ct RBracket;
-        (Some ct, remove_head tokens_after_ct)
-    | _ -> (None, tokens)
-  in
-
-  let rec parse_pats_while_next_token_is_not_bind_arrow (tokens : token list)
-      (acc : (pat * compound_type option) list) :
-      (pat * compound_type option) list * token list =
-    match tokens with
-    | { token_type = BindArrow; line = _ } :: _ ->
-        (acc, tokens (* I don't think you need List.rev here *))
-    | _ ->
-        let next_pat, tokens_after_next_pat = parse_pat tokens in
-        (* parse a compound type if possible *)
-        let cto, tokens_after_cto =
-          parse_compound_type_if_possible tokens_after_next_pat
-        in
-        parse_pats_while_next_token_is_not_bind_arrow tokens_after_cto
-          ((next_pat, cto) :: acc)
   in
 
   let pattern_list, tokens_after_pattern_list =
@@ -497,22 +498,22 @@ and parse_conjunction (tokens : token list) : conjunction * token list =
 and parse_rel_expr (tokens : token list) : rel_expr * token list =
   let first, tokens_after_first = parse_arith_expr tokens in
   match tokens_after_first with
-  | { token_type = EQ; line = _ } :: t ->
+  | { token_type = Relop "=="; line = _ } :: t ->
       let second, tokens_after_second = parse_rel_expr t in
       (Relation (EQ, first, second), tokens_after_second)
-  | { token_type = NE; line = _ } :: t ->
+  | { token_type = Relop "<>"; line = _ } :: t ->
       let second, tokens_after_second = parse_rel_expr t in
       (Relation (NE, first, second), tokens_after_second)
-  | { token_type = LT; line = _ } :: t ->
+  | { token_type = Relop "<"; line = _ } :: t ->
       let second, tokens_after_second = parse_rel_expr t in
       (Relation (LT, first, second), tokens_after_second)
-  | { token_type = GT; line = _ } :: t ->
+  | { token_type = Relop ">"; line = _ } :: t ->
       let second, tokens_after_second = parse_rel_expr t in
       (Relation (GT, first, second), tokens_after_second)
-  | { token_type = LE; line = _ } :: t ->
+  | { token_type = Relop "<="; line = _ } :: t ->
       let second, tokens_after_second = parse_rel_expr t in
       (Relation (LE, first, second), tokens_after_second)
-  | { token_type = GE; line = _ } :: t ->
+  | { token_type = Relop ">="; line = _ } :: t ->
       let second, tokens_after_second = parse_rel_expr t in
       (Relation (GE, first, second), tokens_after_second)
   | _ -> (ArithmeticUnderRelExpr first, tokens_after_first)

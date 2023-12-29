@@ -61,6 +61,74 @@ type token = {
   line : int;
 }
 
+let string_of_token_type : token_type -> string = function
+  | Boolean b -> let s : string = string_of_bool b in
+
+                 "<boolean: " ^ s ^ ">"
+  | Integer n ->
+      let s : string = string_of_int n in
+      "<integer: " ^ s ^ ">"
+  | StringToken s -> "<string: " ^ s ^ ">"
+  | FloatToken f ->
+      let s : string = string_of_float f in
+      "<float: " ^ s ^ ">"
+  | Unit -> "<unit>"
+  | FloatType -> "<float type>"
+  | Id s -> "<id: " ^ s ^ ">"
+  | Fn -> "<fn>"
+  | Arrow -> "<arrow>"
+  | Assign -> "<assign>"
+  | If -> "<if>"
+  | Then -> "<then>"
+  | Else -> "<else>"
+  | LParen -> "<lparen>"
+  | RParen -> "<rparen>"
+  | Colon -> "<colon>"
+  | SwitchArrow -> "<switch arrow>"
+  | Plus -> "<plus>"
+  | Minus -> "<minus>"
+  | Times -> "<times>"
+  | Divide -> "<divide>"
+  | Mod -> "<mod>"
+  | Opposite -> "<opposite>"
+  | LT -> "<LT>"
+  | GT -> "<GT>"
+  | LE -> "<LE>"
+  | GE -> "<GE>"
+  | EQ -> "<EQ>"
+  | NE -> "<NE>"
+  | OR -> "<or>"
+  | AND -> "<and>"
+  | IntegerType -> "<integer type>"
+  | BooleanType -> "<boolean type>"
+  | StringType -> "<string type>"
+  | UnitType -> "<unit type>"
+  | LBracket -> "<left bracket>"
+  | RBracket -> "<right bracket>"
+  | Bind -> "<bind>"
+  | BindArrow -> "<bind arrow>"
+  | In -> "<in>"
+  | LBrace -> "<lbrace>"
+  | RBrace -> "<rbrace>"
+  | Let -> "<let>"
+  | Rec -> "<rec>"
+  | Comma -> "<comma>"
+  | WildcardPattern -> "<wildcard pattern>"
+  | TypeVar s -> "<type var: " ^ s ^ ">"
+  | ConsToken -> "<cons token>"
+  | Pipe -> "<pipe>"
+  | Switch -> "<switch>"
+  | End -> "<end>"
+  | Semicolon -> "<semicolon>"
+  | Enum -> "<enum>"
+  | Relop s -> "<relop: " ^ s ^ ">"
+  | Addop s -> "<addop: " ^ s ^ ">"
+  | Mulop s -> "<mulop: " ^ s ^ ">"
+[@@coverage off]
+
+let string_of_token : token -> string =
+ fun { token_type; _ } -> string_of_token_type token_type
+
 let list_of_string (s : string) = s |> String.to_seq |> List.of_seq
 
 exception LexFailure
@@ -92,6 +160,10 @@ let is_letter : char -> bool =
 
 let is_alpha_num (c : char) = is_letter c || is_num c
 
+let is_bop_prefix : char -> bool = function
+  | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' -> true
+  | _ -> false
+
 let is_special = (* + - * / % < > = & | : ; , *)
   function
   | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' | '&' | '|' | ':' | ';' | ','
@@ -114,11 +186,16 @@ let is_relop_prefix = function
 
 let bop_from_char_list (lst : char list) =
   let s : string = List.fold_left (fun acc c -> acc ^ String.make 1 c) "" lst in
-  match lst with
-  | h :: _ when is_addop_prefix h -> Addop s
-  | h :: _ when is_mulop_prefix h -> Mulop s
-  | h :: _ when is_relop_prefix h -> Relop s
-  | _ -> failwith "invalid bop passed to bop_from_char_list"
+
+  if s = "->" then Arrow
+  else if s = "<-" then BindArrow
+  else if s = "=>" then SwitchArrow
+  else
+    match lst with
+    | h :: _ when is_addop_prefix h -> Addop s
+    | h :: _ when is_mulop_prefix h -> Mulop s
+    | h :: _ when is_relop_prefix h -> Relop s
+    | _ -> failwith "invalid bop passed to bop_from_char_list"
 
 let lex_bop (lst : char list) =
   let rec get_bop_chars (lst : char list) (acc : char list) :
@@ -246,6 +323,9 @@ let lex (lst : char list) : token list =
         | '\n' :: t ->
             line_number := !line_number + 1;
             lex t (* ignore new lines, increment the line number *)
+        | h :: _ when is_bop_prefix h ->
+            let bop, chars_after = lex_bop lst in
+            { token_type = bop; line = !line_number } :: lex chars_after
         | '.' :: '.' :: '.' :: t ->
             let new_token : token =
               { token_type = Enum; line = !line_number }
@@ -284,11 +364,6 @@ let lex (lst : char list) : token list =
               { token_type = RParen; line = !line_number }
             in
             new_token :: lex t
-        | '=' :: '>' :: t ->
-            let new_token : token =
-              { token_type = SwitchArrow; line = !line_number }
-            in
-            new_token :: lex t
         | '-' :: '>' :: t ->
             let new_token : token =
               { token_type = Arrow; line = !line_number }
@@ -309,11 +384,6 @@ let lex (lst : char list) : token list =
               { token_type = Unit; line = !line_number }
             in
             new_token :: lex t
-        | '+' :: t ->
-            let new_token : token =
-              { token_type = Plus; line = !line_number }
-            in
-            new_token :: lex t
         | '~' :: '-' :: t ->
             let new_token : token =
               { token_type = Opposite; line = !line_number }
@@ -324,41 +394,10 @@ let lex (lst : char list) : token list =
               { token_type = Minus; line = !line_number }
             in
             new_token :: lex t
-        | '*' :: t ->
-            let new_token : token =
-              { token_type = Times; line = !line_number }
-            in
-            new_token :: lex t
-        | '/' :: t ->
-            let new_token : token =
-              { token_type = Divide; line = !line_number }
-            in
-            new_token :: lex t
-        | '%' :: t ->
-            let new_token : token = { token_type = Mod; line = !line_number } in
-            new_token :: lex t
-        | '<' :: '=' :: t ->
-            let new_token : token = { token_type = LE; line = !line_number } in
-            new_token :: lex t
-        | '>' :: '=' :: t ->
-            let new_token : token = { token_type = GE; line = !line_number } in
-            new_token :: lex t
         | ',' :: t ->
             let new_token : token =
               { token_type = Comma; line = !line_number }
             in
-            new_token :: lex t
-        | '<' :: '>' :: t ->
-            let new_token : token = { token_type = NE; line = !line_number } in
-            new_token :: lex t
-        | '<' :: t ->
-            let new_token : token = { token_type = LT; line = !line_number } in
-            new_token :: lex t
-        | '>' :: t ->
-            let new_token : token = { token_type = GT; line = !line_number } in
-            new_token :: lex t
-        | '=' :: '=' :: t ->
-            let new_token : token = { token_type = EQ; line = !line_number } in
             new_token :: lex t
         | '|' :: '|' :: t ->
             let new_token : token = { token_type = OR; line = !line_number } in
@@ -414,73 +453,6 @@ let rec remove_line_numbers (tokens : token list) : token_type list =
   match tokens with
   | [] -> []
   | h :: t -> h.token_type :: remove_line_numbers t
-[@@coverage off]
-
-let string_of_token : token -> string =
- fun (tok : token) ->
-  match tok.token_type with
-  | Boolean b -> let s : string = string_of_bool b in
-
-                 "<boolean: " ^ s ^ ">"
-  | Integer n ->
-      let s : string = string_of_int n in
-      "<integer: " ^ s ^ ">"
-  | StringToken s -> "<string: " ^ s ^ ">"
-  | FloatToken f ->
-      let s : string = string_of_float f in
-      "<float: " ^ s ^ ">"
-  | Unit -> "<unit>"
-  | FloatType -> "<float type>"
-  | Id s -> "<id: " ^ s ^ ">"
-  | Fn -> "<fn>"
-  | Arrow -> "<arrow>"
-  | Assign -> "<assign>"
-  | If -> "<if>"
-  | Then -> "<then>"
-  | Else -> "<else>"
-  | LParen -> "<lparen>"
-  | RParen -> "<rparen>"
-  | Colon -> "<colon>"
-  | SwitchArrow -> "<switch arrow>"
-  | Plus -> "<plus>"
-  | Minus -> "<minus>"
-  | Times -> "<times>"
-  | Divide -> "<divide>"
-  | Mod -> "<mod>"
-  | Opposite -> "<opposite>"
-  | LT -> "<LT>"
-  | GT -> "<GT>"
-  | LE -> "<LE>"
-  | GE -> "<GE>"
-  | EQ -> "<EQ>"
-  | NE -> "<NE>"
-  | OR -> "<or>"
-  | AND -> "<and>"
-  | IntegerType -> "<integer type>"
-  | BooleanType -> "<boolean type>"
-  | StringType -> "<string type>"
-  | UnitType -> "<unit type>"
-  | LBracket -> "<left bracket>"
-  | RBracket -> "<right bracket>"
-  | Bind -> "<bind>"
-  | BindArrow -> "<bind arrow>"
-  | In -> "<in>"
-  | LBrace -> "<lbrace>"
-  | RBrace -> "<rbrace>"
-  | Let -> "<let>"
-  | Rec -> "<rec>"
-  | Comma -> "<comma>"
-  | WildcardPattern -> "<wildcard pattern>"
-  | TypeVar s -> "<type var: " ^ s ^ ">"
-  | ConsToken -> "<cons token>"
-  | Pipe -> "<pipe>"
-  | Switch -> "<switch>"
-  | End -> "<end>"
-  | Semicolon -> "<semicolon>"
-  | Enum -> "<enum>"
-  | Relop s -> "<relop: " ^ s ^ ">"
-  | Addop s -> "<addop: " ^ s ^ ">"
-  | Mulop s -> "<mulop: " ^ s ^ ">"
 [@@coverage off]
 
 let rec print_tokens_list : token list -> unit = function

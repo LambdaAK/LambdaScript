@@ -1,9 +1,35 @@
+let rec fold <-
+  \op ->
+  \acc ->
+  \arr ->
+  switch arr =>
+  | [] -> acc
+  | h :: t -> fold op t (op acc h)
+  end
 
+let rec map <-
+  \f ->
+  \lst ->
+  switch lst =>
+  | [] -> []
+  | h :: t -> f h :: map f t
+  end
 
-let print_list <- \lst -> reduce_left (\() -> \x -> println x) () lst
+let rec iter <-
+  \f ->
+  \lst ->
+  switch lst =>
+  | [] -> ()
+  | h :: t -> 
+    let () <- f h in
+    iter f t
+  end
 
-let lst <- [1 ... 25]
+let fold <- let rec fold op acc arr <-
+  switch arr =>
+  | [] -> acc
+  | h :: t -> op h (fold op t acc)
+  end
+in
+fold
 
-let () <- print_list (map int_to_str lst)
-
-let f <- \x -> (if false then \y -> y + 1 else \y -> y + 2) x

@@ -18,8 +18,6 @@ let attempt_parse (tokens : token list) : c_expr =
 let attempt_parse_defn (tokens : token list) : c_defn =
   tokens |> parse_defn |> fst |> condense_defn
 
-let () = ignore attempt_parse_defn
-
 let attempt_type_check (ce : c_expr) (env : static_env) : c_type =
   type_of_c_expr ce env
 
@@ -36,9 +34,6 @@ let rec repl_loop (env : env) (static_env : static_env) : unit =
   print_string "> ";
   let input_string : string = read_line () in
   let tokens : token list = attempt_lex input_string in
-
-  (* print the tokens *)
-  tokens |> List.map string_of_token |> String.concat " " |> print_endline;
 
   match tokens with
   | { token_type = Let; line = _ } :: _ -> (
@@ -145,4 +140,5 @@ let run_repl () : unit =
   in
   repl_loop env static_env
 
+let () = print_endline "Welcome to LambdaScript!"
 let () = run_repl ()

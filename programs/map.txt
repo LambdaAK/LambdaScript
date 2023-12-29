@@ -1,7 +1,1 @@
-let rec map f arr <-
-  switch arr =>
-    | [] -> []
-    | h :: t -> f h :: map f t
-  end
-in
-map
+let rec map f arr <- switch arr => | [] -> [] | h :: t -> f h :: map f t end

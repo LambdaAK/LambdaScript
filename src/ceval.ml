@@ -287,6 +287,8 @@ let initial_env : (string * value) list =
     code_mapping
   @ built_ins_values
 
+(* env code *)
+
 let c_eval_ce (ce : c_expr) : string =
   eval_c_expr ce initial_env |> string_of_value
 
