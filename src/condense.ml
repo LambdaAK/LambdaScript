@@ -16,6 +16,7 @@ and condense_sub_pat : sub_pat -> c_pat = function
   | VectorPat pats -> CVectorPat (List.map condense_pat pats)
   | WildcardPat -> CWildcardPat
   | Pat pat -> condense_pat pat
+  | InfixPat s -> CIdPat s
 
 let rec condense_defn : defn -> c_defn = function
   | Defn (pattern, cto, body_expression) ->
@@ -80,22 +81,27 @@ and condense_conjunction : conjunction -> c_expr = function
   | RelationUnderConjunction rel_expr -> condense_rel_expr rel_expr
 
 and condense_rel_expr : rel_expr -> c_expr = function
-  | Relation (rel_op, arith_expr, rel_expr) -> begin
+  | Relation (rel_op, rel_expr, arith_expr) -> begin
       match rel_op with
       | EQ ->
-          EBop (CEQ, condense_arith_expr arith_expr, condense_rel_expr rel_expr)
+          EBop (CEQ, condense_rel_expr rel_expr, condense_arith_expr arith_expr)
       | NE ->
-          EBop (CNE, condense_arith_expr arith_expr, condense_rel_expr rel_expr)
+          EBop (CNE, condense_rel_expr rel_expr, condense_arith_expr arith_expr)
       | LT ->
-          EBop (CLT, condense_arith_expr arith_expr, condense_rel_expr rel_expr)
+          EBop (CLT, condense_rel_expr rel_expr, condense_arith_expr arith_expr)
       | GT ->
-          EBop (CGT, condense_arith_expr arith_expr, condense_rel_expr rel_expr)
+          EBop (CGT, condense_rel_expr rel_expr, condense_arith_expr arith_expr)
       | LE ->
-          EBop (CLE, condense_arith_expr arith_expr, condense_rel_expr rel_expr)
+          EBop (CLE, condense_rel_expr rel_expr, condense_arith_expr arith_expr)
       | GE ->
-          EBop (CGE, condense_arith_expr arith_expr, condense_rel_expr rel_expr)
+          EBop (CGE, condense_rel_expr rel_expr, condense_arith_expr arith_expr)
     end
   | ArithmeticUnderRelExpr arith_expr -> condense_arith_expr arith_expr
+  | CustomRelExpr (op_string, rel_expr, arith_expr) ->
+      (* convert it to a function application *)
+      EApp
+        ( EApp (EId op_string, condense_rel_expr rel_expr),
+          condense_arith_expr arith_expr )
 
 and condense_arith_expr : arith_expr -> c_expr = function
   | Plus (arith_expr, term) ->
@@ -103,12 +109,22 @@ and condense_arith_expr : arith_expr -> c_expr = function
   | Minus (arith_expr, term) ->
       EBop (CMinus, condense_arith_expr arith_expr, condense_term term)
   | Term term -> condense_term term
+  | CustomArithExpr (op_string, ae, t) ->
+      (* convert it to a function application *)
+
+      (* ae op t*)
+      EApp (EApp (EId op_string, condense_arith_expr ae), condense_term t)
 
 and condense_term : term -> c_expr = function
   | Mul (t, af) -> EBop (CMul, condense_term t, condense_app_factor af)
   | Div (t, af) -> EBop (CDiv, condense_term t, condense_app_factor af)
   | Mod (t, af) -> EBop (CMod, condense_term t, condense_app_factor af)
   | Factor app_factor -> condense_app_factor app_factor
+  | CustomTerm (op_string, t, af) ->
+      (* convert it to a function application *)
+
+      (* t op af *)
+      EApp (EApp (EId op_string, condense_term t), condense_app_factor af)
 
 and condense_app_factor : app_factor -> c_expr = function
   | Application (app_factor, factor) ->

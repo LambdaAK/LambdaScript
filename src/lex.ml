@@ -447,7 +447,10 @@ let lex (lst : char list) : token list =
               new_token :: lex remainder
         | _ -> failwith "no token matched")
   in
-  lex lst
+
+  let tokens = lex lst in
+
+  tokens
 
 let rec remove_line_numbers (tokens : token list) : token_type list =
   match tokens with

@@ -39,7 +39,8 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
   | EFloat _ -> (FloatType, [])
   | EBool _ -> (BoolType, [])
   | EId x ->
-      let t = List.assoc x env |> instantiate in
+      let uninstantiated : c_type = List.assoc x env in
+      let t = instantiate uninstantiated in
       (t, [])
   | EString _ -> (StringType, [])
   | EUnit -> (UnitType, [])
@@ -340,6 +341,7 @@ and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
 
 and type_of_c_expr (e : c_expr) (static_env : static_env) : c_type =
   let t, constraints = generate static_env e in
+
   let constraints_without_written_type_vars =
     replace_written_types constraints
   in

@@ -10,10 +10,15 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : (string * c_type) list)
       let v : value = eval_c_expr body_expression env in
       let o =
         bind_pat pattern v >>= fun new_bindings ->
+        (* generalize the types in new_bindings *)
         let new_env : env = new_bindings @ env in
         let t : c_type = type_of_c_expr body_expression static_env in
         bind_static pattern t >>= fun new_static_bindings ->
-        let new_static_env = new_static_bindings @ static_env in
+        let generalized_static_bindings =
+          List.map (fun (s, v) -> (s, generalize [] [] v)) new_static_bindings
+        in
+
+        let new_static_env = generalized_static_bindings @ static_env in
         (new_env, new_static_env, List.map fst new_bindings) |> return
       in
 

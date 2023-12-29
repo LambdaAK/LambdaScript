@@ -31,6 +31,7 @@ and string_of_sub_pat : sub_pat -> string = function
   | BoolPat b -> "Bool Pattern (" ^ string_of_bool b ^ ")"
   | StringPat s -> "String Pattern (" ^ s ^ ")"
   | Pat p -> string_of_pat p
+  | InfixPat s -> "Infix Pattern (" ^ s ^ ")"
 
 let string_of_rel_op : rel_op -> string = function
   | EQ -> "EQ"
@@ -196,18 +197,29 @@ and string_of_conjunction (c : conjunction) (level : int) : string =
 
 and string_of_rel_expr (re : rel_expr) (level : int) : string =
   match re with
-  | ArithmeticUnderRelExpr ae -> string_of_arith_expr ae level
-  | Relation (op, ae, re) ->
+  | Relation (op, re, ae) ->
       "Relation ("
       ^ indentations_with_newline (level + 1)
       ^ string_of_rel_op op ^ ","
       ^ indentations_with_newline (level + 1)
-      ^ string_of_arith_expr ae (level + 1)
+      ^ string_of_rel_expr re (level + 1)
       ^ ","
       ^ indentations_with_newline (level + 1)
-      ^ string_of_rel_expr re (level + 1)
+      ^ string_of_arith_expr ae (level + 1)
       ^ indentations_with_newline level
       ^ ")"
+  | CustomRelExpr (op_string, re, ae) ->
+      "CustomRelExpr ("
+      ^ indentations_with_newline (level + 1)
+      ^ op_string ^ ","
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_rel_expr re (level + 1)
+      ^ ","
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_arith_expr ae (level + 1)
+      ^ indentations_with_newline level
+      ^ ")"
+  | ArithmeticUnderRelExpr ae -> string_of_arith_expr ae level
 
 and string_of_arith_expr (ae : arith_expr) (level : int) =
   match ae with
@@ -230,6 +242,17 @@ and string_of_arith_expr (ae : arith_expr) (level : int) =
       ^ indentations_with_newline level
       ^ ")"
   | Term t -> string_of_arith_term t (level + 1)
+  | CustomArithExpr (op_string, ae, t) ->
+      "CustomArithExpr ("
+      ^ indentations_with_newline (level + 1)
+      ^ op_string ^ ","
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_arith_expr ae (level + 1)
+      ^ ","
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_arith_term t (level + 1)
+      ^ indentations_with_newline level
+      ^ ")"
 
 and string_of_arith_term (at : term) (level : int) =
   match at with
@@ -261,6 +284,17 @@ and string_of_arith_term (at : term) (level : int) =
       ^ indentations_with_newline level
       ^ ")"
   | Factor af -> string_of_app_factor af (level + 1)
+  | CustomTerm (op_string, t, af) ->
+      "CustomTerm ("
+      ^ indentations_with_newline (level + 1)
+      ^ op_string ^ ","
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_arith_term t (level + 1)
+      ^ ","
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_app_factor af (level + 1)
+      ^ indentations_with_newline level
+      ^ ")"
 
 and string_of_app_factor (af : app_factor) (level : int) =
   match af with

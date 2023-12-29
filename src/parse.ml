@@ -16,16 +16,39 @@ let remove_last (lst : 'a list) : 'a * 'a list =
 type addop =
   | AddopPlus
   | AddopMinus
+  | AddopCustom of string
 
 type mulop =
   | MulopTimes
   | MulopDiv
   | MulopMod
+  | MulopCustom of string
+
+type relop =
+  | EQ
+  | NE
+  | LT
+  | GT
+  | LE
+  | GE
+  | RelopCustom of string
+
+let get_relop_if_exists (tokens : token list) =
+  match tokens with
+  | { token_type = Relop "=="; line = _ } :: t -> (Some EQ, t)
+  | { token_type = Relop "<>"; line = _ } :: t -> (Some NE, t)
+  | { token_type = Relop "<"; line = _ } :: t -> (Some LT, t)
+  | { token_type = Relop ">"; line = _ } :: t -> (Some GT, t)
+  | { token_type = Relop "<="; line = _ } :: t -> (Some LE, t)
+  | { token_type = Relop ">="; line = _ } :: t -> (Some GE, t)
+  | { token_type = Relop s; line = _ } :: t -> (Some (RelopCustom s), t)
+  | _ -> (None, tokens)
 
 let get_addop_if_exists (tokens : token list) =
   match tokens with
   | { token_type = Addop "+"; line = _ } :: t -> (Some AddopPlus, t)
   | { token_type = Addop "-"; line = _ } :: t -> (Some AddopMinus, t)
+  | { token_type = Addop s; line = _ } :: t -> (Some (AddopCustom s), t)
   | _ -> (None, tokens)
 
 let get_mulop_if_exists (tokens : token list) =
@@ -66,13 +89,27 @@ let combine_expressions exprs seps =
   in
   combine_expressions_aux exprs seps
 
+let combine_arith_exprs_into_rel_op arith_exprs relops =
+  combine_expressions arith_exprs relops
+    (fun arith_expr -> ArithmeticUnderRelExpr arith_expr)
+    (fun rel_expr arith_expr relop ->
+      match relop with
+      | EQ -> Relation (EQ, rel_expr, arith_expr)
+      | NE -> Relation (NE, rel_expr, arith_expr)
+      | LT -> Relation (LT, rel_expr, arith_expr)
+      | GT -> Relation (GT, rel_expr, arith_expr)
+      | LE -> Relation (LE, rel_expr, arith_expr)
+      | GE -> Relation (GE, rel_expr, arith_expr)
+      | RelopCustom s -> CustomRelExpr (s, rel_expr, arith_expr))
+
 let combine_terms_into_arith_expr terms addops =
   combine_expressions terms addops
     (fun t -> Term t)
     (fun arith_expr term addop ->
       match addop with
       | AddopPlus -> Plus (arith_expr, term)
-      | AddopMinus -> Minus (arith_expr, term))
+      | AddopMinus -> Minus (arith_expr, term)
+      | AddopCustom s -> CustomArithExpr (s, arith_expr, term))
 
 let combine_factors_into_term factors mulops =
   combine_expressions factors mulops
@@ -81,7 +118,8 @@ let combine_factors_into_term factors mulops =
       match mulop with
       | MulopTimes -> Mul (term, factor)
       | MulopDiv -> Div (term, factor)
-      | MulopMod -> Mod (term, factor))
+      | MulopMod -> Mod (term, factor)
+      | MulopCustom s -> CustomTerm (s, term, factor))
 
 exception UnexpectedToken of token_type * token_type option * int
 
@@ -496,27 +534,11 @@ and parse_conjunction (tokens : token list) : conjunction * token list =
   | _ -> (RelationUnderConjunction first, tokens_after_first)
 
 and parse_rel_expr (tokens : token list) : rel_expr * token list =
-  let first, tokens_after_first = parse_arith_expr tokens in
-  match tokens_after_first with
-  | { token_type = Relop "=="; line = _ } :: t ->
-      let second, tokens_after_second = parse_rel_expr t in
-      (Relation (EQ, first, second), tokens_after_second)
-  | { token_type = Relop "<>"; line = _ } :: t ->
-      let second, tokens_after_second = parse_rel_expr t in
-      (Relation (NE, first, second), tokens_after_second)
-  | { token_type = Relop "<"; line = _ } :: t ->
-      let second, tokens_after_second = parse_rel_expr t in
-      (Relation (LT, first, second), tokens_after_second)
-  | { token_type = Relop ">"; line = _ } :: t ->
-      let second, tokens_after_second = parse_rel_expr t in
-      (Relation (GT, first, second), tokens_after_second)
-  | { token_type = Relop "<="; line = _ } :: t ->
-      let second, tokens_after_second = parse_rel_expr t in
-      (Relation (LE, first, second), tokens_after_second)
-  | { token_type = Relop ">="; line = _ } :: t ->
-      let second, tokens_after_second = parse_rel_expr t in
-      (Relation (GE, first, second), tokens_after_second)
-  | _ -> (ArithmeticUnderRelExpr first, tokens_after_first)
+  let arith_expr_list, relop_list, tokens_after_arith_expr_list =
+    parse_arith_expr_list tokens
+  in
+  let arith_expr = combine_arith_exprs_into_rel_op arith_expr_list relop_list in
+  (arith_expr, tokens_after_arith_expr_list)
 
 and parse_arith_expr (tokens : token list) : arith_expr * token list =
   let term_list, addop_list, tokens_after_term_list = parse_term_list tokens in
@@ -543,6 +565,9 @@ and parse_factor_list (tokens : token list) =
 
 and parse_term_list (tokens : token list) =
   parse_repeat parse_term get_addop_if_exists tokens
+
+and parse_arith_expr_list (tokens : token list) =
+  parse_repeat parse_arith_expr get_relop_if_exists tokens
 
 and parse_pats_seperated_by_commas (tokens : token list) : pat list * token list
     =
@@ -581,6 +606,18 @@ and parse_sub_pat (tokens : token list) : sub_pat * token list =
   | { token_type = LBracket; line = _ }
     :: { token_type = RBracket; line = _ }
     :: t -> (NilPat, t)
+  | { token_type = LParen; line = _ }
+    :: { token_type = Addop s; line = _ }
+    :: { token_type = RParen; line = _ }
+    :: t
+  | { token_type = LParen; line = _ }
+    :: { token_type = Mulop s; line = _ }
+    :: { token_type = RParen; line = _ }
+    :: t
+  | { token_type = LParen; line = _ }
+    :: { token_type = Relop s; line = _ }
+    :: { token_type = RParen; line = _ }
+    :: t -> (InfixPat s, t)
   | { token_type = LParen; line = _ } :: t ->
       (* parse a list of pats seperated by commas *)
       let pat_list, tokens_after_pat_list = parse_pats_seperated_by_commas t in

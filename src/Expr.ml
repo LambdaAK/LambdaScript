@@ -12,6 +12,7 @@ and sub_pat =
   | BoolPat of bool
   | NilPat
   | Pat of pat
+  | InfixPat of string
 
 type rel_op =
   | EQ
@@ -66,13 +67,15 @@ and conjunction =
 
 and rel_expr =
   (* =... <... >... *)
-  | Relation of rel_op * arith_expr * rel_expr
+  | Relation of rel_op * rel_expr * arith_expr
+  | CustomRelExpr of string * rel_expr * arith_expr
   | ArithmeticUnderRelExpr of arith_expr
 
 and arith_expr =
   (* +... -... *)
   | Plus of arith_expr * term
   | Minus of arith_expr * term
+  | CustomArithExpr of string * arith_expr * term
   | Term of term
 
 and term =
@@ -80,6 +83,7 @@ and term =
   | Mul of term * app_factor
   | Div of term * app_factor
   | Mod of term * app_factor
+  | CustomTerm of string * term * app_factor
   | Factor of app_factor
 
 and app_factor =

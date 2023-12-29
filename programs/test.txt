@@ -7,9 +7,7 @@ let rec fold <-
   | h :: t -> fold op t (op acc h)
   end
 
-let rec map <-
-  \f ->
-  \lst ->
+let rec map f lst <-
   switch lst =>
   | [] -> []
   | h :: t -> f h :: map f t
@@ -25,11 +23,44 @@ let rec iter <-
     iter f t
   end
 
-let fold <- let rec fold op acc arr <-
-  switch arr =>
-  | [] -> acc
-  | h :: t -> op h (fold op t acc)
+let rec (--) lower upper <-
+  if lower > upper then [] else lower :: (lower + 1) -- upper
+
+let rec (++) arr1 arr2 <-
+  switch arr1 =>
+  | [] -> arr2
+  | h :: t -> h :: (t ++ arr2)
   end
-in
-fold
+
+let rec flatten lst <-
+  switch lst =>
+  | [] -> []
+  | h :: t -> h ++ flatten t
+  end
+
+
+let return x <- [x]
+
+let (>>=) lst f <-
+  flatten (map f lst)
+
+let a <- [1,2,3,4,5]
+let b <- [6,7,8,9,10]
+
+let c <- return 10
+
+let d <- 
+  c >>= (\e -> [1 ... e])
+  >>= (\e -> [e, e * e])
+
+let print_int x <-
+  println (int_to_str x)
+
+let print_int_list <- iter print_int
+
+let () <- print_int_list d
+
+
+
+
 
