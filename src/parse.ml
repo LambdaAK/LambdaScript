@@ -257,50 +257,85 @@ and parse_defn_contents (t : token list) :
       (pattern, None, body_expression, tokens_after_body_expression)
 
 and parse_defn (tokens : token list) : defn * token list =
-  let tokens_without_let, is_rec =
-    match tokens with
-    | { token_type = Let; line = _ } :: { token_type = Rec; line = _ } :: t ->
-        (t, true)
-    | { token_type = Let; line = _ } :: t -> (t, false)
-    | _ ->
-        print_endline "parse defn failed";
-        raise ParseFailure
-  in
+  match tokens with
+  | { token_type = Type; line = _ } :: t ->
+      (* parse a type definition *)
 
-  let pattern, tokens_after_pattern = parse_pat tokens_without_let in
+      (* the next token should be an id *)
+      let id, tokens_after_id =
+        match t with
+        | { token_type = Id s; line = _ } :: t -> (s, t)
+        | _ ->
+            print_endline "parse failure from parse_defn type definition";
+            raise ParseFailure
+      in
 
-  let cto, tokens_after_annotated_type =
-    (* if there is a type annotation, get it here *)
-    match tokens_after_pattern with
-    | { token_type = LBracket; line = _ } :: tokens_after_l_bracket ->
-        let ct, tokens_after_ct = parse_compound_type tokens_after_l_bracket in
-        (* the next token should be a r bracket *)
-        assert_next_token tokens_after_ct RBracket;
-        (Some ct, remove_head tokens_after_ct)
-    | _ -> (None, tokens_after_pattern)
-  in
+      assert_next_token tokens_after_id BindArrow;
 
-  let pattern_list, tokens_after_pattern_list =
-    parse_pats_while_next_token_is_not_bind_arrow tokens_after_annotated_type []
-  in
+      let tokens_after_bind_arrow = remove_head tokens_after_id in
 
-  let () = assert_next_token tokens_after_pattern_list BindArrow in
-  assert_next_token tokens_after_pattern_list BindArrow;
-  let body_tokens : token list = remove_head tokens_after_pattern_list in
-  let e, tokens_after_body = parse_expr body_tokens in
+      (* parse a compound type *)
+      let body_expression, tokens_after_body_expression =
+        parse_compound_type tokens_after_bind_arrow
+      in
 
-  let rec wrap_e1_with_functions (e1 : expr)
-      (pattern_list : (pat * compound_type option) list) : expr =
-    match pattern_list with
-    | [] -> e1
-    | (pattern, cto) :: rest ->
-        wrap_e1_with_functions (Function (pattern, cto, e1)) rest
-  in
+      (TypeDefn (id, body_expression), tokens_after_body_expression)
+  | _ ->
+      let tokens_without_let, is_rec =
+        match tokens with
+        | { token_type = Let; line = _ } :: { token_type = Rec; line = _ } :: t
+          -> (t, true)
+        | { token_type = Let; line = _ } :: t -> (t, false)
+        | _ ->
+            print_endline "parse defn failed";
+            (* print the tokens *)
+            List.iter
+              (fun t ->
+                print_endline
+                  ("token type: "
+                  ^ string_of_token_type t.token_type
+                  ^ " line: " ^ string_of_int t.line))
+              tokens;
+            raise ParseFailure
+      in
 
-  let e_wrapped = wrap_e1_with_functions e pattern_list in
+      let pattern, tokens_after_pattern = parse_pat tokens_without_let in
 
-  if is_rec then (DefnRec (pattern, cto, e_wrapped), tokens_after_body)
-  else (Defn (pattern, cto, e_wrapped), tokens_after_body)
+      let cto, tokens_after_annotated_type =
+        (* if there is a type annotation, get it here *)
+        match tokens_after_pattern with
+        | { token_type = LBracket; line = _ } :: tokens_after_l_bracket ->
+            let ct, tokens_after_ct =
+              parse_compound_type tokens_after_l_bracket
+            in
+            (* the next token should be a r bracket *)
+            assert_next_token tokens_after_ct RBracket;
+            (Some ct, remove_head tokens_after_ct)
+        | _ -> (None, tokens_after_pattern)
+      in
+
+      let pattern_list, tokens_after_pattern_list =
+        parse_pats_while_next_token_is_not_bind_arrow
+          tokens_after_annotated_type []
+      in
+
+      let () = assert_next_token tokens_after_pattern_list BindArrow in
+      assert_next_token tokens_after_pattern_list BindArrow;
+      let body_tokens : token list = remove_head tokens_after_pattern_list in
+      let e, tokens_after_body = parse_expr body_tokens in
+
+      let rec wrap_e1_with_functions (e1 : expr)
+          (pattern_list : (pat * compound_type option) list) : expr =
+        match pattern_list with
+        | [] -> e1
+        | (pattern, cto) :: rest ->
+            wrap_e1_with_functions (Function (pattern, cto, e1)) rest
+      in
+
+      let e_wrapped = wrap_e1_with_functions e pattern_list in
+
+      if is_rec then (DefnRec (pattern, cto, e_wrapped), tokens_after_body)
+      else (Defn (pattern, cto, e_wrapped), tokens_after_body)
 
 and parse_expressions_seperated_by_commas (tokens : token list) :
     expr list * token list =

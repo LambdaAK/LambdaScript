@@ -16,7 +16,7 @@ let get_dir () : string =
 let execute_definitions env static_env =
   List.fold_left
     (fun (env, static_env) defn ->
-      let new_env, new_static_env, _ = eval_defn defn env static_env in
+      let new_env, new_static_env, _, _, _ = eval_defn defn env static_env [] in
       (new_env, new_static_env))
     (env, static_env)
 

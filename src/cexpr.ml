@@ -28,6 +28,7 @@ type c_bop =
 and c_defn =
   | CDefn of c_pat * c_type option * c_expr
   | CDefnRec of c_pat * c_type option * c_expr
+  | CTypeDefn of string * c_type
 
 and c_switch_branch = c_pat * c_expr
 

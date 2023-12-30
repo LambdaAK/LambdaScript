@@ -47,6 +47,13 @@ module CToStringTree : CToString = struct
         ^ string_of_c_expr body_expression 1
         ^ indentations_with_newline 1
         ^ ")"
+    | CTypeDefn (name, cto) ->
+        ignore cto;
+        "DefinitionType ("
+        ^ indentations_with_newline 1
+        ^ name
+        ^ indentations_with_newline 1
+        ^ ")"
 
   and string_of_c_expr (e : c_expr) (level : int) =
     match e with

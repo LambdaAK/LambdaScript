@@ -52,6 +52,7 @@ type token_type =
   | ConsToken
   | Semicolon
   | Enum
+  | Type
   | Relop of string (* start with = < or >, and are not = *)
   | Addop of string (* start with + or - *)
   | Mulop of string (* start with * / or % *)
@@ -121,6 +122,7 @@ let string_of_token_type : token_type -> string = function
   | End -> "<end>"
   | Semicolon -> "<semicolon>"
   | Enum -> "<enum>"
+  | Type -> "<type>"
   | Relop s -> "<relop: " ^ s ^ ">"
   | Addop s -> "<addop: " ^ s ^ ">"
   | Mulop s -> "<mulop: " ^ s ^ ">"
@@ -231,6 +233,7 @@ let keywords =
     ("end", End);
     ("enum", Enum);
     ("float", FloatType);
+    ("type", Type);
   ]
   |> List.map (fun (s, t) -> (list_of_string s, t))
 

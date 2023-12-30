@@ -31,7 +31,17 @@ end
 in
 map|}
     );
-    ("filter", {|1|});
+    ( "filter",
+      {|
+      let rec filter f arr <-
+        switch arr =>
+          | [] -> []
+          | h :: t -> if f h then h :: filter f t else filter f t
+        end
+        in filter
+    
+    |}
+    );
     ( "reduce_left",
       {|let rec fold f acc lst <-
       switch lst =>

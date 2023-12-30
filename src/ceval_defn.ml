@@ -3,8 +3,14 @@ open Cexpr
 open Ceval
 open Typecheck
 
-let rec eval_defn (d : c_defn) (env : env) (static_env : (string * c_type) list)
-    : (string * value) list * (string * c_type) list * string list =
+type type_env = (string * c_type) list
+type new_value_bindings_ids = string list
+type new_type_bindings_ids = string list
+
+let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
+    (type_env : type_env) :
+    env * static_env * type_env * new_value_bindings_ids * new_type_bindings_ids
+    =
   match d with
   | CDefn (pattern, _, body_expression) -> (
       let v : value = eval_c_expr body_expression env in
@@ -24,7 +30,8 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : (string * c_type) list)
 
       match o with
       | None -> failwith "eval_defn: no pattern matched"
-      | Some x -> x)
+      | Some (new_env, new_static_env, new_bindings_ids) ->
+          (new_env, new_static_env, type_env, new_bindings_ids, []))
   | CDefnRec (pattern, _, body_expression) ->
       let let_defn : c_defn =
         CDefn
@@ -33,4 +40,7 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : (string * c_type) list)
             EBindRec (pattern, None, body_expression, expr_of_pat pattern) )
       in
 
-      eval_defn let_defn env static_env
+      eval_defn let_defn env static_env type_env
+  | CTypeDefn (type_name, t) ->
+      let new_type_env = (type_name, t) :: type_env in
+      (env, static_env, new_type_env, [], [ type_name ])

@@ -9,6 +9,10 @@ open Language.Typefixer
 open Language.Ceval_defn
 open Language.Env
 
+type action =
+  | EvalDefn
+  | EvalExpr
+
 let attempt_lex (input_string : string) : token list =
   input_string |> list_of_string |> lex
 
@@ -30,54 +34,86 @@ let () =
   ignore attempt_type_check;
   ignore attempt_eval
 
-let rec repl_loop (env : env) (static_env : static_env) : unit =
+let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env) :
+    unit =
   print_string "> ";
   let input_string : string = read_line () in
   let tokens : token list = attempt_lex input_string in
 
-  match tokens with
-  | { token_type = Let; line = _ } :: _ -> (
-      (* This is one of a few things 1. Let definition 2. Let rec definition 3.
-         Expression *)
-      let _, tokens_after_defn = parse_defn tokens in
-      (* check the tokens after the definition if the token is In, then it's an
-         expression else, it's a definition *)
-      match tokens_after_defn with
-      | { token_type = In; line = _ } :: _ ->
-          (* we are evaluating an expression *)
-          repl_expr env static_env input_string;
-          repl_loop env static_env
-      | _ ->
-          (* we are evaluating a definition *)
-          let d : c_defn = attempt_parse_defn tokens in
-          let new_env, new_static_env, new_bindings =
-            eval_defn d env static_env
-          in
+  let action =
+    match tokens with
+    | { token_type = Type; _ } :: _ -> EvalDefn
+    | { token_type = Let; line = _ } :: _ -> (
+        (* This is one of a few things 1. Let definition 2. Let rec definition
+           3. Expression *)
+        let _, tokens_after_defn = parse_defn tokens in
+        (* check the tokens after the definition if the token is In, then it's
+           an expression else, it's a definition *)
+        match tokens_after_defn with
+        | { token_type = In; line = _ } :: _ ->
+            (* we are evaluating an expression *)
+            repl_expr env static_env type_env input_string;
+            repl_loop env static_env type_env;
+            EvalExpr
+        | _ -> EvalDefn)
+    | _ ->
+        (* we are evaluating an expression *)
+        EvalExpr
+  in
 
-          (* for each new binding, make a string id : type = value *)
-          let new_bindings_string =
-            List.map
-              (fun id ->
-                let value = List.assoc id new_env in
-                let value_string = string_of_value value in
-                let t : c_type =
-                  List.assoc id new_static_env |> instantiate |> fix
-                in
-                let t_string = string_of_c_type t in
-                id ^ " : " ^ t_string ^ " = " ^ value_string)
-              new_bindings
-            |> String.concat "\n"
-          in
+  match action with
+  | EvalExpr ->
+      repl_expr env static_env type_env input_string;
+      repl_loop env static_env type_env
+  | EvalDefn ->
+      (* we are evaluating a definition *)
+      let d : c_defn = attempt_parse_defn tokens in
+      let ( new_env,
+            new_static_env,
+            new_type_env,
+            new_value_bindings,
+            new_type_bindings ) =
+        eval_defn d env static_env []
+      in
 
-          (* print the new bindings *)
-          print_endline new_bindings_string;
-          repl_loop new_env new_static_env)
-  | _ ->
-      (* we are evaluating an expression *)
-      repl_expr env static_env input_string;
-      repl_loop env static_env
+      (* for each new binding, make a string id : type = value *)
+      let new_value_bindings_string =
+        List.map
+          (fun id ->
+            let value = List.assoc id new_env in
+            let value_string = string_of_value value in
+            let t : c_type =
+              List.assoc id new_static_env |> instantiate |> fix
+            in
+            let t_string = string_of_c_type t in
+            id ^ " : " ^ t_string ^ " = " ^ value_string)
+          new_value_bindings
+        |> String.concat "\n"
+      in
 
-and repl_expr (env : env) (static_env : static_env) (e : string) =
+      let new_type_bindings_string =
+        List.map
+          (fun id ->
+            let t : c_type = List.assoc id new_type_env in
+            let t_string = string_of_c_type t in
+            "type " ^ id ^ " : " ^ t_string)
+          new_type_bindings
+        |> String.concat "\n"
+      in
+
+      (* print the new bindings *)
+      if new_value_bindings_string <> "" then
+        print_endline new_value_bindings_string
+      else ();
+      if new_type_bindings_string <> "" then
+        print_endline new_type_bindings_string
+      else ();
+
+      repl_loop new_env new_static_env type_env
+
+and repl_expr (env : env) (static_env : static_env) (type_env : type_env)
+    (e : string) =
+  ignore type_env;
   try
     (* let input_string: string = e in let tokens: token list = attempt_lex
        input_string in let ce: c_expr = attempt_parse tokens in let t: c_type =
@@ -138,7 +174,7 @@ let run_repl () : unit =
       code_mapping
     @ built_ins_types
   in
-  repl_loop env static_env
+  repl_loop env static_env []
 
 let () = print_endline "Welcome to LambdaScript!"
 let () = run_repl ()
