@@ -105,7 +105,7 @@ module CToStringCode : CToString = struct
   let rec string_of_c_type = function
     | BoolType -> "bool"
     | StringType -> "str"
-    | UnitType -> "ng"
+    | UnitType -> "unit"
     | IntType -> "int"
     | FloatType -> "float"
     | CListType t ->

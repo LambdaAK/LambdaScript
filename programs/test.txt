@@ -1,3 +1,7 @@
+type t <- int
+
+type u <- (bool, int)
+
 let rec fold f acc lst <-
   switch lst =>
   | [] -> acc

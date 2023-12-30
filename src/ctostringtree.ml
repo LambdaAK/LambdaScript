@@ -238,7 +238,7 @@ module CToStringTree : CToString = struct
     match t with
     | BoolType -> "bool"
     | StringType -> "str"
-    | UnitType -> "ng"
+    | UnitType -> "unit"
     | IntType -> "int"
     | FloatType -> "float"
     | CListType t ->
