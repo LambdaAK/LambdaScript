@@ -13,12 +13,14 @@ let get_dir () : string =
     exit 1
   else Sys.argv.(1)
 
-let execute_definitions env static_env =
+let execute_definitions env static_env type_env =
   List.fold_left
-    (fun (env, static_env) defn ->
-      let new_env, new_static_env, _, _, _ = eval_defn defn env static_env [] in
-      (new_env, new_static_env))
-    (env, static_env)
+    (fun (env, static_env, type_env) defn ->
+      let new_env, new_static_env, new_type_env, _, _ =
+        eval_defn defn env static_env type_env
+      in
+      (new_env, new_static_env, new_type_env))
+    (env, static_env, type_env)
 
 let run_run (dir : string) : unit =
   let contents : string = read dir in
@@ -47,7 +49,8 @@ let run_run (dir : string) : unit =
     @ built_ins_types
   in
 
-  execute_definitions env static_env program |> ignore
+  (* the type env is initially empty *)
+  execute_definitions env static_env [] program |> ignore
 
 let () =
   (* try run_run (get_dir ()) with | _ -> print_endline "Error"; exit 1 *)

@@ -36,6 +36,18 @@ let () =
 
 let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env) :
     unit =
+  (* print the type environment *)
+  let type_env_string =
+    List.map
+      (fun (id, t) ->
+        let t_string = string_of_c_type t in
+        "type " ^ id ^ " : " ^ t_string)
+      type_env
+    |> String.concat "\n"
+  in
+  if type_env_string <> "" then print_endline type_env_string else ();
+
+  (* print the environment *)
   print_string "> ";
   let input_string : string = read_line () in
   let tokens : token list = attempt_lex input_string in
@@ -73,7 +85,7 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env) :
             new_type_env,
             new_value_bindings,
             new_type_bindings ) =
-        eval_defn d env static_env []
+        eval_defn d env static_env type_env
       in
 
       (* for each new binding, make a string id : type = value *)
@@ -109,10 +121,10 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env) :
         print_endline new_type_bindings_string
       else ();
 
-      repl_loop new_env new_static_env type_env
+      repl_loop new_env new_static_env new_type_env
 
-and repl_expr (env : env) (static_env : static_env) (type_env : type_env)
-    (e : string) =
+and repl_expr (env : env) (static_env : static_env)
+    (type_env : (string * c_type) list) (e : string) =
   ignore type_env;
   try
     (* let input_string: string = e in let tokens: token list = attempt_lex
