@@ -1,8 +1,16 @@
-let rec fold op acc arr <-
-  switch arr =>
+let rec fold f acc lst <-
+  switch lst =>
   | [] -> acc
-  | h :: t -> fold op t (op acc h)
+  | h :: t -> fold f (f acc h) t
   end
+  in fold
+
+let rec fold f lst acc <-
+  switch lst =>
+  | [] -> acc
+  | h :: t -> f h (fold f t acc)
+  end 
+  in fold
 
 let rec map f lst <-
   switch lst =>
@@ -48,5 +56,13 @@ let (<->) f g x <- f (g x)
 let id <- ((+) 1) <-> (\x -> x - 1)
 
 let squares a b <- [x * x | x <- [a ... b]]
+
+let arr <- [1 ... 5]
+
+let arr1 <- fold_left (-) 0 arr
+let arr2 <- fold_right (-) arr 0
+
+let () <- print_int arr1
+let () <- print_int arr2
 
 

@@ -33,23 +33,21 @@ map|}
     );
     ("filter", {|1|});
     ( "reduce_left",
-      {|let rec fold op acc arr <-
-      switch arr =>
+      {|let rec fold f acc lst <-
+      switch lst =>
       | [] -> acc
-      | h :: t -> fold op (op acc h) t
+      | h :: t -> fold f (f acc h) t
       end
-    in
-    fold
+      in fold
     |}
     );
     ( "reduce_right",
-      {|let rec fold op acc arr <-
-      switch arr =>
+      {|let rec fold f lst acc <-
+      switch lst =>
       | [] -> acc
-      | h :: t -> op (fold op acc t) h
-      end
-    in
-    fold|}
+      | h :: t -> f h (fold f t acc)
+      end 
+      in fold|}
     );
     ("+", {|\a -> \b -> a + b|});
     ("-", {|\a -> \b -> a - b|});
