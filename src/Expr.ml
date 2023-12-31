@@ -33,7 +33,7 @@ and factor_type =
   | UnitType
   | FloatType
   | TypeVarWritten of string
-  | ParenFactorType of compound_type
+  | ParenFactorType of compound_type (* identifier for a type *)
   | VectorType of compound_type list
   | ListType of compound_type
 
@@ -41,6 +41,7 @@ type defn =
   | Defn of pat * compound_type option * expr
   | DefnRec of pat * compound_type option * expr
   | TypeDefn of string * compound_type
+  | UnionDefn of string * union_type
 
 and switch_branch = pat * expr
 
@@ -50,6 +51,13 @@ and expr =
   | ConsExpr of cons_expr
   | BindRec of pat * compound_type option * expr * expr
   | Switch of expr * switch_branch list
+
+and constructor =
+  | NullaryConstructor of string
+  | ParametricConstructor of
+      string * compound_type (* represents a variant type constructor *)
+
+and union_type = constructor list
 
 and cons_expr =
   (* :: *)

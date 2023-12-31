@@ -1,6 +1,13 @@
-type t <- int
 
-type u <- (bool, int)
+
+type T <- (bool, int)
+
+
+union Testunion <-
+  | A
+  | B
+  | C
+  | D
 
 let rec fold f acc lst <-
   switch lst =>

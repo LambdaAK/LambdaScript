@@ -176,7 +176,7 @@ and parse_factor_type (tokens : token list) : factor_type * token list =
   | { token_type = BooleanType; line = _ } :: t -> (BooleanType, t)
   | { token_type = StringType; line = _ } :: t -> (StringType, t)
   | { token_type = UnitType; line = _ } :: t -> (UnitType, t)
-  | { token_type = TypeVar i; line = _ } :: t -> (TypeVarWritten i, t)
+  | { token_type = Id i; line = _ } :: t -> (TypeVarWritten i, t)
   | { token_type = LBracket; line = _ } :: t ->
       (* list type *)
       (* parse a compound type *)
@@ -256,6 +256,37 @@ and parse_defn_contents (t : token list) :
 
       (pattern, None, body_expression, tokens_after_body_expression)
 
+and parse_constructor (tokens : token list) : constructor * token list =
+  (* 2 cases NullaryConstructor ParametricConstructor : type *)
+
+  (* parse the constructor name *)
+  let constructor_name, tokens_after_constructor_name =
+    match tokens with
+    | { token_type = Constructor s; _ } :: t -> (s, t)
+    | _ ->
+        print_endline "parse constructor failed";
+        raise ParseFailure
+  in
+
+  (* check if theres a : if there is, we need to parse the type that the
+     constructor takes *)
+  let constructor_type, tokens_after_constructor_type =
+    match tokens_after_constructor_name with
+    | { token_type = Colon; _ } :: t ->
+        (* parse the type that the constructor takes *)
+        let constructor_type, tokens_after_constructor_type =
+          parse_compound_type t
+        in
+        (Some constructor_type, tokens_after_constructor_type)
+    | _ -> (None, tokens_after_constructor_name)
+  in
+
+  match constructor_type with
+  | None -> (NullaryConstructor constructor_name, tokens_after_constructor_type)
+  | Some constructor_type ->
+      ( ParametricConstructor (constructor_name, constructor_type),
+        tokens_after_constructor_type )
+
 and parse_defn (tokens : token list) : defn * token list =
   match tokens with
   | { token_type = Type; line = _ } :: t ->
@@ -264,7 +295,7 @@ and parse_defn (tokens : token list) : defn * token list =
       (* the next token should be an id *)
       let id, tokens_after_id =
         match t with
-        | { token_type = Id s; line = _ } :: t -> (s, t)
+        | { token_type = Constructor s; line = _ } :: t -> (s, t)
         | _ ->
             print_endline "parse failure from parse_defn type definition";
             raise ParseFailure
@@ -280,6 +311,33 @@ and parse_defn (tokens : token list) : defn * token list =
       in
 
       (TypeDefn (id, body_expression), tokens_after_body_expression)
+  | { token_type = Union; _ } :: t ->
+      (* parse the id of the new type *)
+      let id, tokens_after_id =
+        match t with
+        | { token_type = Constructor s; line = _ } :: t -> (s, t)
+        | _ ->
+            print_endline "parse failure from parse_defn union type";
+            raise ParseFailure
+      in
+      assert_next_token tokens_after_id BindArrow;
+      let tokens_after_bind_arrow = remove_head tokens_after_id in
+
+      (* parse the constructors *)
+      let rec parse_constructor_list (tokens : token list)
+          (acc : constructor list) : constructor list * token list =
+        match tokens with
+        | { token_type = Pipe; _ } :: t ->
+            let constructor, tokens_after_constructor = parse_constructor t in
+            parse_constructor_list tokens_after_constructor (constructor :: acc)
+        | _ -> (List.rev acc, tokens)
+      in
+
+      let constructors, tokens_after_constructors =
+        parse_constructor_list tokens_after_bind_arrow []
+      in
+
+      (UnionDefn (id, constructors), tokens_after_constructors)
   | _ ->
       let tokens_without_let, is_rec =
         match tokens with
@@ -807,3 +865,5 @@ let rec parse_program = function
   | tokens ->
       let defn, tokens_after_defn = parse_defn tokens in
       defn :: parse_program tokens_after_defn
+
+let f x : int = x + 1

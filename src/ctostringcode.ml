@@ -103,11 +103,11 @@ module CToStringCode : CToString = struct
   let string_of_c_expr e = string_of_c_expr e 0
 
   let rec string_of_c_type = function
-    | BoolType -> "bool"
-    | StringType -> "str"
-    | UnitType -> "unit"
-    | IntType -> "int"
-    | FloatType -> "float"
+    | BoolType -> "Bool"
+    | StringType -> "Str"
+    | UnitType -> "Unit"
+    | IntType -> "Int"
+    | FloatType -> "Float"
     | CListType t ->
         let t_string : string = string_of_c_type t in
         "[" ^ t_string ^ "]"

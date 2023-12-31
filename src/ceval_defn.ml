@@ -44,3 +44,13 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
   | CTypeDefn (type_name, t) ->
       let new_type_env = (type_name, t) :: type_env in
       (env, static_env, new_type_env, [], [ type_name ])
+  | CUnionDefn (type_name, constructors) ->
+      ignore type_name;
+      ignore constructors;
+      (* 
+
+         for each constructor, add the type of that constructor to the static
+         environment
+
+         add the type to the type environment *)
+      failwith "eval_defn: union defn"

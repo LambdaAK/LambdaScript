@@ -4,7 +4,8 @@ type token_type =
   | Boolean of bool
   | StringToken of string
   | Unit
-  | Id of string
+  | Id of string (* starts with lowercase *)
+  | Constructor of string (* starts with uppercase *)
   | TypeVar of string
   | Assign
   | Fn
@@ -53,6 +54,7 @@ type token_type =
   | Semicolon
   | Enum
   | Type
+  | Union
   | Relop of string (* start with = < or >, and are not = *)
   | Addop of string (* start with + or - *)
   | Mulop of string (* start with * / or % *)
@@ -76,6 +78,7 @@ let string_of_token_type : token_type -> string = function
   | Unit -> "<unit>"
   | FloatType -> "<float type>"
   | Id s -> "<id: " ^ s ^ ">"
+  | Constructor s -> "<constructor: " ^ s ^ ">"
   | Fn -> "<fn>"
   | Arrow -> "<arrow>"
   | Assign -> "<assign>"
@@ -123,6 +126,7 @@ let string_of_token_type : token_type -> string = function
   | Semicolon -> "<semicolon>"
   | Enum -> "<enum>"
   | Type -> "<type>"
+  | Union -> "<union>"
   | Relop s -> "<relop: " ^ s ^ ">"
   | Addop s -> "<addop: " ^ s ^ ">"
   | Mulop s -> "<mulop: " ^ s ^ ">"
@@ -218,10 +222,10 @@ let keywords =
   [
     ("true", Boolean true);
     ("false", Boolean false);
-    ("int", IntegerType);
-    ("bool", BooleanType);
-    ("str", StringType);
-    ("unit", UnitType);
+    ("Int", IntegerType);
+    ("Bool", BooleanType);
+    ("Str", StringType);
+    ("Unit", UnitType);
     ("if", If);
     ("then", Then);
     ("else", Else);
@@ -232,8 +236,9 @@ let keywords =
     ("switch", Switch);
     ("end", End);
     ("enum", Enum);
-    ("float", FloatType);
+    ("Float", FloatType);
     ("type", Type);
+    ("union", Union);
   ]
   |> List.map (fun (s, t) -> (list_of_string s, t))
 
@@ -273,6 +278,10 @@ let is_num_or_dot : char -> bool = function
   | '.' -> true
   | c -> is_num c
 
+let is_lowercase : char -> bool = function
+  | c when is_letter c -> Char.code c >= 97 && Char.code c <= 122
+  | _ -> false
+
 let rec lex_num (lst : char list) (acc : string) : token * char list =
   match lst with
   | n :: t when is_num_or_dot n ->
@@ -294,19 +303,25 @@ let rec lex_string (lst : char list) (acc : string) : token * char list =
       lex_string t (acc ^ char_string)
   | [] -> failwith "expected closing double quote in lexing string"
 
-let rec lex_id (lst : char list) (acc : string) : token * char list =
+let rec lex_id_or_constructor (lst : char list) (acc : string) :
+    token * char list =
   (* the first char has to be a letter the following characters can be letters,
      numbers, or underscores *)
   match lst with
-  | c :: t when is_letter c -> lex_id t (acc ^^ c) (* a letter *)
+  | c :: t when is_letter c -> lex_id_or_constructor t (acc ^^ c) (* a letter *)
   | c :: t when is_num c && not (acc = "") ->
-      lex_id t (acc ^^ c) (* a digit, and not the first character *)
-  | _ -> ({ token_type = Id acc; line = 0 }, lst)
+      lex_id_or_constructor t (acc ^^ c)
+      (* a digit, and not the first character *)
+  | _ -> (
+      let first_char : char = List.hd (list_of_string acc) in
+      match is_lowercase first_char with
+      | true -> ({ token_type = Id acc; line = 0 }, lst)
+      | false -> ({ token_type = Constructor acc; line = 0 }, lst))
 
 (* A type variable has the following form 'x where x is an identifier *)
 
 let lex_type_var (tokens_after_single_quote : char list) : token * char list =
-  match lex_id tokens_after_single_quote "" with
+  match lex_id_or_constructor tokens_after_single_quote "" with
   | { token_type = Id i; line = _ }, tokens_after_type_var ->
       ({ token_type = TypeVar i; line = 0 }, tokens_after_type_var)
   | _ -> failwith "expected an identifier after single quote"
@@ -437,7 +452,7 @@ let lex (lst : char list) : token list =
             let int_token, tail = lex_num lst "" in
             int_token :: lex tail
         | c :: _ when is_letter c ->
-            let id_token, tail = lex_id lst "" in
+            let id_token, tail = lex_id_or_constructor lst "" in
             id_token :: lex tail
         | '"' :: c :: t ->
             if c = '"' then

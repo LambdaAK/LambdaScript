@@ -29,6 +29,12 @@ and c_defn =
   | CDefn of c_pat * c_type option * c_expr
   | CDefnRec of c_pat * c_type option * c_expr
   | CTypeDefn of string * c_type
+  | CUnionDefn of string * c_constructor list
+
+and c_constructor =
+  | CNullaryConstructor of string
+  | CParametricConstructor of
+      string * c_type (* represents a variant type constructor *)
 
 and c_switch_branch = c_pat * c_expr
 

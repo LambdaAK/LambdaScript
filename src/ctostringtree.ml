@@ -54,6 +54,7 @@ module CToStringTree : CToString = struct
         ^ name
         ^ indentations_with_newline 1
         ^ ")"
+    | CUnionDefn _ -> failwith "CUnionDefn to_string not implemented"
 
   and string_of_c_expr (e : c_expr) (level : int) =
     match e with
@@ -236,11 +237,11 @@ module CToStringTree : CToString = struct
 
   and string_of_c_type t =
     match t with
-    | BoolType -> "bool"
-    | StringType -> "str"
-    | UnitType -> "unit"
-    | IntType -> "int"
-    | FloatType -> "float"
+    | BoolType -> "Bool"
+    | StringType -> "Str"
+    | UnitType -> "Unit"
+    | IntType -> "Int"
+    | FloatType -> "Float"
     | CListType t ->
         let t_string : string = string_of_c_type t in
         "[" ^ t_string ^ "]"

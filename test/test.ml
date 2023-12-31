@@ -281,9 +281,9 @@ let type_test (expr : string) (expected_output : string) : test =
   in
   assert_equal result expected_output
 
-let type_is_bool (program : string) = type_test program "bool"
-let type_is_int (program : string) = type_test program "int"
-let type_is_string (program : string) = type_test program "str"
+let type_is_bool (program : string) = type_test program "Bool"
+let type_is_int (program : string) = type_test program "Int"
+let type_is_string (program : string) = type_test program "Str"
 let () = ignore type_is_bool
 let () = ignore type_is_int
 let () = ignore type_is_string
@@ -429,92 +429,92 @@ let string_types = [ {|""|}; {|"hello"|} ]
 let function_type_tests =
   [
     ("\\ n -> n", "a -> a");
-    ("\\ n -> n + 1", "int -> int");
-    ("\\ a -> \\ b -> a + b", "int -> int -> int");
-    ("\\ n [int] -> n", "int -> int");
-    ("\\ n [int] -> n + 1", "int -> int");
-    ("\\ a [int] -> \\ b [int] -> a + b", "int -> int -> int");
+    ("\\ n -> n + 1", "Int -> Int");
+    ("\\ a -> \\ b -> a + b", "Int -> Int -> Int");
+    ("\\ n [Int] -> n", "Int -> Int");
+    ("\\ n [Int] -> n + 1", "Int -> Int");
+    ("\\ a [Int] -> \\ b [Int] -> a + b", "Int -> Int -> Int");
     ("\\ a -> \\ b -> a", "a -> b -> a");
     ("\\ a -> \\ b -> b", "a -> b -> b");
-    ("\\ a [int] -> \\ b -> b", "int -> a -> a");
-    ("\\ a -> \\ b [int] -> b", "a -> int -> int");
-    ("\\ a [int] -> \\ b [int] -> b", "int -> int -> int");
-    ("\\ a [int] -> \\ b [int] -> a", "int -> int -> int");
-    ("\\ a [int] -> \\ b [int] -> a + b", "int -> int -> int");
-    ("\\ a [int] -> \\ b [int] -> a + b + 1", "int -> int -> int");
-    ("\\ a [int] -> \\ b [int] -> a + b + 1 + 2", "int -> int -> int");
-    ("\\ (a, b) [(int, int)] -> a + b", "(int, int) -> int");
-    ("\\ (a, _) -> \\ (_, b) -> a + b", "(int, a) -> (b, int) -> int");
-    ("\\ (a, _) -> \\ (_, b) -> a || b", "(bool, a) -> (b, bool) -> bool");
+    ("\\ a [Int] -> \\ b -> b", "Int -> a -> a");
+    ("\\ a -> \\ b [Int] -> b", "a -> Int -> Int");
+    ("\\ a [Int] -> \\ b [Int] -> b", "Int -> Int -> Int");
+    ("\\ a [Int] -> \\ b [Int] -> a", "Int -> Int -> Int");
+    ("\\ a [Int] -> \\ b [Int] -> a + b", "Int -> Int -> Int");
+    ("\\ a [Int] -> \\ b [Int] -> a + b + 1", "Int -> Int -> Int");
+    ("\\ a [Int] -> \\ b [Int] -> a + b + 1 + 2", "Int -> Int -> Int");
+    ("\\ (a, b) [(Int, Int)] -> a + b", "(Int, Int) -> Int");
+    ("\\ (a, _) -> \\ (_, b) -> a + b", "(Int, a) -> (b, Int) -> Int");
+    ("\\ (a, _) -> \\ (_, b) -> a || b", "(Bool, a) -> (b, Bool) -> Bool");
     ( {|\ (a, b) ->
     \ (c, d) ->
     if a then b
     else if c then d
     else 1|},
-      "(bool, int) -> (bool, int) -> int" );
+      "(Bool, Int) -> (Bool, Int) -> Int" );
     (* more complicated function type tests *)
     ("\\ a -> \\ b -> \\ c -> a ( b ( c ) )", "(a -> b) -> (c -> a) -> c -> b");
     (* tests with syntax sugar let expressions *)
     ("let f x <- x in f", "a -> a");
-    ("let f x <- x + 1 in f", "int -> int");
-    ("let f x <- x + 1 in f 1", "int");
-    ("let f x <- x + 1 in f 1 + 1", "int");
-    ("let f x <- x + 1 in f (1 + 1)", "int");
+    ("let f x <- x + 1 in f", "Int -> Int");
+    ("let f x <- x + 1 in f 1", "Int");
+    ("let f x <- x + 1 in f 1 + 1", "Int");
+    ("let f x <- x + 1 in f (1 + 1)", "Int");
     (* add three numbers *)
-    ("let f a b c <- a + b + c in f", "int -> int -> int -> int");
-    ("let f a b c <- a + b + c in f 1", "int -> int -> int");
-    ("let f a b c <- a + b + c in f 1 2", "int -> int");
-    ("let f a b c <- a + b + c in f 1 2 3", "int");
+    ("let f a b c <- a + b + c in f", "Int -> Int -> Int -> Int");
+    ("let f a b c <- a + b + c in f 1", "Int -> Int -> Int");
+    ("let f a b c <- a + b + c in f 1 2", "Int -> Int");
+    ("let f a b c <- a + b + c in f 1 2 3", "Int");
     ("let f a b c d <- a in f", "a -> b -> c -> d -> a");
     (* typed arguments *)
-    ( "let f a [int] b [int] c [int] d [int] <- a in f",
-      "int -> int -> int -> int -> int" );
-    ( "let f a [int] b [int] c [int] d [int] <- a in f 1",
-      "int -> int -> int -> int" );
-    ("let f a [int] b [int] c [int] d [int] <- a in f 1 2", "int -> int -> int");
-    ("let f a [int] b [int] c [int] d [int] <- a in f 1 2 3", "int -> int");
-    ("let f a [int] b [int] c [int] d [int] <- a in f 1 2 3 4", "int");
+    ( "let f a [Int] b [Int] c [Int] d [Int] <- a in f",
+      "Int -> Int -> Int -> Int -> Int" );
+    ( "let f a [Int] b [Int] c [Int] d [Int] <- a in f 1",
+      "Int -> Int -> Int -> Int" );
+    ("let f a [Int] b [Int] c [Int] d [Int] <- a in f 1 2", "Int -> Int -> Int");
+    ("let f a [Int] b [Int] c [Int] d [Int] <- a in f 1 2 3", "Int -> Int");
+    ("let f a [Int] b [Int] c [Int] d [Int] <- a in f 1 2 3 4", "Int");
     (* with type variables *)
-    ("\\ a ['a] -> a", "a -> a");
-    ("\\ a ['a] -> a + 1", "int -> int");
-    ("\\ a ['a] -> \\ b ['a] -> a", "a -> a -> a");
-    ("\\ a ['a] -> \\ b ['a] -> b", "a -> a -> a");
-    ("\\ a ['a] -> \\ b ['b] -> a", "a -> b -> a");
-    ("\\ a ['a] -> \\ b ['a] -> a + b", "int -> int -> int");
-    ("\\ a ['a] -> \\ b ['a] -> a + b + 1", "int -> int -> int");
-    ("\\ f ['a -> 'b] -> \\ x ['b] -> f x", "(a -> a) -> a -> a");
-    (* this is an interesting example because it turns out that 'a = 'b here *)
-    ("\\ f ['a -> 'b] -> \\ x ['a] -> f x", "(a -> b) -> a -> b");
-    (* on the other hand, there is no constraint generated in this expression
-       saying that 'a = 'b, so they are different *)
-    ("let f a b [int] c [int] d [int] <- a in f", "a -> int -> int -> int -> a");
-    ("let f a b [int] c [int] d <- a in f", "a -> int -> int -> b -> a");
-    ("let f a b [int] c d [int] <- a in f", "a -> int -> b -> int -> a");
-    ("let f a b [int] c d <- a in f", "a -> int -> b -> c -> a");
-    ("let f a b c [int] d [int] <- b in f", "a -> b -> int -> int -> b");
-    ("let f a b c [int] d <- b in f", "a -> b -> int -> c -> b");
-    ("let f a b c d [str] <- c in f", "a -> b -> c -> str -> c");
+    ("\\ a [a] -> a", "a -> a");
+    ("\\ a [a] -> a + 1", "Int -> Int");
+    ("\\ a [a] -> \\ b [a] -> a", "a -> a -> a");
+    ("\\ a [a] -> \\ b [a] -> b", "a -> a -> a");
+    ("\\ a [a] -> \\ b [b] -> a", "a -> b -> a");
+    ("\\ a [a] -> \\ b [a] -> a + b", "Int -> Int -> Int");
+    ("\\ a [a] -> \\ b [a] -> a + b + 1", "Int -> Int -> Int");
+    ("\\ f [a -> b] -> \\ x [b] -> f x", "(a -> a) -> a -> a");
+    (* this is an Interesting example because it turns out that a = b here *)
+    ("\\ f [a -> b] -> \\ x [a] -> f x", "(a -> b) -> a -> b");
+    (* on the other hand, there is no constraInt generated in this expression
+       saying that a = b, so they are different *)
+    ("let f a b [Int] c [Int] d [Int] <- a in f", "a -> Int -> Int -> Int -> a");
+    ("let f a b [Int] c [Int] d <- a in f", "a -> Int -> Int -> b -> a");
+    ("let f a b [Int] c d [Int] <- a in f", "a -> Int -> b -> Int -> a");
+    ("let f a b [Int] c d <- a in f", "a -> Int -> b -> c -> a");
+    ("let f a b c [Int] d [Int] <- b in f", "a -> b -> Int -> Int -> b");
+    ("let f a b c [Int] d <- b in f", "a -> b -> Int -> c -> b");
+    ("let f a b c d [Str] <- c in f", "a -> b -> c -> Str -> c");
     ("let f a b c d <- c in f", "a -> b -> c -> d -> c");
-    ("let f a b c d [str] <- d in f", "a -> b -> c -> str -> str");
+    ("let f a b c d [Str] <- d in f", "a -> b -> c -> Str -> Str");
     ("\\ (a, _) -> a", "(a, b) -> a");
-    ("\\ (a, _) -> a + 1", "(int, a) -> int");
+    ("\\ (a, _) -> a + 1", "(Int, a) -> Int");
     ("\\ f -> \\ x -> f x", "(a -> b) -> a -> b");
-    ( {|\ f ['a -> 'b -> 'c] ->
-    \ a ['a] ->
-    \ b ['b] ->
+    ( {|\ f [a -> b -> c] ->
+    \ a [a] ->
+    \ b [b] ->
     f a b|},
       "(a -> b -> c) -> a -> b -> c" );
-    ("\\ a [('a, 'b)] -> a", "(a, b) -> (a, b)");
-    ("\\ (a, _) [('a, 'b)] -> a", "(a, b) -> a");
-    ("\\ (_, a) [('a, 'b)] -> a", "(a, b) -> b");
-    ("\\ (a, b, c) [('a, 'b, 'c)] -> a", "(a, b, c) -> a");
+    ("\\ a [(a, b)] -> a", "(a, b) -> (a, b)");
+    ("\\ (a, _) [(a, b)] -> a", "(a, b) -> a");
+    ("\\ (_, a) [(a, b)] -> a", "(a, b) -> b");
+    ("\\ (a, b, c) [(a, b, c)] -> a", "(a, b, c) -> a");
     (* higher order function *)
-    ( {|\ f [('a, 'b) -> 'c] ->
-    \ a ['a] ->
-    \ b ['b] ->
+    ( {|\ f [(a, b) -> c] ->
+    \ a [a] ->
+    \ b [b] ->
     f (a, b)|},
       "((a, b) -> c) -> a -> b -> c" );
-    ( {|\ f ['a -> 'b -> 'c] ->
+    ( {|\ f [a -> b -> c] ->
     \ (a, b) ->
     f a b|},
       "(a -> b -> c) -> (a, b) -> c" );
@@ -569,57 +569,57 @@ let function_type_tests =
     );
     (* recursive functions *)
     ("let rec f x <- x in f", "a -> a");
-    ("let rec f x [unit] <- x in f", "ng -> ng");
-    ("let rec f x [int -> int] <- x in f", "(int -> int) -> int -> int");
-    ("\\ a [[int]] -> a", "[int] -> [int]");
-    ("let rec f x <- if x == 0 then 0 else f (x - 1) in f", "int -> int");
+    ("let rec f x [Unit] <- x in f", "Unit -> Unit");
+    ("let rec f x [Int -> Int] <- x in f", "(Int -> Int) -> Int -> Int");
+    ("\\ a [[Int]] -> a", "[Int] -> [Int]");
+    ("let rec f x <- if x == 0 then 0 else f (x - 1) in f", "Int -> Int");
     (* factorial *)
-    ("let rec f x <- if x == 0 then 1 else x * f (x - 1) in f", "int -> int");
+    ("let rec f x <- if x == 0 then 1 else x * f (x - 1) in f", "Int -> Int");
     (* fibonacci *)
     ( "let rec f x <- if x == 0 then 0 else if x == 1 then 1 else f (x - 1) + \
        f (x - 2) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* sum of first n numbers *)
-    ("let rec f x <- if x == 0 then 0 else x + f (x - 1) in f", "int -> int");
+    ("let rec f x <- if x == 0 then 0 else x + f (x - 1) in f", "Int -> Int");
     (* sum of first n odd numbers *)
     ( "let rec f x <- if x == 0 then 0 else if x == 1 then 1 else 2 * x - 1 + \
        f (x - 1) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* sum of first n even numbers *)
     ( "let rec f x <- if x == 0 then 0 else if x == 1 then 2 else 2 * x + f (x \
        - 1) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* sum of first n squares *)
-    ("let rec f x <- if x == 0 then 0 else x * x + f (x - 1) in f", "int -> int");
+    ("let rec f x <- if x == 0 then 0 else x * x + f (x - 1) in f", "Int -> Int");
     (* sum of first n cubes *)
     ( "let rec f x <- if x == 0 then 0 else x * x * x + f (x - 1) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* sum of first n fourth powers *)
     ( "let rec f x <- if x == 0 then 0 else x * x * x * x + f (x - 1) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* sum of first n fifth powers *)
     ( "let rec f x <- if x == 0 then 0 else x * x * x * x * x + f (x - 1) in f",
-      "int -> int" );
-    (* recursive function with boolean inputs *)
-    ("let rec f x <- if x then 1 else 0 in f", "bool -> int");
-    ("let rec f x <- if x then 1 else f (not x) in f", "bool -> int");
+      "Int -> Int" );
+    (* recursive function with Boolean inputs *)
+    ("let rec f x <- if x then 1 else 0 in f", "Bool -> Int");
+    ("let rec f x <- if x then 1 else f (not x) in f", "Bool -> Int");
     (* big recursive function like fibonacci but with third order recurrence
        relation *)
     ( "let rec f x <- if x == 0 then 0 else if x == 1 then 1 else if x == 2 \
        then 2 else f (x - 1) + f (x - 2) + f (x - 3) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* big recursive function like fibonacci but with fourth order recurrence
        relation *)
     ( "let rec f x <- if x == 0 then 0 else if x == 1 then 1 else if x == 2 \
        then 2 else if x == 3 then 3 else f (x - 1) + f (x - 2) + f (x - 3) + f \
        (x - 4) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* big recursive function like fibonacci but with fifth order recurrence
        relation *)
     ( "let rec f x <- if x == 0 then 0 else if x == 1 then 1 else if x == 2 \
        then 2 else if x == 3 then 3 else if x == 4 then 4 else f (x - 1) + f \
        (x - 2) + f (x - 3) + f (x - 4) + f (x - 5) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* map implemented using fold_right *)
     ( "let rec fold op lst acc <-\n\
       \    switch lst =>\n\
@@ -646,7 +646,7 @@ let function_type_tests =
   let filter pred <- fold (\ x -> \ acc -> if pred x then x :: acc else acc) []
   
   in filter|},
-      "(a -> bool) -> [a] -> [a]" );
+      "(a -> Bool) -> [a] -> [a]" );
     (* filter implemented using fold_left *)
     ( {|let rec fold op acc lst <-
     switch lst =>
@@ -658,74 +658,74 @@ let function_type_tests =
   let filter pred <- fold (\ x -> \ acc -> if pred x then x :: acc else acc) []
   
   in filter|},
-      "(a -> bool) -> [a] -> [a]" );
+      "(a -> Bool) -> [a] -> [a]" );
   ]
 
 let pair_type_tests =
   [
-    ("(1, 1)", "(int, int)");
-    ("(1, true)", "(int, bool)");
-    ("(1, 1 + 1)", "(int, int)");
-    ("(1 - 1, 1 + 1 + 1)", "(int, int)");
-    ("(1 - 1, 1 + 1 + 1 + 1)", "(int, int)");
+    ("(1, 1)", "(Int, Int)");
+    ("(1, true)", "(Int, Bool)");
+    ("(1, 1 + 1)", "(Int, Int)");
+    ("(1 - 1, 1 + 1 + 1)", "(Int, Int)");
+    ("(1 - 1, 1 + 1 + 1 + 1)", "(Int, Int)");
     (* nested *)
-    ("(1 - 1, (1 + 1, 1 + 1 + 1))", "(int, (int, int))");
-    ("(1 - 1, (1 + 1, (1 + 1 + 1, 1 + 1 + 1 + 1)))", "(int, (int, (int, int)))");
+    ("(1 - 1, (1 + 1, 1 + 1 + 1))", "(Int, (Int, Int))");
+    ("(1 - 1, (1 + 1, (1 + 1 + 1, 1 + 1 + 1 + 1)))", "(Int, (Int, (Int, Int)))");
   ]
 
 let function_to_string_tests =
   [
     ("\\ a -> a", "function");
     ("\\ () -> ()", "function");
-    ("\\ () [unit] -> ()", "function");
-    ("let a [(int -> int) -> int] <- \\ f -> f 1 in a", "function");
+    ("\\ () [Unit] -> ()", "function");
+    ("let a [(Int -> Int) -> Int] <- \\ f -> f 1 in a", "function");
   ]
 
 let vector_type_tests =
   [
-    ("(1, 2, 3)", "(int, int, int)");
-    ("(1, 2, 3, 4)", "(int, int, int, int)");
-    ("(1, 2, 3, 4, 5)", "(int, int, int, int, int)");
-    ("(1, 2, 3, 4, 5, 6)", "(int, int, int, int, int, int)");
-    ("(1, 2, 3, 4, 5, 6, 7)", "(int, int, int, int, int, int, int)");
+    ("(1, 2, 3)", "(Int, Int, Int)");
+    ("(1, 2, 3, 4)", "(Int, Int, Int, Int)");
+    ("(1, 2, 3, 4, 5)", "(Int, Int, Int, Int, Int)");
+    ("(1, 2, 3, 4, 5, 6)", "(Int, Int, Int, Int, Int, Int)");
+    ("(1, 2, 3, 4, 5, 6, 7)", "(Int, Int, Int, Int, Int, Int, Int)");
     (* with other types *)
-    ("(1, 2, true)", "(int, int, bool)");
-    ("(1, 2, true, false)", "(int, int, bool, bool)");
-    ("(1, 2, true, false, 1 + 1)", "(int, int, bool, bool, int)");
-    ("(1, 2, true, false, 1 + 1, 1 + 1 + 1)", "(int, int, bool, bool, int, int)");
+    ("(1, 2, true)", "(Int, Int, Bool)");
+    ("(1, 2, true, false)", "(Int, Int, Bool, Bool)");
+    ("(1, 2, true, false, 1 + 1)", "(Int, Int, Bool, Bool, Int)");
+    ("(1, 2, true, false, 1 + 1, 1 + 1 + 1)", "(Int, Int, Bool, Bool, Int, Int)");
     (* very complicated nested vector *)
     ( "(1, 2, true, false, 1 + 1, 1 + 1 + 1, (1, 2, true, false, 1 + 1, 1 + 1 \
        + 1))",
-      "(int, int, bool, bool, int, int, (int, int, bool, bool, int, int))" );
+      "(Int, Int, Bool, Bool, Int, Int, (Int, Int, Bool, Bool, Int, Int))" );
   ]
 
 let list_type_tests =
   [
     ("[]", "[a]");
-    ("1 :: []", "[int]");
-    ("1 :: 2 :: []", "[int]");
-    ("1 :: 2 :: 3 :: []", "[int]");
-    ("1 :: 2 :: 3 :: 4 :: []", "[int]");
-    ("(1, 2) :: []", "[(int, int)]");
-    ("(1, 2) :: (3, 4) :: []", "[(int, int)]");
+    ("1 :: []", "[Int]");
+    ("1 :: 2 :: []", "[Int]");
+    ("1 :: 2 :: 3 :: []", "[Int]");
+    ("1 :: 2 :: 3 :: 4 :: []", "[Int]");
+    ("(1, 2) :: []", "[(Int, Int)]");
+    ("(1, 2) :: (3, 4) :: []", "[(Int, Int)]");
     (* with other types *)
-    ("true :: []", "[bool]");
+    ("true :: []", "[Bool]");
     (* nested list *)
-    ("(1 :: []) :: []", "[[int]]");
-    ("(1 :: 2 :: []) :: []", "[[int]]");
+    ("(1 :: []) :: []", "[[Int]]");
+    ("(1 :: 2 :: []) :: []", "[[Int]]");
     ("[] :: []", "[[a]]");
     ("[] :: [] :: []", "[[a]]");
     ("([] :: []) :: []", "[[[a]]]");
     ("(([] :: []) :: []) :: []", "[[[[a]]]]");
-    ("[1 ... 10000]", "[int]");
-    ("[1 ... 10000000]", "[int]");
-    ("[1 ... 0]", "[int]");
-    ("[x * x | x <- [1, 2, 3, 4, 5]]", "[int]");
+    ("[1 ... 10000]", "[Int]");
+    ("[1 ... 10000000]", "[Int]");
+    ("[1 ... 0]", "[Int]");
+    ("[x * x | x <- [1, 2, 3, 4, 5]]", "[Int]");
     ( {|[(x, y, z) | x <- [1, 2, 3], y <- ["hello", "world"], z <- [true, false]]|},
-      "[(int, str, bool)]" );
+      "[(Int, Str, Bool)]" );
     ({|
       [x | x <- [1, 2, 3, 4, 5], x <- [true, false]]
-      |}, "[bool]");
+      |}, "[Bool]");
     ({|[x | x <- [1, 2, 3, 4, 5], x <- []]|}, "[a]");
   ]
 
@@ -735,14 +735,14 @@ let polymorphism_tests =
     ("let f x <- x in f f f", "a -> a");
     ("let f x <- x in f f f f", "a -> a");
     ("let f x <- x in f f f f f", "a -> a");
-    ("let f x <- x in f 1 < 5 || f true", "bool");
+    ("let f x <- x in f 1 < 5 || f true", "Bool");
     ("let f x <- x in let g <- f in g g", "a -> a");
     ("let f x <- x in let g <- f in g f", "a -> a");
     ("let f x <- x in let g <- f in f g f g", "a -> a");
-    ("let f x <- x in let a <- f 1 in f true", "bool");
-    ("(\\ f -> f 1 < 5 || f true) (\\ x -> x)", "bool");
-    ("(\\ f -> (f 0 1) < 5 || (f true 0)) (\\ x -> \\ y -> x)", "bool");
-    ("(\\ f -> (f 0 1) < 5 || (f true false)) (\\ x -> \\ y -> y)", "bool");
+    ("let f x <- x in let a <- f 1 in f true", "Bool");
+    ("(\\ f -> f 1 < 5 || f true) (\\ x -> x)", "Bool");
+    ("(\\ f -> (f 0 1) < 5 || (f true 0)) (\\ x -> \\ y -> x)", "Bool");
+    ("(\\ f -> (f 0 1) < 5 || (f true false)) (\\ x -> \\ y -> y)", "Bool");
     ( {|
     let f x <- x in
     let g <- f in
@@ -757,35 +757,35 @@ let polymorphism_tests =
     let i <- h in
     (f f f f g g g g g g h h h h h h h i i i i i i f f f f f f f g g g g g g h h h h h i i i i i f f f f f f f f f f f f f f f f f f f g g g g g g g) 1 < 2 || (f g h f) true
   |},
-      "bool" );
+      "Bool" );
     ( {|
     (\ f -> 
       (\ g -> 
         g 1 < 5 || g true) 
       f) (\ x -> x)
   |},
-      "bool" );
+      "Bool" );
     ( {|
     (\ x -> \ y -> \ z -> x y || x 1 < 2) (\ x -> x) true ()
   |},
-      "bool" );
+      "Bool" );
     ( {|
     (\ x -> \ y -> \ z -> x y || x 1 < 2) (\ x -> x) true
   |},
-      "a -> bool" );
+      "a -> Bool" );
   ]
 
 let switch_type_tests =
   [
-    ("switch () => | () -> 1 end", "int");
-    ("switch () => | () -> true end", "bool");
-    ("switch () => | () -> () end", "ng");
-    ("switch () => | () -> (1, 2) end", "(int, int)");
-    ("switch () => | () -> (1, 2, 3) end", "(int, int, int)");
-    ("switch 1 => | 1 -> 1 end", "int");
-    ("switch 1 => | 1 -> true end", "bool");
-    ("switch 1 => | 1 -> () end", "ng");
-    ("switch 5 => | 1 -> 1 | 2 -> 2 | 3 -> 3 | 4 -> 4 | 5 -> 5 end", "int");
+    ("switch () => | () -> 1 end", "Int");
+    ("switch () => | () -> true end", "Bool");
+    ("switch () => | () -> () end", "Unit");
+    ("switch () => | () -> (1, 2) end", "(Int, Int)");
+    ("switch () => | () -> (1, 2, 3) end", "(Int, Int, Int)");
+    ("switch 1 => | 1 -> 1 end", "Int");
+    ("switch 1 => | 1 -> true end", "Bool");
+    ("switch 1 => | 1 -> () end", "Unit");
+    ("switch 5 => | 1 -> 1 | 2 -> 2 | 3 -> 3 | 4 -> 4 | 5 -> 5 end", "Int");
   ]
 
 let arithmetic_tests =
@@ -1014,13 +1014,13 @@ let fold_type_tests =
 let complex_tests =
   [
     ( {|
-    let succ [int -> int] <-
-      \ n [int] -> n + 1
+    let succ [Int -> Int] <-
+      \ n [Int] -> n + 1
     in
     
-    let sum [int -> int -> int] <-
-      \ a [int] ->
-      \ b [int] ->
+    let sum [Int -> Int -> Int] <-
+      \ a [Int] ->
+      \ b [Int] ->
       a + b
     in
     
@@ -1028,8 +1028,8 @@ let complex_tests =
     |},
       "8" );
     ( {|
-    let succ [int-> int] <-
-      \ n [int] -> n + 1
+    let succ [Int-> Int] <-
+      \ n [Int] -> n + 1
     in
 
     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
