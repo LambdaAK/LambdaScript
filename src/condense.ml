@@ -173,6 +173,7 @@ and factor_type_to_t : factor_type -> c_type = function
   | UnitType -> UnitType
   | IntegerType -> IntType
   | FloatType -> FloatType
+  | TypeName s -> TypeName s
   | TypeVarWritten i -> TypeVarWritten i
   | ParenFactorType expr -> condense_type expr
   | VectorType types -> VectorType (List.map condense_type types)
@@ -181,5 +182,7 @@ and factor_type_to_t : factor_type -> c_type = function
 and condense_type : compound_type -> c_type = function
   | BasicType bt -> factor_type_to_t bt
   | FunctionType (i, o) -> FunctionType (factor_type_to_t i, condense_type o)
+  | UnionType constructors ->
+      UnionType (List.map condense_constructor constructors)
 
 let condense_program = List.map condense_defn

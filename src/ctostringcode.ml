@@ -108,6 +108,7 @@ module CToStringCode : CToString = struct
     | UnitType -> "Unit"
     | IntType -> "Int"
     | FloatType -> "Float"
+    | TypeName s -> s
     | CListType t ->
         let t_string : string = string_of_c_type t in
         "[" ^ t_string ^ "]"
@@ -134,6 +135,9 @@ module CToStringCode : CToString = struct
     | UniversalType u ->
         let u_string : string = string_of_int u in
         "u" ^ u_string
+    | UnionType constructors ->
+        ignore constructors;
+        "UNION TYPE"
 
   and string_of_type_var n =
     if n <= 26 then

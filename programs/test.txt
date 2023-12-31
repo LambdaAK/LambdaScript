@@ -3,9 +3,7 @@
 type T <- (bool, int)
 
 
-union Testunion <-
-  | A
-  | B
+union Testunion <- | A | B
   | C
   | D
 

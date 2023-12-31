@@ -242,6 +242,16 @@ module CToStringTree : CToString = struct
     | UnitType -> "Unit"
     | IntType -> "Int"
     | FloatType -> "Float"
+    | TypeName s -> s
+    | UnionType constructors ->
+        let constructors_string : string =
+          List.fold_left
+            (fun acc c ->
+              let c_string : string = string_of_c_constructor c in
+              acc ^ c_string ^ " | ")
+            "" constructors
+        in
+        String.sub constructors_string 0 (String.length constructors_string - 3)
     | CListType t ->
         let t_string : string = string_of_c_type t in
         "[" ^ t_string ^ "]"
@@ -255,7 +265,9 @@ module CToStringTree : CToString = struct
         let o_string : string = string_of_c_type o in
         i_string ^ " -> " ^ o_string
     | TypeVar n -> string_of_type_var n
-    | TypeVarWritten i -> "'" ^ i
+    | TypeVarWritten i ->
+        print_endline "type var written";
+        i
     | VectorType types ->
         let types_string : string =
           List.fold_left
@@ -268,6 +280,13 @@ module CToStringTree : CToString = struct
     | UniversalType u ->
         let u_string : string = string_of_int u in
         "u" ^ u_string
+
+  and string_of_c_constructor (c : c_constructor) =
+    match c with
+    | CNullaryConstructor name -> name
+    | CParametricConstructor (name, t) ->
+        let t_string : string = string_of_c_type t in
+        name ^ " " ^ t_string
 
   and string_of_type_var n =
     (* if n = 1, then a if n = 2, then b if n = 3, then c .... if n = 26, then z

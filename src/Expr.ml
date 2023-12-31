@@ -14,7 +14,7 @@ and sub_pat =
   | Pat of pat
   | InfixPat of string
 
-type rel_op =
+and rel_op =
   | EQ
   | NE
   | LT
@@ -22,9 +22,12 @@ type rel_op =
   | LE
   | GE
 
-type compound_type =
+and compound_type =
   | FunctionType of factor_type * compound_type
   | BasicType of factor_type
+  | UnionType of union_type
+
+and union_type = constructor list
 
 and factor_type =
   | IntegerType
@@ -32,12 +35,13 @@ and factor_type =
   | BooleanType
   | UnitType
   | FloatType
+  | TypeName of string
   | TypeVarWritten of string
   | ParenFactorType of compound_type (* identifier for a type *)
   | VectorType of compound_type list
   | ListType of compound_type
 
-type defn =
+and defn =
   | Defn of pat * compound_type option * expr
   | DefnRec of pat * compound_type option * expr
   | TypeDefn of string * compound_type
@@ -56,8 +60,6 @@ and constructor =
   | NullaryConstructor of string
   | ParametricConstructor of
       string * compound_type (* represents a variant type constructor *)
-
-and union_type = constructor list
 
 and cons_expr =
   (* :: *)
@@ -115,5 +117,4 @@ and factor =
   | ListComprehension of expr * generator list
 
 and generator = pat * expr
-
-type program = defn list
+and program = defn list

@@ -54,7 +54,7 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env) :
 
   let action =
     match tokens with
-    | { token_type = Type; _ } :: _ -> EvalDefn
+    | { token_type = Type; _ } :: _ | { token_type = Union; _ } :: _ -> EvalDefn
     | { token_type = Let; line = _ } :: _ -> (
         (* This is one of a few things 1. Let definition 2. Let rec definition
            3. Expression *)

@@ -70,6 +70,20 @@ and string_of_compound_type (ct : compound_type) (level : int) =
       ^ string_of_compound_type t2 (level + 1)
       ^ indentations_with_newline level
       ^ ")"
+  | UnionType constructors ->
+      "UnionType ("
+      ^ indentations_with_newline (level + 1)
+      ^ String.concat
+          (",\n" ^ indentations_with_newline (level + 1))
+          (List.map (fun c -> string_of_constructor c) constructors)
+      ^ indentations_with_newline level
+      ^ ")"
+
+and string_of_constructor (c : constructor) =
+  match c with
+  | NullaryConstructor name -> name
+  | ParametricConstructor (name, t) ->
+      name ^ " (" ^ string_of_compound_type t 0 ^ ")"
 
 let rec string_of_expr (e : expr) (level : int) : string =
   match e with

@@ -62,12 +62,14 @@ and c_type =
   | BoolType
   | StringType
   | UnitType
+  | TypeName of string
   | TypeVarWritten of string
   | FunctionType of c_type * c_type
   | VectorType of c_type list
   | TypeVar of int
   | CListType of c_type
   | UniversalType of int
+  | UnionType of c_constructor list
 
 and value =
   | IntegerValue of int

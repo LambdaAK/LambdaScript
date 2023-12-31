@@ -21,6 +21,7 @@ let fix (t : c_type) : c_type =
     | StringType -> ()
     | UnitType -> ()
     | FloatType -> ()
+    | TypeName _ -> ()
     | CListType et -> search et
     | UniversalType _ -> ()
     | TypeVarWritten _ -> () (* fix this later *)
@@ -31,6 +32,7 @@ let fix (t : c_type) : c_type =
         search i;
         search o
     | VectorType types -> List.iter (fun t -> search t) types
+    | UnionType _ -> failwith "union type found in search in typefixer.ml"
   in
   let () = search t in
 
@@ -42,11 +44,13 @@ let fix (t : c_type) : c_type =
     | StringType -> StringType
     | UnitType -> UnitType
     | FloatType -> FloatType
+    | TypeName _ -> t
     | TypeVar id | UniversalType id -> TypeVar (get_replacement id lst)
     | TypeVarWritten _ -> t
     | FunctionType (i, o) -> FunctionType (replace i lst, replace o lst)
     | CListType et -> CListType (replace et lst)
     | VectorType types -> VectorType (List.map (fun t -> replace t lst) types)
+    | UnionType _ -> failwith "union type found in replace in typefixer.ml"
   in
 
   replace t !order

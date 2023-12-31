@@ -47,10 +47,23 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
   | CUnionDefn (type_name, constructors) ->
       ignore type_name;
       ignore constructors;
+
       (* 
 
          for each constructor, add the type of that constructor to the static
          environment
 
          add the type to the type environment *)
-      failwith "eval_defn: union defn"
+      let new_static_bindings =
+        List.map
+          (function
+            | CNullaryConstructor name -> (name, TypeName type_name)
+            | CParametricConstructor (name, input_type) ->
+                (name, FunctionType (input_type, TypeName type_name)))
+          constructors
+      in
+      let new_static_env = new_static_bindings @ static_env in
+
+      let new_type_env = (type_name, UnionType constructors) :: type_env in
+
+      (env, new_static_env, new_type_env, [], [ type_name ])
