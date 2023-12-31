@@ -1,65 +1,9 @@
 type T <- (bool, int)
 
-union Testunion <- | A | B
+let f x [T] <- x
+
+union T <- | A | B
   | C
   | D
 
-let rec fold f acc lst <-
-  switch lst =>
-  | [] -> acc
-  | h :: t -> fold f (f acc h) t
-  end
-
-let rec fold f lst acc <-
-  switch lst =>
-  | [] -> acc
-  | h :: t -> f h (fold f t acc)
-  end 
-
-let rec map f lst <-
-  switch lst =>
-  | [] -> []
-  | h :: t -> f h :: map f t
-  end
-
-let rec iter f lst <-
-  switch lst =>
-  | [] -> ()
-  | h :: t -> 
-    let () <- f h in
-    iter f t
-  end
-
-let rec (++) arr1 arr2 <-
-  switch arr1 =>
-  | [] -> arr2
-  | h :: t -> h :: (t ++ arr2)
-  end
-
-let rec flatten lst <-
-  switch lst =>
-  | [] -> []
-  | h :: t -> h ++ flatten t
-  end
-
-let print_int x <-
-  println (int_to_str x)
-
-let print_int_list <- iter print_int
-
-let return x <- [x]
-
-let (>>=) lst f <-
-  flatten (map f lst)
-
-let (-->) x f <- f x
-
-let (<->) f g x <- f (g x)
-
-let id <- ((+) 1) <-> (\x -> x - 1)
-
-let squares a b <- [x * x | x <- [a ... b]]
-
-
-
-
+let f x [T] <- x

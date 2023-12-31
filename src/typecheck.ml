@@ -291,6 +291,9 @@ and reduce_eq (c : type_equations) : substitutions =
         raise TypeFailure)
       else
         match (t1, t2) with
+        (* if one of the types is a union type, just ignore the equation for
+           now *)
+        | UnionType _, _ | _, UnionType _ -> reduce_eq c'
         | TypeVar id, _ when not (inside t1 t2) ->
             (t1, t2) :: reduce_eq (substitute id t2 c')
         | _, TypeVar _ ->
@@ -320,9 +323,6 @@ and reduce_eq (c : type_equations) : substitutions =
                     replace_type (TypeName name) t t2 ))
                 c'
             in
-
-            print_endline "new equations";
-            print_endline (string_of_type_equations new_equations);
             (TypeName name, t) :: reduce_eq new_equations
         | _, TypeName _ ->
             (* use the previous branch *) reduce_eq ((t2, t1) :: c')
@@ -443,6 +443,7 @@ and substitute_in_type (type_subbing_in : c_type)
   | CListType et ->
       CListType (substitute_in_type et type_var_id_subbing_for substitute_with)
   | TypeName n -> TypeName n
+  | UnionType a -> UnionType a
   | _ -> failwith "not a type var"
 
 and replace_type (replace_with : c_type) (get_rid_of : c_type) (t : c_type) :
@@ -622,7 +623,6 @@ and flatten_env_types (types : c_type list) : c_type list =
       | _ -> t :: flatten_env_types tail)
 
 let rec type_of_value x =
-  print_endline "a";
   x |> function
   | IntegerValue _ -> IntType
   | BooleanValue _ -> BoolType
