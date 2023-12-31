@@ -380,19 +380,10 @@ and type_of_c_expr (e : c_expr) (static_env : static_env)
   ignore type_env;
   let t, generated_constraints = generate static_env e in
 
-  (* type *)
-  print_endline "the type is";
-  print_endline (string_of_c_type t);
-
   (* constraints *)
   let type_env_constraints = generate_type_env_constraints type_env in
 
   let constraints = generated_constraints @ type_env_constraints in
-
-  (* print the constraints *)
-  constraints
-  |> List.iter (fun (t1, t2) ->
-         print_endline (string_of_c_type t1 ^ " = " ^ string_of_c_type t2));
 
   let constraints_without_written_type_vars =
     replace_written_types constraints
