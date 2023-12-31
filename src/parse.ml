@@ -285,7 +285,7 @@ and parse_constructor (tokens : token list) : constructor * token list =
   match constructor_type with
   | None -> (NullaryConstructor constructor_name, tokens_after_constructor_type)
   | Some constructor_type ->
-      ( ParametricConstructor (constructor_name, constructor_type),
+      ( UnaryConstructor (constructor_name, constructor_type),
         tokens_after_constructor_type )
 
 and parse_defn (tokens : token list) : defn * token list =

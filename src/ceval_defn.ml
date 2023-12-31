@@ -58,7 +58,7 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
         List.map
           (function
             | CNullaryConstructor name -> (name, TypeName type_name)
-            | CParametricConstructor (name, input_type) ->
+            | CUnaryConstructor (name, input_type) ->
                 (name, FunctionType (input_type, TypeName type_name)))
           constructors
       in

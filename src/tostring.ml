@@ -82,7 +82,7 @@ and string_of_compound_type (ct : compound_type) (level : int) =
 and string_of_constructor (c : constructor) =
   match c with
   | NullaryConstructor name -> name
-  | ParametricConstructor (name, t) ->
+  | UnaryConstructor (name, t) ->
       name ^ " (" ^ string_of_compound_type t 0 ^ ")"
 
 let rec string_of_expr (e : expr) (level : int) : string =
@@ -383,5 +383,6 @@ and string_of_factor (factor : factor) (level : int) =
           (",\n" ^ indentations_with_newline (level + 1))
           (List.map (fun e -> string_of_expr e (level + 1)) es)
       ^ ")"
+  | Constructor n -> "Constructor (" ^ n ^ ")"
 
 let string_of_expr (e : expr) = string_of_expr e 0

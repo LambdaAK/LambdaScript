@@ -99,6 +99,7 @@ module CToStringCode : CToString = struct
                generators)
         ^ indentations_with_newline level
         ^ "]"
+    | EConstructor id -> id
 
   let string_of_c_expr e = string_of_c_expr e 0
 

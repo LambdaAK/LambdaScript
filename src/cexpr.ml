@@ -33,7 +33,7 @@ and c_defn =
 
 and c_constructor =
   | CNullaryConstructor of string
-  | CParametricConstructor of
+  | CUnaryConstructor of
       string * c_type (* represents a variant type constructor *)
 
 and c_switch_branch = c_pat * c_expr
@@ -55,6 +55,7 @@ and c_expr =
   | ENil
   | EListEnumeration of c_expr * c_expr
   | EListComprehension of c_expr * (c_pat * c_expr) list
+  | EConstructor of string
 
 and c_type =
   | IntType
@@ -82,6 +83,9 @@ and value =
   | VectorValue of value list
   | ListValue of value list
   | BuiltInFunction of builtin_function
+  | NullaryConstructor of string
+  | UnaryConstructor of
+      string * value (* string is the name, value is whatever is inside of it*)
 
 and builtin_function =
   | Println

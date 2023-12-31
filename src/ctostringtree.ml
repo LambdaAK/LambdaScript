@@ -97,6 +97,7 @@ module CToStringTree : CToString = struct
     | EUnit -> "Unit"
     | EFloat f -> "Float (" ^ string_of_float f ^ ")"
     | EId s -> "Id (" ^ s ^ ")"
+    | EConstructor s -> "Constructor (" ^ s ^ ")"
     | EFunction (pattern, cto, body) ->
         let pattern_string : string = string_of_c_pat pattern in
         let body_string : string = string_of_c_expr body (level + 1) in
@@ -284,7 +285,7 @@ module CToStringTree : CToString = struct
   and string_of_c_constructor (c : c_constructor) =
     match c with
     | CNullaryConstructor name -> name
-    | CParametricConstructor (name, t) ->
+    | CUnaryConstructor (name, t) ->
         let t_string : string = string_of_c_type t in
         name ^ " " ^ t_string
 

@@ -10,6 +10,8 @@ let rec string_of_env (env : env) =
     "" env
 
 and string_of_value = function
+  | NullaryConstructor id -> id
+  | UnaryConstructor (id, v) -> id ^ " " ^ string_of_value v
   | IntegerValue i -> string_of_int i
   | FloatValue f -> string_of_float f
   | StringValue s -> "\"" ^ s ^ "\""
@@ -79,6 +81,7 @@ let rec bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
 
 let rec eval_c_expr (ce : c_expr) (env : env) =
   match ce with
+  | EConstructor _ -> failwith "eval_c_expr: EConstructor"
   | EInt i -> IntegerValue i
   | EFloat f -> FloatValue f
   | EString s -> StringValue s

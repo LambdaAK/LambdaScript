@@ -46,8 +46,7 @@ let rec condense_defn : defn -> c_defn = function
 
 and condense_constructor : constructor -> c_constructor = function
   | NullaryConstructor name -> CNullaryConstructor name
-  | ParametricConstructor (name, t) ->
-      CParametricConstructor (name, condense_type t)
+  | UnaryConstructor (name, t) -> CUnaryConstructor (name, condense_type t)
 
 and condense_expr : expr -> c_expr = function
   | Function (pat, ct_opt, expr) ->
@@ -159,6 +158,7 @@ and condense_factor : factor -> c_expr = function
   | ListComprehension (e, generators) ->
       EListComprehension
         (condense_expr e, List.map condense_generator generators)
+  | Constructor _ -> failwith "Constructor condense not implemented"
 
 and condense_generator ((pat, expr) : generator) : c_pat * c_expr =
   (condense_pat pat, condense_expr expr)

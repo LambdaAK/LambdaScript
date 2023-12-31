@@ -58,7 +58,7 @@ and expr =
 
 and constructor =
   | NullaryConstructor of string
-  | ParametricConstructor of
+  | UnaryConstructor of
       string * compound_type (* represents a variant type constructor *)
 
 and cons_expr =
@@ -108,6 +108,7 @@ and factor =
   | Integer of int
   | FloatFactor of float
   | Id of string
+  | Constructor of string
   | ParenFactor of expr
   | Opposite of factor
   | Vector of expr list

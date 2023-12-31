@@ -35,6 +35,7 @@ let rec string_of_static_env (env : static_env) : string =
 
 let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
   match e with
+  | EConstructor _ -> failwith "generate not implemented for constructors"
   | EInt _ -> (IntType, [])
   | EFloat _ -> (FloatType, [])
   | EBool _ -> (BoolType, [])
