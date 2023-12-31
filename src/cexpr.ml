@@ -114,3 +114,8 @@ let fresh_universal_type : unit -> c_type =
  fun () ->
   counter_2 := !counter_2 + 1;
   UniversalType !counter_2
+
+let reset_type_counters : unit -> unit =
+ fun () ->
+  counter := 0;
+  counter_2 := 0

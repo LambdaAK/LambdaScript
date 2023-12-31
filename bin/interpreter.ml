@@ -43,7 +43,7 @@ let run_run (dir : string) : unit =
         let tokens : token list = code |> list_of_string |> lex in
         let e, _ = parse_expr tokens in
         let c_e = condense_expr e in
-        let t = type_of_c_expr c_e [] in
+        let t = type_of_c_expr c_e [] [] in
         (id, t))
       code_mapping
     @ built_ins_types

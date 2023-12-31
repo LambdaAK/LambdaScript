@@ -177,6 +177,7 @@ and parse_factor_type (tokens : token list) : factor_type * token list =
   | { token_type = StringType; line = _ } :: t -> (StringType, t)
   | { token_type = UnitType; line = _ } :: t -> (UnitType, t)
   | { token_type = Id i; line = _ } :: t -> (TypeVarWritten i, t)
+  | { token_type = Constructor c; _ } :: t -> (TypeName c, t)
   | { token_type = LBracket; line = _ } :: t ->
       (* list type *)
       (* parse a compound type *)

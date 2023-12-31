@@ -268,7 +268,7 @@ let type_test (expr : string) (expected_output : string) : test =
         let tokens : token list = code |> list_of_string |> lex in
         let e, _ = parse_expr tokens in
         let c_e = condense_expr e in
-        let t = type_of_c_expr c_e [] in
+        let t = type_of_c_expr c_e [] [] in
         (id, t))
       code_mapping
     @ built_ins_types
@@ -276,7 +276,7 @@ let type_test (expr : string) (expected_output : string) : test =
   let result : string =
     type_of_c_expr
       (expr |> list_of_string |> lex |> parse_expr |> fst |> condense_expr)
-      static_env
+      static_env []
     |> string_of_c_type
   in
   assert_equal result expected_output

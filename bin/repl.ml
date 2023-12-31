@@ -22,8 +22,8 @@ let attempt_parse (tokens : token list) : c_expr =
 let attempt_parse_defn (tokens : token list) : c_defn =
   tokens |> parse_defn |> fst |> condense_defn
 
-let attempt_type_check (ce : c_expr) (env : static_env) : c_type =
-  type_of_c_expr ce env
+let attempt_type_check (ce : c_expr) (env : static_env) type_env : c_type =
+  type_of_c_expr ce env type_env
 
 let attempt_eval (ce : c_expr) (env : env) : string =
   eval_c_expr ce env |> string_of_value
@@ -138,7 +138,7 @@ and repl_expr (env : env) (static_env : static_env)
     (* end print *)
     let ce : c_expr = attempt_parse tokens in
 
-    let t : c_type = attempt_type_check ce static_env in
+    let t : c_type = attempt_type_check ce static_env type_env in
     let t_string : string = string_of_c_type t in
 
     (* evaluate ce *)
@@ -181,7 +181,7 @@ let run_repl () : unit =
         let tokens : token list = code |> list_of_string |> lex in
         let e, _ = parse_expr tokens in
         let c_e = condense_expr e in
-        let t = type_of_c_expr c_e [] in
+        let t = type_of_c_expr c_e [] [] in
         (id, t))
       code_mapping
     @ built_ins_types

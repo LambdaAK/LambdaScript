@@ -197,6 +197,9 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
       ( CListType type_of_expression,
         expression_constraints @ generator_constraints )
 
+and generate_type_env_constraints type_env =
+  List.map (fun (id, t) -> (TypeName id, t)) type_env
+
 and generate_e_app_function_pat_is_id (env : static_env) (first : c_expr)
     (second : c_expr) : c_type * type_equations =
   (* start by checking whether first is a function *)
@@ -283,6 +286,9 @@ and reduce_eq (c : type_equations) : substitutions =
   | [] -> []
   | (t1, t2) :: c' -> (
       if t1 = t2 then reduce_eq c'
+      else if inside t1 t2 || inside t2 t1 then (
+        print_endline "TYPE FAILURE";
+        raise TypeFailure)
       else
         match (t1, t2) with
         | TypeVar id, _ when not (inside t1 t2) ->
@@ -291,6 +297,35 @@ and reduce_eq (c : type_equations) : substitutions =
             reduce_eq ((t2, t1) :: c')
             (* this switches the order of the types, then the branch before will
                be hit on the next iteration *)
+        | TypeName name1, TypeName name2 ->
+            (* Replace the lexographically larger one with the smaller one *)
+            let smaller, larger =
+              if name1 < name2 then (t1, t2) else (t2, t1)
+            in
+
+            let new_equations =
+              List.map
+                (fun (t1, t2) ->
+                  ( replace_type smaller larger t1,
+                    replace_type smaller larger t2 ))
+                c'
+            in
+            (TypeName name1, TypeName name2) :: reduce_eq new_equations
+        | TypeName name, t ->
+            (* replace the type name with the type *)
+            let new_equations =
+              List.map
+                (fun (t1, t2) ->
+                  ( replace_type (TypeName name) t t1,
+                    replace_type (TypeName name) t t2 ))
+                c'
+            in
+
+            print_endline "new equations";
+            print_endline (string_of_type_equations new_equations);
+            (TypeName name, t) :: reduce_eq new_equations
+        | _, TypeName _ ->
+            (* use the previous branch *) reduce_eq ((t2, t1) :: c')
         | FunctionType (i1, o1), FunctionType (i2, o2) ->
             reduce_eq ((i1, i2) :: (o1, o2) :: c')
         | CListType et1, CListType et2 -> reduce_eq ((et1, et2) :: c')
@@ -303,7 +338,7 @@ and reduce_eq (c : type_equations) : substitutions =
                 (* one of them is empty, so the vectors are not the same size *)
                 raise TypeFailure)
         | _ ->
-            print_endline "FAILURE";
+            print_endline "TYPE FAILURE";
             raise TypeFailure)
 
 and get_type (var : c_type) (subs : substitutions) : c_type =
@@ -325,6 +360,7 @@ and get_type (var : c_type) (subs : substitutions) : c_type =
   | UnitType -> UnitType
   | CListType et -> CListType (get_type et subs)
   | UniversalType _ -> var
+  | TypeName _ -> var
   | _ -> failwith "not a type var2"
 
 and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
@@ -339,8 +375,24 @@ and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
       with Not_found -> var)
   | _ -> failwith "not a type var3"
 
-and type_of_c_expr (e : c_expr) (static_env : static_env) : c_type =
-  let t, constraints = generate static_env e in
+and type_of_c_expr (e : c_expr) (static_env : static_env)
+    (type_env : (string * c_type) list) : c_type =
+  ignore type_env;
+  let t, generated_constraints = generate static_env e in
+
+  (* type *)
+  print_endline "the type is";
+  print_endline (string_of_c_type t);
+
+  (* constraints *)
+  let type_env_constraints = generate_type_env_constraints type_env in
+
+  let constraints = generated_constraints @ type_env_constraints in
+
+  (* print the constraints *)
+  constraints
+  |> List.iter (fun (t1, t2) ->
+         print_endline (string_of_c_type t1 ^ " = " ^ string_of_c_type t2));
 
   let constraints_without_written_type_vars =
     replace_written_types constraints
@@ -399,7 +451,32 @@ and substitute_in_type (type_subbing_in : c_type)
            types)
   | CListType et ->
       CListType (substitute_in_type et type_var_id_subbing_for substitute_with)
+  | TypeName n -> TypeName n
   | _ -> failwith "not a type var"
+
+and replace_type (replace_with : c_type) (get_rid_of : c_type) (t : c_type) :
+    c_type =
+  if t = get_rid_of then replace_with
+  else
+    match t with
+    | FunctionType (i, o) ->
+        FunctionType
+          ( replace_type replace_with get_rid_of i,
+            replace_type replace_with get_rid_of o )
+    | VectorType types ->
+        VectorType
+          (List.map (fun t -> replace_type replace_with get_rid_of t) types)
+    | CListType et -> CListType (replace_type replace_with get_rid_of et)
+    | _ -> t
+
+and replace_type_in_equations (replace_with : c_type) (get_rid_of : c_type)
+    (equations : type_equations) : type_equations =
+  match equations with
+  | [] -> []
+  | (t1, t2) :: equations' ->
+      ( replace_type replace_with get_rid_of t1,
+        replace_type replace_with get_rid_of t2 )
+      :: replace_type_in_equations replace_with get_rid_of equations'
 
 and substitute_written_var_with_type_var (var_id : int)
     (written_var_id : string) (t : c_type) : c_type =
@@ -575,7 +652,7 @@ let rec type_of_value x =
       print_endline "a";
       let static_env = static_env_from_dynamic_env env in
       print_endline "b";
-      let output_type = type_of_c_expr body static_env in
+      let output_type = type_of_c_expr body static_env [] in
       FunctionType (input_type, output_type)
   | _ -> failwith "not a value"
 
