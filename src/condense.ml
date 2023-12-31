@@ -158,7 +158,7 @@ and condense_factor : factor -> c_expr = function
   | ListComprehension (e, generators) ->
       EListComprehension
         (condense_expr e, List.map condense_generator generators)
-  | Constructor _ -> failwith "Constructor condense not implemented"
+  | Constructor n -> EConstructor n
 
 and condense_generator ((pat, expr) : generator) : c_pat * c_expr =
   (condense_pat pat, condense_expr expr)

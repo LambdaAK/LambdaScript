@@ -83,9 +83,9 @@ and value =
   | VectorValue of value list
   | ListValue of value list
   | BuiltInFunction of builtin_function
-  | NullaryConstructor of string
-  | UnaryConstructor of
-      string * value (* string is the name, value is whatever is inside of it*)
+  | ConstructorValue of string * value option
+(* string is the name of the constructor if it is applied, the value is Some
+   value, where value is the value contained in the constructor *)
 
 and builtin_function =
   | Println

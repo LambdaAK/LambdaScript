@@ -266,9 +266,7 @@ module CToStringTree : CToString = struct
         let o_string : string = string_of_c_type o in
         i_string ^ " -> " ^ o_string
     | TypeVar n -> string_of_type_var n
-    | TypeVarWritten i ->
-        print_endline "type var written";
-        i
+    | TypeVarWritten n -> n
     | VectorType types ->
         let types_string : string =
           List.fold_left

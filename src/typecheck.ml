@@ -35,7 +35,11 @@ let rec string_of_static_env (env : static_env) : string =
 
 let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
   match e with
-  | EConstructor _ -> failwith "generate not implemented for constructors"
+  | EConstructor n ->
+      (* To get the type of the constructor, look it up in the static env No
+         constraints are generated *)
+      let type_of_constructor : c_type = List.assoc n env in
+      (type_of_constructor, [])
   | EInt _ -> (IntType, [])
   | EFloat _ -> (FloatType, [])
   | EBool _ -> (BoolType, [])
@@ -95,6 +99,7 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
       | _ ->
           let t1, c1 = generate env first in
           let t2, c2 = generate env second in
+
           let type_of_expression : c_type = fresh_type_var () in
           let new_constraint =
             (t1 |> instantiate, t2 |> instantiate => type_of_expression)
@@ -362,7 +367,8 @@ and get_type (var : c_type) (subs : substitutions) : c_type =
   | CListType et -> CListType (get_type et subs)
   | UniversalType _ -> var
   | TypeName _ -> var
-  | _ -> failwith "not a type var2"
+  | TypeVarWritten _ -> var
+  | UnionType _ -> failwith "union type found in get_type"
 
 and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
     c_type =

@@ -36,18 +36,6 @@ let () =
 
 let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env) :
     unit =
-  (* print the type environment *)
-  let type_env_string =
-    List.map
-      (fun (id, t) ->
-        let t_string = string_of_c_type t in
-        "type " ^ id ^ " : " ^ t_string)
-      type_env
-    |> String.concat "\n"
-  in
-  if type_env_string <> "" then print_endline type_env_string else ();
-
-  (* print the environment *)
   print_string "> ";
   let input_string : string = read_line () in
   let tokens : token list = attempt_lex input_string in

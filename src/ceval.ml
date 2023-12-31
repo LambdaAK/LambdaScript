@@ -10,8 +10,6 @@ let rec string_of_env (env : env) =
     "" env
 
 and string_of_value = function
-  | NullaryConstructor id -> id
-  | UnaryConstructor (id, v) -> id ^ " " ^ string_of_value v
   | IntegerValue i -> string_of_int i
   | FloatValue f -> string_of_float f
   | StringValue s -> "\"" ^ s ^ "\""
@@ -29,6 +27,8 @@ and string_of_value = function
         values |> List.map string_of_value |> String.concat ", "
       in
       "[" ^ values_string ^ "]"
+  | ConstructorValue (id, None) -> id
+  | ConstructorValue (id, Some v) -> id ^ " (" ^ string_of_value v ^ ")"
 
 let rec bind_pat (p : c_pat) (v : value) : env option =
   match (p, v) with
@@ -81,7 +81,7 @@ let rec bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
 
 let rec eval_c_expr (ce : c_expr) (env : env) =
   match ce with
-  | EConstructor _ -> failwith "eval_c_expr: EConstructor"
+  | EConstructor name -> ConstructorValue (name, None)
   | EInt i -> IntegerValue i
   | EFloat f -> FloatValue f
   | EString s -> StringValue s
@@ -139,6 +139,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) =
           match bind_pat p v2 with
           | Some env'' -> eval_c_expr e (env'' @ env')
           | None -> failwith "eval_c_expr: EApp")
+      | ConstructorValue (id, None) -> ConstructorValue (id, Some v2)
       | _ -> failwith "eval_c_expr: EApp")
   | EBindRec (pattern, _, e1, e2) -> (
       let v1 : value = eval_c_expr e1 env in

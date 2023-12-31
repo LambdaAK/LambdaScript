@@ -788,6 +788,7 @@ and parse_factor_not_app (tokens : token list) : factor * token list =
       if List.length expr_list = 1 then
         (ParenFactor (List.hd expr_list), remove_head tokens_after_expr_list)
       else (Vector expr_list, remove_head tokens_after_expr_list)
+  | { token_type = Constructor n; _ } :: t -> (Constructor n, t)
   | _ -> raise FactorParseFailure
 
 and parse_list_sugar (t : token list) : factor * token list =
