@@ -13,6 +13,16 @@ let rec string_of_pat : pat -> string = function
       ^ string_of_pat p2
       ^ indentations_with_newline 0
       ^ ")"
+  | AppPat (sp1, sp2) ->
+      let sp1_string : string = string_of_sub_pat sp1 in
+      let sp2_string : string = string_of_sub_pat sp2 in
+      "App Pattern ("
+      ^ indentations_with_newline 1
+      ^ sp1_string ^ ","
+      ^ indentations_with_newline 1
+      ^ sp2_string
+      ^ indentations_with_newline 0
+      ^ ")"
 
 and string_of_sub_pat : sub_pat -> string = function
   | UnitPat -> "Unit Pattern"
@@ -32,6 +42,7 @@ and string_of_sub_pat : sub_pat -> string = function
   | StringPat s -> "String Pattern (" ^ s ^ ")"
   | Pat p -> string_of_pat p
   | InfixPat s -> "Infix Pattern (" ^ s ^ ")"
+  | ConstructorPat n -> "Constructor Pattern (" ^ n ^ ")"
 
 let string_of_rel_op : rel_op -> string = function
   | EQ -> "EQ"

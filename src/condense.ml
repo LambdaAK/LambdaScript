@@ -5,6 +5,7 @@ let rec condense_pat : pat -> c_pat = function
   | SubPat sub_pat -> condense_sub_pat sub_pat
   | ConsPat (sub_pat, pat) ->
       CConsPat (condense_sub_pat sub_pat, condense_pat pat)
+  | AppPat (sp1, sp2) -> CAppPat (condense_sub_pat sp1, condense_sub_pat sp2)
 
 and condense_sub_pat : sub_pat -> c_pat = function
   | IntPat i -> CIntPat i
@@ -17,6 +18,7 @@ and condense_sub_pat : sub_pat -> c_pat = function
   | WildcardPat -> CWildcardPat
   | Pat pat -> condense_pat pat
   | InfixPat s -> CIdPat s
+  | ConstructorPat name -> CConstructorPat name
 
 let rec condense_defn : defn -> c_defn = function
   | Defn (pattern, cto, body_expression) ->

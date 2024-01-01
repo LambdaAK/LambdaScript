@@ -38,6 +38,18 @@ let rec bind_pat (p : c_pat) (v : value) : env option =
   | CIntPat i, IntegerValue j -> if i = j then Some [] else None
   | CStringPat s, StringValue t -> if s = t then Some [] else None
   | CBoolPat b, BooleanValue c -> if b = c then Some [] else None
+  (* nullary constructor pattern matched with nullary constructor value*)
+  | CConstructorPat pat_constructor_id, ConstructorValue (value_id, None) ->
+      if pat_constructor_id = value_id then Some [] else None
+  (* app pat (unary constructor application pattern) matched with a value *)
+  | CAppPat (p1, p2), ConstructorValue (value_id, Some v) -> (
+      (* use option monad *)
+      match bind_pat p1 (ConstructorValue (value_id, None)) with
+      | None -> None
+      | Some bindings -> (
+          match bind_pat p2 v with
+          | None -> None
+          | Some bindings' -> Some (bindings @ bindings')))
   | CNilPat, ListValue [] -> Some []
   | CConsPat (p1, p2), ListValue (v1 :: v2) -> (
       (* v1 is matched against p1 and v2 is matched against p2 if both match,
@@ -158,7 +170,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) =
             bind_pat pattern v1_rec
           in
           match recursive_bindings_option with
-          | None -> failwith "no pattern matched"
+          | None -> failwith "no pattern matched1"
           | Some recursive_bindings ->
               env_ref := recursive_bindings @ env;
               eval_c_expr e2 (recursive_bindings @ env))
@@ -166,7 +178,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) =
           (* evaluate a regular let expression *)
           let new_bindings_option : env option = bind_pat pattern v1_rec in
           match new_bindings_option with
-          | None -> failwith "no pattern matched"
+          | None -> failwith "no pattern matched2"
           | Some new_bindings -> eval_c_expr e2 (new_bindings @ env)))
 
 and eval_builtin (f : builtin_function) (v : value) : value =
@@ -313,6 +325,7 @@ let rec create_generic_type : c_pat -> c_type = function
   | CConsPat _ -> CListType (fresh_type_var ())
   | CVectorPat patterns ->
       VectorType (List.map (fun p -> create_generic_type p) patterns)
+  | _ -> failwith "create_generic_type: unimplemented"
 
 let rec expr_of_pat : c_pat -> c_expr = function
   | CUnitPat -> EUnit
@@ -324,3 +337,4 @@ let rec expr_of_pat : c_pat -> c_expr = function
   | CNilPat -> ENil
   | CConsPat (p1, p2) -> EBop (CCons, expr_of_pat p1, expr_of_pat p2)
   | CVectorPat patterns -> EVector (List.map expr_of_pat patterns)
+  | _ -> failwith "expr_of_pat: unimplemented"

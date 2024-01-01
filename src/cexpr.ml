@@ -8,6 +8,8 @@ type c_pat =
   | CStringPat of string
   | CIdPat of string
   | CUnitPat
+  | CConstructorPat of string (* string is the name of the constructor *)
+  | CAppPat of c_pat * c_pat (* constructor application *)
 
 type c_bop =
   | CPlus

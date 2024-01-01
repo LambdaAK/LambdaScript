@@ -673,6 +673,27 @@ and parse_pats_seperated_by_commas (tokens : token list) : pat list * token list
       (first :: second, tokens_after_second)
   | _ -> ([ first ], tokens_after_first)
 
+and sub_pat_is_ahead (prev_pat : sub_pat) (tokens : token list) : bool =
+  (* Look for the following things ( unit Nil id int float bool string *)
+  match prev_pat with
+  | ConstructorPat _ ->
+      if List.length tokens = 0 then false
+      else
+        let first_token = (List.hd tokens).token_type in
+        begin
+          match first_token with
+          | LParen
+          | Unit
+          | Id _
+          | Integer _
+          | FloatToken _
+          | Boolean _
+          | StringToken _
+          | WildcardPattern -> true
+          | _ -> false
+        end
+  | _ -> false
+
 and parse_pat (tokens : token list) : pat * token list =
   (* parse a sub_pat *)
   let sub_pat, tokens_after_sub_pat = parse_sub_pat tokens in
@@ -686,6 +707,12 @@ and parse_pat (tokens : token list) : pat * token list =
       (* return the cons *)
       let second_pat, tokens_after_second_pat = parse_pat t in
       (ConsPat (sub_pat, second_pat), tokens_after_second_pat)
+  | _ when sub_pat_is_ahead sub_pat tokens_after_sub_pat ->
+      (* parse another sub_pat, and we will have a constructor application *)
+      let second_sub_pat, tokens_after_second_sub_pat =
+        parse_sub_pat tokens_after_sub_pat
+      in
+      (AppPat (sub_pat, second_sub_pat), tokens_after_second_sub_pat)
   | _ -> (SubPat sub_pat, tokens_after_sub_pat)
 
 and parse_sub_pat (tokens : token list) : sub_pat * token list =
@@ -697,6 +724,7 @@ and parse_sub_pat (tokens : token list) : sub_pat * token list =
   | { token_type = Integer n; line = _ } :: t -> (IntPat n, t)
   | { token_type = Boolean b; line = _ } :: t -> (BoolPat b, t)
   | { token_type = StringToken s; line = _ } :: t -> (StringPat s, t)
+  | { token_type = Constructor s; _ } :: t -> (ConstructorPat s, t)
   | { token_type = LBracket; line = _ }
     :: { token_type = RBracket; line = _ }
     :: t -> (NilPat, t)
@@ -867,5 +895,3 @@ let rec parse_program = function
   | tokens ->
       let defn, tokens_after_defn = parse_defn tokens in
       defn :: parse_program tokens_after_defn
-
-let f x : int = x + 1

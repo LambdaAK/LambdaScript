@@ -1,9 +1,54 @@
-type T <- (bool, int)
+union IntList <-
+  | Nil
+  | Cons : (Int, IntList)
 
-let f x [T] <- x
+let a <- Nil
+let b <- Cons(1, Cons(2, Cons(3, Nil)))
 
-union T <- | A | B
-  | C
-  | D
+let print_int x <-
+  let s <- int_to_str x in
+  println s
 
-let f x [T] <- x
+
+let rec print_int_list l <-
+  switch l =>
+  | Nil -> ()
+  | Cons(h, t) ->
+    let () <- print_int h in
+    print_int_list t
+  end
+
+let rec sum l <-
+  switch l =>
+  | Nil -> 0
+  | Cons(h, t) -> h + sum t
+  end
+
+let rec map f l <-
+  switch l =>
+  | Nil -> Nil
+  | Cons(h, t) -> Cons(f h, map f t)
+  end
+
+let rec append l1 l2 <-
+  switch l1 =>
+  | Nil -> l2
+  | Cons(h, t) -> Cons(h, append t l2)
+  end
+
+let rec flatten l <-
+  switch l =>
+  | Nil -> Nil
+  | Cons(h, t) -> append h (flatten t)
+  end
+
+let (>>=) lst f <- flatten (map f lst)
+
+let () <- print_int_list b
+
+let c <- b >>= (\x -> Cons(x, Cons(x, Nil)))
+
+let () <- print_int_list c
+
+
+

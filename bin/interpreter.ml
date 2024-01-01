@@ -6,6 +6,9 @@ open Language.Ceval_defn
 open Language.Typecheck
 open Language.Env
 open Language.Ceval
+open Language.Ctostringtree.CToStringTree
+
+let () = ignore string_of_c_defn
 
 let get_dir () : string =
   if Array.length Sys.argv = 1 then
@@ -28,6 +31,9 @@ let run_run (dir : string) : unit =
   let tokens = contents |> list_of_string |> lex in
   let program = parse_program tokens |> condense_program in
 
+  (* print the program *)
+
+  (* get the code mapping *)
   let env =
     List.map
       (fun (id, code) ->

@@ -1,6 +1,9 @@
 type pat =
   | ConsPat of sub_pat * pat
   | SubPat of sub_pat
+  | AppPat of sub_pat * sub_pat
+(* the left sub_pat is (what should be ) a constructor the right sub_pat is the
+   argument of the constructor *)
 
 and sub_pat =
   | IdPat of string
@@ -11,6 +14,7 @@ and sub_pat =
   | StringPat of string
   | BoolPat of bool
   | NilPat
+  | ConstructorPat of string
   | Pat of pat
   | InfixPat of string
 

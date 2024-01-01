@@ -28,6 +28,9 @@ module CToStringTree : CToString = struct
         "VectorPat (" ^ ps_string ^ ")"
     | CWildcardPat -> "WildcardPat"
     | CStringPat s -> "StringPat (" ^ s ^ ")"
+    | CConstructorPat n -> "ConstructorPat (" ^ n ^ ")"
+    | CAppPat (p1, p2) ->
+        "AppPat (" ^ string_of_c_pat p1 ^ "," ^ string_of_c_pat p2 ^ ")"
 
   and string_of_c_defn (d : c_defn) =
     match d with
@@ -54,7 +57,22 @@ module CToStringTree : CToString = struct
         ^ name
         ^ indentations_with_newline 1
         ^ ")"
-    | CUnionDefn _ -> failwith "CUnionDefn to_string not implemented"
+    | CUnionDefn (name, constructors) ->
+        let constructors_string : string =
+          List.fold_left
+            (fun acc c ->
+              let c_string : string = string_of_c_constructor c in
+              acc ^ c_string ^ " | ")
+            "" constructors
+        in
+        "UnionDefn ("
+        ^ indentations_with_newline 1
+        ^ name ^ ","
+        ^ indentations_with_newline 1
+        ^ String.sub constructors_string 0
+            (String.length constructors_string - 3)
+        ^ indentations_with_newline 1
+        ^ ")"
 
   and string_of_c_expr (e : c_expr) (level : int) =
     match e with
@@ -310,6 +328,5 @@ module CToStringTree : CToString = struct
       String.make 1 letter ^ number_string
 
   let string_of_c_expr e = string_of_c_expr e 0
-  let () = ignore string_of_c_defn
   let () = ignore string_of_c_type_scheme
 end

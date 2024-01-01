@@ -69,7 +69,7 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
       | CAnd | COr -> (BoolType, ((t1, BoolType) :: (t2, BoolType) :: c1) @ c2))
   | EFunction (pat, cto, body) ->
       let input_type, new_env_bindings, constraints_from_pattern =
-        type_of_pat pat
+        type_of_pat pat env
       in
       let constraints_from_type_annotation : type_equations =
         match cto with
@@ -149,7 +149,7 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
         List.map
           (fun (bp, be) ->
             (* the pattern has to be of the same type as t1 *)
-            let type_of_pattern, pattern_env, const = type_of_pat bp in
+            let type_of_pattern, pattern_env, const = type_of_pat bp env in
 
             let type_of_branch_expression, branch_expression_constraints =
               generate (pattern_env @ env) be
@@ -183,7 +183,7 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
       let env, generator_constraints =
         List.fold_left
           (fun (env, constraints) (p, e) ->
-            let type_of_pattern, pattern_env, const = type_of_pat p in
+            let type_of_pattern, pattern_env, const = type_of_pat p env in
             let type_of_expression, expression_constraints =
               generate (pattern_env @ env) e
             in
@@ -228,7 +228,7 @@ and generate_e_app_function_pat_is_id (env : static_env) (first : c_expr)
       in
 
       let input_type, new_env_bindings, constraints_from_pattern =
-        type_of_pat pattern
+        type_of_pat pattern env
       in
       let constraints_from_type_annotation : type_equations =
         match cto with
@@ -260,16 +260,20 @@ and generate_e_app_function_pat_is_id (env : static_env) (first : c_expr)
       let type_of_expression : c_type = fresh_type_var () in
       (type_of_expression, ((t1, t2 => type_of_expression) :: c1) @ c2)
 
-and type_of_pat (p : c_pat) : c_type * static_env * type_equations =
+and type_of_pat (p : c_pat) (static_env : static_env) :
+    c_type * static_env * type_equations =
   match p with
   | CIdPat id ->
       let new_var : c_type = fresh_type_var () in
       (new_var, [ (id, new_var) ], [])
+  | CConstructorPat n ->
+      (* this is a pattern that represents a constructor *)
+      (List.assoc n static_env, [], [])
   | CUnitPat -> (UnitType, [], [])
   | CWildcardPat -> (fresh_type_var (), [], [])
   | CVectorPat patterns ->
       let list_of_types, list_of_lists_of_envs, lists_of_equations =
-        split3 (List.map type_of_pat patterns)
+        split3 (List.map (fun p -> type_of_pat p static_env) patterns)
       in
       ( VectorType list_of_types,
         List.flatten list_of_lists_of_envs,
@@ -279,12 +283,19 @@ and type_of_pat (p : c_pat) : c_type * static_env * type_equations =
   | CStringPat _ -> (StringType, [], [])
   | CNilPat -> (CListType (fresh_type_var ()), [], [])
   | CConsPat (p1, p2) ->
-      let t1, env1, c1 = type_of_pat p1 in
-      let t2, env2, c2 = type_of_pat p2 in
+      let t1, env1, c1 = type_of_pat p1 static_env in
+      let t2, env2, c2 = type_of_pat p2 static_env in
 
       (* since h :: t is a list, and h : t1 and t : t2, it must hold that [t1] =
          t2 return this constraint as well *)
       (CListType t1, env1 @ env2, (CListType t1, t2) :: (c1 @ c2))
+  | CAppPat (p1, p2) ->
+      let t1, env1, c1 = type_of_pat p1 static_env in
+      let t2, env2, c2 = type_of_pat p2 static_env in
+      let type_of_expression : c_type = fresh_type_var () in
+      ( type_of_expression,
+        env1 @ env2,
+        (t1, t2 => type_of_expression) :: (c1 @ c2) )
 (* this might be wrong. check it later *)
 
 and reduce_eq (c : type_equations) : substitutions =
@@ -630,6 +641,7 @@ and flatten_env_types (types : c_type list) : c_type list =
       | _ -> t :: flatten_env_types tail)
 
 let rec type_of_value x =
+  print_endline "using type_of_value. this function is deprecated.";
   x |> function
   | IntegerValue _ -> IntType
   | BooleanValue _ -> BoolType
@@ -646,7 +658,7 @@ let rec type_of_value x =
       CListType h_type
   | FunctionClosure (env, pat, _, body) ->
       print_endline "function closure";
-      let input_type, _, _ = type_of_pat pat in
+      let input_type, _, _ = type_of_pat pat [] in
       print_endline "a";
       let static_env = static_env_from_dynamic_env env in
       print_endline "b";

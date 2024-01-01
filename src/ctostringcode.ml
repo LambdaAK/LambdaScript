@@ -15,6 +15,8 @@ module CToStringCode : CToString = struct
         "(" ^ String.concat ", " (List.map string_of_c_pat ps) ^ ")"
     | CWildcardPat -> "_"
     | CStringPat s -> "\"" ^ s ^ "\""
+    | CConstructorPat n -> n
+    | CAppPat (p1, p2) -> string_of_c_pat p1 ^ " " ^ string_of_c_pat p2
 
   let string_of_c_bop : c_bop -> string = function
     | CPlus -> "+"
@@ -35,73 +37,88 @@ module CToStringCode : CToString = struct
   let indentations (level : int) = String.make (2 * level) ' '
   let indentations_with_newline (level : int) = "\n" ^ indentations level
 
-  let rec string_of_c_expr (e : c_expr) (level : int) =
+  let rec string_of_c_expr_level (e : c_expr) (level : int) =
     match e with
     | EInt i -> string_of_int i
     | EBool b -> string_of_bool b
     | EUnit -> "()"
     | EId s -> s
     | EBop (b, e1, e2) ->
-        string_of_c_expr e1 level ^ " " ^ string_of_c_bop b ^ " "
-        ^ string_of_c_expr e2 level
+        string_of_c_expr_level e1 level
+        ^ " " ^ string_of_c_bop b ^ " "
+        ^ string_of_c_expr_level e2 level
     | EApp (e1, e2) ->
         let e1_string =
           match e1 with
-          | EId _ -> string_of_c_expr e1 level
-          | _ -> "(" ^ string_of_c_expr e1 level ^ ")"
+          | EId _ -> string_of_c_expr_level e1 level
+          | _ -> "(" ^ string_of_c_expr_level e1 level ^ ")"
         in
 
-        let e2_string = string_of_c_expr e2 level in
+        let e2_string = string_of_c_expr_level e2 level in
 
         e1_string ^ " " ^ e2_string
     | EBindRec (pattern, _, body, e) ->
         indentations level ^ "bind rec " ^ string_of_c_pat pattern ^ " <-"
         ^ indentations_with_newline level
-        ^ string_of_c_expr body (level + 1)
+        ^ string_of_c_expr_level body (level + 1)
         ^ indentations_with_newline level
-        ^ "in " ^ string_of_c_expr e level
+        ^ "in "
+        ^ string_of_c_expr_level e level
     | EVector es ->
         "( "
-        ^ String.concat ", " (List.map (fun e -> string_of_c_expr e level) es)
+        ^ String.concat ", "
+            (List.map (fun e -> string_of_c_expr_level e level) es)
         ^ " )"
     | ENil -> "[]"
     | EFunction (pattern, _, body) ->
         "fn " ^ string_of_c_pat pattern ^ " -> "
-        ^ string_of_c_expr body (level + 1)
+        ^ string_of_c_expr_level body (level + 1)
     | ETernary (e1, e2, e3) ->
-        "if " ^ string_of_c_expr e1 level ^ " then " ^ string_of_c_expr e2 level
-        ^ " else " ^ string_of_c_expr e3 level
+        "if "
+        ^ string_of_c_expr_level e1 level
+        ^ " then "
+        ^ string_of_c_expr_level e2 level
+        ^ " else "
+        ^ string_of_c_expr_level e3 level
     | ESwitch (e, cases) ->
         (* print it like this: switch e => | p1 -> e1 | p2 -> e2 | ... | pn ->
            en end *)
         indentations_with_newline level
-        ^ "switch " ^ string_of_c_expr e level ^ " =>"
+        ^ "switch "
+        ^ string_of_c_expr_level e level
+        ^ " =>"
         ^ indentations_with_newline level
         ^ String.concat
             (indentations_with_newline level ^ "| ")
             (List.map
                (fun (p, e) ->
-                 string_of_c_pat p ^ " -> " ^ string_of_c_expr e (level + 1))
+                 string_of_c_pat p ^ " -> "
+                 ^ string_of_c_expr_level e (level + 1))
                cases)
         ^ indentations_with_newline level
         ^ "end"
     | EString s -> "\"" ^ s ^ "\""
     | EFloat f -> string_of_float f
     | EListEnumeration (e1, e2) ->
-        string_of_c_expr e1 level ^ " .. " ^ string_of_c_expr e2 level
+        string_of_c_expr_level e1 level
+        ^ " .. "
+        ^ string_of_c_expr_level e2 level
     | EListComprehension (e, generators) ->
-        "[ " ^ string_of_c_expr e level ^ " | "
+        "[ "
+        ^ string_of_c_expr_level e level
+        ^ " | "
         ^ String.concat
             (indentations_with_newline level ^ "| ")
             (List.map
                (fun (p, e) ->
-                 string_of_c_pat p ^ " <- " ^ string_of_c_expr e (level + 1))
+                 string_of_c_pat p ^ " <- "
+                 ^ string_of_c_expr_level e (level + 1))
                generators)
         ^ indentations_with_newline level
         ^ "]"
     | EConstructor id -> id
 
-  let string_of_c_expr e = string_of_c_expr e 0
+  let string_of_c_expr e = string_of_c_expr_level e 0
 
   let rec string_of_c_type = function
     | BoolType -> "Bool"
@@ -155,4 +172,20 @@ module CToStringCode : CToString = struct
       let number = n / 26 in
       let number_string = string_of_int number in
       String.make 1 letter ^ number_string
+
+  let string_of_c_defn (d : c_defn) =
+    match d with
+    | CDefn (p, _, e) ->
+        "let " ^ string_of_c_pat p ^ " = " ^ string_of_c_expr e ^ "\n"
+    | CDefnRec (p, _, e) ->
+        "let rec " ^ string_of_c_pat p ^ " = " ^ string_of_c_expr e ^ "\n"
+    | CTypeDefn (id, t) -> "type " ^ id ^ " = " ^ string_of_c_type t ^ "\n"
+    | CUnionDefn (id, constructors) ->
+        let constructor_strings =
+          constructors
+          |> List.map (function
+               | CNullaryConstructor id -> id
+               | CUnaryConstructor (id, t) -> id ^ " : " ^ string_of_c_type t)
+        in
+        "type " ^ id ^ " = " ^ String.concat " | " constructor_strings ^ "\n"
 end
