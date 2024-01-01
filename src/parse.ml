@@ -269,14 +269,14 @@ and parse_constructor (tokens : token list) : constructor * token list =
         raise ParseFailure
   in
 
-  (* check if theres a : if there is, we need to parse the type that the
+  (* check if theres a ( if there is, we need to parse the type that the
      constructor takes *)
   let constructor_type, tokens_after_constructor_type =
     match tokens_after_constructor_name with
-    | { token_type = Colon; _ } :: t ->
+    | { token_type = LParen; _ } :: _ ->
         (* parse the type that the constructor takes *)
         let constructor_type, tokens_after_constructor_type =
-          parse_compound_type t
+          parse_compound_type tokens_after_constructor_name
         in
         (Some constructor_type, tokens_after_constructor_type)
     | _ -> (None, tokens_after_constructor_name)

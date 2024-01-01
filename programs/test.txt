@@ -1,6 +1,7 @@
 type IntList <-
   | Nil
-  | Cons : (Int, IntList)
+  | Cons (Int, IntList)
+
 
 let a <- Nil
 let b <- Cons(1, Cons(2, Cons(3, Nil)))
@@ -44,7 +45,7 @@ let rec flatten l <-
 
 let (>>=) lst f <- flatten (map f lst)
 
-let c <- b >>= (\x -> Cons(x, Cons(x + 1, Nil))) >>= (\x -> Cons(x, Cons(x + 1, Nil))) >>= (\x -> Cons(x, Cons(x + 1, Nil))) >>= (\x -> Cons(x, Cons(x + 1, Nil))) >>= (\x -> Cons(x, Cons(x + 1, Nil))) >>= (\x -> Cons(x, Cons(x + 1, Nil))) >>= (\x -> Cons(x, Cons(x + 1, Nil))) >>= (\x -> Cons(x, Cons(x + 1, Nil))) >>= (\x -> Cons(x, Cons(x + 1, Nil))) 
+let c <- b >>= (\x -> Cons(x, Cons(x + 2, Nil)))
 
 let () <- print_int_list c
 
