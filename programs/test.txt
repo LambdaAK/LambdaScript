@@ -2,6 +2,9 @@ type IntList <-
   | Nil
   | Cons (Int, IntList)
 
+type T <- (Int, Int)
+
+type BT <- | Leaf | Node (Int, BT, BT)
 
 let a <- Nil
 let b <- Cons(1, Cons(2, Cons(3, Nil)))
@@ -9,7 +12,6 @@ let b <- Cons(1, Cons(2, Cons(3, Nil)))
 let print_int x <-
   let s <- int_to_str x in
   println s
-
 
 let rec print_int_list l <-
   switch l =>

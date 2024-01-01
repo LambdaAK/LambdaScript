@@ -245,9 +245,9 @@ and generate_e_app_function_pat_is_id (env : static_env) type_env
 
       let t1, c1 = generate (new_env_bindings @ env) type_env second in
       let generalized_type : c_type =
-        generalize c1 (new_env_bindings @ env) t1
+        generalize c1 (new_env_bindings @ env) type_env t1
       in
-      ignore generalized_type;
+
       let t2, c2 =
         generate ((function_id, generalized_type) :: env) type_env body
       in
@@ -305,11 +305,12 @@ and type_of_pat (p : c_pat) (static_env : static_env) :
         (t1, t2 => type_of_expression) :: (c1 @ c2) )
 (* this might be wrong. check it later *)
 
-and reduce_eq (c : type_equations) : substitutions =
+and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
+    substitutions =
   match c with
   | [] -> []
   | (t1, t2) :: c' -> (
-      if t1 = t2 then reduce_eq c'
+      if t1 = t2 then reduce_eq c' type_env
       else if inside t1 t2 || inside t2 t1 then (
         print_endline "TYPE FAILURE";
         raise TypeFailure)
@@ -317,14 +318,18 @@ and reduce_eq (c : type_equations) : substitutions =
         match (t1, t2) with
         (* if one of the types is a union type, just ignore the equation for
            now *)
-        | UnionType _, _ | _, UnionType _ -> reduce_eq c'
+        | UnionType _, _ | _, UnionType _ -> reduce_eq c' type_env
         | TypeVar id, _ when not (inside t1 t2) ->
-            (t1, t2) :: reduce_eq (substitute id t2 c')
+            (t1, t2) :: reduce_eq (substitute id t2 c') type_env
         | _, TypeVar _ ->
-            reduce_eq ((t2, t1) :: c')
+            reduce_eq ((t2, t1) :: c') type_env
             (* this switches the order of the types, then the branch before will
                be hit on the next iteration *)
         | TypeName name1, TypeName name2 ->
+            (* check if they are equal
+
+               if one of them is a variant type, then they are not the same *)
+
             (* Replace the lexographically larger one with the smaller one *)
             let smaller, larger =
               if name1 < name2 then (t1, t2) else (t2, t1)
@@ -337,7 +342,7 @@ and reduce_eq (c : type_equations) : substitutions =
                     replace_type smaller larger t2 ))
                 c'
             in
-            (TypeName name1, TypeName name2) :: reduce_eq new_equations
+            (TypeName name1, TypeName name2) :: reduce_eq new_equations type_env
         | TypeName name, t ->
             (* replace the type name with the type *)
             let new_equations =
@@ -347,17 +352,18 @@ and reduce_eq (c : type_equations) : substitutions =
                     replace_type (TypeName name) t t2 ))
                 c'
             in
-            (TypeName name, t) :: reduce_eq new_equations
+            (TypeName name, t) :: reduce_eq new_equations type_env
         | _, TypeName _ ->
-            (* use the previous branch *) reduce_eq ((t2, t1) :: c')
+            (* use the previous branch *) reduce_eq ((t2, t1) :: c') type_env
         | FunctionType (i1, o1), FunctionType (i2, o2) ->
-            reduce_eq ((i1, i2) :: (o1, o2) :: c')
-        | CListType et1, CListType et2 -> reduce_eq ((et1, et2) :: c')
+            reduce_eq ((i1, i2) :: (o1, o2) :: c') type_env
+        | CListType et1, CListType et2 -> reduce_eq ((et1, et2) :: c') type_env
         | VectorType types1, VectorType types2 -> (
             match (types1, types2) with
             | type1 :: tail1, type2 :: tail2 ->
                 reduce_eq
                   ((type1, type2) :: (VectorType tail1, VectorType tail2) :: c')
+                  type_env
             | _ ->
                 (* one of them is empty, so the vectors are not the same size *)
                 raise TypeFailure)
@@ -414,7 +420,7 @@ and type_of_c_expr (e : c_expr) (static_env : static_env)
     replace_written_types constraints
   in
   let solution : substitutions =
-    reduce_eq constraints_without_written_type_vars
+    reduce_eq constraints_without_written_type_vars type_env
   in
   get_type t solution |> fix
 
@@ -591,12 +597,12 @@ and replace_types t replacements =
   | CListType et -> CListType (replace_types et replacements)
   | _ -> t (* otherwise, just return the type *)
 
-and generalize (constraints : type_equations) (env : static_env) (t : c_type) :
-    c_type =
+and generalize (constraints : type_equations) (env : static_env)
+    (type_env : (string * c_type) list) (t : c_type) : c_type =
   (* remove written type variables from the constraints *)
   let constraints : type_equations = replace_written_types constraints in
   (* fully finish inference of the binding expression *)
-  let unified : substitutions = reduce_eq constraints in
+  let unified : substitutions = reduce_eq constraints type_env in
   (* apply the resulting subtitutoin to env and t1, yielding env1 and u1 *)
   (* apply the substitution to t as well *)
   let u1 : c_type = get_type t unified in
