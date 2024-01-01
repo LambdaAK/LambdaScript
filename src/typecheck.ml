@@ -33,7 +33,8 @@ let rec string_of_static_env (env : static_env) : string =
   | (id, t) :: env' ->
       id ^ " : " ^ string_of_c_type t ^ "\n" ^ string_of_static_env env'
 
-let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
+let rec generate (env : static_env) (type_env : (string * c_type) list)
+    (e : c_expr) : c_type * type_equations =
   match e with
   | EConstructor n ->
       (* To get the type of the constructor, look it up in the static env No
@@ -51,8 +52,8 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
   | EUnit -> (UnitType, [])
   | ENil -> (CListType (fresh_type_var ()), [])
   | EBop (op, e1, e2) -> (
-      let t1, c1 = generate env e1 in
-      let t2, c2 = generate env e2 in
+      let t1, c1 = generate env type_env e1 in
+      let t2, c2 = generate env type_env e2 in
       (* let type_of_expression: c_type = fresh_type_var () in *)
       match op with
       | CCons ->
@@ -78,14 +79,16 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
             (* the input type must equal the annotated type *)
         | None -> []
       in
-      let output_type, c_output = generate (new_env_bindings @ env) body in
+      let output_type, c_output =
+        generate (new_env_bindings @ env) type_env body
+      in
       ( input_type => output_type,
         constraints_from_pattern @ constraints_from_type_annotation @ c_output
       )
   | ETernary (e1, e2, e3) ->
-      let t1, c1 = generate env e1 in
-      let t2, c2 = generate env e2 in
-      let t3, c3 = generate env e3 in
+      let t1, c1 = generate env type_env e1 in
+      let t2, c2 = generate env type_env e2 in
+      let t3, c3 = generate env type_env e3 in
       let type_of_expression : c_type = fresh_type_var () in
 
       ( type_of_expression,
@@ -95,10 +98,10 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
   | EApp (first, second) -> (
       match first with
       | EFunction (CIdPat _, _, _) ->
-          generate_e_app_function_pat_is_id env first second
+          generate_e_app_function_pat_is_id env type_env first second
       | _ ->
-          let t1, c1 = generate env first in
-          let t2, c2 = generate env second in
+          let t1, c1 = generate env type_env first in
+          let t2, c2 = generate env type_env second in
 
           let type_of_expression : c_type = fresh_type_var () in
           let new_constraint =
@@ -118,8 +121,8 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
       let function_type : c_type = fresh_type_var () in
 
       let new_env : static_env = (function_id, function_type) :: env in
-      let t1, c1 = generate new_env e1 in
-      let t2, c2 = generate new_env e2 in
+      let t1, c1 = generate new_env type_env e1 in
+      let t2, c2 = generate new_env type_env e2 in
       let new_constraint = (function_type, t1) in
 
       (t2, (new_constraint :: c1) @ c2)
@@ -130,14 +133,14 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
          ----------------------------------------------------------------- env
          |- e1 : t1 -| C1 env |- e2 : t2 -| C2 ... env |- en : tn -| Cn *)
       let list_of_types, list_of_lists_of_constraints =
-        List.split (List.map (generate env) expressions)
+        List.split (List.map (generate env type_env) expressions)
       in
       let list_of_types : c_type list = List.map instantiate list_of_types in
 
       (VectorType list_of_types, List.flatten list_of_lists_of_constraints)
   | ESwitch (e1, branches) ->
       (* get the type of the switching expression *)
-      let t1, c1 = generate env e1 in
+      let t1, c1 = generate env type_env e1 in
       let type_that_all_branch_expressions_must_be : c_type =
         fresh_type_var ()
       in
@@ -152,7 +155,7 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
             let type_of_pattern, pattern_env, const = type_of_pat bp env in
 
             let type_of_branch_expression, branch_expression_constraints =
-              generate (pattern_env @ env) be
+              generate (pattern_env @ env) type_env be
             in
             (* use the pattern env here *)
             let type_of_branch_expression =
@@ -176,8 +179,8 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
 
       (type_that_all_branch_expressions_must_be, c1 @ branch_constraints)
   | EListEnumeration (e1, e2) ->
-      let t1, c1 = generate env e1 in
-      let t2, c2 = generate env e2 in
+      let t1, c1 = generate env type_env e1 in
+      let t2, c2 = generate env type_env e2 in
       (CListType IntType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
   | EListComprehension (e, generators) ->
       let env, generator_constraints =
@@ -185,7 +188,7 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
           (fun (env, constraints) (p, e) ->
             let type_of_pattern, pattern_env, const = type_of_pat p env in
             let type_of_expression, expression_constraints =
-              generate (pattern_env @ env) e
+              generate (pattern_env @ env) type_env e
             in
             let type_of_expression = instantiate type_of_expression in
             let new_constraint =
@@ -198,7 +201,9 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
       in
 
       (* generate the type and constraints of the expression *)
-      let type_of_expression, expression_constraints = generate env e in
+      let type_of_expression, expression_constraints =
+        generate env type_env e
+      in
 
       ( CListType type_of_expression,
         expression_constraints @ generator_constraints )
@@ -206,8 +211,8 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
 and generate_type_env_constraints type_env =
   List.map (fun (id, t) -> (TypeName id, t)) type_env
 
-and generate_e_app_function_pat_is_id (env : static_env) (first : c_expr)
-    (second : c_expr) : c_type * type_equations =
+and generate_e_app_function_pat_is_id (env : static_env) type_env
+    (first : c_expr) (second : c_expr) : c_type * type_equations =
   (* start by checking whether first is a function *)
   match first with
   | EFunction (pattern, cto, body) ->
@@ -238,12 +243,14 @@ and generate_e_app_function_pat_is_id (env : static_env) (first : c_expr)
         | None -> []
       in
 
-      let t1, c1 = generate (new_env_bindings @ env) second in
+      let t1, c1 = generate (new_env_bindings @ env) type_env second in
       let generalized_type : c_type =
         generalize c1 (new_env_bindings @ env) t1
       in
       ignore generalized_type;
-      let t2, c2 = generate ((function_id, generalized_type) :: env) body in
+      let t2, c2 =
+        generate ((function_id, generalized_type) :: env) type_env body
+      in
       (* here ^, (function_id, generlized_type) binds the generalized function
          in the static env inside of body *)
       let output_type = fresh_type_var () in
@@ -255,8 +262,8 @@ and generate_e_app_function_pat_is_id (env : static_env) (first : c_expr)
       (* first is not a function, so generalization is not necessary *)
       let e1 = first in
       let e2 = second in
-      let t1, c1 = generate env e1 in
-      let t2, c2 = generate env e2 in
+      let t1, c1 = generate env type_env e1 in
+      let t2, c2 = generate env type_env e2 in
       let type_of_expression : c_type = fresh_type_var () in
       (type_of_expression, ((t1, t2 => type_of_expression) :: c1) @ c2)
 
@@ -396,7 +403,7 @@ and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
 and type_of_c_expr (e : c_expr) (static_env : static_env)
     (type_env : (string * c_type) list) : c_type =
   ignore type_env;
-  let t, generated_constraints = generate static_env e in
+  let t, generated_constraints = generate static_env type_env e in
 
   (* constraints *)
   let type_env_constraints = generate_type_env_constraints type_env in
