@@ -325,34 +325,50 @@ and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
             reduce_eq ((t2, t1) :: c') type_env
             (* this switches the order of the types, then the branch before will
                be hit on the next iteration *)
-        | TypeName name1, TypeName name2 ->
+        | TypeName name1, TypeName name2 -> (
             (* check if they are equal
 
                if one of them is a variant type, then they are not the same *)
+            let type1_impl = List.assoc name1 type_env in
+            let type2_impl = List.assoc name2 type_env in
+            match (type1_impl, type2_impl) with
+            | UnionType _, _ | _, UnionType _ ->
+                (* since one of them is a union type, they are not equal*)
+                print_endline "type failure from union types";
+                raise TypeFailure
+            | _ ->
+                (* Replace the lexographically larger one with the smaller
+                   one *)
+                let smaller, larger =
+                  if name1 < name2 then (t1, t2) else (t2, t1)
+                in
 
-            (* Replace the lexographically larger one with the smaller one *)
-            let smaller, larger =
-              if name1 < name2 then (t1, t2) else (t2, t1)
-            in
+                let new_equations =
+                  List.map
+                    (fun (t1, t2) ->
+                      ( replace_type smaller larger t1,
+                        replace_type smaller larger t2 ))
+                    c'
+                in
+                (TypeName name1, TypeName name2)
+                :: reduce_eq new_equations type_env)
+        | TypeName name, t -> (
+            (* replace the type name with the type implementation *)
+            let type_impl = List.assoc name type_env in
 
-            let new_equations =
-              List.map
-                (fun (t1, t2) ->
-                  ( replace_type smaller larger t1,
-                    replace_type smaller larger t2 ))
-                c'
-            in
-            (TypeName name1, TypeName name2) :: reduce_eq new_equations type_env
-        | TypeName name, t ->
-            (* replace the type name with the type *)
-            let new_equations =
-              List.map
-                (fun (t1, t2) ->
-                  ( replace_type (TypeName name) t t1,
-                    replace_type (TypeName name) t t2 ))
-                c'
-            in
-            (TypeName name, t) :: reduce_eq new_equations type_env
+            match type_impl with
+            | UnionType _ ->
+                print_endline "type failure from union types";
+                raise TypeFailure
+            | _ ->
+                let new_equations =
+                  List.map
+                    (fun (t1, t2) ->
+                      ( replace_type (TypeName name) t t1,
+                        replace_type (TypeName name) t t2 ))
+                    c'
+                in
+                reduce_eq ((type_impl, t) :: new_equations) type_env)
         | _, TypeName _ ->
             (* use the previous branch *) reduce_eq ((t2, t1) :: c') type_env
         | FunctionType (i1, o1), FunctionType (i2, o2) ->
@@ -408,7 +424,6 @@ and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
 
 and type_of_c_expr (e : c_expr) (static_env : static_env)
     (type_env : (string * c_type) list) : c_type =
-  ignore type_env;
   let t, generated_constraints = generate static_env type_env e in
 
   (* constraints *)
@@ -416,9 +431,12 @@ and type_of_c_expr (e : c_expr) (static_env : static_env)
 
   let constraints = generated_constraints @ type_env_constraints in
 
+  (* solve the constraints *)
   let constraints_without_written_type_vars =
     replace_written_types constraints
   in
+
+  (* solve the constraints *)
   let solution : substitutions =
     reduce_eq constraints_without_written_type_vars type_env
   in
