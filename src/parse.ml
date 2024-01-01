@@ -288,9 +288,17 @@ and parse_constructor (tokens : token list) : constructor * token list =
       ( UnaryConstructor (constructor_name, constructor_type),
         tokens_after_constructor_type )
 
+and parse_constructor_list (tokens : token list) (acc : constructor list) :
+    constructor list * token list =
+  match tokens with
+  | { token_type = Pipe; _ } :: t ->
+      let constructor, tokens_after_constructor = parse_constructor t in
+      parse_constructor_list tokens_after_constructor (constructor :: acc)
+  | _ -> (List.rev acc, tokens)
+
 and parse_defn (tokens : token list) : defn * token list =
   match tokens with
-  | { token_type = Type; line = _ } :: t ->
+  | { token_type = Type; line = _ } :: t -> (
       (* parse a type definition *)
 
       (* the next token should be an id *)
@@ -306,39 +314,21 @@ and parse_defn (tokens : token list) : defn * token list =
 
       let tokens_after_bind_arrow = remove_head tokens_after_id in
 
-      (* parse a compound type *)
-      let body_expression, tokens_after_body_expression =
-        parse_compound_type tokens_after_bind_arrow
-      in
+      (* if the next token is |, parse a sum type, otherwise parse a compound
+         type *)
+      match tokens_after_bind_arrow with
+      | { token_type = Pipe; _ } :: _ ->
+          (* parse a sum type *)
+          let constructors, tokens_after_constructors =
+            parse_constructor_list tokens_after_bind_arrow []
+          in
+          (UnionDefn (id, constructors), tokens_after_constructors)
+      | _ ->
+          let body_expression, tokens_after_body_expression =
+            parse_compound_type tokens_after_bind_arrow
+          in
 
-      (TypeDefn (id, body_expression), tokens_after_body_expression)
-  | { token_type = Union; _ } :: t ->
-      (* parse the id of the new type *)
-      let id, tokens_after_id =
-        match t with
-        | { token_type = Constructor s; line = _ } :: t -> (s, t)
-        | _ ->
-            print_endline "parse failure from parse_defn union type";
-            raise ParseFailure
-      in
-      assert_next_token tokens_after_id BindArrow;
-      let tokens_after_bind_arrow = remove_head tokens_after_id in
-
-      (* parse the constructors *)
-      let rec parse_constructor_list (tokens : token list)
-          (acc : constructor list) : constructor list * token list =
-        match tokens with
-        | { token_type = Pipe; _ } :: t ->
-            let constructor, tokens_after_constructor = parse_constructor t in
-            parse_constructor_list tokens_after_constructor (constructor :: acc)
-        | _ -> (List.rev acc, tokens)
-      in
-
-      let constructors, tokens_after_constructors =
-        parse_constructor_list tokens_after_bind_arrow []
-      in
-
-      (UnionDefn (id, constructors), tokens_after_constructors)
+          (TypeDefn (id, body_expression), tokens_after_body_expression))
   | _ ->
       let tokens_without_let, is_rec =
         match tokens with
