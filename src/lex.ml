@@ -44,6 +44,7 @@ type token_type =
   | Bind
   | In
   | BindArrow
+  | Equals
   | LBrace
   | RBrace
   | Let
@@ -112,6 +113,7 @@ let string_of_token_type : token_type -> string = function
   | Bind -> "<bind>"
   | BindArrow -> "<bind arrow>"
   | In -> "<in>"
+  | Equals -> "<equals>"
   | LBrace -> "<lbrace>"
   | RBrace -> "<rbrace>"
   | Let -> "<let>"
@@ -196,6 +198,7 @@ let bop_from_char_list (lst : char list) =
   if s = "->" then Arrow
   else if s = "<-" then BindArrow
   else if s = "=>" then SwitchArrow
+  else if s = "=" then Equals
   else
     match lst with
     | h :: _ when is_addop_prefix h -> Addop s

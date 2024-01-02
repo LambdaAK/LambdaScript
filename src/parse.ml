@@ -159,7 +159,7 @@ and parse_pats_while_next_token_is_not_bind_arrow (tokens : token list)
     (acc : (pat * compound_type option) list) :
     (pat * compound_type option) list * token list =
   match tokens with
-  | { token_type = BindArrow; line = _ } :: _ ->
+  | { token_type = Equals; line = _ } :: _ ->
       (acc, tokens (* I don't think you need List.rev here *))
   | _ ->
       let next_pat, tokens_after_next_pat = parse_pat tokens in
@@ -229,7 +229,7 @@ and parse_defn_contents (t : token list) :
       let tokens_after_r_bracket = remove_head tokens_after_type in
 
       (* the next token should be a bind arrow *)
-      let () = assert_next_token tokens_after_r_bracket BindArrow in
+      let () = assert_next_token tokens_after_r_bracket Equals in
 
       let tokens_after_bind_arrow = remove_head tokens_after_r_bracket in
 
@@ -246,7 +246,7 @@ and parse_defn_contents (t : token list) :
       (* no type annotation *)
 
       (* the next token should be a bind arrow *)
-      let () = assert_next_token tokens_after_pattern BindArrow in
+      let () = assert_next_token tokens_after_pattern Equals in
 
       let tokens_after_bind_arrow = remove_head tokens_after_pattern in
 
@@ -310,7 +310,7 @@ and parse_defn (tokens : token list) : defn * token list =
             raise ParseFailure
       in
 
-      assert_next_token tokens_after_id BindArrow;
+      assert_next_token tokens_after_id Equals;
 
       let tokens_after_bind_arrow = remove_head tokens_after_id in
 
@@ -368,8 +368,8 @@ and parse_defn (tokens : token list) : defn * token list =
           tokens_after_annotated_type []
       in
 
-      let () = assert_next_token tokens_after_pattern_list BindArrow in
-      assert_next_token tokens_after_pattern_list BindArrow;
+      let () = assert_next_token tokens_after_pattern_list Equals in
+      assert_next_token tokens_after_pattern_list Equals;
       let body_tokens : token list = remove_head tokens_after_pattern_list in
       let e, tokens_after_body = parse_expr body_tokens in
 
@@ -497,10 +497,10 @@ and parse_bind_rec (tokens_without_bind_rec : token list) : expr * token list =
     parse_pats_while_next_token_is_not_bind_arrow tokens_after_annotated_type []
   in
 
-  let () = assert_next_token tokens_after_pattern_list BindArrow in
+  let () = assert_next_token tokens_after_pattern_list Equals in
 
   (* the next token should be a bind arrow *)
-  assert_next_token tokens_after_pattern_list BindArrow;
+  assert_next_token tokens_after_pattern_list Equals;
   let body_tokens : token list = remove_head tokens_after_pattern_list in
   let e1, tokens_after_body = parse_expr body_tokens in
   (* the next token should be in *)
@@ -559,10 +559,10 @@ and parse_bind (tokens_without_bind : token list) : expr * token list =
     parse_pats_while_next_token_is_not_bind_arrow tokens_after_annotated_type []
   in
 
-  let () = assert_next_token tokens_after_pattern_list BindArrow in
+  let () = assert_next_token tokens_after_pattern_list Equals in
 
   (* the next token should be a bind arrow *)
-  assert_next_token tokens_after_pattern_list BindArrow;
+  assert_next_token tokens_after_pattern_list Equals;
   let body_tokens : token list = remove_head tokens_after_pattern_list in
   let e1, tokens_after_body = parse_expr body_tokens in
   (* the next token should be in *)
