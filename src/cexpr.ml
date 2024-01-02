@@ -71,7 +71,9 @@ and c_type =
   | VectorType of c_type list
   | TypeVar of int
   | CListType of c_type
+  | AppType of c_type * c_type
   | UniversalType of int
+  | PolymorphicType of string * c_type
   | UnionType of c_constructor list
 
 and value =

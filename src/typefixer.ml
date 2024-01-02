@@ -33,6 +33,10 @@ let fix (t : c_type) : c_type =
         search o
     | VectorType types -> List.iter (fun t -> search t) types
     | UnionType _ -> failwith "union type found in search in typefixer.ml"
+    | AppType (t1, t2) ->
+        search t1;
+        search t2
+    | _ -> failwith "unimplemented type in search in typefixer.ml"
   in
   let () = search t in
 
@@ -50,7 +54,9 @@ let fix (t : c_type) : c_type =
     | FunctionType (i, o) -> FunctionType (replace i lst, replace o lst)
     | CListType et -> CListType (replace et lst)
     | VectorType types -> VectorType (List.map (fun t -> replace t lst) types)
+    | AppType (t1, t2) -> AppType (replace t1 lst, replace t2 lst)
     | UnionType _ -> failwith "union type found in replace in typefixer.ml"
+    | _ -> failwith "unimplemented type in replace in typefixer.ml"
   in
 
   replace t !order

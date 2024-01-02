@@ -409,6 +409,7 @@ and get_type (var : c_type) (subs : substitutions) : c_type =
   | TypeName _ -> var
   | TypeVarWritten _ -> var
   | UnionType _ -> failwith "union type found in get_type"
+  | _ -> failwith "not a type var2"
 
 and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
     c_type =
@@ -461,6 +462,7 @@ and is_basic_type (t : c_type) : bool =
   | CListType et -> is_basic_type et
   | TypeName _ -> true
   | UnionType _ -> failwith "union type found in is_basic_type"
+  | _ -> failwith "not a type var"
 
 and substitute (var_id : int) (t : c_type) (equations : type_equations) :
     type_equations =

@@ -297,6 +297,13 @@ module CToStringTree : CToString = struct
     | UniversalType u ->
         let u_string : string = string_of_int u in
         "u" ^ u_string
+    | AppType (t1, t2) ->
+        let t1_string : string = string_of_c_type t1 in
+        let t2_string : string = string_of_c_type t2 in
+        "(" ^ t1_string ^ ") (" ^ t2_string ^ ")"
+    | PolymorphicType (s, t) ->
+        let t_string : string = string_of_c_type t in
+        s ^ " -> " ^ t_string
 
   and string_of_c_constructor (c : c_constructor) =
     match c with

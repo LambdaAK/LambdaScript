@@ -27,11 +27,18 @@ and rel_op =
   | GE
 
 and compound_type =
-  | FunctionType of factor_type * compound_type
-  | BasicType of factor_type
+  | FunctionType of factor_app_type * compound_type
+  | BasicType of factor_app_type
   | UnionType of union_type
+  | PolymorphicType of string * compound_type
+(* string is the argument, compound_type is the body (can be another polymorphic
+   type) *)
 
 and union_type = constructor list
+
+and factor_app_type =
+  | AppType of factor_app_type * factor_type
+  | FactorType of factor_type
 
 and factor_type =
   | IntegerType

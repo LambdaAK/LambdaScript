@@ -58,6 +58,8 @@ let rec string_of_basic_type (ft : factor_type) (level : int) : string =
   | BooleanType -> "BooleanType"
   | StringType -> "StringType"
   | UnitType -> "UnitType"
+  | FloatType -> "FloatType"
+  | TypeVarWritten s -> "TypeVarWritten (" ^ s ^ ")"
   | ParenFactorType c -> string_of_compound_type c level
   | VectorType types ->
       "VectorType ("
@@ -67,26 +69,48 @@ let rec string_of_basic_type (ft : factor_type) (level : int) : string =
           (List.map (fun t -> string_of_compound_type t (level + 1)) types)
       ^ indentations_with_newline level
       ^ ")"
-  | _ -> "Not implemented yet"
+  | TypeName n -> "TypeName (" ^ n ^ ")"
+  | ListType t -> "ListType (" ^ string_of_compound_type t (level + 1) ^ ")"
+
+and string_of_factor_app_type (fat : factor_app_type) (level : int) : string =
+  match fat with
+  | FactorType ft -> string_of_basic_type ft level
+  | AppType (fat, ft) ->
+      "AppType ("
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_factor_app_type fat (level + 1)
+      ^ ","
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_basic_type ft (level + 1)
+      ^ indentations_with_newline level
+      ^ ")"
 
 and string_of_compound_type (ct : compound_type) (level : int) =
   match ct with
-  | BasicType t -> string_of_basic_type t level
-  | FunctionType (t1, t2) ->
-      "FunctionType ("
-      ^ indentations_with_newline (level + 1)
-      ^ string_of_basic_type t1 level
-      ^ ","
-      ^ indentations_with_newline (level + 1)
-      ^ string_of_compound_type t2 (level + 1)
-      ^ indentations_with_newline level
-      ^ ")"
+  | BasicType t -> string_of_factor_app_type t level
   | UnionType constructors ->
       "UnionType ("
       ^ indentations_with_newline (level + 1)
       ^ String.concat
           (",\n" ^ indentations_with_newline (level + 1))
           (List.map (fun c -> string_of_constructor c) constructors)
+      ^ indentations_with_newline level
+      ^ ")"
+  | FunctionType (fat, ct) ->
+      "FunctionType ("
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_factor_app_type fat (level + 1)
+      ^ ","
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_compound_type ct (level + 1)
+      ^ indentations_with_newline level
+      ^ ")"
+  | PolymorphicType (s, ct) ->
+      "PolymorphicType ("
+      ^ indentations_with_newline (level + 1)
+      ^ s ^ ","
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_compound_type ct (level + 1)
       ^ indentations_with_newline level
       ^ ")"
 

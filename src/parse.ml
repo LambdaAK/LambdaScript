@@ -131,7 +131,7 @@ let assert_next_token (tokens : token list) (expected_value : token_type) =
       else raise (UnexpectedToken (expected_value, Some t, line))
 
 let rec parse_compound_type (tokens : token list) : compound_type * token list =
-  let left_type, tokens_after_left_type = parse_factor_type tokens in
+  let left_type, tokens_after_left_type = parse_factor_app_type tokens in
   match tokens_after_left_type with
   (* check if the next token is an arrow *)
   | { token_type = Arrow; line = _ } :: tokens_after_arrow ->
@@ -144,6 +144,48 @@ let rec parse_compound_type (tokens : token list) : compound_type * token list =
   | _ ->
       (* return the basic type *)
       (BasicType left_type, tokens_after_left_type)
+
+and parse_factor_type_list (tokens : token list) : factor_type list * token list
+    =
+  let first, tokens_after_first = parse_factor_type tokens in
+  if List.length tokens_after_first = 0 then ([ first ], tokens_after_first)
+  else
+    let next_token_type = (List.hd tokens_after_first).token_type in
+    match next_token_type with
+    | IntegerType
+    | BooleanType
+    | StringType
+    | UnitType
+    | FloatType
+    | Constructor _
+    | LParen
+    | LBracket ->
+        let second, tokens_after_second =
+          parse_factor_type_list tokens_after_first
+        in
+        (first :: second, tokens_after_second)
+    | _ -> ([ first ], tokens_after_first)
+
+and combine_factor_types_into_factor_app_type (factor_types : factor_type list)
+    =
+  (* we have a b c d .... z which is parsed as (a b c d .... ) z *)
+  let reversed_factor_types = List.rev factor_types in
+
+  let rec combine_aux (types_reversed : factor_type list) =
+    match types_reversed with
+    | [] -> failwith "impossible"
+    | [ last ] -> FactorType last
+    | last :: before -> AppType (combine_aux before, last)
+  in
+
+  combine_aux reversed_factor_types
+
+and parse_factor_app_type (tokens : token list) : factor_app_type * token list =
+  (* parse a list of factors *)
+  let factors, tokens_after_factors = parse_factor_type_list tokens in
+  (* combine the factors into a factor app type *)
+  let factor_app_type = combine_factor_types_into_factor_app_type factors in
+  (factor_app_type, tokens_after_factors)
 
 and parse_compound_type_if_possible (tokens : token list) :
     compound_type option * token list =
@@ -296,6 +338,12 @@ and parse_constructor_list (tokens : token list) (acc : constructor list) :
       parse_constructor_list tokens_after_constructor (constructor :: acc)
   | _ -> (List.rev acc, tokens)
 
+and wrap_type vars t =
+  match vars with
+  | [] -> t
+  | first_param :: other_params ->
+      PolymorphicType (first_param, wrap_type other_params t)
+
 and parse_defn (tokens : token list) : defn * token list =
   match tokens with
   | { token_type = Type; line = _ } :: t -> (
@@ -310,9 +358,19 @@ and parse_defn (tokens : token list) : defn * token list =
             raise ParseFailure
       in
 
-      assert_next_token tokens_after_id Equals;
+      (* parse type variables before the equals sign *)
+      let rec parse_type_vars = function
+        | { token_type = Id s; line = _ } :: t ->
+            let type_vars, tokens_after_type_vars = parse_type_vars t in
+            (s :: type_vars, tokens_after_type_vars)
+        | tokens -> ([], tokens)
+      in
 
-      let tokens_after_bind_arrow = remove_head tokens_after_id in
+      let type_vars, tokens_after_type_vars = parse_type_vars tokens_after_id in
+
+      assert_next_token tokens_after_type_vars Equals;
+
+      let tokens_after_bind_arrow = remove_head tokens_after_type_vars in
 
       (* if the next token is |, parse a sum type, otherwise parse a compound
          type *)
@@ -322,13 +380,17 @@ and parse_defn (tokens : token list) : defn * token list =
           let constructors, tokens_after_constructors =
             parse_constructor_list tokens_after_bind_arrow []
           in
+
           (UnionDefn (id, constructors), tokens_after_constructors)
       | _ ->
           let body_expression, tokens_after_body_expression =
             parse_compound_type tokens_after_bind_arrow
           in
 
-          (TypeDefn (id, body_expression), tokens_after_body_expression))
+          let wrapped_type = wrap_type type_vars body_expression in
+
+          (* replace written type vars with type vars *)
+          (TypeDefn (id, wrapped_type), tokens_after_body_expression))
   | _ ->
       let tokens_without_let, is_rec =
         match tokens with

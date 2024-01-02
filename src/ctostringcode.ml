@@ -153,9 +153,24 @@ module CToStringCode : CToString = struct
     | UniversalType u ->
         let u_string : string = string_of_int u in
         "u" ^ u_string
+    | AppType (t1, t2) ->
+        let t1_string : string =
+          match t1 with
+          | FunctionType _ -> "(" ^ string_of_c_type t1 ^ ")"
+          | _ -> string_of_c_type t1
+        in
+        let t2_string : string =
+          match t2 with
+          | FunctionType _ -> "(" ^ string_of_c_type t2 ^ ")"
+          | _ -> string_of_c_type t2
+        in
+        t1_string ^ " " ^ t2_string
     | UnionType constructors ->
         ignore constructors;
         "UNION TYPE"
+    | PolymorphicType (s, t) ->
+        let t_string : string = string_of_c_type t in
+        s ^ " -> " ^ t_string
 
   and string_of_type_var n =
     if n <= 26 then

@@ -181,10 +181,16 @@ and factor_type_to_t : factor_type -> c_type = function
   | VectorType types -> VectorType (List.map condense_type types)
   | ListType et -> CListType (condense_type et)
 
+and factor_app_type_to_t : factor_app_type -> c_type = function
+  | FactorType t -> factor_type_to_t t
+  | AppType (fat, ft) -> AppType (factor_app_type_to_t fat, factor_type_to_t ft)
+
 and condense_type : compound_type -> c_type = function
-  | BasicType bt -> factor_type_to_t bt
-  | FunctionType (i, o) -> FunctionType (factor_type_to_t i, condense_type o)
+  | BasicType fat -> factor_app_type_to_t fat
+  | FunctionType (fat, ct) ->
+      FunctionType (factor_app_type_to_t fat, condense_type ct)
   | UnionType constructors ->
       UnionType (List.map condense_constructor constructors)
+  | PolymorphicType (s, ct) -> PolymorphicType (s, condense_type ct)
 
 let condense_program = List.map condense_defn
