@@ -1,6 +1,6 @@
 # LambdaScript
 
-## An interpreted, functional programming language written using OCaml
+## An functional programming language inspired by Haskell and OCaml
 
 <br><br>
 
@@ -38,28 +38,28 @@ allow users to write clean and expressive code.
 
 _input_
 
-```c
+```ocaml
 1
 ```
 
 _output_
 
-```c
-int: 1
+```ocaml
+Int: 1
 ```
 
 <br><br>
 
 _input_
 
-```c
+```ocaml
 17
 ```
 
 _output_
 
-```c
-int: 17
+```ocaml
+Int: 17
 ```
 
 <br><br>
@@ -68,28 +68,28 @@ int: 17
 
 _input_
 
-```c
+```ocaml
 true
 ```
 
 _output_
 
-```c
-bool: true
+```ocaml
+Bool: true
 ```
 
 <br><br>
 
 _input_
 
-```c
+```ocaml
 false
 ```
 
 _output_
 
-```c
-bool: false
+```ocaml
+Bool: false
 ```
 
 <br><br>
@@ -98,44 +98,44 @@ bool: false
 
 _input_
 
-```c
+```ocaml
 "hello"
 ```
 
 _output_
 
-```c
-str: "hello"
+```ocaml
+Str: "hello"
 ```
 
 <br><br>
 
 _input_
 
-```c
+```ocaml
 "world"
 ```
 
 _output_
 
-```c
-str: "world"
+```ocaml
+Str: "world"
 ```
 
 <br><br>
 
-### ng ("nothing", also called "unit")
+### Unit
 
 _input_
 
-```c
+```ocaml
 ()
 ```
 
 _output_
 
-```c
-ng: ()
+```ocaml
+Unit: ()
 ```
 
 <br><br>
@@ -146,42 +146,56 @@ ng: ()
 
 _input_
 
-```c
+```ocaml
 []
 ```
 
 _output_
 
-```c
-[t1]: []
+```ocaml
+[a]: []
 ```
 
 <br><br>
 
 _input_
 
-```c
+```ocaml
 1 :: 2 :: 3 :: 4 :: 5 :: []
 ```
 
 _output_
 
-```c
-[int]: [1, 2, 3, 4, 5]
+```ocaml
+[Int]: [1, 2, 3, 4, 5]
 ```
 
 <br><br>
 
 _input_
 
-```c
+```ocaml
+[1, 2, 3, 4, 5]
+```
+
+_output_
+
+```ocaml
+[Int]: [1, 2, 3, 4, 5]
+```
+
+<br><br>
+
+_input_
+
+```ocaml
 [] :: []
 ```
 
 _output_
 
-```c
-[[t1]]: [[]]
+```ocaml
+[[a]]: [[]]
 ```
 
 <br><br>
@@ -190,28 +204,28 @@ _output_
 
 _input_
 
-```c
+```ocaml
 (1, true)
 ```
 
 _output_
 
-```c
-(int, bool): (1, true)
+```ocaml
+(Int, Bool): (1, true)
 ```
 
 <br><br>
 
 _input_
 
-```c
+```ocaml
 (1, (true, (), "a"))
 ```
 
 _output_
 
-```c
-(int, (bool, ng, str)): (1, (true, (), "a"))
+```ocaml
+(Int, (Bool, Unit, Str)): (1, (true, (), "a"))
 ```
 
 <br><br>
@@ -220,42 +234,42 @@ _output_
 
 _input_
 
-```c
-fn x -> x
+```ocaml
+\ x -> x
 ```
 
 _output_
 
-```c
-t1 -> t1: function
+```ocaml
+a -> a: function
 ```
 
 <br><br>
 
 _input_
 
-```c
-fn x -> x + 1
+```ocaml
+\ x -> x + 1
 ```
 
 _output_
 
-```c
-int -> int: function
+```ocaml
+Int -> Int: function
 ```
 
 <br><br>
 
 _input_
 
-```c
-fn x -> fn y -> x + y
+```ocaml
+\ x -> \ y -> x + y
 ```
 
 _output_
 
-```c
-int -> int -> int: function
+```ocaml
+Int -> Int -> Int: function
 ```
 
 <br><br>
@@ -264,58 +278,56 @@ int -> int -> int: function
 
 _input_
 
-```c
-bind x <- 1 in
-bind y <- 2 in
+```ocaml
+let x = 1 in
+let y = 2 in
 x + y
 ```
 
 _output_
 
-```c
-int: 3
+```ocaml
+Int: 3
 ```
 
 <br><br>
 
 _input_
 
-```c
-bind f x y z <- x (y + z) in f
+```ocaml
+let f x y z = x (y + z)
 ```
 
 _output_
 
-```c
-(int -> t1) -> int -> int -> t1: function
+```ocaml
+f : (Int -> a) -> Int -> Int -> a = function
 ```
 
 <br><br>
 
 _input_
 
-```c
-bind f x y z <- x (y + z) in
-f (fn x -> x > 0) 1 2
+```ocaml
+let f x y z = x (y + z) in f (\ x -> x > 0) 1 2
 ```
 
 _output_
 
-```c
-bool: true
+```ocaml
+Bool: true
 ```
 
 _input_
 
-```c
-bind (a, b) <- (1, 2) in
-a + b
+```ocaml
+let (a, b) = (1, 2) in a + b
 ```
 
 _output_
 
-```c
-int: 3
+```ocaml
+Int: 3
 ```
 
 <br><br>
@@ -324,28 +336,28 @@ int: 3
 
 _input_
 
-```c
+```ocaml
 if true then 1 else 2
 ```
 
 _output_
 
-```c
-int: 1
+```ocaml
+Int: 1
 ```
 
 <br><br>
 
 _input_
 
-```c
+```ocaml
 if false then 1 else 2
 ```
 
 _output_
 
-```c
-int: 2
+```ocaml
+Int: 2
 ```
 
 <br><br>
@@ -356,7 +368,7 @@ int: 2
 
 _input_
 
-```c
+```ocaml
 switch [] =>
   | [] -> true
   | _ :: _ -> false
@@ -365,15 +377,15 @@ end
 
 _output_
 
-```c
-bool: true
+```ocaml
+Bool: true
 ```
 
 <br><br>
 
 _input_
 
-```c
+```ocaml
 switch 1 :: 2 :: [] =>
   | [] -> true
   | _ :: _ -> false
@@ -382,8 +394,8 @@ end
 
 _output_
 
-```c
-bool: false
+```ocaml
+Bool: false
 ```
 
 # some more advanced examples
@@ -392,40 +404,32 @@ bool: false
 
 _input_
 
-```c
-bind rec map f arr <-
+```ocaml
+let rec map f arr =
   switch arr =>
     | [] -> []
     | h :: t -> f h :: map f t
   end
-in
-map
 ```
 
 _output_
 
-```c
-(t1 -> t2) -> [t1] -> [t2]: function
+```ocaml
+(a -> b) -> [a] -> [b]: function
 ```
 
 <br><br>
 
 _input_
 
-```
-bind rec map f arr <-
-  switch arr =>
-    | [] -> []
-    | h :: t -> f h :: map f t
-  end
-in
-map (fn x -> ~- x) (1 :: 2 :: 3 :: 4 :: 5 :: [])
+```ocaml
+map (\ x -> ~- x) ([1,2,3,4,5])
 ```
 
 _output_
 
-```
-[-1, -2, -3, -4, -5]
+```ocaml
+[Int]: [-1, -2, -3, -4, -5]
 ```
 
 <br><br>
@@ -435,39 +439,34 @@ _output_
 _input_
 
 ```
-bind rec filter f arr <-
+let rec filter f arr =
   switch arr =>
     | [] -> []
     | h :: t ->
       if f h then h :: filter t
       else filter t
     end
-in
-filter
+
 ```
 
 _output_
 
 ```
-(t1 -> bool) -> [t1] -> [t1]: function
+(a -> Bool) -> [a] -> [a]: function
 ```
 
 # fibonacci
 
 _input_
 
-```
-bind rec fib n <-
+```ocaml
+let rec fib n =
   switch n =>
     | 0 -> 1
     | 1 -> 1
-    | _ ->
-      bind a <- fib (n - 1) in
-      bind b <- fib (n - 2) in
-      a + b
+    | _ -> fib (n - 1) + fib (n - 2)
   end
-in
-fib
+
 ```
 
 <br><br>
@@ -475,79 +474,40 @@ fib
 _output_
 
 ```
-int -> int: function
+Int -> Int: function
 ```
 
 <br><br>
 
 _input_
-
-```c
-bind rec fib n <-
-  switch n =>
-    | 0 -> 1
-    | 1 -> 1
-    | _ ->
-      bind a <- fib (n - 1) in
-      bind b <- fib (n - 2) in
-      a + b
-  end
-in
-fib 10
-```
-
-<br><br>
-
-_output_
-
-```c
-int: 89
-```
-
-# known issues
-
-## fold_left and fold_right are not type-checking properly
-
-_input_
-```c
-bind rec fold op arr acc <-
+```ocaml
+let rec reduce_left op arr acc =
   switch arr =>
   | [] -> acc
-  | h :: t -> fold op t (op acc h)
+  | h :: t -> reduce_left op t (op acc h)
   end
-in
-fold
+
 ```
 
 _output_
-```c
-(t1 -> t2 -> t3) -> [t2] -> t1 -> t1: function
-```
-
-_expected output_
-```c
-(t1 -> t2 -> t1) -> [t2] -> t1 -> t1: function
+```ocaml
+(a -> b -> a) -> [b] -> a -> a: function
 ```
 
 <br><br>
 
 _input_
-```c
-bind rec fold op arr acc <-
+```ocaml
+let rec reduce_right op arr acc =
   switch arr =>
   | [] -> acc
-  | h :: t -> op h (fold op t acc)
+  | h :: t -> op h (reduce_right op t acc)
   end
-in
-fold
 ```
 
 _output_
-```c
-(t1 -> t2 -> t3) -> [t1] -> t3 -> t3: function
+```ocaml
+(a -> b -> b) -> [a] -> b -> b: function
 ```
 
-_expected output_
-```c
-(t1 -> t2 -> t2) -> [t1] -> t2 -> t2: function
-```
+<br><br>
