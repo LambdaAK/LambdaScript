@@ -37,11 +37,13 @@ let rec generate (env : static_env) (type_env : (string * c_type) list)
     (e : c_expr) : c_type * type_equations =
   match e with
   | EConstructor n ->
-      (* To get the type of the constructor, look it up in the static env No
+      (* To get the type of thefconstructor, look it up in the static env No
          constraints are generated *)
       let type_of_constructor : c_type = List.assoc n env in
       (type_of_constructor, [])
-  | EInt _ -> (IntType, [])
+  | EInt _ -> let t = fresh_type_var () in
+
+              (t, [ (t, IntType) ])
   | EFloat _ -> (FloatType, [])
   | EBool _ -> (BoolType, [])
   | EId x ->
@@ -353,7 +355,12 @@ and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
                 (TypeName name1, TypeName name2)
                 :: reduce_eq new_equations type_env)
         | TypeName name, t -> (
-            (* replace the type name with the type implementation *)
+            (* 
+
+               On the left is a type name, and on the right is a type
+
+               We want to replace the type everywhere in the equations with the
+               type name *)
             let type_impl = List.assoc name type_env in
 
             match type_impl with
@@ -361,13 +368,19 @@ and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
                 print_endline "type failure from union types";
                 raise TypeFailure
             | _ ->
+                print_endline "hello there";
                 let new_equations =
                   List.map
                     (fun (t1, t2) ->
-                      ( replace_type (TypeName name) t t1,
-                        replace_type (TypeName name) t t2 ))
+                      ( replace_type t (TypeName name) t1,
+                        replace_type t (TypeName name) t2 ))
                     c'
                 in
+
+                print_endline "new equations";
+                print_endline (string_of_type_equations new_equations);
+                print_endline "end new equations";
+
                 reduce_eq ((type_impl, t) :: new_equations) type_env)
         | _, TypeName _ ->
             (* use the previous branch *) reduce_eq ((t2, t1) :: c') type_env
@@ -427,20 +440,29 @@ and type_of_c_expr (e : c_expr) (static_env : static_env)
     (type_env : (string * c_type) list) : c_type =
   let t, generated_constraints = generate static_env type_env e in
 
-  (* constraints *)
-  let type_env_constraints = generate_type_env_constraints type_env in
+  (* print the constraints *)
 
-  let constraints = generated_constraints @ type_env_constraints in
+  (* print the constraints *)
+  let constraints = generated_constraints in
 
   (* solve the constraints *)
   let constraints_without_written_type_vars =
     replace_written_types constraints
   in
 
-  (* solve the constraints *)
-  let solution : substitutions =
-    reduce_eq constraints_without_written_type_vars type_env
+  (* evaluate each type *)
+  let constraints_evaluated =
+    List.map
+      (fun (t1, t2) ->
+        let t1_eval = eval_type type_env t1 in
+        let t2_eval = eval_type type_env t2 in
+        (t1_eval, t2_eval))
+      constraints_without_written_type_vars
   in
+
+  (* solve the constraints *)
+  let solution : substitutions = reduce_eq constraints_evaluated type_env in
+
   get_type t solution |> fix
 
 and inside (inside_type : c_type) (outside_type : c_type) : bool =
@@ -462,7 +484,8 @@ and is_basic_type (t : c_type) : bool =
   | CListType et -> is_basic_type et
   | TypeName _ -> true
   | UnionType _ -> failwith "union type found in is_basic_type"
-  | _ -> failwith "not a type var"
+  | AppType (t1, t2) -> is_basic_type t1 && is_basic_type t2
+  | PolymorphicType _ -> false
 
 and substitute (var_id : int) (t : c_type) (equations : type_equations) :
     type_equations =
@@ -479,6 +502,7 @@ and substitute_in_type (type_subbing_in : c_type)
   | BoolType -> BoolType
   | StringType -> StringType
   | UnitType -> UnitType
+  | FloatType -> FloatType
   | TypeVar id ->
       if id = type_var_id_subbing_for then substitute_with else TypeVar id
   | FunctionType (t1, t2) ->
@@ -495,7 +519,33 @@ and substitute_in_type (type_subbing_in : c_type)
       CListType (substitute_in_type et type_var_id_subbing_for substitute_with)
   | TypeName n -> TypeName n
   | UnionType a -> UnionType a
-  | _ -> failwith "not a type var"
+  | TypeVarWritten n -> TypeVarWritten n
+  | AppType (t1, t2) ->
+      AppType
+        ( substitute_in_type t1 type_var_id_subbing_for substitute_with,
+          substitute_in_type t2 type_var_id_subbing_for substitute_with )
+  | PolymorphicType (arg, body) ->
+      PolymorphicType
+        (arg, substitute_in_type body type_var_id_subbing_for substitute_with)
+  | UniversalType _ -> failwith "universal type found in substitute"
+
+and eval_type type_env = function
+  | TypeName name ->
+      (* to evaluate a name, look it up in the type env *)
+      eval_type type_env (List.assoc name type_env)
+  | AppType (t1, t2) -> (
+      (* apply t1 to t2 *)
+      let t1 = eval_type type_env t1 in
+      let t2 = eval_type type_env t2 in
+      match t1 with
+      | PolymorphicType (arg, body) ->
+          (* replace arg with t2 in body *)
+          let new_body = replace_type t2 (TypeVarWritten arg) body in
+          new_body
+      | _ ->
+          (* only a polymorphic type can be applied *)
+          failwith "eval_type failed")
+  | t -> t
 
 and replace_type (replace_with : c_type) (get_rid_of : c_type) (t : c_type) :
     c_type =
@@ -510,6 +560,14 @@ and replace_type (replace_with : c_type) (get_rid_of : c_type) (t : c_type) :
         VectorType
           (List.map (fun t -> replace_type replace_with get_rid_of t) types)
     | CListType et -> CListType (replace_type replace_with get_rid_of et)
+    | AppType (t1, t2) ->
+        AppType
+          ( replace_type replace_with get_rid_of t1,
+            replace_type replace_with get_rid_of t2 )
+    | PolymorphicType (arg, body) ->
+        (* need to replace get_rid_of with replace_with in body *)
+        let new_body = replace_type replace_with get_rid_of body in
+        PolymorphicType (arg, new_body)
     | _ -> t
 
 and replace_type_in_equations (replace_with : c_type) (get_rid_of : c_type)
@@ -701,3 +759,8 @@ let rec type_of_value x =
 
 and static_env_from_dynamic_env (env : env) : static_env =
   List.map (fun (id, v) -> (id, type_of_value v)) env
+
+(*let t1 = TypeVarWritten "a" let t2 = TypeVarWritten "b" let t =
+  PolymorphicType ("a", PolymorphicType ("b", VectorType [ t1; t2 ])) let a =
+  AppType (AppType (t, IntType), BoolType) let () = a |> eval_type [] |>
+  string_of_c_type |> print_endline *)
