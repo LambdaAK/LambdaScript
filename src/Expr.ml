@@ -56,7 +56,8 @@ and defn =
   | Defn of pat * compound_type option * expr
   | DefnRec of pat * compound_type option * expr
   | TypeDefn of string * compound_type
-  | UnionDefn of string * union_type
+  | UnionDefn of
+      string * union_type * string list (* string list is the variables *)
 
 and switch_branch = pat * expr
 

@@ -43,8 +43,9 @@ let rec condense_defn : defn -> c_defn = function
       CDefnRec (a, b, c)
   | TypeDefn (type_name, type_body) ->
       CTypeDefn (type_name, condense_type type_body)
-  | UnionDefn (union_name, constructors) ->
-      CUnionDefn (union_name, List.map condense_constructor constructors)
+  | UnionDefn (union_name, constructors, type_vars) ->
+      CUnionDefn
+        (union_name, List.map condense_constructor constructors, type_vars)
 
 and condense_constructor : constructor -> c_constructor = function
   | NullaryConstructor name -> CNullaryConstructor name

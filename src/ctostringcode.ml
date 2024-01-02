@@ -195,12 +195,7 @@ module CToStringCode : CToString = struct
     | CDefnRec (p, _, e) ->
         "let rec " ^ string_of_c_pat p ^ " = " ^ string_of_c_expr e ^ "\n"
     | CTypeDefn (id, t) -> "type " ^ id ^ " = " ^ string_of_c_type t ^ "\n"
-    | CUnionDefn (id, constructors) ->
-        let constructor_strings =
-          constructors
-          |> List.map (function
-               | CNullaryConstructor id -> id
-               | CUnaryConstructor (id, t) -> id ^ " : " ^ string_of_c_type t)
-        in
-        "type " ^ id ^ " = " ^ String.concat " | " constructor_strings ^ "\n"
+    | CUnionDefn (id, constructors, type_vars) ->
+        ignore (id, constructors, type_vars);
+        "CUnionDefn"
 end

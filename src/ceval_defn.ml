@@ -46,9 +46,10 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
   | CTypeDefn (type_name, t) ->
       let new_type_env = (type_name, t) :: type_env in
       (env, static_env, new_type_env, [], [ type_name ])
-  | CUnionDefn (type_name, constructors) ->
+  | CUnionDefn (type_name, constructors, type_vars) ->
       ignore type_name;
       ignore constructors;
+      ignore type_vars;
 
       (* 
 
@@ -66,6 +67,13 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
       in
       let new_static_env = new_static_bindings @ static_env in
 
-      let new_type_env = (type_name, UnionType constructors) :: type_env in
+      let new_type = wrap type_vars (UnionType constructors) in
+
+      let new_type_env = (type_name, new_type) :: type_env in
 
       (env, new_static_env, new_type_env, [], [ type_name ])
+
+and wrap type_vars t =
+  match type_vars with
+  | [] -> t
+  | arg :: rest -> PolymorphicType (arg, wrap rest t)

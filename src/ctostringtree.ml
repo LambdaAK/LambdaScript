@@ -57,22 +57,9 @@ module CToStringTree : CToString = struct
         ^ name
         ^ indentations_with_newline 1
         ^ ")"
-    | CUnionDefn (name, constructors) ->
-        let constructors_string : string =
-          List.fold_left
-            (fun acc c ->
-              let c_string : string = string_of_c_constructor c in
-              acc ^ c_string ^ " | ")
-            "" constructors
-        in
-        "UnionDefn ("
-        ^ indentations_with_newline 1
-        ^ name ^ ","
-        ^ indentations_with_newline 1
-        ^ String.sub constructors_string 0
-            (String.length constructors_string - 3)
-        ^ indentations_with_newline 1
-        ^ ")"
+    | CUnionDefn (name, constructors, type_vars) ->
+        ignore (name, constructors, type_vars);
+        "CUnionDefn"
 
   and string_of_c_expr (e : c_expr) (level : int) =
     match e with

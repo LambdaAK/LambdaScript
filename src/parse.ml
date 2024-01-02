@@ -377,11 +377,12 @@ and parse_defn (tokens : token list) : defn * token list =
       match tokens_after_bind_arrow with
       | { token_type = Pipe; _ } :: _ ->
           (* parse a sum type *)
-          let constructors, tokens_after_constructors =
+          let union_type, tokens_after_union_type =
             parse_constructor_list tokens_after_bind_arrow []
           in
 
-          (UnionDefn (id, constructors), tokens_after_constructors)
+          (* wrap the union type *)
+          (UnionDefn (id, union_type, type_vars), tokens_after_union_type)
       | _ ->
           let body_expression, tokens_after_body_expression =
             parse_compound_type tokens_after_bind_arrow

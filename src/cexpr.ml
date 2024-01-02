@@ -31,7 +31,7 @@ and c_defn =
   | CDefn of c_pat * c_type option * c_expr
   | CDefnRec of c_pat * c_type option * c_expr
   | CTypeDefn of string * c_type
-  | CUnionDefn of string * c_constructor list
+  | CUnionDefn of string * c_constructor list * string list
 
 and c_constructor =
   | CNullaryConstructor of string
