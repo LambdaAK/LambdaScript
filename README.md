@@ -438,7 +438,7 @@ _output_
 
 _input_
 
-```
+```ocaml
 let rec filter f arr =
   switch arr =>
     | [] -> []
