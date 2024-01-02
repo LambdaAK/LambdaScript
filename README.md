@@ -28,6 +28,8 @@ allow users to write clean and expressive code.
 - To view the rigerously-defined semantics for LambdaScript, please refer to
   https://github.com/LambdaAK/LambdaScript/blob/main/documentation/LambdaScript.pdf
 
+- Note that they are currently outdated, and have not yet been updated to reflect the new syntax and features.
+
 # Examples
 
 ## Basic Types
