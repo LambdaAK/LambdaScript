@@ -319,6 +319,9 @@ and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
         match (t1, t2) with
         (* if one of the types is a union type, just ignore the equation for
            now *)
+        | AppType (t1, t2), AppType (t3, t4) ->
+            (* t1 t2 = t3 t4 ==> t1 = t3 and t2 = t4 *)
+            reduce_eq ((t1, t3) :: (t2, t4) :: c') type_env
         | UnionType _, _ | _, UnionType _ -> reduce_eq c' type_env
         | TypeVar id, _ when not (inside t1 t2) ->
             (t1, t2) :: reduce_eq (substitute id t2 c') type_env
@@ -394,7 +397,13 @@ and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
                 (* one of them is empty, so the vectors are not the same size *)
                 raise TypeFailure)
         | _ ->
+            print_endline "aaaaaaaaaaa";
             print_endline "TYPE FAILURE";
+            (* print t1 and t2 *)
+            print_string "t1: ";
+            print_endline (string_of_c_type t1);
+            print_string "t2: ";
+            print_endline (string_of_c_type t2);
             raise TypeFailure)
 
 and get_type (var : c_type) (subs : substitutions) : c_type =
@@ -466,9 +475,12 @@ and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
 
 and type_of_c_expr (e : c_expr) (static_env : static_env)
     (type_env : (string * c_type) list) : c_type =
+  print_endline "INFERRING TYPE";
   let t, generated_constraints = generate static_env type_env e in
 
   (* print the constraints *)
+  print_string "type: ";
+  print_endline (string_of_c_type t);
 
   (* print the constraints *)
   let constraints = generated_constraints in
@@ -634,15 +646,37 @@ and substitute_written_var_with_type_var (var_id : int)
   match t with
   | TypeVarWritten id when id = written_var_id -> TypeVar var_id
   | FunctionType (i, o) ->
-      FunctionType
-        ( substitute_written_var_with_type_var var_id written_var_id i,
-          substitute_written_var_with_type_var var_id written_var_id o )
+      let new_i =
+        substitute_written_var_with_type_var var_id written_var_id i
+      in
+      let new_o =
+        substitute_written_var_with_type_var var_id written_var_id o
+      in
+      FunctionType (new_i, new_o)
   | VectorType types ->
       VectorType
         (List.map
            (fun t ->
              substitute_written_var_with_type_var var_id written_var_id t)
            types)
+  | CListType et ->
+      CListType (substitute_written_var_with_type_var var_id written_var_id et)
+  | AppType (t1, t2) ->
+      let new_t1 =
+        substitute_written_var_with_type_var var_id written_var_id t1
+      in
+      let new_t2 =
+        substitute_written_var_with_type_var var_id written_var_id t2
+      in
+      AppType (new_t1, new_t2)
+  | PolymorphicType (arg, body) ->
+      let new_arg =
+        substitute_written_var_with_type_var var_id written_var_id arg
+      in
+      let new_body =
+        substitute_written_var_with_type_var var_id written_var_id body
+      in
+      PolymorphicType (new_arg, new_body)
   | _ -> t
 
 and substitute_written_vars_in_equations (var_id : int)
@@ -658,20 +692,31 @@ and replace_written_types (equations : type_equations) : type_equations =
   let first, second = equations |> List.split in
   let all_types : c_type list = first @ second in
 
+  (* find some written type in the equations, it doesn't matter which one it
+     is *)
+  print_endline "FINDING WRITTEN TYPE\nTYPES: ";
+  all_types |> List.map string_of_c_type |> String.concat "\n" |> print_endline;
+
   let rec find_written_type (types : c_type list) : string option =
+    types |> List.length |> string_of_int |> print_endline;
     match types with
     | [] -> None
     | TypeVarWritten id :: _ -> Some id
     (* check for function and vector types *)
-    | FunctionType (i, o) :: tail ->
+    | FunctionType (t1, t2) :: tail
+    | AppType (t1, t2) :: tail
+    | PolymorphicType (t1, t2) :: tail ->
         (* put them in from and call the function again *)
-        let new_types : c_type list = i :: o :: tail in
+        let new_types : c_type list = t1 :: t2 :: tail in
         find_written_type new_types
     | VectorType types :: tail ->
         let new_types : c_type list = types @ tail in
         find_written_type new_types
+    | CListType t :: tail -> find_written_type (t :: tail)
     | _ :: tail -> find_written_type tail
   in
+
+  print_endline "FINISHED";
 
   match find_written_type all_types with
   | None -> equations
