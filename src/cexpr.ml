@@ -77,6 +77,10 @@ and c_type =
     (* the left c_type is the argument and the right c_type is the body *)
   | UnionType of c_constructor list
 
+and c_kind =
+  | Star
+  | Arrow of c_kind * c_kind
+
 and value =
   | IntegerValue of int
   | FloatValue of float

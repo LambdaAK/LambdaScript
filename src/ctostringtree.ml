@@ -237,6 +237,17 @@ module CToStringTree : CToString = struct
             (String.length universal_types_string - 2)
         ^ ". " ^ string_of_c_type t
 
+  and string_of_c_kind = function
+    | Star -> "*"
+    | Arrow (k1, k2) ->
+        let k1_string =
+          match k1 with
+          | Star -> "*"
+          | Arrow _ -> "(" ^ string_of_c_kind k1 ^ ")"
+        in
+        let k2_string = string_of_c_kind k2 in
+        k1_string ^ " -> " ^ k2_string
+
   and string_of_c_type t =
     match t with
     | BoolType -> "Bool"

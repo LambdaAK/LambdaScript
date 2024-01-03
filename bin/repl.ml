@@ -94,9 +94,10 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env) :
       let new_type_bindings_string =
         List.map
           (fun id ->
-            let t : c_type = List.assoc id new_type_env |> instantiate |> fix in
-            let t_string = string_of_c_type t in
-            "type " ^ id ^ " : " ^ t_string)
+            let t_string =
+              kind_of_type (TypeName id) new_type_env |> string_of_c_kind
+            in
+            id ^ " : " ^ t_string)
           new_type_bindings
         |> String.concat "\n"
       in
@@ -147,7 +148,7 @@ and repl_expr (env : env) (static_env : static_env)
       |> print_endline
   | UnexpectedToken (expected, None, line) ->
       (* print the error *)
-      "Unexpected Toke: " ^ string_of_int line ^ ": expected "
+      "Unexpected Token: " ^ string_of_int line ^ ": expected "
       ^ string_of_token { token_type = expected; line }
       ^ " but got none"
       |> print_endline

@@ -1,6 +1,6 @@
 open Cexpr
 open Typefixer
-open Ctostringtree.CToStringTree
+open Ctostringcode.CToStringCode
 
 type type_equation = c_type * c_type
 type type_equations = type_equation list
@@ -421,6 +421,34 @@ and get_type (var : c_type) (subs : substitutions) : c_type =
   | PolymorphicType (arg, body) ->
       PolymorphicType (get_type arg subs, get_type body subs)
   | AppType (t1, t2) -> AppType (get_type t1 subs, get_type t2 subs)
+
+and kind_of_type t type_env =
+  match t with
+  | IntType -> Star
+  | FloatType -> Star
+  | BoolType -> Star
+  | StringType -> Star
+  | UnitType -> Star
+  | CListType _ -> Star
+  | FunctionType _ -> Star
+  | VectorType _ -> Star
+  | TypeVar _ -> Star
+  | UniversalType _ -> Star
+  | TypeName n ->
+      let type_impl = List.assoc n type_env in
+      kind_of_type type_impl type_env
+  | TypeVarWritten _ -> failwith "type var written found in kind_of_type"
+  | UnionType _ -> Star
+  | PolymorphicType (_, o) ->
+      let kind_of_o = kind_of_type o type_env in
+      Arrow (Star, kind_of_o)
+  | AppType (t1, t2) -> (
+      let kind_of_t1 = kind_of_type t1 type_env in
+      let kind_of_t2 = kind_of_type t2 type_env in
+      (* t1 is being applied to t2 *)
+      match kind_of_t1 with
+      | Arrow (k1, k2) when k1 = kind_of_t2 -> k2
+      | _ -> failwith "kind mismatch in kind_of_type")
 
 and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
     c_type =

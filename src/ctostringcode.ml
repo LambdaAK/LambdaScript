@@ -118,6 +118,17 @@ module CToStringCode : CToString = struct
         ^ "]"
     | EConstructor id -> id
 
+  and string_of_c_kind = function
+    | Star -> "*"
+    | Arrow (k1, k2) ->
+        let k1_string =
+          match k1 with
+          | Star -> "*"
+          | Arrow _ -> "(" ^ string_of_c_kind k1 ^ ")"
+        in
+        let k2_string = string_of_c_kind k2 in
+        k1_string ^ " -> " ^ k2_string
+
   let string_of_c_expr e = string_of_c_expr_level e 0
 
   let rec string_of_c_type = function
