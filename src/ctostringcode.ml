@@ -154,14 +154,12 @@ module CToStringCode : CToString = struct
         let u_string : string = string_of_int u in
         "u" ^ u_string
     | AppType (t1, t2) ->
-        let t1_string : string =
-          match t1 with
-          | FunctionType _ -> "(" ^ string_of_c_type t1 ^ ")"
-          | _ -> string_of_c_type t1
-        in
-        let t2_string : string =
+        (* t1 t2 *)
+        let t1_string = string_of_c_type t1 in
+        (* t2 needs parents around it iff t2 is an app type or function type *)
+        let t2_string =
           match t2 with
-          | FunctionType _ -> "(" ^ string_of_c_type t2 ^ ")"
+          | AppType _ | FunctionType _ -> "(" ^ string_of_c_type t2 ^ ")"
           | _ -> string_of_c_type t2
         in
         t1_string ^ " " ^ t2_string
