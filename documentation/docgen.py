@@ -121,8 +121,15 @@ type IntBT =
     ('''
 type IntOpt =
   | None
-  | Some (Int)
+  | Some (Int
 ''', "type IntOpt : None | Some (Int)")
+]
+
+polymorphic_ADTs = [
+    ("type Option a = | None | Some (a)", "Option : * -> *"),
+    ("type List a = | Nil | Cons (a, List a)", "List : * -> *"),
+    ("type Either a b = | Left (a) | Right (b)", "Either : * -> * -> *"),
+    ("type AssocList key val = [(key, val)]", "AssocList : * -> * -> *"),
 ]
 
 basic_cat = Category("Basic Types", [Ex(i, o) for i, o in basic])
@@ -139,6 +146,9 @@ higher_order_functions_cat = Category(
 algebraic_data_types_cat = Category(
     "Algebraic Data Types", [Ex(i, o) for i, o in algebraic_data_types])
 
+polymorphic_ADTs_cat = Category(
+    "Polymorphic Algebraic Data Types", [Ex(i, o) for i, o in polymorphic_ADTs])
+
 
 print(basic_cat)
 print(compound_types_cat)
@@ -147,3 +157,4 @@ print(ternary_expressions_cat)
 print(switch_expressions_cat)
 print(higher_order_functions_cat)
 print(algebraic_data_types_cat)
+print(polymorphic_ADTs_cat)

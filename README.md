@@ -29,7 +29,6 @@ allow users to write clean and expressive code.
 - Note that they are currently outdated, and have not yet been updated to reflect the new syntax and features.
 
 # Examples
-
 ## Basic Types
 
 _input_
@@ -318,4 +317,40 @@ _output_
 type IntOpt : None | Some (Int)
 ```
 
+## Polymorphic Algebraic Data Types
 
+_input_
+```ocaml
+type Option a = | None | Some (a)
+```
+_output_
+```ocaml
+Option : * -> *
+```
+
+_input_
+```ocaml
+type List a = | Nil | Cons (a, List a)
+```
+_output_
+```ocaml
+List : * -> *
+```
+
+_input_
+```ocaml
+type Either a b = | Left (a) | Right (b)
+```
+_output_
+```ocaml
+Either : * -> * -> *
+```
+
+_input_
+```ocaml
+type AssocList key val = [(key, val)]
+```
+_output_
+```ocaml
+AssocList : * -> * -> *
+```
