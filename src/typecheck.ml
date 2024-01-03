@@ -418,11 +418,8 @@ and get_type (var : c_type) (subs : substitutions) : c_type =
   | TypeName _ -> var
   | TypeVarWritten _ -> var
   | UnionType _ -> failwith "union type found in get_type"
-  | PolymorphicType _ ->
-      print_endline "polymorphic type found";
-      var |> string_of_c_type |> print_endline;
-
-      failwith "polymorphic type found in get_type"
+  | PolymorphicType (arg, body) ->
+      PolymorphicType (get_type arg subs, get_type body subs)
   | AppType (t1, t2) -> AppType (get_type t1 subs, get_type t2 subs)
 
 and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
@@ -460,6 +457,11 @@ and type_of_c_expr (e : c_expr) (static_env : static_env)
         (t1_eval, t2_eval))
       constraints_without_written_type_vars
   in
+
+  (* print the constraints *)
+  print_endline "constraints:";
+  constraints_evaluated |> string_of_type_equations |> print_endline;
+  print_endline "end constriants";
 
   (* solve the constraints *)
   let solution : substitutions = reduce_eq constraints_evaluated type_env in
@@ -691,13 +693,28 @@ and replace_types t replacements =
 
 and generalize (constraints : type_equations) (env : static_env)
     (type_env : (string * c_type) list) (t : c_type) : c_type =
+  print_endline "generalizing";
+  t |> string_of_c_type |> print_endline;
+
   (* remove written type variables from the constraints *)
   let constraints : type_equations = replace_written_types constraints in
+  print_endline "1111";
   (* fully finish inference of the binding expression *)
   let unified : substitutions = reduce_eq constraints type_env in
+  print_endline "2222";
+
+  unified
+  |> List.map (fun (t1, t2) ->
+         string_of_c_type t1 ^ " = " ^ string_of_c_type t2)
+  |> String.concat "\n" |> print_endline;
+
+  (* apply the resulting subtitutoin to env and t1, yielding env1 and u1 *)
+  (* apply the substitution to t as well *)
+
   (* apply the resulting subtitutoin to env and t1, yielding env1 and u1 *)
   (* apply the substitution to t as well *)
   let u1 : c_type = get_type t unified in
+  print_endline "3333";
 
   (* generalize u1 with respect to env1, yielding a type scheme *)
 
@@ -705,6 +722,7 @@ and generalize (constraints : type_equations) (env : static_env)
   let env : static_env =
     List.map (fun (id, t) -> (id, get_type t unified)) env
   in
+  print_endline "4444";
   (* get the list of type variables in t *)
   let type_vars : c_type list = get_type_vars u1 in
   (* get the list of types in env1 *)

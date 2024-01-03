@@ -389,10 +389,9 @@ and parse_defn (tokens : token list) : defn * token list =
             parse_compound_type tokens_after_bind_arrow
           in
 
-          let wrapped_type = wrap_type type_vars body_expression in
-
           (* replace written type vars with type vars *)
-          (TypeDefn (id, wrapped_type), tokens_after_body_expression))
+          ( TypeDefn (id, body_expression, type_vars),
+            tokens_after_body_expression ))
   | _ ->
       let tokens_without_let, is_rec =
         match tokens with

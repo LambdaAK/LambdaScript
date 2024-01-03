@@ -94,7 +94,7 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env) :
       let new_type_bindings_string =
         List.map
           (fun id ->
-            let t : c_type = List.assoc id new_type_env in
+            let t : c_type = List.assoc id new_type_env |> instantiate |> fix in
             let t_string = string_of_c_type t in
             "type " ^ id ^ " : " ^ t_string)
           new_type_bindings

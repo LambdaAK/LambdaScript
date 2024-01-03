@@ -41,8 +41,8 @@ let rec condense_defn : defn -> c_defn = function
 
       let c : c_expr = condense_expr body_expression in
       CDefnRec (a, b, c)
-  | TypeDefn (type_name, type_body) ->
-      CTypeDefn (type_name, condense_type type_body)
+  | TypeDefn (type_name, type_body, type_vars) ->
+      CTypeDefn (type_name, condense_type type_body, type_vars)
   | UnionDefn (union_name, constructors, type_vars) ->
       CUnionDefn
         (union_name, List.map condense_constructor constructors, type_vars)

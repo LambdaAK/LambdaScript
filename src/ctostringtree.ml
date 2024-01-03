@@ -50,13 +50,9 @@ module CToStringTree : CToString = struct
         ^ string_of_c_expr body_expression 1
         ^ indentations_with_newline 1
         ^ ")"
-    | CTypeDefn (name, cto) ->
-        ignore cto;
-        "DefinitionType ("
-        ^ indentations_with_newline 1
-        ^ name
-        ^ indentations_with_newline 1
-        ^ ")"
+    | CTypeDefn (name, t, type_vars) ->
+        ignore (name, t, type_vars);
+        "CTypeDefn"
     | CUnionDefn (name, constructors, type_vars) ->
         ignore (name, constructors, type_vars);
         "CUnionDefn"

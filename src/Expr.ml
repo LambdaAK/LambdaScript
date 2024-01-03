@@ -55,7 +55,9 @@ and factor_type =
 and defn =
   | Defn of pat * compound_type option * expr
   | DefnRec of pat * compound_type option * expr
-  | TypeDefn of string * compound_type
+  | TypeDefn of string * compound_type * string list
+    (* string is the name, compound_type is the type itself, and string list is
+       the list of polymorphic arguments, left to right *)
   | UnionDefn of
       string * union_type * string list (* string list is the variables *)
 

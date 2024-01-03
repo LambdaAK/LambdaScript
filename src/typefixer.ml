@@ -36,8 +36,11 @@ let fix (t : c_type) : c_type =
     | AppType (t1, t2) ->
         search t1;
         search t2
-    | _ -> failwith "unimplemented type in search in typefixer.ml"
+    | PolymorphicType (i, o) ->
+        search i;
+        search o
   in
+
   let () = search t in
 
   (* we now need to replace the types *)
@@ -55,8 +58,8 @@ let fix (t : c_type) : c_type =
     | CListType et -> CListType (replace et lst)
     | VectorType types -> VectorType (List.map (fun t -> replace t lst) types)
     | AppType (t1, t2) -> AppType (replace t1 lst, replace t2 lst)
+    | PolymorphicType (i, o) -> PolymorphicType (replace i lst, replace o lst)
     | UnionType _ -> failwith "union type found in replace in typefixer.ml"
-    | _ -> failwith "unimplemented type in replace in typefixer.ml"
   in
 
   replace t !order

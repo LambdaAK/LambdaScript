@@ -43,8 +43,27 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
       in
 
       eval_defn let_defn env static_env type_env
-  | CTypeDefn (type_name, t) ->
-      let new_type_env = (type_name, t) :: type_env in
+  | CTypeDefn (type_name, t, type_vars) ->
+      (* for each type_var, create a corresponding universal type
+
+         the left is the old type var, and the right is the new universal type
+         var *)
+      let args_mapping : (c_type * c_type) list =
+        List.map
+          (fun t -> (TypeVarWritten t, fresh_universal_type ()))
+          type_vars
+      in
+
+      (* replace the old types in the constructors with the new types *)
+      let args : c_type list = List.map snd args_mapping in
+
+      let new_t = replace_types t args_mapping in
+
+      (* add the new type to the type environment *)
+      let new_type = wrap args new_t in
+
+      let new_type_env = (type_name, new_type) :: type_env in
+
       (env, static_env, new_type_env, [], [ type_name ])
   | CUnionDefn (type_name, constructors, type_vars) ->
       (* 
