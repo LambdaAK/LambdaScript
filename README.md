@@ -33,377 +33,180 @@ allow users to write clean and expressive code.
 # Examples
 
 ## Basic Types
-
-### int
-
-_input_
-
-```ocaml
-1
-```
-
-_output_
-
-```ocaml
-Int: 1
-```
-
 <br><br>
-
 _input_
-
 ```ocaml
 17
 ```
-
 _output_
-
 ```ocaml
 Int: 17
 ```
-
-<br><br>
-
-### bool
-
+<br><br><br><br>
 _input_
-
 ```ocaml
 true
 ```
-
 _output_
-
 ```ocaml
 Bool: true
 ```
-
-<br><br>
-
+<br><br><br><br>
 _input_
-
 ```ocaml
-false
+hello world!
 ```
-
 _output_
-
 ```ocaml
-Bool: false
+String: hello world!
 ```
-
-<br><br>
-
-### str
-
+<br><br><br><br>
 _input_
-
-```ocaml
-"hello"
-```
-
-_output_
-
-```ocaml
-Str: "hello"
-```
-
-<br><br>
-
-_input_
-
-```ocaml
-"world"
-```
-
-_output_
-
-```ocaml
-Str: "world"
-```
-
-<br><br>
-
-### Unit
-
-_input_
-
 ```ocaml
 ()
 ```
-
 _output_
-
 ```ocaml
 Unit: ()
 ```
-
 <br><br>
-
-## compound types
-
-### list
-
+## Compound Types
+<br><br>
 _input_
-
 ```ocaml
 []
 ```
-
 _output_
-
 ```ocaml
 [a]: []
 ```
-
-<br><br>
-
+<br><br><br><br>
 _input_
-
 ```ocaml
 1 :: 2 :: 3 :: 4 :: 5 :: []
 ```
-
 _output_
-
 ```ocaml
 [Int]: [1, 2, 3, 4, 5]
 ```
-
-<br><br>
-
+<br><br><br><br>
 _input_
-
 ```ocaml
 [1, 2, 3, 4, 5]
 ```
-
 _output_
-
 ```ocaml
 [Int]: [1, 2, 3, 4, 5]
 ```
-
-<br><br>
-
+<br><br><br><br>
 _input_
-
-```ocaml
-[] :: []
-```
-
-_output_
-
-```ocaml
-[[a]]: [[]]
-```
-
-<br><br>
-
-### vector
-
-_input_
-
 ```ocaml
 (1, true)
 ```
-
 _output_
-
 ```ocaml
 (Int, Bool): (1, true)
 ```
-
-<br><br>
-
+<br><br><br><br>
 _input_
-
-```ocaml
-(1, (true, (), "a"))
-```
-
-_output_
-
-```ocaml
-(Int, (Bool, Unit, Str)): (1, (true, (), "a"))
-```
-
-<br><br>
-
-## function types
-
-_input_
-
 ```ocaml
 \ x -> x
 ```
-
 _output_
-
 ```ocaml
 a -> a: function
 ```
-
-<br><br>
-
+<br><br><br><br>
 _input_
-
 ```ocaml
 \ x -> x + 1
 ```
-
 _output_
-
 ```ocaml
 Int -> Int: function
 ```
-
 <br><br>
-
-_input_
-
-```ocaml
-\ x -> \ y -> x + y
-```
-
-_output_
-
-```ocaml
-Int -> Int -> Int: function
-```
-
+## Let Expressions
 <br><br>
-
-## bind expressions
-
 _input_
-
 ```ocaml
 let x = 1 in
 let y = 2 in
 x + y
 ```
-
 _output_
-
 ```ocaml
 Int: 3
 ```
-
-<br><br>
-
+<br><br><br><br>
 _input_
-
 ```ocaml
-let f x y z = x (y + z)
+let f x y z = x (y + z) in f
 ```
-
 _output_
-
 ```ocaml
 f : (Int -> a) -> Int -> Int -> a = function
 ```
-
 <br><br>
-
-_input_
-
-```ocaml
-let f x y z = x (y + z) in f (\ x -> x > 0) 1 2
-```
-
-_output_
-
-```ocaml
-Bool: true
-```
-
-_input_
-
-```ocaml
-let (a, b) = (1, 2) in a + b
-```
-
-_output_
-
-```ocaml
-Int: 3
-```
-
+## Ternary Expressions
 <br><br>
-
-## ternary expressions
-
 _input_
-
 ```ocaml
 if true then 1 else 2
 ```
-
 _output_
-
 ```ocaml
 Int: 1
 ```
-
 <br><br>
-
-_input_
-
-```ocaml
-if false then 1 else 2
-```
-
-_output_
-
-```ocaml
-Int: 2
-```
-
+## Switch Expressions
 <br><br>
-
-# 
-
-## switch expresssions
-
 _input_
-
 ```ocaml
 switch [] =>
   | [] -> true
   | _ :: _ -> false
 end
 ```
-
 _output_
-
 ```ocaml
 Bool: true
 ```
-
-<br><br>
-
+<br><br><br><br>
 _input_
-
 ```ocaml
-switch 1 :: 2 :: [] =>
+switch [1, 2] =>
   | [] -> true
   | _ :: _ -> false
 end
 ```
-
 _output_
-
 ```ocaml
 Bool: false
 ```
-
-# some more advanced examples
-
-## map
-
+<br><br><br><br>
 _input_
+```ocaml
 
+type IntList =
+  | Nil
+  | Cons (Int, IntList)
+ 
+let rec length l =
+  switch l =>
+  | Nil -> 0
+  | Cons (_, t) -> 1 + length t
+  end
+ 
+```
+_output_
+```ocaml
+length : IntList -> Int = function
+```
+<br><br>
+## Higher Order Functions
+<br><br>
+_input_
 ```ocaml
 let rec map f arr =
   switch arr =>
@@ -411,33 +214,21 @@ let rec map f arr =
     | h :: t -> f h :: map f t
   end
 ```
-
 _output_
-
 ```ocaml
 (a -> b) -> [a] -> [b]: function
 ```
-
-<br><br>
-
+<br><br><br><br>
 _input_
-
 ```ocaml
-map (\ x -> ~- x) ([1,2,3,4,5])
+map (\ x -> x * x) [1, 2, 3, 4, 5]
 ```
-
 _output_
-
 ```ocaml
-[Int]: [-1, -2, -3, -4, -5]
+[Int]: [1, 4, 9, 16, 25]
 ```
-
-<br><br>
-
-## filter
-
+<br><br><br><br>
 _input_
-
 ```ocaml
 let rec filter f arr =
   switch arr =>
@@ -446,39 +237,12 @@ let rec filter f arr =
       if f h then h :: filter t
       else filter t
     end
-
 ```
-
 _output_
-
-```
+```ocaml
 (a -> Bool) -> [a] -> [a]: function
 ```
-
-# fibonacci
-
-_input_
-
-```ocaml
-let rec fib n =
-  switch n =>
-    | 0 -> 1
-    | 1 -> 1
-    | _ -> fib (n - 1) + fib (n - 2)
-  end
-
-```
-
-<br><br>
-
-_output_
-
-```
-Int -> Int: function
-```
-
-<br><br>
-
+<br><br><br><br>
 _input_
 ```ocaml
 let rec reduce_left op arr acc =
@@ -486,16 +250,12 @@ let rec reduce_left op arr acc =
   | [] -> acc
   | h :: t -> reduce_left op t (op acc h)
   end
-
 ```
-
 _output_
 ```ocaml
 (a -> b -> a) -> [b] -> a -> a: function
 ```
-
-<br><br>
-
+<br><br><br><br>
 _input_
 ```ocaml
 let rec reduce_right op arr acc =
@@ -504,10 +264,59 @@ let rec reduce_right op arr acc =
   | h :: t -> op h (reduce_right op t acc)
   end
 ```
-
 _output_
 ```ocaml
 (a -> b -> b) -> [a] -> b -> b: function
 ```
+<br><br>
+## Algebraic Data Types
+<br><br>
+_input_
+```ocaml
+type IntPair = (Int, Int)
+```
+_output_
+```ocaml
+type IntPair : (Int, Int)
+```
+<br><br><br><br>
+_input_
+```ocaml
 
+type IntList =
+  | Nil
+  | Cons (Int, IntList)
+
+```
+_output_
+```ocaml
+type IntList : Nil | Cons (Int, IntList)
+```
+<br><br><br><br>
+_input_
+```ocaml
+
+type IntBT =
+  | Leaf
+  | Node (Int, IntBT, IntBT)
+
+
+```
+_output_
+```ocaml
+type IntBT : Leaf | Node (Int, IntBT, IntBT)
+```
+<br><br><br><br>
+_input_
+```ocaml
+
+type IntOpt =
+  | None
+  | Some (Int)
+
+```
+_output_
+```ocaml
+type IntOpt : None | Some (Int)
+```
 <br><br>
