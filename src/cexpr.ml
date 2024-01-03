@@ -73,7 +73,8 @@ and c_type =
   | CListType of c_type
   | AppType of c_type * c_type
   | UniversalType of int
-  | PolymorphicType of string * c_type
+  | PolymorphicType of c_type * c_type
+    (* the left c_type is the argument and the right c_type is the body *)
   | UnionType of c_constructor list
 
 and value =

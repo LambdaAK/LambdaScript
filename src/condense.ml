@@ -192,6 +192,7 @@ and condense_type : compound_type -> c_type = function
       FunctionType (factor_app_type_to_t fat, condense_type ct)
   | UnionType constructors ->
       UnionType (List.map condense_constructor constructors)
-  | PolymorphicType (s, ct) -> PolymorphicType (s, condense_type ct)
+  | PolymorphicType (s, ct) ->
+      PolymorphicType (TypeVarWritten s, condense_type ct)
 
 let condense_program = List.map condense_defn

@@ -288,9 +288,10 @@ module CToStringTree : CToString = struct
         let t1_string : string = string_of_c_type t1 in
         let t2_string : string = string_of_c_type t2 in
         "(" ^ t1_string ^ ") (" ^ t2_string ^ ")"
-    | PolymorphicType (s, t) ->
-        let t_string : string = string_of_c_type t in
-        s ^ " -> " ^ t_string
+    | PolymorphicType (i, o) ->
+        let i_string : string = string_of_c_type i in
+        let o_string : string = string_of_c_type o in
+        i_string ^ " -> " ^ o_string
 
   and string_of_c_constructor (c : c_constructor) =
     match c with

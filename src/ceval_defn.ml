@@ -47,27 +47,52 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
       let new_type_env = (type_name, t) :: type_env in
       (env, static_env, new_type_env, [], [ type_name ])
   | CUnionDefn (type_name, constructors, type_vars) ->
-      ignore type_name;
-      ignore constructors;
-      ignore type_vars;
-
       (* 
 
          for each constructor, add the type of that constructor to the static
          environment
 
          add the type to the type environment *)
+
+      (* for each type_var, create a corresponding universal type
+
+         the left is the old type var, and the right is the new universal type
+         var *)
+      let args_mapping : (c_type * c_type) list =
+        List.map
+          (fun t -> (TypeVarWritten t, fresh_universal_type ()))
+          type_vars
+      in
+
+      (* replace the old types in the constructors with the new types *)
+      let args : c_type list = List.map snd args_mapping in
+
+      (* replace the old types in the constructors with the new types *)
+      let new_constructors : c_constructor list =
+        List.map
+          (function
+            | CNullaryConstructor name -> CNullaryConstructor name
+            | CUnaryConstructor (name, input_type) ->
+                let new_input_type = replace_types input_type args_mapping in
+                CUnaryConstructor (name, new_input_type))
+          constructors
+      in
+
+      (* print the new constructors *)
+
+      (* add the new constructors to the static environment *)
       let new_static_bindings =
         List.map
           (function
-            | CNullaryConstructor name -> (name, TypeName type_name)
+            | CNullaryConstructor name -> (name, apply args (TypeName type_name))
             | CUnaryConstructor (name, input_type) ->
-                (name, FunctionType (input_type, TypeName type_name)))
-          constructors
+                ( name,
+                  FunctionType (input_type, apply args (TypeName type_name)) ))
+          new_constructors
       in
       let new_static_env = new_static_bindings @ static_env in
 
-      let new_type = wrap type_vars (UnionType constructors) in
+      let new_type = wrap args (UnionType new_constructors) in
 
       let new_type_env = (type_name, new_type) :: type_env in
 
@@ -77,3 +102,13 @@ and wrap type_vars t =
   match type_vars with
   | [] -> t
   | arg :: rest -> PolymorphicType (arg, wrap rest t)
+
+and apply type_vars t =
+  (* Given list of type_vars a b c d e .... and type t, return the type t a b c
+     d e .... *)
+  match type_vars with
+  | [] -> (* no application *) t
+  | arg :: rest ->
+      (* t is applied to arg, then that is applied to the rest of the type
+         vars *)
+      apply rest (AppType (t, arg))

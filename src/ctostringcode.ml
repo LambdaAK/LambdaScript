@@ -168,9 +168,10 @@ module CToStringCode : CToString = struct
     | UnionType constructors ->
         ignore constructors;
         "UNION TYPE"
-    | PolymorphicType (s, t) ->
-        let t_string : string = string_of_c_type t in
-        s ^ " -> " ^ t_string
+    | PolymorphicType (i, o) ->
+        let i_string : string = string_of_c_type i in
+        let o_string : string = string_of_c_type o in
+        i_string ^ " -> " ^ o_string
 
   and string_of_type_var n =
     if n <= 26 then

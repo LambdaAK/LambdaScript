@@ -37,13 +37,12 @@ let rec generate (env : static_env) (type_env : (string * c_type) list)
     (e : c_expr) : c_type * type_equations =
   match e with
   | EConstructor n ->
-      (* To get the type of thefconstructor, look it up in the static env No
+      (* To get the type of the constructor, look it up in the static env No
          constraints are generated *)
-      let type_of_constructor : c_type = List.assoc n env in
-      (type_of_constructor, [])
-  | EInt _ -> let t = fresh_type_var () in
+      let type_of_constructor : c_type = List.assoc n env |> instantiate in
 
-              (t, [ (t, IntType) ])
+      (type_of_constructor, [])
+  | EInt _ -> (IntType, [])
   | EFloat _ -> (FloatType, [])
   | EBool _ -> (BoolType, [])
   | EId x ->
@@ -377,10 +376,6 @@ and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
                     c'
                 in
 
-                print_endline "new equations";
-                print_endline (string_of_type_equations new_equations);
-                print_endline "end new equations";
-
                 reduce_eq ((type_impl, t) :: new_equations) type_env)
         | _, TypeName _ ->
             (* use the previous branch *) reduce_eq ((t2, t1) :: c') type_env
@@ -409,6 +404,7 @@ and get_type (var : c_type) (subs : substitutions) : c_type =
       | CListType et -> CListType (get_type et subs)
       | VectorType types ->
           VectorType (List.map (fun t -> get_type t subs) types)
+      | AppType (t1, t2) -> AppType (get_type t1 subs, get_type t2 subs)
       | _ -> looked_up_type)
   | FunctionType (i, o) -> FunctionType (get_type i subs, get_type o subs)
   | VectorType types -> VectorType (List.map (fun t -> get_type t subs) types)
@@ -422,7 +418,12 @@ and get_type (var : c_type) (subs : substitutions) : c_type =
   | TypeName _ -> var
   | TypeVarWritten _ -> var
   | UnionType _ -> failwith "union type found in get_type"
-  | _ -> failwith "not a type var2"
+  | PolymorphicType _ ->
+      print_endline "polymorphic type found";
+      var |> string_of_c_type |> print_endline;
+
+      failwith "polymorphic type found in get_type"
+  | AppType (t1, t2) -> AppType (get_type t1 subs, get_type t2 subs)
 
 and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
     c_type =
@@ -463,6 +464,7 @@ and type_of_c_expr (e : c_expr) (static_env : static_env)
   (* solve the constraints *)
   let solution : substitutions = reduce_eq constraints_evaluated type_env in
 
+  (* print the solution *)
   get_type t solution |> fix
 
 and inside (inside_type : c_type) (outside_type : c_type) : bool =
@@ -532,16 +534,16 @@ and substitute_in_type (type_subbing_in : c_type)
 and eval_type type_env = function
   | TypeName name ->
       (* to evaluate a name, look it up in the type env *)
-      eval_type type_env (List.assoc name type_env)
+      eval_type type_env (List.assoc name type_env |> instantiate)
   | AppType (t1, t2) -> (
       (* apply t1 to t2 *)
       let t1 = eval_type type_env t1 in
       let t2 = eval_type type_env t2 in
       match t1 with
-      | PolymorphicType (arg, body) ->
-          (* replace arg with t2 in body *)
-          let new_body = replace_type t2 (TypeVarWritten arg) body in
-          new_body
+      | PolymorphicType (i, o) ->
+          (* replace i with t2 in o *)
+          let o = replace_type t2 i o in
+          eval_type type_env o
       | _ ->
           (* only a polymorphic type can be applied *)
           failwith "eval_type failed")
@@ -642,6 +644,7 @@ and replace_written_types (equations : type_equations) : type_equations =
 and instantiate (t : c_type) : c_type =
   (* find all universal type variables in the expression *)
   let universal_type_vars : c_type list = get_universal_type_vars t in
+
   (* generate a fresh type variable for each universal type variable *)
   let fresh_type_vars_assoc : (c_type * c_type) list =
     List.map (fun u -> (u, fresh_type_var ())) universal_type_vars
@@ -659,11 +662,17 @@ and get_universal_type_vars (t : c_type) : c_type list =
       List.flatten (List.map get_universal_type_vars types)
       |> List.sort_uniq compare
   | CListType et -> get_universal_type_vars et |> List.sort_uniq compare
+  | PolymorphicType (i, o) ->
+      get_universal_type_vars i @ get_universal_type_vars o
+      |> List.sort_uniq compare
+  | AppType (t1, t2) ->
+      get_universal_type_vars t1 @ get_universal_type_vars t2
+      |> List.sort_uniq compare
   | _ -> []
 
 and replace_types t replacements =
   match t with
-  | TypeVar _ | UniversalType _ -> (
+  | TypeVar _ | UniversalType _ | TypeVarWritten _ -> (
       (* find the replacement if it exists *)
       try List.assoc t replacements
       with Not_found ->
@@ -673,7 +682,12 @@ and replace_types t replacements =
   | VectorType types ->
       VectorType (List.map (fun t -> replace_types t replacements) types)
   | CListType et -> CListType (replace_types et replacements)
-  | _ -> t (* otherwise, just return the type *)
+  | PolymorphicType (n, body) ->
+      PolymorphicType
+        (replace_types n replacements, replace_types body replacements)
+  | AppType (t1, t2) ->
+      AppType (replace_types t1 replacements, replace_types t2 replacements)
+  | _ -> t
 
 and generalize (constraints : type_equations) (env : static_env)
     (type_env : (string * c_type) list) (t : c_type) : c_type =

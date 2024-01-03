@@ -159,6 +159,7 @@ and parse_factor_type_list (tokens : token list) : factor_type list * token list
     | FloatType
     | Constructor _
     | LParen
+    | Id _
     | LBracket ->
         let second, tokens_after_second =
           parse_factor_type_list tokens_after_first
