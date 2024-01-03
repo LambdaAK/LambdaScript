@@ -327,6 +327,7 @@ and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
             (* this switches the order of the types, then the branch before will
                be hit on the next iteration *)
         | TypeName name1, TypeName name2 -> (
+            print_endline "NAME";
             (* check if they are equal
 
                if one of them is a variant type, then they are not the same *)
@@ -354,6 +355,7 @@ and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
                 (TypeName name1, TypeName name2)
                 :: reduce_eq new_equations type_env)
         | TypeName name, t -> (
+            print_endline "one is a type name";
             (* 
 
                On the left is a type name, and on the right is a type
@@ -470,7 +472,9 @@ and type_of_c_expr (e : c_expr) (static_env : static_env)
 
   (* print the constraints *)
   let constraints = generated_constraints in
-
+  print_endline "constraints:";
+  constraints |> string_of_type_equations |> print_endline;
+  print_endline "end constriants";
   (* solve the constraints *)
   let constraints_without_written_type_vars =
     replace_written_types constraints
@@ -487,9 +491,6 @@ and type_of_c_expr (e : c_expr) (static_env : static_env)
   in
 
   (* print the constraints *)
-  print_endline "constraints:";
-  constraints_evaluated |> string_of_type_equations |> print_endline;
-  print_endline "end constriants";
 
   (* solve the constraints *)
   let solution : substitutions = reduce_eq constraints_evaluated type_env in
@@ -564,20 +565,37 @@ and substitute_in_type (type_subbing_in : c_type)
 and eval_type type_env = function
   | TypeName name ->
       (* to evaluate a name, look it up in the type env *)
-      eval_type type_env (List.assoc name type_env |> instantiate)
+      let evaled_type =
+        eval_type type_env (List.assoc name type_env |> instantiate)
+      in
+
+      (* we only actually want to replace it if it is a not a union type *)
+      if is_variant_type evaled_type then TypeName name else evaled_type
   | AppType (t1, t2) -> (
+      print_endline "Evaluating app type";
+      t1 |> string_of_c_type |> print_endline;
+      t2 |> string_of_c_type |> print_endline;
       (* apply t1 to t2 *)
-      let t1 = eval_type type_env t1 in
-      let t2 = eval_type type_env t2 in
-      match t1 with
+      let t1_eval = eval_type type_env t1 in
+      let t2_eval = eval_type type_env t2 in
+
+      t1_eval |> string_of_c_type |> print_endline;
+      t2_eval |> string_of_c_type |> print_endline;
+
+      match t1_eval with
       | PolymorphicType (i, o) ->
           (* replace i with t2 in o *)
-          let o = replace_type t2 i o in
+          let o = replace_type t2_eval i o in
           eval_type type_env o
       | _ ->
-          (* only a polymorphic type can be applied *)
-          failwith "eval_type failed")
+          (* just return the application *)
+          AppType (t1_eval, t2_eval))
   | t -> t
+
+and is_variant_type = function
+  | UnionType _ -> true
+  | PolymorphicType (_, o) -> is_variant_type o
+  | _ -> false
 
 and replace_type (replace_with : c_type) (get_rid_of : c_type) (t : c_type) :
     c_type =
