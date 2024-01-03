@@ -2,8 +2,6 @@
 
 ## An functional programming language inspired by Haskell and OCaml
 
-<br><br>
-
 Lambdascript is a statically-typed functional programming language designed to
 make it easy to write elegant and expressive code. It has key features that
 allow users to write clean and expressive code.
@@ -33,7 +31,7 @@ allow users to write clean and expressive code.
 # Examples
 
 ## Basic Types
-<br><br>
+
 _input_
 ```ocaml
 17
@@ -42,7 +40,7 @@ _output_
 ```ocaml
 Int: 17
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 true
@@ -51,7 +49,7 @@ _output_
 ```ocaml
 Bool: true
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 hello world!
@@ -60,7 +58,7 @@ _output_
 ```ocaml
 String: hello world!
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 ()
@@ -69,9 +67,9 @@ _output_
 ```ocaml
 Unit: ()
 ```
-<br><br>
+
 ## Compound Types
-<br><br>
+
 _input_
 ```ocaml
 []
@@ -80,7 +78,7 @@ _output_
 ```ocaml
 [a]: []
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 1 :: 2 :: 3 :: 4 :: 5 :: []
@@ -89,7 +87,7 @@ _output_
 ```ocaml
 [Int]: [1, 2, 3, 4, 5]
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 [1, 2, 3, 4, 5]
@@ -98,7 +96,7 @@ _output_
 ```ocaml
 [Int]: [1, 2, 3, 4, 5]
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 (1, true)
@@ -107,7 +105,7 @@ _output_
 ```ocaml
 (Int, Bool): (1, true)
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 \ x -> x
@@ -116,7 +114,7 @@ _output_
 ```ocaml
 a -> a: function
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 \ x -> x + 1
@@ -125,9 +123,9 @@ _output_
 ```ocaml
 Int -> Int: function
 ```
-<br><br>
+
 ## Let Expressions
-<br><br>
+
 _input_
 ```ocaml
 let x = 1 in
@@ -138,7 +136,7 @@ _output_
 ```ocaml
 Int: 3
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 let f x y z = x (y + z) in f
@@ -147,9 +145,9 @@ _output_
 ```ocaml
 f : (Int -> a) -> Int -> Int -> a = function
 ```
-<br><br>
+
 ## Ternary Expressions
-<br><br>
+
 _input_
 ```ocaml
 if true then 1 else 2
@@ -158,9 +156,9 @@ _output_
 ```ocaml
 Int: 1
 ```
-<br><br>
+
 ## Switch Expressions
-<br><br>
+
 _input_
 ```ocaml
 switch [] =>
@@ -172,7 +170,7 @@ _output_
 ```ocaml
 Bool: true
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 switch [1, 2] =>
@@ -184,7 +182,7 @@ _output_
 ```ocaml
 Bool: false
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 
@@ -203,9 +201,9 @@ _output_
 ```ocaml
 length : IntList -> Int = function
 ```
-<br><br>
+
 ## Higher Order Functions
-<br><br>
+
 _input_
 ```ocaml
 let rec map f arr =
@@ -218,7 +216,7 @@ _output_
 ```ocaml
 (a -> b) -> [a] -> [b]: function
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 map (\ x -> x * x) [1, 2, 3, 4, 5]
@@ -227,7 +225,7 @@ _output_
 ```ocaml
 [Int]: [1, 4, 9, 16, 25]
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 let rec filter f arr =
@@ -242,7 +240,7 @@ _output_
 ```ocaml
 (a -> Bool) -> [a] -> [a]: function
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 let rec reduce_left op arr acc =
@@ -255,7 +253,7 @@ _output_
 ```ocaml
 (a -> b -> a) -> [b] -> a -> a: function
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 let rec reduce_right op arr acc =
@@ -268,9 +266,9 @@ _output_
 ```ocaml
 (a -> b -> b) -> [a] -> b -> b: function
 ```
-<br><br>
+
 ## Algebraic Data Types
-<br><br>
+
 _input_
 ```ocaml
 type IntPair = (Int, Int)
@@ -279,7 +277,7 @@ _output_
 ```ocaml
 type IntPair : (Int, Int)
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 
@@ -292,7 +290,7 @@ _output_
 ```ocaml
 type IntList : Nil | Cons (Int, IntList)
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 
@@ -306,7 +304,7 @@ _output_
 ```ocaml
 type IntBT : Leaf | Node (Int, IntBT, IntBT)
 ```
-<br><br><br><br>
+
 _input_
 ```ocaml
 
@@ -319,4 +317,5 @@ _output_
 ```ocaml
 type IntOpt : None | Some (Int)
 ```
-<br><br>
+
+

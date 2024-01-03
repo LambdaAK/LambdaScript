@@ -10,7 +10,7 @@ class Ex:
     def __repr__(self):
         # formatted using Markdown
 
-        return f"<br><br>\n_input_\n```ocaml\n{self.input}\n```\n_output_\n```ocaml\n{self.output}\n```\n<br><br>"
+        return f"\n_input_\n```ocaml\n{self.input}\n```\n_output_\n```ocaml\n{self.output}\n```\n"
 
 
 class Category:
