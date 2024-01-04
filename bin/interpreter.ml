@@ -20,6 +20,7 @@ let execute_definitions env static_env type_env =
   (* if there's a type error *)
   List.fold_left
     (fun (env, static_env, type_env) defn ->
+      (* type check the definition *)
       let new_env, new_static_env, new_type_env, _, _ =
         eval_defn defn env static_env type_env
       in

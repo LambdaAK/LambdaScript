@@ -443,6 +443,15 @@ and kind_of_type t type_env =
   t |> string_of_c_type |> print_endline;
   let k, eq = generate_kind_equations t type_env [] in
 
+  print_string "type: ";
+  print_endline (string_of_c_kind k);
+
+  print_endline "equations: ";
+  eq
+  |> List.map (fun (k1, k2) ->
+         string_of_c_kind k1 ^ " = " ^ string_of_c_kind k2)
+  |> String.concat "\n" |> print_endline;
+
   let solution = reduce_kind_equations eq in
 
   (* now, get the kind *)
@@ -461,27 +470,33 @@ and generate_kind_equations t type_env (static_type_env : static_type_env) :
   | FunctionType _ -> (Star, [])
   | VectorType _ -> (Star, [])
   | PolymorphicType (i, o) ->
+      print_endline "generating polymorphic type";
       (* get the "name" of the argument type *)
       let i_type_id =
         match i with
-        | TypeVar id -> id
         | UniversalType id -> id
         | x ->
-            print_endline "not a type var in gen";
+            print_endline "not a universal type var in gen";
             x |> string_of_c_type |> print_endline;
             failwith ""
       in
-      let kind_of_i, eq_1 =
-        generate_kind_equations i type_env static_type_env
+
+      (* since i is an argument, give it a fresh kind var *)
+      let kind_of_i = fresh_kind_var () in
+
+      (* add it to the static type env *)
+      let new_static_type_env =
+        (i_type_id, kind_of_i) :: static_type_env
+        (* generate the kind and kind equations for the body *)
       in
 
-      let new_static_type_env = (i_type_id, kind_of_i) :: static_type_env in
       let kind_of_o, equations =
         generate_kind_equations o type_env new_static_type_env
       in
-      print_endline "aaaaa";
-      (Arrow (kind_of_i, kind_of_o), equations @ eq_1)
+
+      (Arrow (kind_of_i, kind_of_o), equations)
   | AppType (t1, t2) ->
+      print_endline "generating apptype";
       let kind_of_t1, equations_t1 =
         generate_kind_equations t1 type_env static_type_env
       in
@@ -492,15 +507,27 @@ and generate_kind_equations t type_env (static_type_env : static_type_env) :
       let new_eq = (kind_of_t1, Arrow (kind_of_t2, k)) in
       (k, (new_eq :: equations_t1) @ equations_t2)
   | TypeVar type_var_id ->
+      (* I'm pretty sure this branch will never get used, since all type
+         variables are universal type variables *)
+      print_endline "generating kind var I DON'T THINK THIS SHOULD BE USED!";
+      type_var_id |> string_of_int |> print_endline;
       (* look it up in the static_type_env *)
       type_var_id |> string_of_int |> print_endline;
 
       let kind_of_type_var = List.assoc type_var_id static_type_env in
 
       (kind_of_type_var, [])
-  | UniversalType _ ->
-      let k = fresh_kind_var () in
-      (k, [])
+  | UniversalType type_var_id ->
+      print_endline "generating universal kind var";
+      type_var_id |> string_of_int |> print_endline;
+      (* look it up in the static_type_env *)
+      type_var_id |> string_of_int |> print_endline;
+
+      let kind_of_type_var =
+        try List.assoc type_var_id static_type_env
+        with Not_found -> failwith "not found in generate_kind_equations"
+      in
+      (kind_of_type_var, [])
   | TypeName n ->
       print_endline "inferring type name";
       n |> print_endline;
@@ -528,8 +555,19 @@ and reduce_kind_equations equations =
             (* replace kv2 with kv1 everywhere in the equations *)
             ignore (kv1, kv2);
             []
+        | KindVar kv, k ->
+            (* replace kv with k everywhere in the equations *)
+            let new_equations = replace_kind_var_in_kind_equations c' kv k in
+            (KindVar kv, k) :: reduce_kind_equations new_equations
+        | k, KindVar kv ->
+            (* swap the order and use the previous branch *)
+            reduce_kind_equations ((KindVar kv, k) :: c')
         | _ ->
             print_endline "kind failure";
+            print_string "k1: ";
+            print_endline (string_of_c_kind k1);
+            print_string "k2: ";
+            print_endline (string_of_c_kind k2);
             raise TypeFailure)
 
 and replace_kind k to_replace replace_with =
