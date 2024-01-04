@@ -309,7 +309,7 @@ _input_
 
 type IntOpt =
   | None
-  | Some (Int)
+  | Some (Int
 
 ```
 _output_
@@ -353,4 +353,26 @@ type AssocList key val = [(key, val)]
 _output_
 ```ocaml
 AssocList : * -> * -> *
+```
+
+_input_
+```ocaml
+
+     type App a b = a b
+     
+```
+_output_
+```
+
+     App : (* -> *) -> * -> *
+     
+```
+
+_input_
+```ocaml
+type App2 a b c d e = e (b c a) d
+```
+_output_
+```
+* -> (* -> * -> *) -> * -> * -> (* -> * -> *) -> *
 ```

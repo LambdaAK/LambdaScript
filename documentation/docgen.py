@@ -126,10 +126,17 @@ type IntOpt =
 ]
 
 polymorphic_ADTs = [
-    ("type Option a = | None | Some (a)", "Option : * -> *"),
+    ('''type Option a = | None | Some (a)''', '''Option : * -> *'''),
     ("type List a = | Nil | Cons (a, List a)", "List : * -> *"),
     ("type Either a b = | Left (a) | Right (b)", "Either : * -> * -> *"),
     ("type AssocList key val = [(key, val)]", "AssocList : * -> * -> *"),
+    ('''
+     type App a b = a b
+     ''', '''
+     App : (* -> *) -> * -> *
+     '''),
+    ("type App2 a b c d e = e (b c a) d",
+     "* -> (* -> * -> *) -> * -> * -> (* -> * -> *) -> *")
 ]
 
 basic_cat = Category("Basic Types", [Ex(i, o) for i, o in basic])
