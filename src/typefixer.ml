@@ -52,7 +52,8 @@ let fix (t : c_type) : c_type =
     | UnitType -> UnitType
     | FloatType -> FloatType
     | TypeName _ -> t
-    | TypeVar id | UniversalType id -> TypeVar (get_replacement id lst)
+    | UniversalType id -> UniversalType id
+    | TypeVar id -> TypeVar (get_replacement id lst)
     | TypeVarWritten _ -> t
     | FunctionType (i, o) -> FunctionType (replace i lst, replace o lst)
     | CListType et -> CListType (replace et lst)

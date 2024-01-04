@@ -12,11 +12,9 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
   match d with
   | CDefn (pattern, _, body_expression) -> (
       (* type check *)
-      let aux_expr = EApp (EFunction (pattern, None, body_expression), EUnit) in
+      let aux_expr = EApp (EFunction (pattern, None, EUnit), body_expression) in
 
-      (try type_of_c_expr aux_expr static_env type_env
-       with _ -> failwith "type error in definition")
-      |> ignore;
+      type_of_c_expr aux_expr static_env type_env |> ignore;
 
       let v : value = eval_c_expr body_expression env in
       let o =

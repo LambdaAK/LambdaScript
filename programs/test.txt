@@ -1,3 +1,21 @@
-type Either a b = | Left (a) | Right (b)
+type BT a =
+  | Leaf
+  | Node (a, BT a, BT a)
 
-let () = println "hello!"
+
+let rec bt_size t =
+  switch t =>
+  | Leaf -> 0
+  | Node(_, l, r) ->
+    1 + bt_size l + bt_size r
+  end
+
+
+let double t = switch t =>
+  | Leaf -> Node(0, Leaf, Leaf)
+  | Node (v, l, r) ->
+    let num_nodes = bt_size t in
+    Node (num_nodes, t, t)
+  end
+
+let my_bt = Node (1, Node (2, Node (3, Leaf, Leaf), Leaf), Node (4, Leaf, Leaf))

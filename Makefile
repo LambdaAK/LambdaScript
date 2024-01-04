@@ -16,8 +16,8 @@ bisect:
 
 
 repl:
-	dune build bin/repl.exe
-	dune exec ./bin/repl.exe
+	dune build bin/interpreter.exe
+	dune exec ./bin/interpreter.exe
 
 
 doc:

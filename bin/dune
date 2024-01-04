@@ -1,4 +1,4 @@
-(executable
+(library
  (name repl)
  (modules repl)
  (libraries Language)
@@ -8,6 +8,6 @@
 (executable
  (name interpreter)
  (modules interpreter)
- (libraries Language)
+ (libraries Language repl)
  (instrumentation
   (backend bisect_ppx)))

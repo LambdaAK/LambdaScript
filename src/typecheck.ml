@@ -281,7 +281,7 @@ and type_of_pat (p : c_pat) (static_env : static_env) :
       (new_var, [ (id, new_var) ], [])
   | CConstructorPat n ->
       (* this is a pattern that represents a constructor *)
-      (List.assoc n static_env, [], [])
+      (List.assoc n static_env |> instantiate, [], [])
   | CUnitPat -> (UnitType, [], [])
   | CWildcardPat -> (fresh_type_var (), [], [])
   | CVectorPat patterns ->
@@ -335,7 +335,6 @@ and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
             (* this switches the order of the types, then the branch before will
                be hit on the next iteration *)
         | TypeName name1, TypeName name2 -> (
-            print_endline "NAME";
             (* check if they are equal
 
                if one of them is a variant type, then they are not the same *)
@@ -363,21 +362,19 @@ and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
                 (TypeName name1, TypeName name2)
                 :: reduce_eq new_equations type_env)
         | TypeName name, t -> (
-            print_endline "one is a type name";
             (* 
 
                On the left is a type name, and on the right is a type
 
                We want to replace the type everywhere in the equations with the
                type name *)
-            let type_impl = List.assoc name type_env in
+            let type_impl = List.assoc name type_env |> instantiate in
 
             match type_impl with
             | UnionType _ ->
                 print_endline "type failure from union types";
                 raise TypeFailure
             | _ ->
-                print_endline "hello there";
                 let new_equations =
                   List.map
                     (fun (t1, t2) ->
@@ -400,14 +397,12 @@ and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
                   type_env
             | _ ->
                 (* one of them is empty, so the vectors are not the same size *)
+                print_endline "type failure from differently-sized vectors";
                 raise TypeFailure)
         | _ ->
-            print_endline "aaaaaaaaaaa";
-            print_endline "TYPE FAILURE";
             (* print t1 and t2 *)
-            print_string "t1: ";
+            print_endline "type error 1";
             print_endline (string_of_c_type t1);
-            print_string "t2: ";
             print_endline (string_of_c_type t2);
             raise TypeFailure)
 
@@ -439,18 +434,7 @@ and get_type (var : c_type) (subs : substitutions) : c_type =
   | AppType (t1, t2) -> AppType (get_type t1 subs, get_type t2 subs)
 
 and kind_of_type t type_env =
-  print_endline "inferring kind";
-  t |> string_of_c_type |> print_endline;
   let k, eq = generate_kind_equations t type_env [] in
-
-  print_string "type: ";
-  print_endline (string_of_c_kind k);
-
-  print_endline "equations: ";
-  eq
-  |> List.map (fun (k1, k2) ->
-         string_of_c_kind k1 ^ " = " ^ string_of_c_kind k2)
-  |> String.concat "\n" |> print_endline;
 
   let solution = reduce_kind_equations eq in
 
@@ -470,13 +454,11 @@ and generate_kind_equations t type_env (static_type_env : static_type_env) :
   | FunctionType _ -> (Star, [])
   | VectorType _ -> (Star, [])
   | PolymorphicType (i, o) ->
-      print_endline "generating polymorphic type";
       (* get the "name" of the argument type *)
       let i_type_id =
         match i with
         | UniversalType id -> id
         | x ->
-            print_endline "not a universal type var in gen";
             x |> string_of_c_type |> print_endline;
             failwith ""
       in
@@ -496,7 +478,6 @@ and generate_kind_equations t type_env (static_type_env : static_type_env) :
 
       (Arrow (kind_of_i, kind_of_o), equations)
   | AppType (t1, t2) ->
-      print_endline "generating apptype";
       let kind_of_t1, equations_t1 =
         generate_kind_equations t1 type_env static_type_env
       in
@@ -510,18 +491,12 @@ and generate_kind_equations t type_env (static_type_env : static_type_env) :
       (* I'm pretty sure this branch will never get used, since all type
          variables are universal type variables *)
       print_endline "generating kind var I DON'T THINK THIS SHOULD BE USED!";
-      type_var_id |> string_of_int |> print_endline;
-      (* look it up in the static_type_env *)
-      type_var_id |> string_of_int |> print_endline;
 
       let kind_of_type_var = List.assoc type_var_id static_type_env in
 
       (kind_of_type_var, [])
   | UniversalType type_var_id ->
       print_endline "generating universal kind var";
-      type_var_id |> string_of_int |> print_endline;
-      (* look it up in the static_type_env *)
-      type_var_id |> string_of_int |> print_endline;
 
       let kind_of_type_var =
         try List.assoc type_var_id static_type_env
@@ -529,12 +504,8 @@ and generate_kind_equations t type_env (static_type_env : static_type_env) :
       in
       (kind_of_type_var, [])
   | TypeName n ->
-      print_endline "inferring type name";
-      n |> print_endline;
-      print_endline "ccccc";
       let type_impl = List.assoc n type_env in
-      print_endline "ddddd";
-      type_impl |> string_of_c_type |> print_endline;
+
       generate_kind_equations type_impl type_env static_type_env
   | TypeVarWritten _ ->
       failwith "type var written found in generate_kind_equations"
@@ -563,11 +534,7 @@ and reduce_kind_equations equations =
             (* swap the order and use the previous branch *)
             reduce_kind_equations ((KindVar kv, k) :: c')
         | _ ->
-            print_endline "kind failure";
-            print_string "k1: ";
-            print_endline (string_of_c_kind k1);
-            print_string "k2: ";
-            print_endline (string_of_c_kind k2);
+            print_endline "type error 2";
             raise TypeFailure)
 
 and replace_kind k to_replace replace_with =
@@ -638,18 +605,20 @@ and replace_kind_vars_with_stars : c_kind -> c_kind = function
 
 and type_of_c_expr (e : c_expr) (static_env : static_env)
     (type_env : (string * c_type) list) : c_type =
-  print_endline "INFERRING TYPE";
   let t, generated_constraints = generate static_env type_env e in
 
   (* print the constraints *)
-  print_string "type: ";
-  print_endline (string_of_c_type t);
-
-  (* print the constraints *)
   let constraints = generated_constraints in
-  print_endline "constraints:";
-  constraints |> string_of_type_equations |> print_endline;
-  print_endline "end constriants";
+  print_endline "expression";
+  print_endline (string_of_c_expr e);
+  print_endline "TYPE: ";
+  print_endline (string_of_c_type t);
+  print_endline "CONSTRAINTS ";
+  print_endline (string_of_type_equations constraints);
+  print_endline "end constraints";
+
+  (* solve the constraints *)
+
   (* solve the constraints *)
   let constraints_without_written_type_vars =
     replace_written_types constraints
@@ -703,6 +672,7 @@ and substitute (var_id : int) (t : c_type) (equations : type_equations) :
       (substitute_in_type t1 var_id t, substitute_in_type t2 var_id t)
       :: substitute var_id t equations'
 
+(* This substitutes for a TypeVar, not a UniversalTypeVar *)
 and substitute_in_type (type_subbing_in : c_type)
     (type_var_id_subbing_for : int) (substitute_with : c_type) : c_type =
   match type_subbing_in with
@@ -711,7 +681,9 @@ and substitute_in_type (type_subbing_in : c_type)
   | StringType -> StringType
   | UnitType -> UnitType
   | FloatType -> FloatType
+  | UniversalType id -> UniversalType id
   | TypeVar id ->
+      (*TODO: fix this*)
       if id = type_var_id_subbing_for then substitute_with else TypeVar id
   | FunctionType (t1, t2) ->
       FunctionType
@@ -735,7 +707,6 @@ and substitute_in_type (type_subbing_in : c_type)
   | PolymorphicType (arg, body) ->
       PolymorphicType
         (arg, substitute_in_type body type_var_id_subbing_for substitute_with)
-  | UniversalType _ -> failwith "universal type found in substitute"
 
 and eval_type type_env = function
   | TypeName name ->
@@ -747,15 +718,9 @@ and eval_type type_env = function
       (* we only actually want to replace it if it is a not a union type *)
       if is_variant_type evaled_type then TypeName name else evaled_type
   | AppType (t1, t2) -> (
-      print_endline "Evaluating app type";
-      t1 |> string_of_c_type |> print_endline;
-      t2 |> string_of_c_type |> print_endline;
       (* apply t1 to t2 *)
       let t1_eval = eval_type type_env t1 in
       let t2_eval = eval_type type_env t2 in
-
-      t1_eval |> string_of_c_type |> print_endline;
-      t2_eval |> string_of_c_type |> print_endline;
 
       match t1_eval with
       | PolymorphicType (i, o) ->
@@ -868,11 +833,7 @@ and replace_written_types (equations : type_equations) : type_equations =
 
   (* find some written type in the equations, it doesn't matter which one it
      is *)
-  print_endline "FINDING WRITTEN TYPE\nTYPES: ";
-  all_types |> List.map string_of_c_type |> String.concat "\n" |> print_endline;
-
   let rec find_written_type (types : c_type list) : string option =
-    types |> List.length |> string_of_int |> print_endline;
     match types with
     | [] -> None
     | TypeVarWritten id :: _ -> Some id
@@ -889,8 +850,6 @@ and replace_written_types (equations : type_equations) : type_equations =
     | CListType t :: tail -> find_written_type (t :: tail)
     | _ :: tail -> find_written_type tail
   in
-
-  print_endline "FINISHED";
 
   match find_written_type all_types with
   | None -> equations
@@ -947,20 +906,11 @@ and replace_types t replacements =
 
 and generalize (constraints : type_equations) (env : static_env)
     (type_env : (string * c_type) list) (t : c_type) : c_type =
-  print_endline "generalizing";
-  t |> string_of_c_type |> print_endline;
-
   (* remove written type variables from the constraints *)
   let constraints : type_equations = replace_written_types constraints in
-  print_endline "1111";
+
   (* fully finish inference of the binding expression *)
   let unified : substitutions = reduce_eq constraints type_env in
-  print_endline "2222";
-
-  unified
-  |> List.map (fun (t1, t2) ->
-         string_of_c_type t1 ^ " = " ^ string_of_c_type t2)
-  |> String.concat "\n" |> print_endline;
 
   (* apply the resulting subtitutoin to env and t1, yielding env1 and u1 *)
   (* apply the substitution to t as well *)
@@ -968,7 +918,6 @@ and generalize (constraints : type_equations) (env : static_env)
   (* apply the resulting subtitutoin to env and t1, yielding env1 and u1 *)
   (* apply the substitution to t as well *)
   let u1 : c_type = get_type t unified in
-  print_endline "3333";
 
   (* generalize u1 with respect to env1, yielding a type scheme *)
 
@@ -976,7 +925,7 @@ and generalize (constraints : type_equations) (env : static_env)
   let env : static_env =
     List.map (fun (id, t) -> (id, get_type t unified)) env
   in
-  print_endline "4444";
+
   (* get the list of type variables in t *)
   let type_vars : c_type list = get_type_vars u1 in
   (* get the list of types in env1 *)
@@ -1034,11 +983,8 @@ let rec type_of_value x =
       let h_type = type_of_value h in
       CListType h_type
   | FunctionClosure (env, pat, _, body) ->
-      print_endline "function closure";
       let input_type, _, _ = type_of_pat pat [] in
-      print_endline "a";
       let static_env = static_env_from_dynamic_env env in
-      print_endline "b";
       let output_type = type_of_c_expr body static_env [] in
       FunctionType (input_type, output_type)
   | _ -> failwith "not a value"

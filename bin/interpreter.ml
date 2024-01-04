@@ -7,6 +7,7 @@ open Language.Typecheck
 open Language.Env
 open Language.Ceval
 open Language.Ctostringtree.CToStringTree
+open Repl
 
 let () = ignore string_of_c_defn
 
@@ -58,8 +59,11 @@ let run_run (dir : string) : unit =
   in
 
   (* the type env is initially empty *)
-  execute_definitions env static_env [] program |> ignore
+  let env, static_env, type_env =
+    execute_definitions env static_env [] program
+  in
+  repl_loop env static_env type_env
 
 let () =
   (* try run_run (get_dir ()) with | _ -> print_endline "Error"; exit 1 *)
-  run_run (get_dir ())
+  if Array.length Sys.argv = 1 then run_repl () else run_run (get_dir ())

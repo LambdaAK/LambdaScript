@@ -174,6 +174,3 @@ let run_repl () : unit =
     @ built_ins_types
   in
   repl_loop env static_env []
-
-let () = print_endline "Welcome to LambdaScript!"
-let () = run_repl ()
