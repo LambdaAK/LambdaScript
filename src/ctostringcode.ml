@@ -125,9 +125,11 @@ module CToStringCode : CToString = struct
           match k1 with
           | Star -> "*"
           | Arrow _ -> "(" ^ string_of_c_kind k1 ^ ")"
+          | KindVar _ -> string_of_c_kind k1
         in
         let k2_string = string_of_c_kind k2 in
         k1_string ^ " -> " ^ k2_string
+    | KindVar n -> string_of_int n
 
   let string_of_c_expr e = string_of_c_expr_level e 0
 

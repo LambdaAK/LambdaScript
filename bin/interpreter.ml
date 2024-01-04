@@ -17,6 +17,7 @@ let get_dir () : string =
   else Sys.argv.(1)
 
 let execute_definitions env static_env type_env =
+  (* if there's a type error *)
   List.fold_left
     (fun (env, static_env, type_env) defn ->
       let new_env, new_static_env, new_type_env, _, _ =

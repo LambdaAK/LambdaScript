@@ -6,9 +6,14 @@ type type_equation = c_type * c_type
 type type_equations = type_equation list
 type substitutions = type_equations
 
+type static_type_env =
+  (int * c_kind) list (* stores the kind of a type variable *)
+
+type kind_equations = (c_kind * c_kind) list
+
 exception TypeFailure
 
-let split3 (lst : ('a * 'b * 'c) list) : 'a list * 'b list * 'c list =
+let rec split3 (lst : ('a * 'b * 'c) list) : 'a list * 'b list * 'c list =
   let rec split3_helper (lst : ('a * 'b * 'c) list) (a : 'a list) (b : 'b list)
       (c : 'c list) : 'a list * 'b list * 'c list =
     match lst with
@@ -18,23 +23,23 @@ let split3 (lst : ('a * 'b * 'c) list) : 'a list * 'b list * 'c list =
   let a, b, c = split3_helper lst [] [] [] in
   (List.rev a, List.rev b, List.rev c)
 
-let string_of_type_equation ((t1, t2) : type_equation) : string =
+and string_of_type_equation ((t1, t2) : type_equation) : string =
   string_of_c_type t1 ^ " = " ^ string_of_c_type t2
 
-let rec string_of_type_equations (c : type_equations) : string =
+and string_of_type_equations (c : type_equations) : string =
   match c with
   | [] -> ""
   | (t1, t2) :: c' ->
       string_of_type_equation (t1, t2) ^ "\n" ^ string_of_type_equations c'
 
-let rec string_of_static_env (env : static_env) : string =
+and string_of_static_env (env : static_env) : string =
   match env with
   | [] -> ""
   | (id, t) :: env' ->
       id ^ " : " ^ string_of_c_type t ^ "\n" ^ string_of_static_env env'
 
-let rec generate (env : static_env) (type_env : (string * c_type) list)
-    (e : c_expr) : c_type * type_equations =
+and generate (env : static_env) (type_env : (string * c_type) list) (e : c_expr)
+    : c_type * type_equations =
   match e with
   | EConstructor n ->
       (* To get the type of the constructor, look it up in the static env No
@@ -434,32 +439,144 @@ and get_type (var : c_type) (subs : substitutions) : c_type =
   | AppType (t1, t2) -> AppType (get_type t1 subs, get_type t2 subs)
 
 and kind_of_type t type_env =
+  print_endline "inferring kind";
+  t |> string_of_c_type |> print_endline;
+  let k, eq = generate_kind_equations t type_env [] in
+
+  let solution = reduce_kind_equations eq in
+
+  (* now, get the kind *)
+  let kind = get_kind k solution in
+  replace_kind_vars_with_stars kind
+
+and generate_kind_equations t type_env (static_type_env : static_type_env) :
+    c_kind * kind_equations =
   match t with
-  | IntType -> Star
-  | FloatType -> Star
-  | BoolType -> Star
-  | StringType -> Star
-  | UnitType -> Star
-  | CListType _ -> Star
-  | FunctionType _ -> Star
-  | VectorType _ -> Star
-  | TypeVar _ -> Star
-  | UniversalType _ -> Star
+  | IntType | FloatType | StringType | UnitType | BoolType -> (Star, [])
+  | CListType elm_type ->
+      let kind_of_elm_type, equations =
+        generate_kind_equations elm_type type_env static_type_env
+      in
+      (kind_of_elm_type, equations)
+  | FunctionType _ -> (Star, [])
+  | VectorType _ -> (Star, [])
+  | PolymorphicType (i, o) ->
+      (* get the "name" of the argument type *)
+      let i_type_id =
+        match i with
+        | TypeVar id -> id
+        | UniversalType id -> id
+        | x ->
+            print_endline "not a type var in gen";
+            x |> string_of_c_type |> print_endline;
+            failwith ""
+      in
+      let kind_of_i, eq_1 =
+        generate_kind_equations i type_env static_type_env
+      in
+
+      let new_static_type_env = (i_type_id, kind_of_i) :: static_type_env in
+      let kind_of_o, equations =
+        generate_kind_equations o type_env new_static_type_env
+      in
+      print_endline "aaaaa";
+      (Arrow (kind_of_i, kind_of_o), equations @ eq_1)
+  | AppType (t1, t2) ->
+      let kind_of_t1, equations_t1 =
+        generate_kind_equations t1 type_env static_type_env
+      in
+      let kind_of_t2, equations_t2 =
+        generate_kind_equations t2 type_env static_type_env
+      in
+      let k = fresh_kind_var () in
+      let new_eq = (kind_of_t1, Arrow (kind_of_t2, k)) in
+      (k, (new_eq :: equations_t1) @ equations_t2)
+  | TypeVar type_var_id ->
+      (* look it up in the static_type_env *)
+      type_var_id |> string_of_int |> print_endline;
+
+      let kind_of_type_var = List.assoc type_var_id static_type_env in
+
+      (kind_of_type_var, [])
+  | UniversalType _ ->
+      let k = fresh_kind_var () in
+      (k, [])
   | TypeName n ->
+      print_endline "inferring type name";
+      n |> print_endline;
+      print_endline "ccccc";
       let type_impl = List.assoc n type_env in
-      kind_of_type type_impl type_env
-  | TypeVarWritten _ -> failwith "type var written found in kind_of_type"
-  | UnionType _ -> Star
-  | PolymorphicType (_, o) ->
-      let kind_of_o = kind_of_type o type_env in
-      Arrow (Star, kind_of_o)
-  | AppType (t1, t2) -> (
-      let kind_of_t1 = kind_of_type t1 type_env in
-      let kind_of_t2 = kind_of_type t2 type_env in
-      (* t1 is being applied to t2 *)
-      match kind_of_t1 with
-      | Arrow (k1, k2) when k1 = kind_of_t2 -> k2
-      | _ -> failwith "kind mismatch in kind_of_type")
+      print_endline "ddddd";
+      type_impl |> string_of_c_type |> print_endline;
+      generate_kind_equations type_impl type_env static_type_env
+  | TypeVarWritten _ ->
+      failwith "type var written found in generate_kind_equations"
+  | UnionType _ ->
+      print_endline "union type found in generate_kind_equations";
+      (Star, [])
+
+and reduce_kind_equations equations =
+  match equations with
+  | [] -> []
+  | (k1, k2) :: c' -> (
+      if k1 = k2 then reduce_kind_equations c'
+      else
+        match (k1, k2) with
+        | Arrow (k1, k2), Arrow (k3, k4) ->
+            reduce_kind_equations ((k1, k3) :: (k2, k4) :: c')
+        | KindVar kv1, KindVar kv2 ->
+            (* replace kv2 with kv1 everywhere in the equations *)
+            ignore (kv1, kv2);
+            []
+        | _ ->
+            print_endline "kind failure";
+            raise TypeFailure)
+
+and replace_kind k to_replace replace_with =
+  match k with
+  | Arrow (k1, k2) ->
+      let new_k1 = replace_kind k1 to_replace replace_with in
+      let new_k2 = replace_kind k2 to_replace replace_with in
+      Arrow (new_k1, new_k2)
+  | Star -> Star
+  | KindVar kv when kv = to_replace -> replace_with
+  | KindVar kv -> KindVar kv
+
+and replace_kind_var_in_kind_equations eq to_replace replace_with =
+  List.map
+    (fun (k1, k2) ->
+      let new_k1 = replace_kind k1 to_replace replace_with in
+      let new_k2 = replace_kind k2 to_replace replace_with in
+      (new_k1, new_k2))
+    eq
+
+and get_kind k subs =
+  match k with
+  | Star -> Star
+  | Arrow (k1, k2) ->
+      let new_k1 = get_kind k1 subs in
+      let new_k2 = get_kind k2 subs in
+      Arrow (new_k1, new_k2)
+  | KindVar kv -> (
+      let looked_up = get_kind_of_kind_var_if_possible (KindVar kv) subs in
+      match looked_up with
+      | Star -> Star
+      | Arrow (kk1, kk2) ->
+          let new_kk1 = get_kind kk1 subs in
+          let new_kk2 = get_kind kk2 subs in
+          Arrow (new_kk1, new_kk2)
+      | _ -> looked_up)
+
+and get_kind_of_kind_var_if_possible var subs =
+  match var with
+  | KindVar _ -> (
+      try
+        let looked_up = List.assoc var subs in
+        match looked_up with
+        | KindVar _ -> get_kind_of_kind_var_if_possible looked_up subs
+        | _ -> looked_up
+      with Not_found -> var)
+  | _ -> failwith "not a kind var in get_kind_of_kind_var_if_possible"
 
 and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
     c_type =
@@ -472,6 +589,14 @@ and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
         | _ -> looked_up
       with Not_found -> var)
   | _ -> failwith "not a type var3"
+
+and replace_kind_vars_with_stars : c_kind -> c_kind = function
+  | Star -> Star
+  | Arrow (k1, k2) ->
+      let new_k1 = replace_kind_vars_with_stars k1 in
+      let new_k2 = replace_kind_vars_with_stars k2 in
+      Arrow (new_k1, new_k2)
+  | KindVar _ -> Star
 
 and type_of_c_expr (e : c_expr) (static_env : static_env)
     (type_env : (string * c_type) list) : c_type =
@@ -688,6 +813,17 @@ and substitute_written_vars_in_equations (var_id : int)
         substitute_written_var_with_type_var var_id written_var_id t2 )
       :: substitute_written_vars_in_equations var_id written_var_id equations'
 
+and instantiate (t : c_type) : c_type =
+  (* find all universal type variables in the expression *)
+  let universal_type_vars : c_type list = get_universal_type_vars t in
+
+  (* generate a fresh type variable for each universal type variable *)
+  let fresh_type_vars_assoc : (c_type * c_type) list =
+    List.map (fun u -> (u, fresh_type_var ())) universal_type_vars
+  in
+  (* replace them *)
+  replace_types t fresh_type_vars_assoc
+
 and replace_written_types (equations : type_equations) : type_equations =
   let first, second = equations |> List.split in
   let all_types : c_type list = first @ second in
@@ -733,17 +869,6 @@ and replace_written_types (equations : type_equations) : type_equations =
         substitute_written_vars_in_equations fresh_type_var_int id equations
       in
       replace_written_types equations_with_subbed_type_var
-
-and instantiate (t : c_type) : c_type =
-  (* find all universal type variables in the expression *)
-  let universal_type_vars : c_type list = get_universal_type_vars t in
-
-  (* generate a fresh type variable for each universal type variable *)
-  let fresh_type_vars_assoc : (c_type * c_type) list =
-    List.map (fun u -> (u, fresh_type_var ())) universal_type_vars
-  in
-  (* replace them *)
-  replace_types t fresh_type_vars_assoc
 
 and get_universal_type_vars (t : c_type) : c_type list =
   match t with

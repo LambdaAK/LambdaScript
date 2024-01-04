@@ -94,10 +94,8 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env) :
       let new_type_bindings_string =
         List.map
           (fun id ->
-            let t_string =
-              kind_of_type (TypeName id) new_type_env |> string_of_c_kind
-            in
-            id ^ " : " ^ t_string)
+            let k = kind_of_type (TypeName id) new_type_env in
+            k |> string_of_c_kind)
           new_type_bindings
         |> String.concat "\n"
       in

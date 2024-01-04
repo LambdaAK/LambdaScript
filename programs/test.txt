@@ -1,1 +1,5 @@
 type Either a b = | Left (a) | Right (b)
+
+let f x = x + 1
+
+let a = f true

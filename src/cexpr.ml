@@ -80,6 +80,7 @@ and c_type =
 and c_kind =
   | Star
   | Arrow of c_kind * c_kind
+  | KindVar of int
 
 and value =
   | IntegerValue of int
@@ -127,6 +128,13 @@ let fresh_universal_type : unit -> c_type =
  fun () ->
   counter_2 := !counter_2 + 1;
   UniversalType !counter_2
+
+let counter_3 : int ref = ref 0
+
+let fresh_kind_var : unit -> c_kind =
+ fun () ->
+  counter_3 := !counter_3 + 1;
+  KindVar !counter_3
 
 let reset_type_counters : unit -> unit =
  fun () ->

@@ -5,12 +5,10 @@ open Typecheck
 
 type type_env = (string * c_type) list
 type new_value_bindings_ids = string list
-type new_type_bindings_ids = string list
 
 let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
     (type_env : type_env) :
-    env * static_env * type_env * new_value_bindings_ids * new_type_bindings_ids
-    =
+    env * static_env * type_env * new_value_bindings_ids * string list =
   match d with
   | CDefn (pattern, _, body_expression) -> (
       let v : value = eval_c_expr body_expression env in
