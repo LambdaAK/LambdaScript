@@ -496,8 +496,6 @@ and generate_kind_equations t type_env (static_type_env : static_type_env) :
 
       (kind_of_type_var, [])
   | UniversalType type_var_id ->
-      print_endline "generating universal kind var";
-
       let kind_of_type_var =
         try List.assoc type_var_id static_type_env
         with Not_found -> failwith "not found in generate_kind_equations"
@@ -609,15 +607,6 @@ and type_of_c_expr (e : c_expr) (static_env : static_env)
 
   (* print the constraints *)
   let constraints = generated_constraints in
-  print_endline "expression";
-  print_endline (string_of_c_expr e);
-  print_endline "TYPE: ";
-  print_endline (string_of_c_type t);
-  print_endline "CONSTRAINTS ";
-  print_endline (string_of_type_equations constraints);
-  print_endline "end constraints";
-
-  (* solve the constraints *)
 
   (* solve the constraints *)
   let constraints_without_written_type_vars =
