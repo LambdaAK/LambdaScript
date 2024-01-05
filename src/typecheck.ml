@@ -317,9 +317,8 @@ and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
   | [] -> []
   | (t1, t2) :: c' -> (
       if t1 = t2 then reduce_eq c' type_env
-      else if inside t1 t2 || inside t2 t1 then (
-        print_endline "TYPE FAILURE";
-        raise TypeFailure)
+        (*else if inside t1 t2 || inside t2 t1 then ( print_endline "TYPE
+          FAILURE"; raise TypeFailure)*)
       else
         match (t1, t2) with
         (* if one of the types is a union type, just ignore the equation for

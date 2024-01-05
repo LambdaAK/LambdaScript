@@ -67,3 +67,10 @@ let run_run (dir : string) : unit =
 let () =
   (* try run_run (get_dir ()) with | _ -> print_endline "Error"; exit 1 *)
   if Array.length Sys.argv = 1 then run_repl () else run_run (get_dir ())
+
+(* 
+
+   Add an argument where an expression can be passed in to be evaluated as a
+   command line argument arg 0: the program arg 1: mode (repl, run, eval) arg 2:
+   the expression to be evaluated (if mode is eval), or the file to be run (if
+   mode is run) *)
