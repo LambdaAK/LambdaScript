@@ -1,12 +1,14 @@
 open Expr
 open Cexpr
 
+(** Condense_pat converts a pat to a c_pat *)
 let rec condense_pat : pat -> c_pat = function
   | SubPat sub_pat -> condense_sub_pat sub_pat
   | ConsPat (sub_pat, pat) ->
       CConsPat (condense_sub_pat sub_pat, condense_pat pat)
   | AppPat (sp1, sp2) -> CAppPat (condense_sub_pat sp1, condense_sub_pat sp2)
 
+(** Condense_sub_pat converts a sub_pat to a c_pat *)
 and condense_sub_pat : sub_pat -> c_pat = function
   | IntPat i -> CIntPat i
   | BoolPat b -> CBoolPat b
@@ -20,6 +22,7 @@ and condense_sub_pat : sub_pat -> c_pat = function
   | InfixPat s -> CIdPat s
   | ConstructorPat name -> CConstructorPat name
 
+(** Condense_defn converts a defn to a c_defn *)
 let rec condense_defn : defn -> c_defn = function
   | Defn (pattern, cto, body_expression) ->
       let a : c_pat = condense_pat pattern in
@@ -47,10 +50,14 @@ let rec condense_defn : defn -> c_defn = function
       CUnionDefn
         (union_name, List.map condense_constructor constructors, type_vars)
 
+(** Condense_constructor converts a constructor to a c_constructor Note: this is
+    only used in UnionDefn *)
 and condense_constructor : constructor -> c_constructor = function
   | NullaryConstructor name -> CNullaryConstructor name
   | UnaryConstructor (name, t) -> CUnaryConstructor (name, condense_type t)
 
+(** Condense_expr converts an expr to a c_expr Note: this is the main function
+    that converts an expr to a c_expr *)
 and condense_expr : expr -> c_expr = function
   | Function (pat, ct_opt, expr) ->
       EFunction
@@ -77,20 +84,24 @@ and condense_expr : expr -> c_expr = function
             (fun (pat, expr) -> (condense_pat pat, condense_expr expr))
             branches )
 
+(** condense_cons_expr converts a cons_expr to a c_expr *)
 and condense_cons_expr : cons_expr -> c_expr = function
   | Cons (e1, e2) -> EBop (CCons, condense_disjunction e1, condense_cons_expr e2)
   | DisjunctionUnderCons d -> condense_disjunction d
 
+(** condense_disjunction converts a disjunction to a c_expr *)
 and condense_disjunction : disjunction -> c_expr = function
   | Disjunction (conj, disj) ->
       EBop (COr, condense_conjunction conj, condense_disjunction disj)
   | ConjunctionUnderDisjunction conj -> condense_conjunction conj
 
+(** condense_conjunction converts a conjunction to a c_expr *)
 and condense_conjunction : conjunction -> c_expr = function
   | Conjunction (rel_expr, conj) ->
       EBop (CAnd, condense_rel_expr rel_expr, condense_conjunction conj)
   | RelationUnderConjunction rel_expr -> condense_rel_expr rel_expr
 
+(** condense_rel_expr converts a rel_expr to a c_expr *)
 and condense_rel_expr : rel_expr -> c_expr = function
   | Relation (rel_op, rel_expr, arith_expr) -> begin
       match rel_op with
@@ -114,6 +125,7 @@ and condense_rel_expr : rel_expr -> c_expr = function
         ( EApp (EId op_string, condense_rel_expr rel_expr),
           condense_arith_expr arith_expr )
 
+(** condense_arith_expr converts an arith_expr to a c_expr *)
 and condense_arith_expr : arith_expr -> c_expr = function
   | Plus (arith_expr, term) ->
       EBop (CPlus, condense_arith_expr arith_expr, condense_term term)
@@ -126,6 +138,7 @@ and condense_arith_expr : arith_expr -> c_expr = function
       (* ae op t*)
       EApp (EApp (EId op_string, condense_arith_expr ae), condense_term t)
 
+(** condense_term converts a term to a c_expr *)
 and condense_term : term -> c_expr = function
   | Mul (t, af) -> EBop (CMul, condense_term t, condense_app_factor af)
   | Div (t, af) -> EBop (CDiv, condense_term t, condense_app_factor af)
@@ -137,11 +150,13 @@ and condense_term : term -> c_expr = function
       (* t op af *)
       EApp (EApp (EId op_string, condense_term t), condense_app_factor af)
 
+(** condense_app_factor converts an app_factor to a c_expr *)
 and condense_app_factor : app_factor -> c_expr = function
   | Application (app_factor, factor) ->
       EApp (condense_app_factor app_factor, condense_factor factor)
   | FactorUnderApplication factor -> condense_factor factor
 
+(** condense_factor converts a factor to a c_expr *)
 and condense_factor : factor -> c_expr = function
   | Boolean b -> EBool b
   | String s -> EString s
@@ -163,13 +178,17 @@ and condense_factor : factor -> c_expr = function
         (condense_expr e, List.map condense_generator generators)
   | Constructor n -> EConstructor n
 
+(** condense_generator converts a generator to a c_pat * c_expr *)
 and condense_generator ((pat, expr) : generator) : c_pat * c_expr =
   (condense_pat pat, condense_expr expr)
 
+(* cons_from_list converts a list of c_expr to a c_expr using the CCons
+   constructor *)
 and cons_from_list : c_expr list -> c_expr = function
   | [] -> ENil
   | e :: es -> EBop (CCons, e, cons_from_list es)
 
+(** factor_type_to_t converts a factor_type to a c_type *)
 and factor_type_to_t : factor_type -> c_type = function
   | BooleanType -> BoolType
   | StringType -> StringType
@@ -182,10 +201,12 @@ and factor_type_to_t : factor_type -> c_type = function
   | VectorType types -> VectorType (List.map condense_type types)
   | ListType et -> CListType (condense_type et)
 
+(** factor_app_type_to_t converts a factor_app_type to a c_type *)
 and factor_app_type_to_t : factor_app_type -> c_type = function
   | FactorType t -> factor_type_to_t t
   | AppType (fat, ft) -> AppType (factor_app_type_to_t fat, factor_type_to_t ft)
 
+(** condense_type converts a type to a c_type *)
 and condense_type : compound_type -> c_type = function
   | BasicType fat -> factor_app_type_to_t fat
   | FunctionType (fat, ct) ->
@@ -195,4 +216,5 @@ and condense_type : compound_type -> c_type = function
   | PolymorphicType (s, ct) ->
       PolymorphicType (TypeVarWritten s, condense_type ct)
 
+(** Condense_program converts a defn list to a c_defn list*)
 let condense_program = List.map condense_defn

@@ -6,6 +6,11 @@ open Typecheck
 type type_env = (string * c_type) list
 type new_value_bindings_ids = string list
 
+(** [eval_defn d env static_env type_env] executes the definition [d] in the
+    environment [env] and static environment [static_env] and type environment
+    [type_env]. It returns a new environment, static environment, and type
+    environment, as well as a list of new value bindings and a list of new type
+    bindings. *)
 let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
     (type_env : type_env) :
     env * static_env * type_env * new_value_bindings_ids * string list =
@@ -120,11 +125,21 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
 
       (env, new_static_env, new_type_env, [], [ type_name ])
 
+(** [wrap type_vars t] wraps the type [t] with the type variables in
+    [type_vars].
+
+    For example, if [type_vars] is [a b c d e], then [wrap type_vars t] returns
+    [a -> b -> c -> d -> e -> t], where [->] is the function type constructor
+    and a, b, c, d, e are polymorphic type variables *)
 and wrap type_vars t =
   match type_vars with
   | [] -> t
   | arg :: rest -> PolymorphicType (arg, wrap rest t)
 
+(** [apply type_vars t], apply t to the type variables in type_vars
+
+    For example, if [type_vars] is [a b c d e], then [apply type_vars t] returns
+    [t a b c d e] *)
 and apply type_vars t =
   (* Given list of type_vars a b c d e .... and type t, return the type t a b c
      d e .... *)

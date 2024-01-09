@@ -35,6 +35,3 @@ let rec interleave s1 s2 =
   switch s1 =>
   | Cons (x, f) -> Cons (x, \ () -> interleave s2 (f ()))
   end
-
-(* split a sequence into two *)
-
