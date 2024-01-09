@@ -1,25 +1,22 @@
-# LambdaScript
+# LambdaScript - a Functional Programming Language Inspried by OCaml and Haskell
 
-## An functional programming language inspired by Haskell and OCaml
+## Table of Contents
+1. [Overview](#overview)
+2. [Example Usages](#examples)
+3. [Installation](#installation)
+4. [Usage](#usage)
+5. [Testing](#testing)
+6. [Code Documentation](#documentation)
 
-Lambdascript is a statically-typed functional programming language designed to
-make it easy to write elegant and expressive code. It has key features that
-allow users to write clean and expressive code.
 
-# Features
+# Overview
 
-- Basic and compound data types: int, bool, str, unit, list, vector, et cetera
+LambdaScript is a ***statically-typed*** ***functional programming language*** designed to make it easy to write elegant and expressive code. It features a powerful type system underpinned by ***kinds***, which allows for ***higher-order arithmetic on types***. 
 
-- Functional constructs: ternary expressions, anonymous functions, let
-  expressions, currying, structural pattern matching
+It also features a type inference engine similar to the ***Hindley-Milner algorithm***, which can infer the types of most expressions, so you don't have to write them out. 
 
-- Type inference algorithm: uses a type constraint generator and a unification
-  algorithm to infer types
+Currently, LambdaScript is an interpreted language with the lexer, parser, typechecker, and evaluator all written in OCaml. In the future, I plan to make a compiler to JavaScript, which would allow LambdaScript to have a wider range of applications.
 
-- A REPL allowing a user to type expressions and receive their value and type
-
-- Rigorous OUnit test suite that utilizes functors, taking pre-built unit tests
-  and outputting modified ones
 
 # Semantics
 
@@ -375,4 +372,65 @@ type App2 a b c d e = e (b c a) d
 _output_
 ```
 * -> (* -> * -> *) -> * -> * -> (* -> * -> *) -> *
+```
+
+# Installation
+
+## Prerequisites
+- OCaml 5.0.0 or higher
+- Dune
+
+## Building
+
+- To clone the project, run the following command:
+```bash
+git clone https://github.com/LambdaAK/LambdaScript
+```
+
+- Then, `cd` into the project directory and run the following command:
+```bash
+make
+```
+
+# Usage
+
+- You can run the REPL by running the following command:
+```bash
+make repl
+```
+- You can execute a LambdaScript file by running the following command:
+```bash
+dune exec ./bin/interpreter.exe <filename>
+```
+
+# Testing
+
+## Testing Overview
+
+There are currently around 450 unit tests in the `test` directory. In order to achieve greater exhaustiveness, I implemented a mechanism taking pre-built unit tests and generating new ones by applying random transformatios to them. This allows for a much greater number of tests to be generated, and thus a greater degree of confidence in the correctness of the implementation. With this, the 450 unit tests can be expanded to around 13,000 unit tests.
+
+## Running Tests
+
+To run the unit tests, run the following command:
+```bash
+make test
+```
+
+- To use the random test generator, set the `modify_tests` variable in `test/test.ml` to `true` and follow the instructions above.
+
+- To run tests with coverage, run the following command:
+```bash
+make bisect
+```
+
+
+# Documentation
+
+- To generate the code documentation, run the following command:
+```bash
+make doc
+```
+- To view the code documentation, run the following command
+```bash
+make opendoc
 ```

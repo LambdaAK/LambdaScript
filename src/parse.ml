@@ -380,10 +380,11 @@ and parse_constructor_list (tokens : token list) (acc : constructor list) :
       parse_constructor_list tokens_after_constructor (constructor :: acc)
   | _ -> (List.rev acc, tokens)
 
-(**
-Given a list of variables [vars] and a type [t], returns a type with the variables in [vars] wrapped around [t].
-For example, if vars is [[a, b, c, d]], and t is [[int]], then the returned type is [[a -> b -> c -> d -> int]    
-*)
+(** [wrap_type] is used to created a curried polymorphic type from a list of
+    type variables and a type
+
+    For example: wrap_type [a; b; c] t = PolymorphicType (a, PolymorphicType (b,
+    PolymorphicType (c, t))) *)
 and wrap_type vars t =
   match vars with
   | [] -> t

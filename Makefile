@@ -13,6 +13,7 @@ bisect:
 	dune build test/test.exe
 	dune exec --instrument-with bisect_ppx --force test/test.exe
 	bisect-ppx-report html
+	open ./_coverage/index.html
 
 
 repl:
