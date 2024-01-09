@@ -2,6 +2,8 @@ open Cexpr
 
 (* definitions of initial dynamic and static environments *)
 
+(** built_ins contains mappings from the built-in function names to their values
+    and types *)
 let built_ins : (string * value * c_type) list =
   [
     ("println", BuiltInFunction Println, StringType => UnitType);
@@ -17,6 +19,8 @@ let built_ins_values : (string * value) list =
 let built_ins_types : (string * c_type) list =
   List.map (fun (id, _, t) -> (id, t)) built_ins
 
+(** code_mapping contains mappings from identifiers to code, which will be bound
+    to those identifiers*)
 let code_mapping : (string * string) list =
   [
     ("not", {|

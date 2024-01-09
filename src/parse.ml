@@ -4,26 +4,33 @@ open Expr
 exception ParseFailure
 exception FactorParseFailure
 
+(** [remove_head lst] returns the list [lst] without the first element. If [lst]
+    is empty, [ParseFailure] is raised. *)
 let remove_head : 'a list -> 'a list = function
   | [] -> raise ParseFailure
   | _ :: t -> t
 
+(** [remove_last lst] returns a tuple of the last element of [lst] and the list
+    [lst] without the last element. If [lst] is empty, [ParseFailure] is raised. *)
 let remove_last (lst : 'a list) : 'a * 'a list =
   match List.rev lst with
   | [] -> raise ParseFailure
   | last :: rest -> (last, List.rev rest)
 
+(** [addop] represents the different types of addition operators *)
 type addop =
   | AddopPlus
   | AddopMinus
   | AddopCustom of string
 
+(** [mulop] represents the different types of multiplication operators *)
 type mulop =
   | MulopTimes
   | MulopDiv
   | MulopMod
   | MulopCustom of string
 
+(** [relop] represents the different types of relational operators *)
 type relop =
   | EQ
   | NE
@@ -33,6 +40,9 @@ type relop =
   | GE
   | RelopCustom of string
 
+(** [get_relop_if_exists tokens] returns a tuple of an optional [relop] and the
+    list [tokens] without the first element if the first element of [tokens] is
+    a [relop]. Otherwise, [None] is returned as the first element of the tuple. *)
 let get_relop_if_exists (tokens : token list) =
   match tokens with
   | { token_type = Relop "=="; line = _ } :: t -> (Some EQ, t)
@@ -44,6 +54,9 @@ let get_relop_if_exists (tokens : token list) =
   | { token_type = Relop s; line = _ } :: t -> (Some (RelopCustom s), t)
   | _ -> (None, tokens)
 
+(** [get_addop_if_exists tokens] returns a tuple of an optional [addop] and the
+    list [tokens] without the first element if the first element of [tokens] is
+    an [addop]. Otherwise, [None] is returned as the first element of the tuple. *)
 let get_addop_if_exists (tokens : token list) =
   match tokens with
   | { token_type = Addop "+"; line = _ } :: t -> (Some AddopPlus, t)
@@ -51,6 +64,9 @@ let get_addop_if_exists (tokens : token list) =
   | { token_type = Addop s; line = _ } :: t -> (Some (AddopCustom s), t)
   | _ -> (None, tokens)
 
+(** [get_mulop_if_exists tokens] returns a tuple of an optional [mulop] and the
+    list [tokens] without the first element if the first element of [tokens] is
+    a [mulop]. Otherwise, [None] is returned as the first element of the tuple. *)
 let get_mulop_if_exists (tokens : token list) =
   match tokens with
   | { token_type = Mulop "*"; line = _ } :: t -> (Some MulopTimes, t)
@@ -123,6 +139,9 @@ let combine_factors_into_term factors mulops =
 
 exception UnexpectedToken of token_type * token_type option * int
 
+(** [assert_next_token tokens expected_value] asserts that the next token in
+    [tokens] is [expected_value]. If it is not, [UnexpectedToken] is raised.
+    Else, [()] is returned. *)
 let assert_next_token (tokens : token list) (expected_value : token_type) =
   match tokens with
   | [] -> raise (UnexpectedToken (expected_value, None, -1))
@@ -130,6 +149,8 @@ let assert_next_token (tokens : token list) (expected_value : token_type) =
       if t = expected_value then ()
       else raise (UnexpectedToken (expected_value, Some t, line))
 
+(** [parse_compound_type tokens] parses a compound type from [tokens] and
+    returns a tuple of the parsed compound type and the remaining tokens. *)
 let rec parse_compound_type (tokens : token list) : compound_type * token list =
   let left_type, tokens_after_left_type = parse_factor_app_type tokens in
   match tokens_after_left_type with
@@ -145,6 +166,8 @@ let rec parse_compound_type (tokens : token list) : compound_type * token list =
       (* return the basic type *)
       (BasicType left_type, tokens_after_left_type)
 
+(** [parse_sub_pat tokens] parses a sub pattern from [tokens] and returns a
+    tuple of the parsed sub pattern and the remaining tokens. *)
 and parse_factor_type_list (tokens : token list) : factor_type list * token list
     =
   let first, tokens_after_first = parse_factor_type tokens in
@@ -181,6 +204,9 @@ and combine_factor_types_into_factor_app_type (factor_types : factor_type list)
 
   combine_aux reversed_factor_types
 
+(** [parse_factor_app_type tokens] parses a factor application type from
+    [tokens] and returns a tuple of the parsed factor application type and the
+    remaining tokens. *)
 and parse_factor_app_type (tokens : token list) : factor_app_type * token list =
   (* parse a list of factors *)
   let factors, tokens_after_factors = parse_factor_type_list tokens in
@@ -188,6 +214,9 @@ and parse_factor_app_type (tokens : token list) : factor_app_type * token list =
   let factor_app_type = combine_factor_types_into_factor_app_type factors in
   (factor_app_type, tokens_after_factors)
 
+(** [parse_sub_pat tokens] parses a compound type from [tokens], if possible,
+    and returns a tuple of an option of parsed compound type and the remaining
+    tokens. *)
 and parse_compound_type_if_possible (tokens : token list) :
     compound_type option * token list =
   match tokens with
@@ -198,6 +227,8 @@ and parse_compound_type_if_possible (tokens : token list) :
       (Some ct, remove_head tokens_after_ct)
   | _ -> (None, tokens)
 
+(** Parses patterns while the next tokens is not "<-". Returns a tuple of the
+    parsed patterns and the remaining tokens. *)
 and parse_pats_while_next_token_is_not_bind_arrow (tokens : token list)
     (acc : (pat * compound_type option) list) :
     (pat * compound_type option) list * token list =
@@ -213,6 +244,8 @@ and parse_pats_while_next_token_is_not_bind_arrow (tokens : token list)
       parse_pats_while_next_token_is_not_bind_arrow tokens_after_cto
         ((next_pat, cto) :: acc)
 
+(** [parse_factor_type tokens] parses a factor type from [tokens] and returns a
+    tuple of the parsed factor type and the remaining tokens. *)
 and parse_factor_type (tokens : token list) : factor_type * token list =
   match tokens with
   | { token_type = IntegerType; line = _ } :: t -> (IntegerType, t)
@@ -245,6 +278,8 @@ and parse_factor_type (tokens : token list) : factor_type * token list =
           remove_head tokens_after_compound_type_list )
   | _ -> raise ParseFailure
 
+(** Parsses a list of compound types seperated by commas. Returns the list of
+    compound types and the list of remaining tokens *)
 and parse_compound_type_list_seperated_by_commas (tokens : token list) :
     compound_type list * token list =
   let first, tokens_after_first = parse_compound_type tokens in
@@ -257,6 +292,8 @@ and parse_compound_type_list_seperated_by_commas (tokens : token list) :
       (first :: second, tokens_after_second)
   | _ -> ([ first ], tokens_after_first)
 
+(** Parses the contents of a definition. Returns a tuple of the parsed pattern,
+    the optional type annotation, the body expression, and the remaining tokens. *)
 and parse_defn_contents (t : token list) :
     pat * compound_type option * expr * token list =
   (* let p <- e *)
@@ -300,6 +337,8 @@ and parse_defn_contents (t : token list) :
 
       (pattern, None, body_expression, tokens_after_body_expression)
 
+(** Parses a constructor from [tokens] and returns a tuple of the parsed
+    constructor and the remaining tokens. *)
 and parse_constructor (tokens : token list) : constructor * token list =
   (* 2 cases NullaryConstructor ParametricConstructor : type *)
 
@@ -331,6 +370,8 @@ and parse_constructor (tokens : token list) : constructor * token list =
       ( UnaryConstructor (constructor_name, constructor_type),
         tokens_after_constructor_type )
 
+(** Parses a list of constructors from [tokens] and returns a tuple of the
+    parsed list of constructors and the remaining tokens. *)
 and parse_constructor_list (tokens : token list) (acc : constructor list) :
     constructor list * token list =
   match tokens with
@@ -339,12 +380,18 @@ and parse_constructor_list (tokens : token list) (acc : constructor list) :
       parse_constructor_list tokens_after_constructor (constructor :: acc)
   | _ -> (List.rev acc, tokens)
 
+(**
+Given a list of variables [vars] and a type [t], returns a type with the variables in [vars] wrapped around [t].
+For example, if vars is [[a, b, c, d]], and t is [[int]], then the returned type is [[a -> b -> c -> d -> int]    
+*)
 and wrap_type vars t =
   match vars with
   | [] -> t
   | first_param :: other_params ->
       PolymorphicType (first_param, wrap_type other_params t)
 
+(** Parses a definition. Returns a tuple of the parsed definition and the
+    remaining tokens. *)
 and parse_defn (tokens : token list) : defn * token list =
   match tokens with
   | { token_type = Type; line = _ } :: t -> (
@@ -449,6 +496,8 @@ and parse_defn (tokens : token list) : defn * token list =
       if is_rec then (DefnRec (pattern, cto, e_wrapped), tokens_after_body)
       else (Defn (pattern, cto, e_wrapped), tokens_after_body)
 
+(** Parses a list of expressions seperated by commas. Returns the list of
+    expressions and the list of remaining tokens. *)
 and parse_expressions_seperated_by_commas (tokens : token list) :
     expr list * token list =
   let first, tokens_after_first = parse_expr tokens in
@@ -462,19 +511,8 @@ and parse_expressions_seperated_by_commas (tokens : token list) :
       (first :: second, tokens_after_second)
   | _ -> ([ first ], tokens_after_first)
 
-and parse_expressions_seperated_by_semicolons (tokens : token list) :
-    expr list * token list =
-  let first, tokens_after_first = parse_expr tokens in
-  match tokens_after_first with
-  (* if the next token is a comma, remove the comma and parse another
-     expression *)
-  | { token_type = Semicolon; line = _ } :: t ->
-      let second, tokens_after_second =
-        parse_expressions_seperated_by_semicolons t
-      in
-      (first :: second, tokens_after_second)
-  | _ -> ([ first ], tokens_after_first)
-
+(** Parses a list of switch branches. Returns a tuple of the parsed list of
+    switch branches and the remaining tokens. *)
 and parse_switch_branches (tokens : token list) :
     switch_branch list * token list =
   match tokens with
@@ -497,6 +535,7 @@ and parse_switch_branches (tokens : token list) :
       | _ -> ((pattern, expression) :: [], tokens_after_expression))
   | _ -> raise ParseFailure
 
+(** Parses an expr. Returns a tuple of the parsed expr and the remaining tokens. *)
 and parse_expr (tokens : token list) : expr * token list =
   match tokens with
   | { token_type = Fn; line = _ } :: t ->
@@ -539,9 +578,8 @@ and parse_expr (tokens : token list) : expr * token list =
       let e, t = parse_cons tokens in
       (ConsExpr e, t)
 
-(*let (e, t): disjunction * token list = parse_disjunction tokens in
-  DisjunctionExpr e, t*)
-
+(** Parses a bind rec expression. Returns a tuple of the parsed bind rec
+    expression and the remaining tokens. *)
 and parse_bind_rec (tokens_without_bind_rec : token list) : expr * token list =
   let pattern, tokens_after_pattern = parse_pat tokens_without_bind_rec in
 
@@ -584,6 +622,7 @@ and parse_bind_rec (tokens_without_bind_rec : token list) : expr * token list =
 
   (BindRec (pattern, cto, e1_wrapped, e2), tokens_after_e2)
 
+(** Parses a function. Returns the function and the list of remaining tokens.*)
 and parse_function (tokens_without_lam : token list) : expr * token list =
   let pattern, tokens_after_pattern = parse_pat tokens_without_lam in
   (* check if there is a left bracket for a type annotation *)
@@ -604,6 +643,8 @@ and parse_function (tokens_without_lam : token list) : expr * token list =
       let body, tokens_after_body = parse_expr body_tokens in
       (Function (pattern, None, body), tokens_after_body)
 
+(** Parses a bind expression. Returns a tuple of the parsed bind expression and
+    the list of remaining tokens. *)
 and parse_bind (tokens_without_bind : token list) : expr * token list =
   let pattern, tokens_after_pattern = parse_pat tokens_without_bind in
 
@@ -656,6 +697,8 @@ and parse_bind (tokens_without_bind : token list) : expr * token list =
                              ParenFactor e1_wrapped )))))))),
     tokens_after_e2 )
 
+(** Parses a cons expression. Returns a tuple of the parsed cons expression and
+    the remaining tokens. *)
 and parse_cons (tokens : token list) : cons_expr * token list =
   let first, tokens_after_first = parse_disjunction tokens in
   match tokens_after_first with
@@ -664,6 +707,8 @@ and parse_cons (tokens : token list) : cons_expr * token list =
       (Cons (first, second), tokens_after_second)
   | _ -> (DisjunctionUnderCons first, tokens_after_first)
 
+(** Parses a disjunction. Returns a tuple of the parsed disjunction and the
+    remaining tokens. *)
 and parse_disjunction (tokens : token list) : disjunction * token list =
   let first, tokens_after_first = parse_conjunction tokens in
   match tokens_after_first with
@@ -672,6 +717,8 @@ and parse_disjunction (tokens : token list) : disjunction * token list =
       (Disjunction (first, second), tokens_after_second)
   | _ -> (ConjunctionUnderDisjunction first, tokens_after_first)
 
+(** Parses a conjunction. Returns a tuple of the parsed conjunction and the
+    remaining tokens. *)
 and parse_conjunction (tokens : token list) : conjunction * token list =
   let first, tokens_after_first = parse_rel_expr tokens in
   match tokens_after_first with
@@ -680,6 +727,8 @@ and parse_conjunction (tokens : token list) : conjunction * token list =
       (Conjunction (first, second), tokens_after_second)
   | _ -> (RelationUnderConjunction first, tokens_after_first)
 
+(** Parses a relation expression. Returns a tuple of the parsed relation
+    expression and the remaining tokens. *)
 and parse_rel_expr (tokens : token list) : rel_expr * token list =
   let arith_expr_list, relop_list, tokens_after_arith_expr_list =
     parse_arith_expr_list tokens
@@ -687,11 +736,14 @@ and parse_rel_expr (tokens : token list) : rel_expr * token list =
   let arith_expr = combine_arith_exprs_into_rel_op arith_expr_list relop_list in
   (arith_expr, tokens_after_arith_expr_list)
 
+(** Parses an arithmetic expression. Returns a tuple of the parsed arithmetic
+    expression and the remaining tokens. *)
 and parse_arith_expr (tokens : token list) : arith_expr * token list =
   let term_list, addop_list, tokens_after_term_list = parse_term_list tokens in
   let term = combine_terms_into_arith_expr term_list addop_list in
   (term, tokens_after_term_list)
 
+(** Parses a term. Returns a tuple of the parsed term and the remaining tokens. *)
 and parse_term (tokens : token list) : term * token list =
   let factor_list, mulop_list, tokens_after_factor_list =
     parse_factor_list tokens
@@ -700,6 +752,8 @@ and parse_term (tokens : token list) : term * token list =
   let term = combine_factors_into_term factor_list mulop_list in
   (term, tokens_after_factor_list)
 
+(** Parses an app factor. Returns a tuple of the parsed app factor and the
+    remaining tokens. *)
 and parse_app_factor (tokens : token list) : app_factor * token list =
   let factors, tokens_after_factors = get_factor_list tokens [] in
   if List.length factors = 0 then raise ParseFailure
@@ -707,15 +761,19 @@ and parse_app_factor (tokens : token list) : app_factor * token list =
     (create_factor_app_chain_from_factor_list factors, tokens_after_factors)
   else (FactorUnderApplication (List.hd factors), tokens_after_factors)
 
+(** Parses a list of factors seperated by mulops *)
 and parse_factor_list (tokens : token list) =
   parse_repeat parse_app_factor get_mulop_if_exists tokens
 
+(** Parses a list of terms seperated by addops *)
 and parse_term_list (tokens : token list) =
   parse_repeat parse_term get_addop_if_exists tokens
 
+(** Parses a list of arith_exprs seperated by relops *)
 and parse_arith_expr_list (tokens : token list) =
   parse_repeat parse_arith_expr get_relop_if_exists tokens
 
+(** Parses a list of patterns seperated by commas *)
 and parse_pats_seperated_by_commas (tokens : token list) : pat list * token list
     =
   let first, tokens_after_first = parse_pat tokens in
@@ -726,6 +784,8 @@ and parse_pats_seperated_by_commas (tokens : token list) : pat list * token list
       (first :: second, tokens_after_second)
   | _ -> ([ first ], tokens_after_first)
 
+(** Checks if the current list of tokens allows for a sub_pat to be parsed.
+    Returns true if it does, false otherwise. *)
 and sub_pat_is_ahead (prev_pat : sub_pat) (tokens : token list) : bool =
   (* Look for the following things ( unit Nil id int float bool string *)
   match prev_pat with
@@ -747,6 +807,7 @@ and sub_pat_is_ahead (prev_pat : sub_pat) (tokens : token list) : bool =
         end
   | _ -> false
 
+(** Parses a pat. Returns a tuple of the parsed pat and the remaining tokens. *)
 and parse_pat (tokens : token list) : pat * token list =
   (* parse a sub_pat *)
   let sub_pat, tokens_after_sub_pat = parse_sub_pat tokens in
@@ -768,6 +829,8 @@ and parse_pat (tokens : token list) : pat * token list =
       (AppPat (sub_pat, second_sub_pat), tokens_after_second_sub_pat)
   | _ -> (SubPat sub_pat, tokens_after_sub_pat)
 
+(** Parses a sub_pat. Returns a tuple of the parsed sub_pat and the remaining
+    tokens. *)
 and parse_sub_pat (tokens : token list) : sub_pat * token list =
   match tokens with
   | [] -> failwith "empty list passed to parse_pat"
@@ -805,6 +868,7 @@ and parse_sub_pat (tokens : token list) : sub_pat * token list =
       else (VectorPat pat_list, remove_head tokens_after_pat_list)
   | _ -> raise ParseFailure
 
+(** Parses a factor that is not an application. *)
 and parse_factor_not_app (tokens : token list) : factor * token list =
   match tokens with
   | { token_type = LParen; line = _ }
@@ -872,6 +936,7 @@ and parse_factor_not_app (tokens : token list) : factor * token list =
   | { token_type = Constructor n; _ } :: t -> (Constructor n, t)
   | _ -> raise FactorParseFailure
 
+(** Parses a list syntactic sugar Ex: [1, 2, 3, 4, 5] *)
 and parse_list_sugar (t : token list) : factor * token list =
   (* parse a list of expressions seperated by ; *)
   let inside_expressions, tokens_after_expr_list =
@@ -884,6 +949,7 @@ and parse_list_sugar (t : token list) : factor * token list =
 
   (ListSugar inside_expressions, after_tokens)
 
+(** Parses a list enumeration. Ex: [1 ... 10] *)
 and parse_list_enumeration (t : token list) : factor * token list =
   let e1, tokens_after_e1 = parse_expr t in
   (* the next token should be ... *)
@@ -895,6 +961,7 @@ and parse_list_enumeration (t : token list) : factor * token list =
   let tokens_after_enumeration = remove_head tokens_after_e2 in
   (ListEnumeration (e1, e2), tokens_after_enumeration)
 
+(** Parses a generator, which is something of the form p <- e *)
 and parse_generator (tokens : token list) : generator * token list =
   let pattern, tokens_after_pattern = parse_pat tokens in
   (* next token should be a bind arrow *)
@@ -904,6 +971,8 @@ and parse_generator (tokens : token list) : generator * token list =
   let generator : generator = (pattern, e) in
   (generator, tokens_after_e)
 
+(** Parses a list of generators seperated by commas. Returns the list of
+    generators and the list of remaining tokens *)
 and parse_generator_list (tokens : token list) : generator list * token list =
   let first, tokens_after_first = parse_generator tokens in
   match tokens_after_first with
@@ -912,6 +981,8 @@ and parse_generator_list (tokens : token list) : generator list * token list =
       (first :: rest, tokens_after_rest)
   | _ -> ([ first ], tokens_after_first)
 
+(** Parses a list comprehension. Returns the list comprehension and the list of
+    remaining tokens. Ex: [[x * x | x <- [1, 2, 3, 4, 5]]] *)
 and parse_list_comprehension (tokens : token list) : factor * token list =
   (* e | generators ] *)
   let e, tokens_after_e = parse_expr tokens in
@@ -926,6 +997,8 @@ and parse_list_comprehension (tokens : token list) : factor * token list =
   let tokens_after_r_bracket = remove_head tokens_after_generator_list in
   (ListComprehension (e, generator_list), tokens_after_r_bracket)
 
+(** Parses a list of factors while possible, and returns the list of factors and
+    the remaining tokens. *)
 and get_factor_list (tokens : token list) (acc : factor list) :
     factor list * token list =
   try
@@ -933,6 +1006,7 @@ and get_factor_list (tokens : token list) (acc : factor list) :
     get_factor_list remaining_tokens (new_expr :: acc)
   with FactorParseFailure -> (List.rev acc, tokens (* return no new exprs *))
 
+(** Chains a list of factors into an application *)
 and create_factor_app_chain_from_factor_list (factors : factor list) :
     app_factor =
   match factors with
@@ -943,6 +1017,7 @@ and create_factor_app_chain_from_factor_list (factors : factor list) :
       Application
         (create_factor_app_chain_from_factor_list factors_without_last, last)
 
+(** Parses a program, which is a list of definitions *)
 let rec parse_program = function
   | [] -> []
   | tokens ->

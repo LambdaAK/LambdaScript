@@ -1,3 +1,5 @@
+(** token_type is the set of all possible tokens that can be lexed from a valid
+    program *)
 type token_type =
   | Integer of int
   | FloatToken of float
@@ -64,7 +66,10 @@ type token = {
   token_type : token_type;
   line : int;
 }
+(** type of a token, which is a token_type and a line number *)
 
+(** string_of_token_type is a function that takes a token_type and returns a
+    string *)
 let string_of_token_type : token_type -> string = function
   | Boolean b -> let s : string = string_of_bool b in
 
@@ -134,17 +139,23 @@ let string_of_token_type : token_type -> string = function
   | Mulop s -> "<mulop: " ^ s ^ ">"
 [@@coverage off]
 
+(** string_of_token is a function that takes a token and returns a string *)
 let string_of_token : token -> string =
  fun { token_type; _ } -> string_of_token_type token_type
 
+(** list_of_string is a function that takes a string and returns a list of
+    characters *)
 let list_of_string (s : string) = s |> String.to_seq |> List.of_seq
 
 exception LexFailure
 
+(** [is_num c] is true if [c] is a digit, and false otherwise *)
 let is_num : char -> bool = function
   | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' -> true
   | _ -> false
 
+(** int_from_char is a function that takes a char and returns an int. Otherwise,
+    it fails *)
 let int_from_char : char -> int = function
   | '0' -> 0
   | '1' -> 1
@@ -158,7 +169,7 @@ let int_from_char : char -> int = function
   | '9' -> 9
   | _ -> failwith "not an int passed to int_from_char"
 
-(* [65, 90]: uppercase [97, 122]: lowercase 95: underscore *)
+(** [65, 90]: uppercase [97, 122]: lowercase 95: underscore *)
 let is_letter : char -> bool =
  fun (c : char) ->
   let code : int = Char.code c in
@@ -166,32 +177,45 @@ let is_letter : char -> bool =
     true
   else false
 
+(** [is_alpha_num c] is true if [c] is a letter, number, or underscore, and
+    false otherwise *)
 let is_alpha_num (c : char) = is_letter c || is_num c
 
+(** [is_bop_prefix c] is true if [c] is a character that can be the first
+    character of a binary operator, and false otherwise *)
 let is_bop_prefix : char -> bool = function
   | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' -> true
   | _ -> false
 
+(** [is_special c] is true if [c] is a special character, and false otherwise *)
 let is_special = (* + - * / % < > = & | : ; , *)
   function
   | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' | '&' | '|' | ':' | ';' | ','
     -> true
   | _ -> false
 
+(** [is_addop_prefix c] is true if [c] is a character that can be the first
+    character of an addop, and false otherwise *)
 let is_addop_prefix = function
   | '+' | '-' -> true
   | _ -> false
 
+(** [is_mulop_prefix c] is true if [c] is a character that can be the first
+    character of a mulop, and false otherwise *)
 let is_mulop_prefix = function
   | '*' | '/' | '%' -> true
   | _ -> false
 
+(** [is_relop_prefix c] is true if [c] is a character that can be the first
+    character of a relop, and false otherwise *)
 let is_relop_prefix = function
   | '<' | '>' | '=' -> true
   | _ -> false
 
 (* whenever there's a special character, parse an operator *)
 
+(** [bop_from_char_list lst] is the binary operator represented by the list of
+    characters [lst] *)
 let bop_from_char_list (lst : char list) =
   let s : string = List.fold_left (fun acc c -> acc ^ String.make 1 c) "" lst in
 
@@ -206,6 +230,8 @@ let bop_from_char_list (lst : char list) =
     | h :: _ when is_relop_prefix h -> Relop s
     | _ -> failwith "invalid bop passed to bop_from_char_list"
 
+(** [lex_bop lst] is the binary operator represented by the list of characters
+    [lst], and the list of characters after the binary operator *)
 let lex_bop (lst : char list) =
   let rec get_bop_chars (lst : char list) (acc : char list) :
       char list * char list =
@@ -221,6 +247,8 @@ let lex_bop (lst : char list) =
 let string_of_char = String.make 1
 let ( ^^ ) (s : string) (c : char) = s ^ string_of_char c
 
+(** [keywords] is a list of all keywords in the language, and their
+    corresponding token_type *)
 let keywords =
   [
     ("true", Boolean true);
@@ -245,6 +273,8 @@ let keywords =
   ]
   |> List.map (fun (s, t) -> (list_of_string s, t))
 
+(** [is_prefix prefix lst] is true if [prefix] is a prefix of [lst], and false
+    otherwise *)
 let rec is_prefix (prefix : 'a list) (lst : 'a list) : bool * char list =
   match (prefix, lst) with
   (* if the prefix is [], return true, lst *)
@@ -253,6 +283,9 @@ let rec is_prefix (prefix : 'a list) (lst : 'a list) : bool * char list =
   | _, [] -> (false, [])
   | h1 :: t1, h2 :: t2 -> if h1 = h2 then is_prefix t1 t2 else (false, [])
 
+(** [find_leading_keyword_if_it_exists lst kw] is the token_type of the leading
+    keyword in [lst], and the list of characters after the keyword. If there is
+    no leading keyword, it is None, and the list of characters is [lst] *)
 let rec find_leading_keyword_if_it_exists (lst : char list) kw :
     token_type option * char list =
   (* a keyword is leading if the following holds
@@ -270,6 +303,8 @@ let rec find_leading_keyword_if_it_exists (lst : char list) kw :
         | _ -> (Some token_type, remainder)
       else find_leading_keyword_if_it_exists lst t
 
+(** [lex_int lst acc] is the integer represented by the list of characters [lst]
+    and the list of characters after the integer *)
 let rec lex_int (lst : char list) (acc : int) : token * char list =
   match lst with
   | n :: t when is_num n ->
@@ -277,14 +312,19 @@ let rec lex_int (lst : char list) (acc : int) : token * char list =
       lex_int t ((acc * 10) + n_int)
   | _ -> ({ token_type = Integer acc; line = 0 }, lst)
 
+(** [is_num_or_dot c] is true if [c] is a digit or a dot, and false otherwise *)
 let is_num_or_dot : char -> bool = function
   | '.' -> true
   | c -> is_num c
 
+(** [lex_num lst acc] is the number represented by the list of characters [lst]
+    and the list of characters after the number *)
 let is_lowercase : char -> bool = function
   | c when is_letter c -> Char.code c >= 97 && Char.code c <= 122
   | _ -> false
 
+(** [lex_num lst acc] is the number represented by the list of characters [lst]
+    and the list of characters after the number *)
 let rec lex_num (lst : char list) (acc : string) : token * char list =
   match lst with
   | n :: t when is_num_or_dot n ->
@@ -296,6 +336,8 @@ let rec lex_num (lst : char list) (acc : string) : token * char list =
         ({ token_type = FloatToken (float_of_string acc); line = 0 }, lst)
       else ({ token_type = Integer (int_of_string acc); line = 0 }, lst)
 
+(** [lex_string lst acc] is the string represented by the list of characters
+    [lst] and the list of characters after the string *)
 let rec lex_string (lst : char list) (acc : string) : token * char list =
   match lst with
   | '"' :: t -> ({ token_type = StringToken acc; line = 0 }, t)
@@ -306,6 +348,9 @@ let rec lex_string (lst : char list) (acc : string) : token * char list =
       lex_string t (acc ^ char_string)
   | [] -> failwith "expected closing double quote in lexing string"
 
+(** [lex_id_or_constructor lst acc] is the identifier or constructor represented
+    by the list of characters [lst] and the list of characters after the
+    identifier or constructor *)
 let rec lex_id_or_constructor (lst : char list) (acc : string) :
     token * char list =
   (* the first char has to be a letter the following characters can be letters,
@@ -329,6 +374,7 @@ let lex_type_var (tokens_after_single_quote : char list) : token * char list =
       ({ token_type = TypeVar i; line = 0 }, tokens_after_type_var)
   | _ -> failwith "expected an identifier after single quote"
 
+(** [lex lst] is the list of tokens represented by the list of characters [lst] *)
 let lex (lst : char list) : token list =
   let line_number : int ref = ref 1 in
   let rec lex (lst : char list) : token list =
@@ -473,12 +519,15 @@ let lex (lst : char list) : token list =
 
   tokens
 
+(** [remove_line_numbers tokens] is the list of token_types represented by the
+    list of tokens [tokens] *)
 let rec remove_line_numbers (tokens : token list) : token_type list =
   match tokens with
   | [] -> []
   | h :: t -> h.token_type :: remove_line_numbers t
 [@@coverage off]
 
+(** [print_tokens_list tokens] prints the list of tokens [tokens] *)
 let rec print_tokens_list : token list -> unit = function
   | [] -> ()
   | token :: tail ->

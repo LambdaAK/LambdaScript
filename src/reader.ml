@@ -1,5 +1,7 @@
 exception InvalidDir
 
+(** * [read dir] reads the contents of the file at [dir] and returns it as a
+    string. * Raises: [InvalidDir] if [dir] does not exist. *)
 let read dir =
   if not (Sys.file_exists dir) then raise InvalidDir
   else

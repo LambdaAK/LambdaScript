@@ -1,3 +1,4 @@
+(** Module type for monads *)
 module type Monad = sig
   type 'a t
 

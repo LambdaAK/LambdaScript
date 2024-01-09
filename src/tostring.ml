@@ -3,6 +3,7 @@ open Expr
 let indentations (level : int) = String.make (2 * level) ' '
 let indentations_with_newline (level : int) = "\n" ^ indentations level
 
+(** * This module is used to print the AST in a readable format. *)
 let rec string_of_pat : pat -> string = function
   | SubPat sub_pat -> string_of_sub_pat sub_pat
   | ConsPat (p1, p2) ->
@@ -24,6 +25,8 @@ let rec string_of_pat : pat -> string = function
       ^ indentations_with_newline 0
       ^ ")"
 
+(** * This function is used to print the sub-patterns. * It is used by
+    [string_of_pat] to print the sub-patterns. *)
 and string_of_sub_pat : sub_pat -> string = function
   | UnitPat -> "Unit Pattern"
   | WildcardPat -> "Wildcard Pattern"
@@ -44,6 +47,7 @@ and string_of_sub_pat : sub_pat -> string = function
   | InfixPat s -> "Infix Pattern (" ^ s ^ ")"
   | ConstructorPat n -> "Constructor Pattern (" ^ n ^ ")"
 
+(** [string_of_rel_op] is used to print the relational operators. *)
 let string_of_rel_op : rel_op -> string = function
   | EQ -> "EQ"
   | NE -> "NE"
@@ -52,6 +56,7 @@ let string_of_rel_op : rel_op -> string = function
   | LE -> "LE"
   | GE -> "GE"
 
+(** * This function is used to print the types. *)
 let rec string_of_basic_type (ft : factor_type) (level : int) : string =
   match ft with
   | IntegerType -> "IntegerType"
@@ -72,6 +77,7 @@ let rec string_of_basic_type (ft : factor_type) (level : int) : string =
   | TypeName n -> "TypeName (" ^ n ^ ")"
   | ListType t -> "ListType (" ^ string_of_compound_type t (level + 1) ^ ")"
 
+(** [string_of_factor_app_type] is used to print the factor application types. *)
 and string_of_factor_app_type (fat : factor_app_type) (level : int) : string =
   match fat with
   | FactorType ft -> string_of_basic_type ft level
@@ -85,6 +91,7 @@ and string_of_factor_app_type (fat : factor_app_type) (level : int) : string =
       ^ indentations_with_newline level
       ^ ")"
 
+(** [string_of_compound_type] is used to print the compound types. *)
 and string_of_compound_type (ct : compound_type) (level : int) =
   match ct with
   | BasicType t -> string_of_factor_app_type t level
@@ -114,12 +121,14 @@ and string_of_compound_type (ct : compound_type) (level : int) =
       ^ indentations_with_newline level
       ^ ")"
 
+(** [string_of_constructor] is used to print the constructors. *)
 and string_of_constructor (c : constructor) =
   match c with
   | NullaryConstructor name -> name
   | UnaryConstructor (name, t) ->
       name ^ " (" ^ string_of_compound_type t 0 ^ ")"
 
+(** [string_of_expr] is used to print the expressions. *)
 let rec string_of_expr (e : expr) (level : int) : string =
   match e with
   | Ternary (e1, e2, e3) ->
@@ -205,6 +214,7 @@ let rec string_of_expr (e : expr) (level : int) : string =
       ^ indentations_with_newline level
       ^ ")"
 
+(** [string_of_cons_expr] is used to print the cons expressions. *)
 and string_of_cons_expr (ce : cons_expr) (level : int) : string =
   match ce with
   | Cons (e1, e2) ->
@@ -218,6 +228,7 @@ and string_of_cons_expr (ce : cons_expr) (level : int) : string =
       ^ ")"
   | DisjunctionUnderCons d -> string_of_disjunction d level
 
+(** [string_of_disjunction] is used to print the disjunctions. *)
 and string_of_disjunction (d : disjunction) (level : int) : string =
   match d with
   | ConjunctionUnderDisjunction c -> string_of_conjunction c level
@@ -231,6 +242,7 @@ and string_of_disjunction (d : disjunction) (level : int) : string =
       ^ indentations_with_newline level
       ^ ")"
 
+(** [string_of_conjunction] is used to print the conjunctions. *)
 and string_of_conjunction (c : conjunction) (level : int) : string =
   match c with
   | RelationUnderConjunction r -> string_of_rel_expr r level
@@ -244,6 +256,7 @@ and string_of_conjunction (c : conjunction) (level : int) : string =
       ^ indentations_with_newline level
       ^ ")"
 
+(** [string_of_rel_expr] is used to print the relational expressions. *)
 and string_of_rel_expr (re : rel_expr) (level : int) : string =
   match re with
   | Relation (op, re, ae) ->
@@ -270,6 +283,7 @@ and string_of_rel_expr (re : rel_expr) (level : int) : string =
       ^ ")"
   | ArithmeticUnderRelExpr ae -> string_of_arith_expr ae level
 
+(** [string_of_arith_expr] is used to print the arithmetic expressions. *)
 and string_of_arith_expr (ae : arith_expr) (level : int) =
   match ae with
   | Plus (e, t) ->
@@ -303,6 +317,7 @@ and string_of_arith_expr (ae : arith_expr) (level : int) =
       ^ indentations_with_newline level
       ^ ")"
 
+(** [string_of_arith_term] is used to print the arithmetic terms. *)
 and string_of_arith_term (at : term) (level : int) =
   match at with
   | Mul (f, af) ->
@@ -345,6 +360,8 @@ and string_of_arith_term (at : term) (level : int) =
       ^ indentations_with_newline level
       ^ ")"
 
+(** [string_of_app_factor] is used to print the application factors. It is used
+    by [string_of_arith_term] to print the application factors. *)
 and string_of_app_factor (af : app_factor) (level : int) =
   match af with
   | Application (ap, f) ->
@@ -358,6 +375,8 @@ and string_of_app_factor (af : app_factor) (level : int) =
       ^ ")"
   | FactorUnderApplication f -> string_of_factor f (level + 1)
 
+(** [string_of_factor] is used to print the factors. It is used by
+    [string_of_app_factor] to print the factors. *)
 and string_of_factor (factor : factor) (level : int) =
   match factor with
   | Boolean b -> "Boolean (" ^ string_of_bool b ^ ")"
@@ -420,4 +439,5 @@ and string_of_factor (factor : factor) (level : int) =
       ^ ")"
   | Constructor n -> "Constructor (" ^ n ^ ")"
 
+(** [string_of_expr e] is a pretty printed string representing [e] *)
 let string_of_expr (e : expr) = string_of_expr e 0
