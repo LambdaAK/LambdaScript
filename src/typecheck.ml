@@ -8,11 +8,14 @@ type substitutions = type_equations
 
 type static_type_env =
   (int * c_kind) list (* stores the kind of a type variable *)
+(** [static_type_env] is a mapping from type variable ids to their kinds *)
 
 type kind_equations = (c_kind * c_kind) list
 
 exception TypeFailure
 
+(** Given a list with entries of type ['a * 'b * 'c], splits it into a tuple of
+    three lists [('a list) * ('b list) * ('c list)] *)
 let rec split3 (lst : ('a * 'b * 'c) list) : 'a list * 'b list * 'c list =
   let rec split3_helper (lst : ('a * 'b * 'c) list) (a : 'a list) (b : 'b list)
       (c : 'c list) : 'a list * 'b list * 'c list =
@@ -23,21 +26,30 @@ let rec split3 (lst : ('a * 'b * 'c) list) : 'a list * 'b list * 'c list =
   let a, b, c = split3_helper lst [] [] [] in
   (List.rev a, List.rev b, List.rev c)
 
+(** [string_of_type_equation (t1, t2)] is a string representation of the type
+    equation [t1 = t2] *)
 and string_of_type_equation ((t1, t2) : type_equation) : string =
   string_of_c_type t1 ^ " = " ^ string_of_c_type t2
 
+(** [string_of_type_equations c] is a string representation of the list of type
+    equations [c] *)
 and string_of_type_equations (c : type_equations) : string =
   match c with
   | [] -> ""
   | (t1, t2) :: c' ->
       string_of_type_equation (t1, t2) ^ "\n" ^ string_of_type_equations c'
 
+(** [string_of_static_env env] is a string representation of the static
+    environment [env] *)
 and string_of_static_env (env : static_env) : string =
   match env with
   | [] -> ""
   | (id, t) :: env' ->
       id ^ " : " ^ string_of_c_type t ^ "\n" ^ string_of_static_env env'
 
+(** [generate env type_env e] is a tuple [(t, c)] where [t] is the type of [e]
+    and [c] is a list of type equations generated from performing type inference
+    on [e] *)
 and generate (env : static_env) (type_env : (string * c_type) list) (e : c_expr)
     : c_type * type_equations =
   match e with
@@ -214,9 +226,18 @@ and generate (env : static_env) (type_env : (string * c_type) list) (e : c_expr)
       ( CListType type_of_expression,
         expression_constraints @ generator_constraints )
 
+(** Generates a list of type equations from the type env. This is just a list of
+    equations of the form (TypeName id, t) where id is a type name and t is the
+    type it is bound to in the type env. *)
 and generate_type_env_constraints type_env =
   List.map (fun (id, t) -> (TypeName id, t)) type_env
 
+(** [generate_e_app_function_pat_is_id env type_env first second] is a tuple
+    [(t, c)] where [t] is the type of [first second] and [c] is a list of type
+    equations generated from performing type inference on [first second]
+
+    This function is used when the pattern of a function is just an id, so that
+    the type of the function can be generalized *)
 and generate_e_app_function_pat_is_id (env : static_env) type_env
     (first : c_expr) (second : c_expr) : c_type * type_equations =
   (* start by checking whether first is a function *)
@@ -273,6 +294,9 @@ and generate_e_app_function_pat_is_id (env : static_env) type_env
       let type_of_expression : c_type = fresh_type_var () in
       (type_of_expression, ((t1, t2 => type_of_expression) :: c1) @ c2)
 
+(** [generalize constraints env type_env t] is a type scheme for [t] that
+    generalizes the type of [t] by replacing all type variables that are not
+    inside of [env] with universal type variables *)
 and type_of_pat (p : c_pat) (static_env : static_env) :
     c_type * static_env * type_equations =
   match p with
@@ -311,6 +335,8 @@ and type_of_pat (p : c_pat) (static_env : static_env) :
         (t1, t2 => type_of_expression) :: (c1 @ c2) )
 (* this might be wrong. check it later *)
 
+(** [reduce_eq c type_env] is a reduced list of subsitutions for the type
+    equations [c] using the type environment [type_env] *)
 and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
     substitutions =
   match c with
@@ -405,6 +431,8 @@ and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
             print_endline (string_of_c_type t2);
             raise TypeFailure)
 
+(** [replace_type t1 t2 t] is a type where all instances of [t1] in [t] are
+    replaced with [t2] *)
 and get_type (var : c_type) (subs : substitutions) : c_type =
   match var with
   | TypeVar _ -> (
@@ -432,6 +460,8 @@ and get_type (var : c_type) (subs : substitutions) : c_type =
       PolymorphicType (get_type arg subs, get_type body subs)
   | AppType (t1, t2) -> AppType (get_type t1 subs, get_type t2 subs)
 
+(** [kind_of_type t type_env] is the kind of the type [t] in the type
+    environment [type_env] *)
 and kind_of_type t type_env =
   let k, eq = generate_kind_equations t type_env [] in
 
@@ -441,6 +471,10 @@ and kind_of_type t type_env =
   let kind = get_kind k solution in
   replace_kind_vars_with_stars kind
 
+(** [generate_kind_equations t type_env static_type_env] is a tuple [(k, eq)]
+    where [k] is the kind of [t] and [eq] is a list of kind equations generated
+    from performing kind inference on [t] in the type environment [type_env] and
+    the static type environment [static_type_env] *)
 and generate_kind_equations t type_env (static_type_env : static_type_env) :
     c_kind * kind_equations =
   match t with
@@ -510,6 +544,8 @@ and generate_kind_equations t type_env (static_type_env : static_type_env) :
       print_endline "union type found in generate_kind_equations";
       (Star, [])
 
+(** [reduce_kind_equations equations] is a reduced list of substitutions for the
+    kind equations [equations] *)
 and reduce_kind_equations equations =
   match equations with
   | [] -> []
@@ -534,6 +570,8 @@ and reduce_kind_equations equations =
             print_endline "type error 2";
             raise TypeFailure)
 
+(** [replace_kind k to_replace replace_with] is a kind where all instances of
+    [to_replace] in [k] are replaced with [replace_with] *)
 and replace_kind k to_replace replace_with =
   match k with
   | Arrow (k1, k2) ->
@@ -544,6 +582,9 @@ and replace_kind k to_replace replace_with =
   | KindVar kv when kv = to_replace -> replace_with
   | KindVar kv -> KindVar kv
 
+(** [replace_kind_var_in_kind_equations eq to_replace replace_with] is a list of
+    kind equations where all instances of [to_replace] in [eq] are replaced with
+    [replace_with] *)
 and replace_kind_var_in_kind_equations eq to_replace replace_with =
   List.map
     (fun (k1, k2) ->
@@ -552,6 +593,8 @@ and replace_kind_var_in_kind_equations eq to_replace replace_with =
       (new_k1, new_k2))
     eq
 
+(** [get_kind k subs] is the kind of [k] with the substitutions [subs] applied
+    to it *)
 and get_kind k subs =
   match k with
   | Star -> Star
@@ -569,6 +612,8 @@ and get_kind k subs =
           Arrow (new_kk1, new_kk2)
       | _ -> looked_up)
 
+(** [get_kind_of_kind_var_if_possible var subs] is the kind of [var] with the
+    substitutions [subs] applied to it *)
 and get_kind_of_kind_var_if_possible var subs =
   match var with
   | KindVar _ -> (
@@ -580,6 +625,8 @@ and get_kind_of_kind_var_if_possible var subs =
       with Not_found -> var)
   | _ -> failwith "not a kind var in get_kind_of_kind_var_if_possible"
 
+(** [get_type_of_type_var_if_possible var subs] is the type of [var] with the
+    substitutions [subs] applied to it *)
 and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
     c_type =
   match var with
@@ -592,6 +639,9 @@ and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
       with Not_found -> var)
   | _ -> failwith "not a type var3"
 
+(**
+[replcae_kind_vars_with_stars k] is a kind where all instances of kind variables in [k] are replaced with [Star
+*)
 and replace_kind_vars_with_stars : c_kind -> c_kind = function
   | Star -> Star
   | Arrow (k1, k2) ->
@@ -600,6 +650,8 @@ and replace_kind_vars_with_stars : c_kind -> c_kind = function
       Arrow (new_k1, new_k2)
   | KindVar _ -> Star
 
+(** [type_of_c_expr e static_env type_env] if the type of [e] in the static
+    environment [static_env] and the type environment [type_env] *)
 and type_of_c_expr (e : c_expr) (static_env : static_env)
     (type_env : (string * c_type) list) : c_type =
   let t, generated_constraints = generate static_env type_env e in
@@ -630,6 +682,8 @@ and type_of_c_expr (e : c_expr) (static_env : static_env)
   (* print the solution *)
   get_type t solution |> fix
 
+(** [inside inside_type outside_type] is whether [inside_type] is inside of
+    [outside_type] *)
 and inside (inside_type : c_type) (outside_type : c_type) : bool =
   match outside_type with
   | _ when inside_type = outside_type -> true
@@ -639,6 +693,7 @@ and inside (inside_type : c_type) (outside_type : c_type) : bool =
   | CListType et -> inside inside_type et
   | _ -> false
 
+(** [is_basic_type t] is whether [t] is a basic type *)
 and is_basic_type (t : c_type) : bool =
   match t with
   | IntType | FloatType | BoolType | StringType | UnitType -> true
@@ -652,6 +707,8 @@ and is_basic_type (t : c_type) : bool =
   | AppType (t1, t2) -> is_basic_type t1 && is_basic_type t2
   | PolymorphicType _ -> false
 
+(** [substitute var_id t equations] is a list of type equations where all
+    instances of [var_id] in [equations] are replaced with [t] *)
 and substitute (var_id : int) (t : c_type) (equations : type_equations) :
     type_equations =
   match equations with
@@ -660,7 +717,11 @@ and substitute (var_id : int) (t : c_type) (equations : type_equations) :
       (substitute_in_type t1 var_id t, substitute_in_type t2 var_id t)
       :: substitute var_id t equations'
 
-(* This substitutes for a TypeVar, not a UniversalTypeVar *)
+(** [substitute_in_type type_subbing_in type_var_id_subbing_for substitute_with]
+    is a type where all instances of [type_var_id_subbing_for] in
+    [type_subbing_in] are replaced with [substitute_with]
+
+    This substitutes for a TypeVar, not a UniversalTypeVar *)
 and substitute_in_type (type_subbing_in : c_type)
     (type_var_id_subbing_for : int) (substitute_with : c_type) : c_type =
   match type_subbing_in with
@@ -696,6 +757,8 @@ and substitute_in_type (type_subbing_in : c_type)
       PolymorphicType
         (arg, substitute_in_type body type_var_id_subbing_for substitute_with)
 
+(** [eval_type type_env t] is the type of [t] with all type names in [t]
+    replaced with their definitions in [type_env] *)
 and eval_type type_env = function
   | TypeName name ->
       (* to evaluate a name, look it up in the type env *)
@@ -720,11 +783,17 @@ and eval_type type_env = function
           AppType (t1_eval, t2_eval))
   | t -> t
 
+(** [is_variant_type t] is whether [t] is a variant type
+    - It is a variant type means it of one of the following forms
+    - UnionType _
+    - PolymorphicType (_, t) where t is a variant type *)
 and is_variant_type = function
   | UnionType _ -> true
   | PolymorphicType (_, o) -> is_variant_type o
   | _ -> false
 
+(** [replace_type replace_with get_rid_of t] is a type where all instances of
+    [get_rid_of] in [t] are replaced with [replace_with] *)
 and replace_type (replace_with : c_type) (get_rid_of : c_type) (t : c_type) :
     c_type =
   if t = get_rid_of then replace_with
@@ -748,6 +817,9 @@ and replace_type (replace_with : c_type) (get_rid_of : c_type) (t : c_type) :
         PolymorphicType (arg, new_body)
     | _ -> t
 
+(** [replace_types t replace_with_assoc] is a type where all instances of the
+    types in [replace_with_assoc] in [t] are replaced with the types they are
+    associated with in [replace_with_assoc] *)
 and replace_type_in_equations (replace_with : c_type) (get_rid_of : c_type)
     (equations : type_equations) : type_equations =
   match equations with
@@ -757,6 +829,9 @@ and replace_type_in_equations (replace_with : c_type) (get_rid_of : c_type)
         replace_type replace_with get_rid_of t2 )
       :: replace_type_in_equations replace_with get_rid_of equations'
 
+(** [substitute_written_var_with_type_var var_id written_var_id t] is a type
+    where all instances of [written_var_id] in [t] are replaced with
+    [TypeVar var_id] *)
 and substitute_written_var_with_type_var (var_id : int)
     (written_var_id : string) (t : c_type) : c_type =
   match t with
@@ -795,6 +870,9 @@ and substitute_written_var_with_type_var (var_id : int)
       PolymorphicType (new_arg, new_body)
   | _ -> t
 
+(** [substitute_written_vars_in_equations var_id written_var_id equations] is a
+    list of type equations where all instances of [written_var_id] in
+    [equations] are replaced with [TypeVar var_id] *)
 and substitute_written_vars_in_equations (var_id : int)
     (written_var_id : string) (equations : type_equations) : type_equations =
   match equations with
@@ -804,6 +882,8 @@ and substitute_written_vars_in_equations (var_id : int)
         substitute_written_var_with_type_var var_id written_var_id t2 )
       :: substitute_written_vars_in_equations var_id written_var_id equations'
 
+(** [instantiate t] is a type where all universal type variables in [t] are
+    replaced with fresh type variables *)
 and instantiate (t : c_type) : c_type =
   (* find all universal type variables in the expression *)
   let universal_type_vars : c_type list = get_universal_type_vars t in
@@ -815,6 +895,9 @@ and instantiate (t : c_type) : c_type =
   (* replace them *)
   replace_types t fresh_type_vars_assoc
 
+(** [replace_written_types equations replace_with_assoc] is a list of type
+    equations where all written type variables in [equations] are replaced with
+    fresh type variables *)
 and replace_written_types (equations : type_equations) : type_equations =
   let first, second = equations |> List.split in
   let all_types : c_type list = first @ second in
@@ -855,6 +938,7 @@ and replace_written_types (equations : type_equations) : type_equations =
       in
       replace_written_types equations_with_subbed_type_var
 
+(** [get_universal_type_vars t] is a list of all universal type variables in [t] *)
 and get_universal_type_vars (t : c_type) : c_type list =
   match t with
   | UniversalType _ -> [ t ]
@@ -873,6 +957,9 @@ and get_universal_type_vars (t : c_type) : c_type list =
       |> List.sort_uniq compare
   | _ -> []
 
+(** [replace_types t replacements] is a type where all instances of the types in
+    [replacements] in [t] are replaced with the types they are associated with
+    in [replacements] *)
 and replace_types t replacements =
   match t with
   | TypeVar _ | UniversalType _ | TypeVarWritten _ -> (
@@ -892,6 +979,9 @@ and replace_types t replacements =
       AppType (replace_types t1 replacements, replace_types t2 replacements)
   | _ -> t
 
+(** [generalize constraints env type_env t] generalizes the type [t] with
+    respect to the type environment [type_env] and the constraints [constraints]
+    and the static environment [env] *)
 and generalize (constraints : type_equations) (env : static_env)
     (type_env : (string * c_type) list) (t : c_type) : c_type =
   (* remove written type variables from the constraints *)
@@ -932,6 +1022,7 @@ and generalize (constraints : type_equations) (env : static_env)
   (* replace the free variables in u1 with the universal type variables *)
   replace_types u1 variable_replacements
 
+(** [get_type_vars t] is a list of all type variables in [t] *)
 and get_type_vars (t : c_type) : c_type list =
   match t with
   | TypeVar _ -> [ t ]
@@ -954,6 +1045,7 @@ and flatten_env_types (types : c_type list) : c_type list =
       | CListType et -> flatten_env_types (et :: tail)
       | _ -> t :: flatten_env_types tail)
 
+(** Returns the type of a value *)
 let rec type_of_value x =
   print_endline "using type_of_value. this function is deprecated.";
   x |> function
@@ -977,6 +1069,7 @@ let rec type_of_value x =
       FunctionType (input_type, output_type)
   | _ -> failwith "not a value"
 
+(** Generates the static env corresponding to a dynamic env *)
 and static_env_from_dynamic_env (env : env) : static_env =
   List.map (fun (id, v) -> (id, type_of_value v)) env
 
