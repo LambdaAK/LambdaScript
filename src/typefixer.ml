@@ -1,9 +1,6 @@
 open Cexpr
 
-let rec visited (elm : 'a) (lst : 'a list) =
-  match lst with
-  | [] -> false
-  | h :: t -> if h = elm then true else visited elm t
+let visited (elm : 'a) (lst : 'a list) = List.exists (fun x -> x = elm) lst
 
 let rec get_replacement (elm : int) (lst : int list) : int =
   match lst with
