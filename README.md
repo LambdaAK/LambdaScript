@@ -48,7 +48,7 @@ Bool: true
 
 _input_
 ```ocaml
-hello world!
+"hello world!"
 ```
 _output_
 ```ocaml
