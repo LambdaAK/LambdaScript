@@ -6,6 +6,7 @@ open Language.Ctostringtree.CToStringTree
 open Language.Parse
 open Language.Lex
 open Language.Env
+open Language.Ceval_defn
 
 let modify_tests : bool = false
 
@@ -253,6 +254,57 @@ module SwitchTypeTestModifier = MakeTestModifier (SwitchTypeTestModifierInput)
 
 module PolymorphismTypeTestModifier =
   MakeTestModifier (PolymorphismTypeTestModifierInput)
+
+let defn_type_test (defns_string : string) (expr_string : string)
+    (expected_output : string) : test =
+  let defns : Language.Cexpr.c_defn list =
+    defns_string |> list_of_string |> lex |> parse_program |> condense_program
+  in
+  let expr : Language.Cexpr.c_expr =
+    expr_string |> list_of_string |> lex |> parse_expr |> fst |> condense_expr
+  in
+  let description = "\ndefns: \n" ^ defns_string ^ "\nexpr: \n" ^ expr_string in
+  description >:: fun _ ->
+  (* First, evaluate the definitions to get the environments set up *)
+  let _, static_env, type_env =
+    List.fold_left
+      (fun (env, static_env, type_env) defn ->
+        let new_env, new_static_env, new_type_env, _, _ =
+          eval_defn defn env static_env type_env
+        in
+        (new_env, new_static_env, new_type_env))
+      ([], [], []) defns
+  in
+
+  let type_of_expr = type_of_c_expr expr static_env type_env in
+  let result_string = string_of_c_type type_of_expr in
+  assert_equal result_string expected_output
+
+let defn_expr_test (defns_string : string) (expr_string : string)
+    (expected_output : string) : test =
+  let defns : Language.Cexpr.c_defn list =
+    defns_string |> list_of_string |> lex |> parse_program |> condense_program
+  in
+  let expr : Language.Cexpr.c_expr =
+    expr_string |> list_of_string |> lex |> parse_expr |> fst |> condense_expr
+  in
+  let description = "\ndefns: \n" ^ defns_string ^ "\nexpr: \n" ^ expr_string in
+  description >:: fun _ ->
+  (* First, evaluate the definitions to get the environments set up *)
+  let env, _, _ =
+    List.fold_left
+      (fun (env, static_env, type_env) defn ->
+        let new_env, new_static_env, new_type_env, _, _ =
+          eval_defn defn env static_env type_env
+        in
+        (new_env, new_static_env, new_type_env))
+      ([], [], []) defns
+  in
+
+  (* Then, evaluate the expressino under those environments *)
+  let result = eval_c_expr expr env in
+  let result_string = string_of_value result in
+  assert_equal result_string expected_output
 
 let eval_test (expr : string) (expected_output : string) : test =
   expr ^ " SHOULD YIELD " ^ expected_output >:: fun _ ->
@@ -1175,6 +1227,106 @@ let complex_tests =
       "false" );
   ]
 
+let defn_expr_test_data : (string * string * string) list =
+  [
+    ("let x = 1", "x", "1");
+    ("let x = 2", "x", "2");
+    ({|let x = 1
+  let y = 2
+  let z = 3
+  let w = 4
+  |}, "x + y + z + w", "10");
+    ({|
+  let f x = x + 1
+  |}, "f (f 2)", "4");
+  ]
+
+let defn_type_test_data : (string * string * string) list =
+  [
+    ("let x = 1", "x", "Int");
+    ("let x = 2", "x", "Int");
+    ({|
+  let f x = [x]
+  let y = true
+  
+  |}, "f y", "[Bool]");
+    ( {|
+  type T =
+    | A
+    | B
+  let swap x =
+    switch x =>
+    | A -> B
+    | B -> A
+  end
+  
+  |},
+      "swap",
+      "T -> T" );
+    ( {|
+  type List a =
+    | Nil
+    | Cons (a, List a)
+  
+  |},
+      "Nil",
+      "List a" );
+    ( {|
+  type List a =
+    | Nil
+    | Cons (a, List a)
+  |},
+      "Cons",
+      "(a, List a) -> List a" );
+    ( {|
+  type List a =
+    | Nil
+    | Cons (a, List a)
+
+  let rec length lst =
+    switch lst =>
+    | Nil -> 0
+    | Cons (h, t) -> 1 + length t
+    end
+  
+  
+  |},
+      "length",
+      "List a -> Int" );
+    ( {|
+    type List a =
+      | Nil
+      | Cons (a, List a)
+
+    let rec fold_left op acc lst =
+      switch lst =>
+      | Nil -> acc
+      | Cons (h, t) -> fold_left op (op acc h) t
+    end
+    |},
+      "fold_left",
+      "(a -> b -> a) -> a -> List b -> a" );
+    ( {|
+      type List a =
+        | Nil
+        | Cons (a, List a)
+
+      let rec fold_right op lst acc =
+        switch lst =>
+        | Nil -> acc
+        | Cons (h, t) -> op h (fold_right op t acc)
+      end
+    |},
+      "fold_right",
+      "(a -> b -> b) -> List a -> b -> b" );
+  ]
+
+let defn_expr_tests =
+  List.map (fun (a, b, c) -> defn_expr_test a b c) defn_expr_test_data
+
+let defn_type_tests =
+  List.map (fun (a, b, c) -> defn_type_test a b c) defn_type_test_data
+
 let int_type_tests : test list =
   List.map
     (fun expression -> type_is_int expression)
@@ -1250,6 +1402,8 @@ let all_tests =
       list_type_tests;
       switch_type_tests;
       polymorphism_tests;
+      defn_expr_tests;
+      defn_type_tests;
     ]
 
 let suite = "suite" >::: all_tests

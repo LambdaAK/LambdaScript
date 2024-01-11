@@ -1,37 +1,42 @@
+type Option a =
+  | None
+  | Some (a)
+
+let return = Some
+
+let (>>=) m f =
+  switch m =>
+  | None -> None
+  | Some v -> f v
+  end
+
+let myoption = return 42
+
+let myoptiontwo =
+  myoption >>= (\x -> return (x + 1))
+  >>= (\x -> return (x + 1))
+
+type Either a b =
+  | Left (a)
+  | Right (b)
+
+let get_left_if_left e =
+  switch e =>
+  | Left x -> Some x
+  | Right _ -> None
+  end
+
+let l = Left 2
+let r = Right true
+
 type BT a =
   | Leaf
   | Node (a, BT a, BT a)
 
-type Seq a = | Cons (a, Unit -> Seq a)
-
-let rec from n = Cons (n, \ () -> from (n + 1))
-
-let nats = from 0
-
-let nats1 = from 100
-
-let hd s =
-  switch s =>
-  | Cons (x, _) -> x
+let rec map f t =
+  switch t =>
+  | Leaf -> Leaf
+  | Node (v, l, r) -> Node (f v, map f l, map f r)
   end
 
-let tl s =
-  switch s =>
-  | Cons (_, f) -> f ()
-  end
-
-let rec rm n s =
-  if n == 0 then s else rm (n - 1) (tl s)
-
-let rec take n s =
-  if n == 0 then [] else hd s :: take (n - 1) (tl s)
-
-let rec map f s =
-  switch s =>
-  | Cons (x, g) -> Cons (f x, \ () -> map f (g ()))
-  end
-
-let rec interleave s1 s2 =
-  switch s1 =>
-  | Cons (x, f) -> Cons (x, \ () -> interleave s2 (f ()))
-  end
+let mytree = Node (1, Node (2, Leaf, Leaf), Leaf)

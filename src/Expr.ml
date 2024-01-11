@@ -1,5 +1,3 @@
-
-
 (** pat represents a pattern *)
 type pat =
   | ConsPat of sub_pat * pat

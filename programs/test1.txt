@@ -1,0 +1,37 @@
+type BT a =
+  | Leaf
+  | Node (a, BT a, BT a)
+
+type Seq a = | Cons (a, Unit -> Seq a)
+
+let rec from n = Cons (n, \ () -> from (n + 1))
+
+let nats = from 0
+
+let nats1 = from 100
+
+let hd s =
+  switch s =>
+  | Cons (x, _) -> x
+  end
+
+let tl s =
+  switch s =>
+  | Cons (_, f) -> f ()
+  end
+
+let rec rm n s =
+  if n == 0 then s else rm (n - 1) (tl s)
+
+let rec take n s =
+  if n == 0 then [] else hd s :: take (n - 1) (tl s)
+
+let rec map f s =
+  switch s =>
+  | Cons (x, g) -> Cons (f x, \ () -> map f (g ()))
+  end
+
+let rec interleave s1 s2 =
+  switch s1 =>
+  | Cons (x, f) -> Cons (x, \ () -> interleave s2 (f ()))
+  end
