@@ -460,16 +460,41 @@ and get_type (var : c_type) (subs : substitutions) : c_type =
       PolymorphicType (get_type arg subs, get_type body subs)
   | AppType (t1, t2) -> AppType (get_type t1 subs, get_type t2 subs)
 
+and string_of_kind_equations equations =
+  match equations with
+  | [] -> ""
+  | (k1, k2) :: c' ->
+      string_of_c_kind k1 ^ " = " ^ string_of_c_kind k2 ^ "\n"
+      ^ string_of_kind_equations c'
+
+(** [replace_type t1 t2 t] is a type where all instances of [t1] in [t] are
+    replaced with [t2] *)
+
 (** [kind_of_type t type_env] is the kind of the type [t] in the type
     environment [type_env] *)
 and kind_of_type t type_env =
+  (* the static type env should start with one binding*)
+  let type_name =
+    match t with
+    | TypeName n -> n
+    | _ -> failwith "not a type name in kind_of_type"
+  in
+  ignore type_name;
   let k, eq = generate_kind_equations t type_env [] in
 
+  print_endline "kind:";
+  print_endline (string_of_c_kind k);
+
+  (* print them *)
+  print_endline "kind equations:";
+  print_endline (string_of_kind_equations eq);
+
+  (* solve the kind equations *)
   let solution = reduce_kind_equations eq in
 
   (* now, get the kind *)
   let kind = get_kind k solution in
-  replace_kind_vars_with_stars kind
+  fix_kind kind
 
 (** [generate_kind_equations t type_env static_type_env] is a tuple [(k, eq)]
     where [k] is the kind of [t] and [eq] is a list of kind equations generated
@@ -485,7 +510,23 @@ and generate_kind_equations t type_env (static_type_env : static_type_env) :
       in
       (kind_of_elm_type, equations)
   | FunctionType _ -> (Star, [])
-  | VectorType _ -> (Star, [])
+  | VectorType types ->
+      print_endline "generating vector type";
+      (* the kind of inside of the vector must be Star the kind of a vectortype
+         is Star
+
+         for each type, generate constriants *)
+      let constraints =
+        List.fold_left
+          (fun c t ->
+            let _, equations =
+              generate_kind_equations t type_env static_type_env
+            in
+            c @ equations)
+          [] types
+      in
+
+      (Star, constraints)
   | PolymorphicType (i, o) ->
       (* get the "name" of the argument type *)
       let i_type_id =
@@ -493,7 +534,7 @@ and generate_kind_equations t type_env (static_type_env : static_type_env) :
         | UniversalType id -> id
         | x ->
             x |> string_of_c_type |> print_endline;
-            failwith ""
+            failwith "error 1"
       in
 
       (* since i is an argument, give it a fresh kind var *)
@@ -540,9 +581,38 @@ and generate_kind_equations t type_env (static_type_env : static_type_env) :
       generate_kind_equations type_impl type_env static_type_env
   | TypeVarWritten _ ->
       failwith "type var written found in generate_kind_equations"
-  | UnionType _ ->
+  | UnionType constructors ->
       print_endline "union type found in generate_kind_equations";
-      (Star, [])
+
+      (* For each nullary constructor of the form C, generate no kind equations
+
+         For each unary constructor of form C d, where C is the constructor and
+         d is the data, generate a kind equation of the form d = * *)
+      let constructor_equations =
+        List.fold_left
+          (fun equations constructor ->
+            match constructor with
+            | CNullaryConstructor _ -> equations
+            | CUnaryConstructor (_, data_type) ->
+                (*data_type must equal *, since it is used as constructor
+                  data *)
+                let kind_of_data_type, constraints_from_data_type =
+                  generate_kind_equations data_type type_env static_type_env
+                in
+                print_endline ":aaekaeg";
+                (* add the constraint that the kind of the data type must be
+                   star *)
+                let new_eq = (kind_of_data_type, Star) in
+
+                (* print new eq *)
+                print_endline "new eq";
+                print_endline (string_of_kind_equations [ new_eq ]);
+
+                (new_eq :: constraints_from_data_type) @ equations)
+          [] constructors
+      in
+
+      (Star, constructor_equations)
 
 (** [reduce_kind_equations equations] is a reduced list of substitutions for the
     kind equations [equations] *)
@@ -557,6 +627,7 @@ and reduce_kind_equations equations =
             reduce_kind_equations ((k1, k3) :: (k2, k4) :: c')
         | KindVar kv1, KindVar kv2 ->
             (* replace kv2 with kv1 everywhere in the equations *)
+            print_endline "reduce_kind_equations [WARNING]";
             ignore (kv1, kv2);
             []
         | KindVar kv, k ->

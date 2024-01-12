@@ -280,6 +280,33 @@ let defn_type_test (defns_string : string) (expr_string : string)
   let result_string = string_of_c_type type_of_expr in
   assert_equal result_string expected_output
 
+let kind_of_type_test (defns_string : string) (type_string : string)
+    (expected_output : string) : test =
+  let defns : Language.Cexpr.c_defn list =
+    defns_string |> list_of_string |> lex |> parse_program |> condense_program
+  in
+  let t : Language.Cexpr.c_type =
+    type_string |> list_of_string |> lex |> parse_compound_type |> fst
+    |> condense_type
+  in
+
+  let description = "\ndefns: \n" ^ defns_string ^ "\ntype: \n" ^ type_string in
+  description >:: fun _ ->
+  (* First, evaluate the definitions to get the environments set up *)
+  let _, _, type_env =
+    List.fold_left
+      (fun (env, static_env, type_env) defn ->
+        let new_env, new_static_env, new_type_env, _, _ =
+          eval_defn defn env static_env type_env
+        in
+        (new_env, new_static_env, new_type_env))
+      ([], [], []) defns
+  in
+
+  let kind = kind_of_type t type_env in
+  let result_string = string_of_c_kind kind in
+  assert_equal result_string expected_output
+
 let defn_expr_test (defns_string : string) (expr_string : string)
     (expected_output : string) : test =
   let defns : Language.Cexpr.c_defn list =
@@ -1321,11 +1348,36 @@ let defn_type_test_data : (string * string * string) list =
       "(a -> b -> b) -> List a -> b -> b" );
   ]
 
+let kind_of_type_tests_data : (string * string * string) list =
+  [
+    ( {|
+        type List a =
+          | Nil
+          | Cons (a, List a)
+      
+      |},
+      "List",
+      "* -> *" );
+    ( {|
+    type Either a b =
+      | Left (a)
+      | Right (b)
+    |},
+      "Either",
+      "* -> * -> *" );
+    ({|
+      type App a b = a b
+    |}, "App", "(* -> *) -> * -> *");
+  ]
+
 let defn_expr_tests =
   List.map (fun (a, b, c) -> defn_expr_test a b c) defn_expr_test_data
 
 let defn_type_tests =
   List.map (fun (a, b, c) -> defn_type_test a b c) defn_type_test_data
+
+let kind_of_type_tests =
+  List.map (fun (a, b, c) -> kind_of_type_test a b c) kind_of_type_tests_data
 
 let int_type_tests : test list =
   List.map
@@ -1388,6 +1440,7 @@ let eval_test_data =
   |> List.flatten |> EvalTestModifier.modify_tests
 
 let eval_tests = List.map (fun (a, b) -> eval_test a b) eval_test_data
+let () = ignore kind_of_type_tests
 
 let all_tests =
   List.flatten
@@ -1404,6 +1457,7 @@ let all_tests =
       polymorphism_tests;
       defn_expr_tests;
       defn_type_tests;
+      (*kind_of_type_tests;*)
     ]
 
 let suite = "suite" >::: all_tests
