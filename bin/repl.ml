@@ -34,6 +34,10 @@ let () =
   ignore attempt_type_check;
   ignore attempt_eval
 
+let get_type_name_from_defn_if_needed = function
+  | CUnionDefn (id, _, _) -> id
+  | _ -> ""
+
 let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env)
     (static_type_env : static_type_env) : unit =
   print_string "> ";
@@ -92,10 +96,16 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env)
         |> String.concat "\n"
       in
 
+      let recur_name : string = get_type_name_from_defn_if_needed d in
+
+      print_endline "RECUR NAME";
+      print_endline recur_name;
+
+      (* for each new binding, make a string id : type = value *)
       let new_type_bindings_string =
         List.map
           (fun id ->
-            let k = kind_of_type (TypeName id) new_type_env in
+            let k = kind_of_type (TypeName id) new_type_env recur_name in
             k |> string_of_c_kind)
           new_type_bindings
         |> String.concat "\n"

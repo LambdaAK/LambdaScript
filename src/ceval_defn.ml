@@ -85,12 +85,12 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
       let new_t = replace_types t args_mapping in
 
       (* add the new type to the type environment *)
-      let new_type = wrap args new_t |> eval_type type_env in
+      let new_type = wrap args new_t |> eval_type type_env "" in
 
       let new_type_env = (type_name, new_type) :: type_env in
 
       (* make a static binding for the kind of the type *)
-      let kind_of_type : c_kind = kind_of_type new_type type_env in
+      let kind_of_type : c_kind = kind_of_type new_type type_env "" in
 
       let new_static_type_env : (string * c_kind) list =
         (type_name, kind_of_type) :: static_type_env
@@ -98,6 +98,8 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
 
       (env, static_env, new_type_env, new_static_type_env, [], [ type_name ])
   | CUnionDefn (type_name, constructors, type_vars) ->
+      print_endline "union defn";
+
       (* 
 
          for each constructor, add the type of that constructor to the static
@@ -128,8 +130,6 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
                 CUnaryConstructor (name, new_input_type))
           constructors
       in
-
-      (* print the new constructors *)
 
       (* add the new constructors to the static environment *)
       let new_static_bindings =
