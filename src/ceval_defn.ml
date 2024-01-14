@@ -2,8 +2,10 @@ open Option.Option
 open Cexpr
 open Ceval
 open Typecheck
+open Ctostringcode.CToStringCode
 
 type type_env = (string * c_type) list
+type static_type_env = (string * c_kind) list
 type new_value_bindings_ids = string list
 
 (** [eval_defn d env static_env type_env] executes the definition [d] in the
@@ -12,8 +14,13 @@ type new_value_bindings_ids = string list
     environment, as well as a list of new value bindings and a list of new type
     bindings. *)
 let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
-    (type_env : type_env) :
-    env * static_env * type_env * new_value_bindings_ids * string list =
+    (type_env : type_env) (static_type_env : static_type_env) :
+    env
+    * static_env
+    * type_env
+    * static_type_env
+    * new_value_bindings_ids
+    * string list =
   match d with
   | CDefn (pattern, _, body_expression) -> (
       (* type check *)
@@ -40,8 +47,8 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
 
       match o with
       | None -> failwith "eval_defn: no pattern matched"
-      | Some (new_env, new_static_env, new_bindings_ids) ->
-          (new_env, new_static_env, type_env, new_bindings_ids, []))
+      | Some (new_env, new_static_env, new_value_bindings_ids) ->
+          (new_env, new_static_env, type_env, [], new_value_bindings_ids, []))
   | CDefnRec (pattern, _, body_expression) ->
       let let_defn : c_defn =
         CDefn
@@ -50,8 +57,18 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
             EBindRec (pattern, None, body_expression, expr_of_pat pattern) )
       in
 
-      eval_defn let_defn env static_env type_env
+      eval_defn let_defn env static_env type_env static_type_env
   | CTypeDefn (type_name, t, type_vars) ->
+      print_endline "Evaluating type definition";
+      print_endline "type env";
+      type_env
+      |> List.iter (fun (n, t) ->
+             print_endline (n ^ " : " ^ string_of_c_type t));
+      print_endline "static type env";
+      static_type_env
+      |> List.iter (fun (n, k) ->
+             print_endline (n ^ " : " ^ string_of_c_kind k));
+
       (* for each type_var, create a corresponding universal type
 
          the left is the old type var, and the right is the new universal type
@@ -72,7 +89,14 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
 
       let new_type_env = (type_name, new_type) :: type_env in
 
-      (env, static_env, new_type_env, [], [ type_name ])
+      (* make a static binding for the kind of the type *)
+      let kind_of_type : c_kind = kind_of_type new_type type_env in
+
+      let new_static_type_env : (string * c_kind) list =
+        (type_name, kind_of_type) :: static_type_env
+      in
+
+      (env, static_env, new_type_env, new_static_type_env, [], [ type_name ])
   | CUnionDefn (type_name, constructors, type_vars) ->
       (* 
 
@@ -123,7 +147,7 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
 
       let new_type_env = (type_name, new_type) :: type_env in
 
-      (env, new_static_env, new_type_env, [], [ type_name ])
+      (env, new_static_env, new_type_env, [], [], [ type_name ])
 
 (** [wrap type_vars t] wraps the type [t] with the type variables in
     [type_vars].

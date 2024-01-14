@@ -474,13 +474,14 @@ and string_of_kind_equations equations =
     environment [type_env] *)
 and kind_of_type t type_env =
   (* the static type env should start with one binding*)
-  let type_name =
-    match t with
-    | TypeName n -> n
-    | _ -> failwith "not a type name in kind_of_type"
-  in
-  ignore type_name;
-  let k, eq = generate_kind_equations t type_env [] in
+  let eval_t : c_type = eval_type type_env t in
+
+  print_endline "evaluated type:";
+  print_endline "type is:";
+  t |> string_of_c_type |> print_endline;
+  eval_t |> string_of_c_type |> print_endline;
+
+  let k, eq = generate_kind_equations eval_t type_env [] in
 
   print_endline "kind:";
   print_endline (string_of_c_kind k);
@@ -626,10 +627,12 @@ and reduce_kind_equations equations =
         | Arrow (k1, k2), Arrow (k3, k4) ->
             reduce_kind_equations ((k1, k3) :: (k2, k4) :: c')
         | KindVar kv1, KindVar kv2 ->
-            (* replace kv2 with kv1 everywhere in the equations *)
-            print_endline "reduce_kind_equations [WARNING]";
-            ignore (kv1, kv2);
-            []
+            (* replace kv2 with kv1 *)
+            let new_equations =
+              replace_kind_var_in_kind_equations c' kv2 (KindVar kv1)
+            in
+
+            (k1, k2) :: reduce_kind_equations new_equations
         | KindVar kv, k ->
             (* replace kv with k everywhere in the equations *)
             let new_equations = replace_kind_var_in_kind_equations c' kv k in
@@ -745,10 +748,12 @@ and type_of_c_expr (e : c_expr) (static_env : static_env)
       constraints_without_written_type_vars
   in
 
-  (* print the constraints *)
+  ignore constraints_evaluated;
 
   (* solve the constraints *)
-  let solution : substitutions = reduce_eq constraints_evaluated type_env in
+  let solution : substitutions =
+    reduce_eq constraints_without_written_type_vars type_env
+  in
 
   (* print the solution *)
   get_type t solution |> fix
@@ -831,28 +836,39 @@ and substitute_in_type (type_subbing_in : c_type)
 (** [eval_type type_env t] is the type of [t] with all type names in [t]
     replaced with their definitions in [type_env] *)
 and eval_type type_env = function
-  | TypeName name ->
-      (* to evaluate a name, look it up in the type env *)
-      let evaled_type =
-        eval_type type_env (List.assoc name type_env |> instantiate)
-      in
-
-      (* we only actually want to replace it if it is a not a union type *)
-      if is_variant_type evaled_type then TypeName name else evaled_type
+  | TypeName n -> List.assoc n type_env |> eval_type type_env
   | AppType (t1, t2) -> (
-      (* apply t1 to t2 *)
+      AppType (t1, t2) |> string_of_c_type |> print_endline;
       let t1_eval = eval_type type_env t1 in
       let t2_eval = eval_type type_env t2 in
-
       match t1_eval with
       | PolymorphicType (i, o) ->
           (* replace i with t2 in o *)
           let o = replace_type t2_eval i o in
           eval_type type_env o
-      | _ ->
-          (* just return the application *)
-          AppType (t1_eval, t2_eval))
-  | t -> t
+      | IntType | FloatType | StringType | BoolType | UnitType ->
+          failwith "eval_type failure 1"
+      | TypeVar _ -> failwith "eval_type failure 2"
+      | UniversalType _ -> AppType (t1_eval, t2_eval)
+      | TypeVarWritten _ -> failwith "eval_type failure 3"
+      | AppType _ -> AppType (t1_eval, t2_eval)
+      | _ -> failwith "eval_type failure 4")
+  | IntType -> IntType
+  | FloatType -> FloatType
+  | BoolType -> BoolType
+  | StringType -> StringType
+  | UnitType -> UnitType
+  | TypeVar v -> TypeVar v
+  | UniversalType x -> UniversalType x
+  | TypeVarWritten _ -> failwith "type var written found in eval_type"
+  | FunctionType (i, o) -> FunctionType (i, o)
+  | VectorType types -> VectorType types
+  | CListType t -> CListType t
+  | UnionType t -> UnionType t
+  | PolymorphicType (arg, body) ->
+      (* evaluate the body as much as possible (making substitutions for type
+         names )*)
+      PolymorphicType (arg, eval_type type_env body)
 
 (** [is_variant_type t] is whether [t] is a variant type
     - It is a variant type means it of one of the following forms

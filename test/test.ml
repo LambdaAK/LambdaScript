@@ -269,8 +269,8 @@ let defn_type_test (defns_string : string) (expr_string : string)
   let _, static_env, type_env =
     List.fold_left
       (fun (env, static_env, type_env) defn ->
-        let new_env, new_static_env, new_type_env, _, _ =
-          eval_defn defn env static_env type_env
+        let new_env, new_static_env, new_type_env, _, _, _ =
+          eval_defn defn env static_env type_env []
         in
         (new_env, new_static_env, new_type_env))
       ([], [], []) defns
@@ -296,8 +296,8 @@ let kind_of_type_test (defns_string : string) (type_string : string)
   let _, _, type_env =
     List.fold_left
       (fun (env, static_env, type_env) defn ->
-        let new_env, new_static_env, new_type_env, _, _ =
-          eval_defn defn env static_env type_env
+        let new_env, new_static_env, new_type_env, _, _, _ =
+          eval_defn defn env static_env type_env []
         in
         (new_env, new_static_env, new_type_env))
       ([], [], []) defns
@@ -321,8 +321,8 @@ let defn_expr_test (defns_string : string) (expr_string : string)
   let env, _, _ =
     List.fold_left
       (fun (env, static_env, type_env) defn ->
-        let new_env, new_static_env, new_type_env, _, _ =
-          eval_defn defn env static_env type_env
+        let new_env, new_static_env, new_type_env, _, _, _ =
+          eval_defn defn env static_env type_env []
         in
         (new_env, new_static_env, new_type_env))
       ([], [], []) defns
