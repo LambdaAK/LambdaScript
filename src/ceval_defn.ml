@@ -85,7 +85,7 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
       let new_t = replace_types t args_mapping in
 
       (* add the new type to the type environment *)
-      let new_type = wrap args new_t in
+      let new_type = wrap args new_t |> eval_type type_env in
 
       let new_type_env = (type_name, new_type) :: type_env in
 

@@ -836,7 +836,7 @@ and substitute_in_type (type_subbing_in : c_type)
 (** [eval_type type_env t] is the type of [t] with all type names in [t]
     replaced with their definitions in [type_env] *)
 and eval_type type_env = function
-  | TypeName n -> List.assoc n type_env |> eval_type type_env
+  | TypeName n -> List.assoc n type_env
   | AppType (t1, t2) -> (
       AppType (t1, t2) |> string_of_c_type |> print_endline;
       let t1_eval = eval_type type_env t1 in
