@@ -6,8 +6,13 @@ type type_equation = c_type * c_type
 type type_equations = type_equation list
 type substitutions = type_equations
 
+type type_name_or_var =
+  | TypeName of string
+  | TypeId of int
+
 type static_type_env =
-  (int * c_kind) list (* stores the kind of a type variable *)
+  (type_name_or_var * c_kind) list (* stores the kind of a type variable *)
+
 (** [static_type_env] is a mapping from type variable ids to their kinds *)
 
 type kind_equations = (c_kind * c_kind) list
@@ -570,7 +575,7 @@ and generate_kind_equations t type_env (static_type_env : static_type_env)
 
       (* add it to the static type env *)
       let new_static_type_env =
-        (i_type_id, kind_of_i) :: static_type_env
+        (TypeId i_type_id, kind_of_i) :: static_type_env
         (* generate the kind and kind equations for the body *)
       in
 
@@ -596,14 +601,14 @@ and generate_kind_equations t type_env (static_type_env : static_type_env)
          variables are universal type variables *)
       print_endline "generating kind var I DON'T THINK THIS SHOULD BE USED!";
 
-      let kind_of_type_var = List.assoc type_var_id static_type_env in
+      let kind_of_type_var = List.assoc (TypeId type_var_id) static_type_env in
 
       (kind_of_type_var, [])
   | UniversalType type_var_id ->
       print_endline "generating kind of universal type var";
       type_var_id |> string_of_int |> print_endline;
       let kind_of_type_var =
-        try List.assoc type_var_id static_type_env
+        try List.assoc (TypeId type_var_id) static_type_env
         with Not_found -> failwith "not found in generate_kind_equations"
       in
       (kind_of_type_var, [])

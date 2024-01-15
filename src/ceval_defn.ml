@@ -4,7 +4,6 @@ open Ceval
 open Typecheck
 
 type type_env = (string * c_type) list
-type static_type_env = (string * c_kind) list
 type new_value_bindings_ids = string list
 
 (** [eval_defn d env static_env type_env] executes the definition [d] in the
@@ -17,7 +16,7 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
     env
     * static_env
     * type_env
-    * static_type_env
+    * (type_name_or_var * c_kind) list
     * new_value_bindings_ids
     * string list =
   match d with
@@ -81,8 +80,8 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
       (* make a static binding for the kind of the type *)
       let kind_of_type : c_kind = kind_of_type new_type type_env "" in
 
-      let new_static_type_env : (string * c_kind) list =
-        (type_name, kind_of_type) :: static_type_env
+      let new_static_type_env : static_type_env =
+        (TypeName type_name, kind_of_type) :: static_type_env
       in
 
       (env, static_env, new_type_env, new_static_type_env, [], [ type_name ])
@@ -122,10 +121,12 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
       let new_static_bindings =
         List.map
           (function
-            | CNullaryConstructor name -> (name, apply args (TypeName type_name))
+            | CNullaryConstructor name ->
+                (name, apply args (Cexpr.TypeName type_name))
             | CUnaryConstructor (name, input_type) ->
                 ( name,
-                  FunctionType (input_type, apply args (TypeName type_name)) ))
+                  FunctionType
+                    (input_type, apply args (Cexpr.TypeName type_name)) ))
           new_constructors
       in
       let new_static_env = new_static_bindings @ static_env in
