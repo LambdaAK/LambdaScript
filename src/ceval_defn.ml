@@ -2,7 +2,6 @@ open Option.Option
 open Cexpr
 open Ceval
 open Typecheck
-open Ctostringcode.CToStringCode
 
 type type_env = (string * c_type) list
 type static_type_env = (string * c_kind) list
@@ -59,16 +58,6 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
 
       eval_defn let_defn env static_env type_env static_type_env
   | CTypeDefn (type_name, t, type_vars) ->
-      print_endline "Evaluating type definition";
-      print_endline "type env";
-      type_env
-      |> List.iter (fun (n, t) ->
-             print_endline (n ^ " : " ^ string_of_c_type t));
-      print_endline "static type env";
-      static_type_env
-      |> List.iter (fun (n, k) ->
-             print_endline (n ^ " : " ^ string_of_c_kind k));
-
       (* for each type_var, create a corresponding universal type
 
          the left is the old type var, and the right is the new universal type
@@ -98,8 +87,6 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
 
       (env, static_env, new_type_env, new_static_type_env, [], [ type_name ])
   | CUnionDefn (type_name, constructors, type_vars) ->
-      print_endline "union defn";
-
       (* 
 
          for each constructor, add the type of that constructor to the static

@@ -427,8 +427,7 @@ and reduce_eq (c : type_equations) (type_env : (string * c_type) list) :
         | _ ->
             (* print t1 and t2 *)
             print_endline "type error 1";
-            print_endline (string_of_c_type t1);
-            print_endline (string_of_c_type t2);
+
             raise TypeFailure)
 
 (** [replace_type t1 t2 t] is a type where all instances of [t1] in [t] are
@@ -470,37 +469,39 @@ and string_of_kind_equations equations =
 (** [replace_type t1 t2 t] is a type where all instances of [t1] in [t] are
     replaced with [t2] *)
 
+and is_recursive_type (name : string) (t : c_type) : bool =
+  match t with
+  | TypeName n -> n = name
+  | PolymorphicType (_, body) -> is_recursive_type name body
+  | AppType (t1, t2) -> is_recursive_type name t1 || is_recursive_type name t2
+  | UnionType constructors ->
+      List.fold_left
+        (fun acc constructor ->
+          match constructor with
+          | CNullaryConstructor _ -> acc
+          | CUnaryConstructor (_, data_type) ->
+              acc || is_recursive_type name data_type)
+        false constructors
+  | FunctionType (i, o) -> is_recursive_type name i || is_recursive_type name o
+  | CListType et -> is_recursive_type name et
+  | VectorType types ->
+      List.fold_left (fun acc t -> acc || is_recursive_type name t) false types
+  | _ -> false
+
 (** [kind_of_type t type_env] is the kind of the type [t] in the type
     environment [type_env] *)
 and kind_of_type t type_env (name : string) =
-  print_endline "KIND OF TYPE";
+  print_endline "kinddddddd";
   (* name is the name of the binding for the type *)
-  (* the static type env should start with one binding*)
-  let type_name : string =
-    match t with
-    | TypeName n -> n
-    | _ ->
-        print_endline "empty type name";
-        ""
-  in
+  let eval_t : c_type = eval_type type_env name t in
 
-  let eval_t : c_type = eval_type type_env type_name t in
+  print_endline "finished evaluating";
 
-  print_endline "evaluated type:";
-  print_endline "type is:";
-  t |> string_of_c_type |> print_endline;
   eval_t |> string_of_c_type |> print_endline;
 
   let kind_var : c_kind = fresh_kind_var () in
 
   let k, eq = generate_kind_equations eval_t type_env [] name kind_var in
-
-  print_endline "kind:";
-  print_endline (string_of_c_kind k);
-
-  (* print them *)
-  print_endline "kind equations:";
-  print_endline (string_of_kind_equations eq);
 
   (* k and kind_var should be equal
 
@@ -521,6 +522,9 @@ and kind_of_type t type_env (name : string) =
     the static type environment [static_type_env] *)
 and generate_kind_equations t type_env (static_type_env : static_type_env)
     (name : string) (name_kind_var : c_kind) : c_kind * kind_equations =
+  print_endline "generating kind equations";
+  print_endline (string_of_c_type t);
+
   match t with
   | IntType | FloatType | StringType | UnitType | BoolType -> (Star, [])
   | CListType elm_type ->
@@ -531,8 +535,6 @@ and generate_kind_equations t type_env (static_type_env : static_type_env)
       (kind_of_elm_type, equations)
   | FunctionType _ -> (Star, [])
   | VectorType types ->
-      print_endline "generating vector type";
-
       (* the kind of inside of the vector must be Star the kind of a vectortype
          is Star
 
@@ -553,19 +555,14 @@ and generate_kind_equations t type_env (static_type_env : static_type_env)
           [] types
       in
 
-      print_endline "constraints from vector type:";
-      print_endline (string_of_kind_equations constraints);
-      print_endline "end";
-
       (Star, constraints)
   | PolymorphicType (i, o) ->
+      print_endline "evaluating polymorphic type";
       (* get the "name" of the argument type *)
-      let i_type_id =
+      let i_type_id : int =
         match i with
         | UniversalType id -> id
-        | x ->
-            x |> string_of_c_type |> print_endline;
-            failwith "error 1"
+        | _ -> failwith "error 1"
       in
 
       (* since i is an argument, give it a fresh kind var *)
@@ -584,6 +581,7 @@ and generate_kind_equations t type_env (static_type_env : static_type_env)
 
       (Arrow (kind_of_i, kind_of_o), equations)
   | AppType (t1, t2) ->
+      print_endline "generating app type";
       let kind_of_t1, equations_t1 =
         generate_kind_equations t1 type_env static_type_env name name_kind_var
       in
@@ -602,12 +600,15 @@ and generate_kind_equations t type_env (static_type_env : static_type_env)
 
       (kind_of_type_var, [])
   | UniversalType type_var_id ->
+      print_endline "generating kind of universal type var";
+      type_var_id |> string_of_int |> print_endline;
       let kind_of_type_var =
         try List.assoc type_var_id static_type_env
         with Not_found -> failwith "not found in generate_kind_equations"
       in
       (kind_of_type_var, [])
   | TypeName n ->
+      (* look it up in the static type env *)
       if n = name then (name_kind_var, [])
       else
         let type_impl = List.assoc n type_env in
@@ -617,8 +618,6 @@ and generate_kind_equations t type_env (static_type_env : static_type_env)
   | TypeVarWritten _ ->
       failwith "type var written found in generate_kind_equations"
   | UnionType constructors ->
-      print_endline "union type found in generate_kind_equations";
-
       (* For each nullary constructor of the form C, generate no kind equations
 
          For each unary constructor of form C d, where C is the constructor and
@@ -635,14 +634,10 @@ and generate_kind_equations t type_env (static_type_env : static_type_env)
                   generate_kind_equations data_type type_env static_type_env
                     name name_kind_var
                 in
-                print_endline ":aaekaeg";
+
                 (* add the constraint that the kind of the data type must be
                    star *)
                 let new_eq = (kind_of_data_type, Star) in
-
-                (* print new eq *)
-                print_endline "new eq";
-                print_endline (string_of_kind_equations [ new_eq ]);
 
                 (new_eq :: constraints_from_data_type) @ equations)
           [] constructors
@@ -858,10 +853,13 @@ and substitute_in_type (type_subbing_in : c_type)
 
 (** [eval_type type_env t] is the type of [t] with all type names in [t]
     replaced with their definitions in [type_env] *)
-and eval_type type_env name = function
+and eval_type type_env name x =
+  print_endline "evaluating type";
+  x |> string_of_c_type |> print_endline;
+
+  x |> function
   | TypeName n -> List.assoc n type_env
   | AppType (t1, t2) -> (
-      AppType (t1, t2) |> string_of_c_type |> print_endline;
       let t1_eval = eval_type type_env name t1 in
       let t2_eval = eval_type type_env name t2 in
       match t1_eval with
@@ -1182,8 +1180,3 @@ let rec type_of_value x =
 (** Generates the static env corresponding to a dynamic env *)
 and static_env_from_dynamic_env (env : env) : static_env =
   List.map (fun (id, v) -> (id, type_of_value v)) env
-
-(*let t1 = TypeVarWritten "a" let t2 = TypeVarWritten "b" let t =
-  PolymorphicType ("a", PolymorphicType ("b", VectorType [ t1; t2 ])) let a =
-  AppType (AppType (t, IntType), BoolType) let () = a |> eval_type [] |>
-  string_of_c_type |> print_endline *)

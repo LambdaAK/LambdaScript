@@ -70,6 +70,7 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env)
       repl_expr env static_env type_env input_string;
       repl_loop env static_env type_env static_type_env
   | EvalDefn ->
+      print_endline "1";
       (* we are evaluating a definition *)
       let d : c_defn = attempt_parse_defn tokens in
       let ( new_env,
@@ -80,6 +81,7 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env)
             new_type_bindings ) =
         eval_defn d env static_env type_env static_type_env
       in
+      print_endline "2";
 
       (* for each new binding, make a string id : type = value *)
       let new_value_bindings_string =
@@ -97,9 +99,6 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env)
       in
 
       let recur_name : string = get_type_name_from_defn_if_needed d in
-
-      print_endline "RECUR NAME";
-      print_endline recur_name;
 
       (* for each new binding, make a string id : type = value *)
       let new_type_bindings_string =
