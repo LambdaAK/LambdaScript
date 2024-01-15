@@ -19,6 +19,14 @@ type kind_equations = (c_kind * c_kind) list
 
 exception TypeFailure
 
+let rec string_of_static_type_env = function
+  | [] -> ""
+  | (TypeId id, k) :: tail ->
+      string_of_int id ^ " : " ^ string_of_c_kind k ^ "\n"
+      ^ string_of_static_type_env tail
+  | (TypeName name, k) :: tail ->
+      name ^ " : " ^ string_of_c_kind k ^ "\n" ^ string_of_static_type_env tail
+
 (** Given a list with entries of type ['a * 'b * 'c], splits it into a tuple of
     three lists [('a list) * ('b list) * ('c list)] *)
 let rec split3 (lst : ('a * 'b * 'c) list) : 'a list * 'b list * 'c list =
@@ -495,18 +503,17 @@ and is_recursive_type (name : string) (t : c_type) : bool =
 
 (** [kind_of_type t type_env] is the kind of the type [t] in the type
     environment [type_env] *)
-and kind_of_type t type_env (name : string) =
-  print_endline "kinddddddd";
+and kind_of_type t type_env (name : string) (static_type_env : static_type_env)
+    =
   (* name is the name of the binding for the type *)
-  let eval_t : c_type = eval_type type_env name t in
-
-  print_endline "finished evaluating";
-
-  eval_t |> string_of_c_type |> print_endline;
-
   let kind_var : c_kind = fresh_kind_var () in
 
-  let k, eq = generate_kind_equations eval_t type_env [] name kind_var in
+  let k, eq =
+    generate_kind_equations t type_env static_type_env name kind_var
+  in
+
+  print_endline "kind is";
+  print_endline (string_of_c_kind k);
 
   (* k and kind_var should be equal
 
@@ -514,12 +521,20 @@ and kind_of_type t type_env (name : string) =
      that represents the recursive type *)
   let eq = (k, kind_var) :: eq in
 
+  print_endline "KIND EQUATIONS";
+
+  eq |> string_of_kind_equations |> print_endline;
+
   (* solve the kind equations *)
   let solution = reduce_kind_equations eq in
 
+  print_endline "solution";
+
+  solution |> string_of_kind_equations |> print_endline;
+
   (* now, get the kind *)
   let kind = get_kind k solution in
-  fix_kind kind
+  kind
 
 (** [generate_kind_equations t type_env static_type_env] is a tuple [(k, eq)]
     where [k] is the kind of [t] and [eq] is a list of kind equations generated
@@ -527,9 +542,6 @@ and kind_of_type t type_env (name : string) =
     the static type environment [static_type_env] *)
 and generate_kind_equations t type_env (static_type_env : static_type_env)
     (name : string) (name_kind_var : c_kind) : c_kind * kind_equations =
-  print_endline "generating kind equations";
-  print_endline (string_of_c_type t);
-
   match t with
   | IntType | FloatType | StringType | UnitType | BoolType -> (Star, [])
   | CListType elm_type ->
@@ -562,7 +574,6 @@ and generate_kind_equations t type_env (static_type_env : static_type_env)
 
       (Star, constraints)
   | PolymorphicType (i, o) ->
-      print_endline "evaluating polymorphic type";
       (* get the "name" of the argument type *)
       let i_type_id : int =
         match i with
@@ -605,21 +616,29 @@ and generate_kind_equations t type_env (static_type_env : static_type_env)
 
       (kind_of_type_var, [])
   | UniversalType type_var_id ->
-      print_endline "generating kind of universal type var";
-      type_var_id |> string_of_int |> print_endline;
       let kind_of_type_var =
         try List.assoc (TypeId type_var_id) static_type_env
         with Not_found -> failwith "not found in generate_kind_equations"
       in
       (kind_of_type_var, [])
   | TypeName n ->
-      (* look it up in the static type env *)
-      if n = name then (name_kind_var, [])
-      else
-        let type_impl = List.assoc n type_env in
+      (* look up the kind of the type name from the static type env *)
+      (*if n = name then (name_kind_var, []) else let type_impl = List.assoc n
+        type_env in
 
         generate_kind_equations type_impl type_env static_type_env name
-          name_kind_var
+        name_kind_var*)
+      if n = name then (name_kind_var, [])
+      else
+        let k =
+          try List.assoc (TypeName n) static_type_env
+          with Not_found ->
+            print_endline "name not found";
+            print_endline "name is";
+            name |> print_endline;
+            failwith "name not found in generate kind equations"
+        in
+        (k, [])
   | TypeVarWritten _ ->
       failwith "type var written found in generate_kind_equations"
   | UnionType constructors ->
@@ -664,7 +683,7 @@ and reduce_kind_equations equations =
         | KindVar kv1, KindVar kv2 ->
             (* replace kv2 with kv1 *)
             let new_equations =
-              replace_kind_var_in_kind_equations c' kv2 (KindVar kv1)
+              replace_kind_var_in_kind_equations c' kv1 (KindVar kv2)
             in
 
             (k1, k2) :: reduce_kind_equations new_equations
@@ -860,7 +879,7 @@ and substitute_in_type (type_subbing_in : c_type)
     replaced with their definitions in [type_env] *)
 and eval_type type_env name x =
   print_endline "evaluating type";
-  x |> string_of_c_type |> print_endline;
+  x |> string_of_c_type |> ignore;
 
   x |> function
   | TypeName n -> List.assoc n type_env

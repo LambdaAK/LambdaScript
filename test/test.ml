@@ -303,7 +303,7 @@ let kind_of_type_test (defns_string : string) (type_string : string)
       ([], [], []) defns
   in
 
-  let kind = kind_of_type t type_env "" in
+  let kind = kind_of_type t type_env "" [] in
   let result_string = string_of_c_kind kind in
   assert_equal result_string expected_output
 

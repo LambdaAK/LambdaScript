@@ -70,7 +70,6 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env)
       repl_expr env static_env type_env input_string;
       repl_loop env static_env type_env static_type_env
   | EvalDefn ->
-      print_endline "1";
       (* we are evaluating a definition *)
       let d : c_defn = attempt_parse_defn tokens in
       let ( new_env,
@@ -81,7 +80,6 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env)
             new_type_bindings ) =
         eval_defn d env static_env type_env static_type_env
       in
-      print_endline "2";
 
       (* for each new binding, make a string id : type = value *)
       let new_value_bindings_string =
@@ -98,13 +96,12 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env)
         |> String.concat "\n"
       in
 
-      let recur_name : string = get_type_name_from_defn_if_needed d in
-
       (* for each new binding, make a string id : type = value *)
       let new_type_bindings_string =
         List.map
           (fun id ->
-            let k = kind_of_type (TypeName id) new_type_env recur_name in
+            print_endline "BAD";
+            let k = List.assoc (TypeName id) new_static_type_env in
             k |> string_of_c_kind)
           new_type_bindings
         |> String.concat "\n"
@@ -117,6 +114,16 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env)
       if new_type_bindings_string <> "" then
         print_endline new_type_bindings_string
       else ();
+
+      print_endline "[[static_type_env]]";
+
+      (* print the new static type env *)
+      List.iter
+        (function
+          | TypeName name, t -> print_endline (name ^ " : " ^ string_of_c_kind t)
+          | TypeId id, t ->
+              print_endline (string_of_int id ^ " : " ^ string_of_c_kind t))
+        new_static_type_env;
 
       repl_loop new_env new_static_env new_type_env new_static_type_env
 
