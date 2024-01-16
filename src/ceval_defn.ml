@@ -2,7 +2,6 @@ open Option.Option
 open Cexpr
 open Ceval
 open Typecheck
-open Ctostringtree.CToStringTree
 
 type type_env = (string * c_type) list
 type new_value_bindings_ids = string list
@@ -73,19 +72,12 @@ let rec eval_defn (d : c_defn) (env : env) (static_env : static_env)
 
       let new_t = replace_types t args_mapping in
 
-      print_endline "new_t";
-      new_t |> string_of_c_type |> print_endline;
-
       (* add the new type to the type environment *)
       let new_type = wrap args new_t in
-
-      print_endline "new_type";
-      new_type |> string_of_c_type |> print_endline;
 
       let new_type_env = (type_name, new_type) :: type_env in
 
       (* make a static binding for the kind of the type *)
-      print_endline "aekgjagkjekajgkjaeg";
       let kind_of_type : c_kind =
         kind_of_type new_type type_env "" static_type_env
       in

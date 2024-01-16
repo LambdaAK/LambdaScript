@@ -100,9 +100,11 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env)
       let new_type_bindings_string =
         List.map
           (fun id ->
-            print_endline "BAD";
             let k = List.assoc (TypeName id) new_static_type_env in
-            k |> string_of_c_kind)
+
+            let k_string = string_of_c_kind k in
+
+            "type " ^ id ^ " : " ^ k_string)
           new_type_bindings
         |> String.concat "\n"
       in
@@ -111,20 +113,12 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env)
       if new_value_bindings_string <> "" then
         print_endline new_value_bindings_string
       else ();
+
       if new_type_bindings_string <> "" then
         print_endline new_type_bindings_string
       else ();
 
-      print_endline "[[static_type_env]]";
-
       (* print the new static type env *)
-      List.iter
-        (function
-          | TypeName name, t -> print_endline (name ^ " : " ^ string_of_c_kind t)
-          | TypeId id, t ->
-              print_endline (string_of_int id ^ " : " ^ string_of_c_kind t))
-        new_static_type_env;
-
       repl_loop new_env new_static_env new_type_env new_static_type_env
 
 and repl_expr (env : env) (static_env : static_env)

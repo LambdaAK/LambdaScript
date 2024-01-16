@@ -298,7 +298,6 @@ and generate_e_app_function_pat_is_id (env : static_env) type_env
         ((t2, output_type) :: constraints_from_pattern)
         @ constraints_from_type_annotation @ c1 @ c2 )
   | _ ->
-      print_endline "not a function";
       (* first is not a function, so generalization is not necessary *)
       let e1 = first in
       let e2 = second in
@@ -512,25 +511,14 @@ and kind_of_type t type_env (name : string) (static_type_env : static_type_env)
     generate_kind_equations t type_env static_type_env name kind_var
   in
 
-  print_endline "kind is";
-  print_endline (string_of_c_kind k);
-
   (* k and kind_var should be equal
 
      k is generated from the algorithm kind_var is just a predetermined kind
      that represents the recursive type *)
   let eq = (k, kind_var) :: eq in
 
-  print_endline "KIND EQUATIONS";
-
-  eq |> string_of_kind_equations |> print_endline;
-
   (* solve the kind equations *)
   let solution = reduce_kind_equations eq in
-
-  print_endline "solution";
-
-  solution |> string_of_kind_equations |> print_endline;
 
   (* now, get the kind *)
   let kind = get_kind k solution in
@@ -597,7 +585,6 @@ and generate_kind_equations t type_env (static_type_env : static_type_env)
 
       (Arrow (kind_of_i, kind_of_o), equations)
   | AppType (t1, t2) ->
-      print_endline "generating app type";
       let kind_of_t1, equations_t1 =
         generate_kind_equations t1 type_env static_type_env name name_kind_var
       in
@@ -633,9 +620,6 @@ and generate_kind_equations t type_env (static_type_env : static_type_env)
         let k =
           try List.assoc (TypeName n) static_type_env
           with Not_found ->
-            print_endline "name not found";
-            print_endline "name is";
-            name |> print_endline;
             failwith "name not found in generate kind equations"
         in
         (k, [])
@@ -877,13 +861,9 @@ and substitute_in_type (type_subbing_in : c_type)
 
 (** [eval_type type_env t] is the type of [t] with all type names in [t]
     replaced with their definitions in [type_env] *)
-and eval_type type_env name x =
-  print_endline "evaluating type";
-  x |> string_of_c_type |> ignore;
-
-  x |> function
-  | TypeName n -> List.assoc n type_env
-  | AppType (t1, t2) -> (
+and eval_type type_env name = function
+  | Cexpr.TypeName n -> List.assoc n type_env
+  | Cexpr.AppType (t1, t2) -> (
       let t1_eval = eval_type type_env name t1 in
       let t2_eval = eval_type type_env name t2 in
       match t1_eval with
