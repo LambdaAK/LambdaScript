@@ -534,7 +534,7 @@ and kind_of_type t type_env (name : string) (static_type_env : static_type_env)
 
   (* now, get the kind *)
   let kind = get_kind k solution in
-  kind
+  fix_kind kind
 
 (** [generate_kind_equations t type_env static_type_env] is a tuple [(k, eq)]
     where [k] is the kind of [t] and [eq] is a list of kind equations generated

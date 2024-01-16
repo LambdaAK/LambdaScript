@@ -290,20 +290,23 @@ let kind_of_type_test (defns_string : string) (type_string : string)
     |> condense_type
   in
 
-  let description = "\ndefns: \n" ^ defns_string ^ "\ntype: \n" ^ type_string in
+  let description =
+    "\ndefns: \n" ^ defns_string ^ "\ntype: " ^ type_string
+    ^ "\n\nexpected kind: " ^ expected_output
+  in
   description >:: fun _ ->
   (* First, evaluate the definitions to get the environments set up *)
-  let _, _, type_env =
+  let _, _, type_env, static_type_env =
     List.fold_left
-      (fun (env, static_env, type_env) defn ->
-        let new_env, new_static_env, new_type_env, _, _, _ =
-          eval_defn defn env static_env type_env []
+      (fun (env, static_env, type_env, static_type_env) defn ->
+        let new_env, new_static_env, new_type_env, new_static_type_env, _, _ =
+          eval_defn defn env static_env type_env static_type_env
         in
-        (new_env, new_static_env, new_type_env))
-      ([], [], []) defns
+        (new_env, new_static_env, new_type_env, new_static_type_env))
+      ([], [], [], []) defns
   in
 
-  let kind = kind_of_type t type_env "" [] in
+  let kind = kind_of_type t type_env "" static_type_env in
   let result_string = string_of_c_kind kind in
   assert_equal result_string expected_output
 
@@ -1354,7 +1357,6 @@ let kind_of_type_tests_data : (string * string * string) list =
         type List a =
           | Nil
           | Cons (a, List a)
-      
       |},
       "List",
       "* -> *" );
@@ -1367,7 +1369,151 @@ let kind_of_type_tests_data : (string * string * string) list =
       "* -> * -> *" );
     ({|
       type App a b = a b
-    |}, "App", "(* -> *) -> * -> *");
+    |}, "App", "(A -> B) -> A -> B");
+    ( {|
+      type App a b c d = a b c d
+    |},
+      "App",
+      "(A -> B -> C -> D) -> A -> B -> C -> D" );
+    ( {|
+    type T a b c d = a ( b c ) d
+    |},
+      "T",
+      "(A -> B -> C) -> (D -> A) -> D -> B -> C" );
+    ({|
+      type T a = a
+    |}, "T", "A -> A");
+    ({|
+      type T a b = a
+    |}, "T", "A -> B -> A");
+    ({|
+    type T a b = b
+    |}, "T", "A -> B -> B");
+    ( {|
+    type T a b c d e f g = e
+    
+    |},
+      "T",
+      "A -> B -> C -> D -> E -> F -> G -> E" );
+    ( {|
+    type Id a = a
+    type App a b = a b
+    type T = App Id
+
+    |},
+      "T",
+      "A -> A" );
+    ( {|
+    type Id a = a
+    type App a b = a b
+    type T = App Id Int
+
+    |},
+      "T",
+      "*" );
+    ( {|
+      type T a b c = a ( b c )
+    
+    |},
+      "T",
+      "(A -> B) -> (C -> A) -> C -> B" );
+    ( {|
+      type App a b c = a b c
+      type T a b = App a b Int
+    |},
+      "T",
+      "(A -> * -> B) -> A -> B" );
+    ({|
+    type T a b = (a, b)
+    |}, "T", "* -> * -> *");
+    ({|
+      type T a b = (a, a)
+    |}, "T", "* -> A -> *");
+    ({|
+      type T a b c d = Bool
+    |}, "T", "A -> B -> C -> D -> *");
+    ( {|
+      type T a b c d e = (a b, c d, e)
+    |},
+      "T",
+      "(A -> *) -> A -> (B -> *) -> B -> * -> *" );
+    ( {|
+      type Id a = a
+      type IntType = Id (Id (Id (Id (Id (Int)))))
+    |},
+      "IntType",
+      "*" );
+    ( {|
+      type List a =
+        | Nil
+        | Cons (a, List a)
+
+      type ListInt = List Int
+    |},
+      "ListInt",
+      "*" );
+    ( {|
+      type List a =
+        | Nil
+        | Cons (a, List a)
+      type Id a = a
+      type ListInt = Id (Id (List (Id (Id Int))))
+    |},
+      "ListInt",
+      "*" );
+    ( {|
+      type Either a b = | Left (a) | Right (b)
+      type EitherLeftInt a = Either Int a
+      type EitherLeftIntRightBool = EitherLeftInt Bool
+    |},
+      "EitherLeftIntRightBool",
+      "*" );
+    ( {|
+      type List a =
+        | Nil
+        | Cons (a, List a)
+      type Either a b = | Left (a) | Right (b)
+      type T = List (Either Int Bool)
+    |},
+      "T",
+      "*" );
+    ( {|
+      type List a =
+        | Nil
+        | Cons (a, List a)
+      type Either a b = | Left (a) | Right (b)
+      type T = Either (List (Either (List Int) (List Bool)))
+    |},
+      "T",
+      "* -> *" );
+    ( {|
+      type List a =
+        | Nil
+        | Cons (a, List a)
+      type Either a b = | Left (a) | Right (b)
+      type T = Either (List (Either (List Int) (List Bool))) (List (Either Int Bool))
+    |},
+      "T",
+      "*" );
+    ( {|
+      type List a =
+        | Nil
+        | Cons (a, List a)
+
+      type List2 = List
+    |},
+      "List2",
+      "* -> *" );
+    ( {|
+      type List a =
+        | Nil
+        | Cons (a, List a)
+
+      type List2 = List
+      type ListInt = List2 Int
+    |},
+      "ListInt",
+      "*" );
   ]
 
 let defn_expr_tests =
@@ -1457,7 +1603,7 @@ let all_tests =
       polymorphism_tests;
       defn_expr_tests;
       defn_type_tests;
-      (*kind_of_type_tests;*)
+      kind_of_type_tests;
     ]
 
 let suite = "suite" >::: all_tests
