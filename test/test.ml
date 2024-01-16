@@ -1514,6 +1514,69 @@ let kind_of_type_tests_data : (string * string * string) list =
     |},
       "ListInt",
       "*" );
+    ( {|
+      type SL a b =
+        | Nil
+        | Cons (a b, SL a b)
+    
+    |},
+      "SL",
+      "(A -> *) -> A -> *" );
+    ( {|
+      type SL a b c d =
+        | Nil
+        | Cons (a b, SL a b c d)
+    
+    |},
+      "SL",
+      "(A -> *) -> A -> B -> C -> *" );
+    ( {|
+      type SL a b c d =
+        | Nil
+        | Cons (a b c d, SL a b c d)
+    
+    |},
+      "SL",
+      "(A -> B -> C -> *) -> A -> B -> C -> *" );
+    ( {|
+      type BT a =
+        | Leaf
+        | Node (a, BT a, BT a)
+    
+    |},
+      "BT",
+      "* -> *" );
+    ( {|
+      type BT a =
+        | Leaf
+        | Node (a, BT a, BT a)
+
+      type BTInt = BT Int
+    
+    |},
+      "BTInt",
+      "*" );
+    ( {|
+
+      type List a =
+        | Nil
+        | Cons (a, List a)
+
+      type BT a =
+        | Leaf
+        | Node (a, BT a, BT a)
+
+      type T a = List (BT a)
+    
+    |},
+      "T",
+      "* -> *" );
+    ( {|
+    type T a b c d e f g = a b (c d e) (f g)
+    |},
+      "T",
+      "(A -> B -> C -> D) -> A -> (E -> F -> B) -> E -> F -> (G -> C) -> G -> D"
+    );
   ]
 
 let defn_expr_tests =
