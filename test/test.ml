@@ -1577,6 +1577,39 @@ let kind_of_type_tests_data : (string * string * string) list =
       "T",
       "(A -> B -> C -> D) -> A -> (E -> F -> B) -> E -> F -> (G -> C) -> G -> D"
     );
+    ( {|
+      type Option a = | None | Some (a)
+      type EffectOption = Option (Unit -> Unit)
+    |},
+      "EffectOption",
+      "*" );
+    ({|
+        type Function a b = a -> b
+    |}, "Function", "* -> * -> *");
+    ({|
+      type List a = [a]
+    |}, "List", "* -> *");
+    ({|
+      type List a b = [(a, b)]
+    |}, "List", "* -> * -> *");
+    ({|
+      type List a b = [(a -> b, b -> a)]
+    |}, "List", "* -> * -> *");
+    ( {|
+      type List a b c d =
+        (a -> b -> c -> d, d -> c -> b -> a, a -> b -> c -> d, d -> c -> b -> a)
+    |},
+      "List",
+      "* -> * -> * -> * -> *" );
+    ({|
+      type List a b = a (b -> b)
+    |}, "List", "(* -> A) -> * -> A");
+    ( {|
+    type T a b c d e = a b b b c c d d d d
+  |},
+      "T",
+      "(A -> A -> A -> B -> B -> C -> C -> C -> C -> D) -> A -> B -> C -> E -> \
+       D" );
   ]
 
 let defn_expr_tests =

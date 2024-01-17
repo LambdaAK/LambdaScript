@@ -22,10 +22,10 @@ let execute_definitions env static_env type_env static_type_env =
   List.fold_left
     (fun (env, static_env, type_env, static_type_env) defn ->
       (* type check the definition *)
-      let new_env, new_static_env, new_type_env, _, _, _ =
-        eval_defn defn env static_env type_env []
+      let new_env, new_static_env, new_type_env, new_static_type_env, _, _ =
+        eval_defn defn env static_env type_env static_type_env
       in
-      (new_env, new_static_env, new_type_env, static_type_env))
+      (new_env, new_static_env, new_type_env, new_static_type_env))
     (env, static_env, type_env, static_type_env)
 
 let run_run (dir : string) : unit =
@@ -62,6 +62,7 @@ let run_run (dir : string) : unit =
   let env, static_env, type_env, static_type_env =
     execute_definitions env static_env [] [] program
   in
+
   repl_loop env static_env type_env static_type_env
 
 let () =

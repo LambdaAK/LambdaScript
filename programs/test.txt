@@ -2,41 +2,14 @@ type Option a =
   | None
   | Some (a)
 
-let return = Some
+type IntOption = Option Int
 
-let (>>=) m f =
-  switch m =>
-  | None -> None
-  | Some v -> f v
+type Id a = a
+
+type App a b = a b
+
+let unbox default [a] x [Option Int] =
+  switch x =>
+  | None -> default
+  | Some x -> x
   end
-
-let myoption = return 42
-
-let myoptiontwo =
-  myoption >>= (\x -> return (x + 1))
-  >>= (\x -> return (x + 1))
-
-type Either a b =
-  | Left (a)
-  | Right (b)
-
-let get_left_if_left e =
-  switch e =>
-  | Left x -> Some x
-  | Right _ -> None
-  end
-
-let l = Left 2
-let r = Right true
-
-type BT a =
-  | Leaf
-  | Node (a, BT a, BT a)
-
-let rec map f t =
-  switch t =>
-  | Leaf -> Leaf
-  | Node (v, l, r) -> Node (f v, map f l, map f r)
-  end
-
-let mytree = Node (1, Node (2, Leaf, Leaf), Leaf)

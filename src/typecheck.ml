@@ -106,7 +106,9 @@ and generate (env : static_env) (type_env : (string * c_type) list) (e : c_expr)
       let constraints_from_type_annotation : type_equations =
         match cto with
         | Some t ->
-            [ (input_type, t) ]
+            (* t is the annotated type. evaluate it *)
+            let t_eval : c_type = eval_type type_env "" t in
+            [ (input_type, t_eval) ]
             (* the input type must equal the annotated type *)
         | None -> []
       in
@@ -537,8 +539,20 @@ and generate_kind_equations t type_env (static_type_env : static_type_env)
         generate_kind_equations elm_type type_env static_type_env name
           name_kind_var
       in
-      (kind_of_elm_type, equations)
-  | FunctionType _ -> (Star, [])
+      (* kind_of_elm_type must be equal to Star *)
+      (kind_of_elm_type, (kind_of_elm_type, Star) :: equations)
+  | FunctionType (i, o) ->
+      let i_kind, i_constraints =
+        generate_kind_equations i type_env static_type_env name name_kind_var
+      in
+      let o_kind, o_constraints =
+        generate_kind_equations o type_env static_type_env name name_kind_var
+      in
+
+      (* the kinds of i and o must both be Star *)
+      let star_constraints = [ (i_kind, Star); (o_kind, Star) ] in
+
+      (Star, star_constraints @ i_constraints @ o_constraints)
   | VectorType types ->
       (* the kind of inside of the vector must be Star the kind of a vectortype
          is Star
@@ -620,6 +634,8 @@ and generate_kind_equations t type_env (static_type_env : static_type_env)
         let k =
           try List.assoc (TypeName n) static_type_env
           with Not_found ->
+            print_endline "ID:";
+            print_endline n;
             failwith "name not found in generate kind equations"
         in
         (k, [])
@@ -776,6 +792,8 @@ and type_of_c_expr (e : c_expr) (static_env : static_env)
     replace_written_types constraints
   in
 
+  (* print the solution *)
+
   (* solve the constraints *)
   let solution : substitutions =
     reduce_eq constraints_without_written_type_vars type_env
@@ -885,7 +903,7 @@ and eval_type type_env name = function
   | UnitType -> UnitType
   | TypeVar v -> TypeVar v
   | UniversalType x -> UniversalType x
-  | TypeVarWritten _ -> failwith "type var written found in eval_type"
+  | TypeVarWritten x -> TypeVarWritten x
   | FunctionType (i, o) -> FunctionType (i, o)
   | VectorType types -> VectorType types
   | CListType t -> CListType t
