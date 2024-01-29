@@ -106,8 +106,15 @@ and generate (env : static_env) (type_env : (string * c_type) list) (e : c_expr)
       let constraints_from_type_annotation : type_equations =
         match cto with
         | Some t ->
+            print_endline "evaluating type from type annotation";
+            t |> string_of_c_type |> print_endline;
+
             (* t is the annotated type. evaluate it *)
             let t_eval : c_type = eval_type type_env "" t in
+            print_endline "evaluated type:";
+
+            t_eval |> string_of_c_type |> print_endline;
+
             [ (input_type, t_eval) ]
             (* the input type must equal the annotated type *)
         | None -> []
@@ -791,6 +798,10 @@ and type_of_c_expr (e : c_expr) (static_env : static_env)
   let constraints_without_written_type_vars =
     replace_written_types constraints
   in
+  print_endline "constraints:";
+  constraints_without_written_type_vars |> string_of_type_equations
+  |> print_endline;
+  print_endline "end constraints";
 
   (* print the solution *)
 
@@ -880,7 +891,10 @@ and substitute_in_type (type_subbing_in : c_type)
 (** [eval_type type_env t] is the type of [t] with all type names in [t]
     replaced with their definitions in [type_env] *)
 and eval_type type_env name = function
-  | Cexpr.TypeName n -> List.assoc n type_env
+  (* TODO: types in a type_env should be fully evaluated, so this function
+     should act as the identity function on types when the types are from the
+     type_env *)
+  | Cexpr.TypeName n -> List.assoc n type_env |> eval_type type_env name
   | Cexpr.AppType (t1, t2) -> (
       let t1_eval = eval_type type_env name t1 in
       let t2_eval = eval_type type_env name t2 in
