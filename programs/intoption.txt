@@ -1,0 +1,12 @@
+type Option a =
+  | None
+  | Some (a)
+
+type IntOption = Option Int
+
+let unbox x [IntOption] =
+  switch x =>
+  | None -> 0
+  | Some x -> x
+  end
+

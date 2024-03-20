@@ -1,0 +1,15 @@
+type Option a =
+  | None
+  | Some (a)
+
+type IntOption = Option Int
+
+type Id a = a
+
+type App a b = a b
+
+let unbox default [a] x [Option Int] =
+  switch x =>
+  | None -> default
+  | Some x -> x
+  end

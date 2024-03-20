@@ -244,7 +244,7 @@ module CToStringTree : CToString = struct
           match k1 with
           | Star -> "*"
           | Arrow _ -> "(" ^ string_of_c_kind k1 ^ ")"
-          | KindVar n -> string_of_type_var n
+          | KindVar n -> string_of_type_var n |> String.uppercase_ascii
         in
         let k2_string = string_of_c_kind k2 in
         k1_string ^ " -> " ^ k2_string

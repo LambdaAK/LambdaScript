@@ -1,0 +1,9 @@
+type List a =
+  | Nil
+  | Cons (a, List a)
+
+
+type T = (List Int, List Bool)
+
+let f x [(List Int, List Bool)] = x
+
