@@ -112,14 +112,6 @@ and string_of_compound_type (ct : compound_type) (level : int) =
       ^ string_of_compound_type ct (level + 1)
       ^ indentations_with_newline level
       ^ ")"
-  | PolymorphicType (s, ct) ->
-      "PolymorphicType ("
-      ^ indentations_with_newline (level + 1)
-      ^ s ^ ","
-      ^ indentations_with_newline (level + 1)
-      ^ string_of_compound_type ct (level + 1)
-      ^ indentations_with_newline level
-      ^ ")"
 
 (** [string_of_constructor] is used to print the constructors. *)
 and string_of_constructor (c : constructor) =

@@ -385,11 +385,6 @@ and parse_constructor_list (tokens : token list) (acc : constructor list) :
 
     For example: wrap_type [a; b; c] t = PolymorphicType (a, PolymorphicType (b,
     PolymorphicType (c, t))) *)
-and wrap_type vars t =
-  match vars with
-  | [] -> t
-  | first_param :: other_params ->
-      PolymorphicType (first_param, wrap_type other_params t)
 
 (** Parses a definition. Returns a tuple of the parsed definition and the
     remaining tokens. *)

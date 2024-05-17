@@ -33,7 +33,6 @@ and compound_type =
   | FunctionType of factor_app_type * compound_type
   | BasicType of factor_app_type
   | UnionType of union_type
-  | PolymorphicType of string * compound_type
 (* string is the argument, compound_type is the body (can be another polymorphic
    type) *)
 
