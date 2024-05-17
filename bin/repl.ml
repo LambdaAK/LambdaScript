@@ -34,8 +34,12 @@ let () =
   ignore attempt_type_check;
   ignore attempt_eval
 
-let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env) :
-    unit =
+let get_type_name_from_defn_if_needed = function
+  | CUnionDefn (id, _, _) -> id
+  | _ -> ""
+
+let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env)
+    (static_type_env : static_type_env) : unit =
   print_string "> ";
   let input_string : string = read_line () in
   let tokens : token list = attempt_lex input_string in
@@ -53,7 +57,7 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env) :
         | { token_type = In; line = _ } :: _ ->
             (* we are evaluating an expression *)
             repl_expr env static_env type_env input_string;
-            repl_loop env static_env type_env;
+            repl_loop env static_env type_env static_type_env;
             EvalExpr
         | _ -> EvalDefn)
     | _ ->
@@ -64,16 +68,17 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env) :
   match action with
   | EvalExpr ->
       repl_expr env static_env type_env input_string;
-      repl_loop env static_env type_env
+      repl_loop env static_env type_env static_type_env
   | EvalDefn ->
       (* we are evaluating a definition *)
       let d : c_defn = attempt_parse_defn tokens in
       let ( new_env,
             new_static_env,
             new_type_env,
+            new_static_type_env,
             new_value_bindings,
             new_type_bindings ) =
-        eval_defn d env static_env type_env
+        eval_defn d env static_env type_env static_type_env
       in
 
       (* for each new binding, make a string id : type = value *)
@@ -91,11 +96,15 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env) :
         |> String.concat "\n"
       in
 
+      (* for each new binding, make a string id : type = value *)
       let new_type_bindings_string =
         List.map
           (fun id ->
-            let k = kind_of_type (TypeName id) new_type_env in
-            k |> string_of_c_kind)
+            let k = List.assoc (TypeName id) new_static_type_env in
+
+            let k_string = string_of_c_kind k in
+
+            "type " ^ id ^ " : " ^ k_string)
           new_type_bindings
         |> String.concat "\n"
       in
@@ -104,11 +113,13 @@ let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env) :
       if new_value_bindings_string <> "" then
         print_endline new_value_bindings_string
       else ();
+
       if new_type_bindings_string <> "" then
         print_endline new_type_bindings_string
       else ();
 
-      repl_loop new_env new_static_env new_type_env
+      (* print the new static type env *)
+      repl_loop new_env new_static_env new_type_env new_static_type_env
 
 and repl_expr (env : env) (static_env : static_env)
     (type_env : (string * c_type) list) (e : string) =
@@ -173,4 +184,4 @@ let run_repl () : unit =
       code_mapping
     @ built_ins_types
   in
-  repl_loop env static_env []
+  repl_loop env static_env [] []

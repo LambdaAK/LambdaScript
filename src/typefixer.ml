@@ -71,3 +71,24 @@ let fix (t : c_type) : c_type =
   in
 
   replace t !order
+
+let fix_kind (k : c_kind) : c_kind =
+  let order : int list ref = ref [] in
+  let rec search (k : c_kind) : unit =
+    match k with
+    | Star -> ()
+    | Arrow (k1, k2) ->
+        search k1;
+        search k2
+    | KindVar id -> if not (visited id !order) then order := !order @ [ id ]
+  in
+  search k;
+
+  let rec replace (k : c_kind) (lst : int list) : c_kind =
+    match k with
+    | Star -> Star
+    | Arrow (k1, k2) -> Arrow (replace k1 lst, replace k2 lst)
+    | KindVar id -> KindVar (get_replacement id lst)
+  in
+
+  replace k !order
