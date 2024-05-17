@@ -1,7 +1,11 @@
-type App a b = a b
+type BT a =
+  | Leaf
+  | Node (BT a, a, BT a)
 
-type List a = | Nil | Cons (a, List a)
-
-type IntList = App List Int
-
-let id lst [IntList] = lst
+let rec bt_map f t = switch t =>
+  | Leaf -> Leaf
+  | Node (l, v, r) ->
+    let new_l = bt_map f l in
+    let new_r = bt_map f r in
+    Node (new_l, f v, new_r)
+  end

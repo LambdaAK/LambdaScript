@@ -106,14 +106,8 @@ and generate (env : static_env) (type_env : (string * c_type) list) (e : c_expr)
       let constraints_from_type_annotation : type_equations =
         match cto with
         | Some t ->
-            print_endline "evaluating type from type annotation";
-            t |> string_of_c_type |> print_endline;
-
             (* t is the annotated type. evaluate it *)
             let t_eval : c_type = eval_type type_env "" t in
-            print_endline "evaluated type:";
-
-            t_eval |> string_of_c_type |> print_endline;
 
             [ (input_type, t_eval) ]
             (* the input type must equal the annotated type *)
@@ -798,10 +792,10 @@ and type_of_c_expr (e : c_expr) (static_env : static_env)
   let constraints_without_written_type_vars =
     replace_written_types constraints
   in
-  print_endline "constraints:";
-  constraints_without_written_type_vars |> string_of_type_equations
-  |> print_endline;
-  print_endline "end constraints";
+
+  (* print_endline "constraints:"; constraints_without_written_type_vars |>
+     string_of_type_equations |> print_endline; print_endline "end
+     constraints"; *)
 
   (* print the solution *)
 
