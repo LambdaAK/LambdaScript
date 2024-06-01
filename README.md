@@ -1,4 +1,4 @@
-# LambdaScript - a Functional Programming Language Inspried by OCaml and Haskell
+# LambdaScript - a Functional Programming Language Inspired by OCaml and Haskell
 
 ## Table of Contents
 1. [Overview](#overview)
