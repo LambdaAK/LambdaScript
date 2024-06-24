@@ -2,9 +2,7 @@
 
 ## Foreword
 
-Hello, and thank you for taking the time to look at LambdaScript. After about a year of working on LambdaScript, I have decided to start from scratch write a new, more reliable, and efficient interpreter for a new language - LambdaScript 2. This new language is based on the same principles as LambdaScript, but with a more robust implementation in TypeScript, rather than OCaml.
-
-You can check out LambdaScript 2 here: https://github.com/LambdaAK/LambdaScript-2
+Hello, and thank you for taking the time to look at LambdaScript. After about a year of working on LambdaScript, I have decided to start from scratch write a new, more reliable, and efficient interpreter for a new language - [LambdaScript 2](https://github.com/LambdaAK/LambdaScript-2). This new language is based on the same principles as LambdaScript, but with a more robust implementation in TypeScript, rather than OCaml.
 
 Working on LambdaScript has been an incredible learning experience for me, and I hope to make LambdaScript 2 even better. I hope you enjoy looking at LambdaScript/LambdaScript 2 as much as I enjoyed working on it!
 
