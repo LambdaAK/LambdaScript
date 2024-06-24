@@ -1,5 +1,15 @@
 # LambdaScript - a Functional Programming Language Inspired by OCaml and Haskell
 
+## Foreword
+
+Hello, and thank you for taking the time to look at LambdaScript. After about a year of working on LambdaScript, I have decided to start from scratch write a new, more reliable, and efficient interpreter for a new language - LambdaScript 2. This new language is based on the same principles as LambdaScript, but with a more robust implementation in TypeScript, rather than OCaml.
+
+You can check out LambdaScript 2 here: https://github.com/LambdaAK/LambdaScript-2
+
+Working on LambdaScript has been an incredible learning experience for me, and I hope to make LambdaScript 2 even better. I hope you enjoy looking at LambdaScript/LambdaScript 2 as much as I enjoyed working on it!
+
+-Alex
+
 ## Table of Contents
 1. [Overview](#overview)
 2. [Example Usages](#examples)
@@ -14,8 +24,6 @@
 LambdaScript is a ***statically-typed*** ***functional programming language*** designed to make it easy to write elegant and expressive code. It features a powerful type system underpinned by ***kinds***, which allows for ***higher-order arithmetic on types***. 
 
 It also features a type inference engine similar to the ***Hindley-Milner algorithm***, which can infer the types of most expressions, so you don't have to write them out. 
-
-Currently, LambdaScript is an interpreted language with the lexer, parser, typechecker, and evaluator all written in OCaml. In the future, I plan to make a compiler to JavaScript, which would allow LambdaScript to have a wider range of applications.
 
 
 # Semantics
