@@ -5,9 +5,11 @@ open Language.Ceval
 open Language.Condense
 open Language.Typecheck
 open Language.Ctostringtree.CToStringTree
+open Language.Tostring
 open Language.Typefixer
 open Language.Ceval_defn
 open Language.Env
+open Language.New_parser
 
 let attempt_lex (input_string : string) : token list =
   input_string |> list_of_string |> lex
@@ -143,5 +145,28 @@ let run_repl () : unit =
   in
   repl_loop env static_env
 
-let () = print_endline "Welcome to LambdaScript!"
+let test_input = "1 + 1"
+let test_tokens = attempt_lex test_input
+
+(* print the tokens *)
+
+let () =
+  print_endline "--------------------------\nTokens:";
+  List.iter (fun t -> t |> string_of_token |> print_endline) test_tokens;
+  print_endline "--------------------------"
+
+let test_expr =
+  FactorParser.factor_parser (List.map (fun t -> t.token_type) test_tokens)
+
+let () =
+  print_endline "--------------------------\nParsed:";
+  match test_expr with
+  | None -> print_endline "PARSING FAILED"
+  | Some (e, _) ->
+      print_endline "PARSING SUCCESSFUL";
+      print_endline (string_of_factor e 0);
+
+      print_endline "--------------------------"
+
+let () = ignore test_expr
 let () = run_repl ()

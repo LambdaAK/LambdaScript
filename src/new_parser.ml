@@ -175,6 +175,11 @@ module ParserUtils = struct
         | Addop "-" -> Minus (arith_expr, term)
         | Addop s -> CustomArithExpr (s, arith_expr, term)
         | _ -> failwith "impossible")
+
+  let parse_print (msg : string) : unit parser =
+    let* () = return () in
+    print_endline msg;
+    return ()
 end
 
 open ParserUtils
@@ -187,6 +192,7 @@ end = struct
   open ExprParser
 
   let rec boolean_parser : factor parser =
+    let* () = parse_print "boolean_parser" in
     let* b =
       expect_token_get_data (function
         | Boolean b -> Some b
@@ -195,6 +201,7 @@ end = struct
     return (Boolean b)
 
   and string_parser : factor parser =
+    let* () = parse_print "string_parser" in
     let* s =
       expect_token_get_data (function
         | StringToken s -> Some s
@@ -203,18 +210,36 @@ end = struct
     return (String s)
 
   and unit_parser : factor parser =
+    let* () = parse_print "unit_parser" in
     let* () = expect_token Unit in
     return Unit
 
+  and integer_parser () : factor parser =
+    let* () = parse_print "integer_parser" in
+    let* i =
+      expect_token_get_data (function
+        | Integer i -> Some i
+        | _ -> None)
+    in
+    return (Integer i)
+
   and float_factor_parser : factor parser =
+    let* () = parse_print "float_factor_parser" in
     let* f =
       expect_token_get_data (function
-        | FloatToken f -> Some f
-        | _ -> None)
+        | FloatToken f ->
+            print_endline "got float token";
+
+            Some f
+        | _ ->
+            print_endline "didn't get float token";
+
+            None)
     in
     return (FloatFactor f)
 
   and id_parser : factor parser =
+    let* () = parse_print "id_parser" in
     let* id =
       expect_token_get_data (function
         | Id id -> Some id
@@ -262,6 +287,7 @@ end = struct
         boolean_parser;
         string_parser;
         unit_parser;
+        integer_parser ();
         float_factor_parser;
         id_parser;
         paren_factor_parser;
@@ -355,6 +381,10 @@ end
 and RelExprParser : sig
   val rel_expr_parser : rel_expr parser
 end = struct
+  let arith_expr_parser : rel_expr parser =
+    let* arith_expr = ArithExprParser.arith_expr_parser in
+    return (ArithmeticUnderRelExpr arith_expr)
+
   let relation_parser : rel_expr parser =
     (* parse a lit of arith_exprs *)
     let* arith_expr, rel_ops =
@@ -366,7 +396,10 @@ end = struct
     (* combine the arith_exprs and rel_ops into a rel_expr *)
     return (combine_arith_exprs_into_rel_expr arith_expr rel_ops)
 
-  let rel_expr_parser : rel_expr parser = unimplemented_parser "rel_expr_parser"
+  let rel_expr_parser () : rel_expr parser =
+    relation_parser <|> arith_expr_parser
+
+  let rel_expr_parser : rel_expr parser = rel_expr_parser ()
 end
 
 and ConjunctionParser : sig
@@ -402,7 +435,7 @@ end = struct
     return (Disjunction (conjunction, disjunction))
 
   and disjunction_parser () : disjunction parser =
-    unimplemented_parser "disjunction_parser"
+    disjunction_branch_parser () <|> conjunction_under_disjunction_parser
 
   let disjunction_parser : disjunction parser = disjunction_parser ()
 end
