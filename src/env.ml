@@ -23,7 +23,7 @@ let code_mapping : (string * string) list =
 \a -> if a then false else true
 |});
     ( "map",
-      {|let rec map f arr <-
+      {|let rec map f arr =
 switch arr =>
   | [] -> []
   | h :: t -> f h :: map f t
@@ -33,7 +33,7 @@ map|}
     );
     ("filter", {|1|});
     ( "reduce_left",
-      {|let rec fold f acc lst <-
+      {|let rec fold f acc lst =
       switch lst =>
       | [] -> acc
       | h :: t -> fold f (f acc h) t
@@ -42,7 +42,7 @@ map|}
     |}
     );
     ( "reduce_right",
-      {|let rec fold f lst acc <-
+      {|let rec fold f lst acc =
       switch lst =>
       | [] -> acc
       | h :: t -> f h (fold f t acc)

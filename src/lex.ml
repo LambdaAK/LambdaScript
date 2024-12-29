@@ -52,6 +52,7 @@ type token_type =
   | ConsToken
   | Semicolon
   | Enum
+  | Equals
   | Relop of string (* start with = < or >, and are not = *)
   | Addop of string (* start with + or - *)
   | Mulop of string (* start with * / or % *)
@@ -124,6 +125,7 @@ let string_of_token_type : token_type -> string = function
   | Relop s -> "<relop: " ^ s ^ ">"
   | Addop s -> "<addop: " ^ s ^ ">"
   | Mulop s -> "<mulop: " ^ s ^ ">"
+  | Equals -> "<equals>"
 [@@coverage off]
 
 let string_of_token : token -> string =
@@ -190,6 +192,7 @@ let bop_from_char_list (lst : char list) =
   if s = "->" then Arrow
   else if s = "<-" then BindArrow
   else if s = "=>" then SwitchArrow
+  else if s = "=" then Equals
   else
     match lst with
     | h :: _ when is_addop_prefix h -> Addop s
