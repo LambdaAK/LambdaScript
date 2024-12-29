@@ -145,7 +145,7 @@ let run_repl () : unit =
   in
   repl_loop env static_env
 
-let test_input = "1 + 1"
+let test_input = "1 :: 2 :: 3 :: 4 :: 5 :: []"
 let test_tokens = attempt_lex test_input
 
 (* print the tokens *)
@@ -156,7 +156,7 @@ let () =
   print_endline "--------------------------"
 
 let test_expr =
-  FactorParser.factor_parser (List.map (fun t -> t.token_type) test_tokens)
+  ExprParser.expr_parser (List.map (fun t -> t.token_type) test_tokens)
 
 let () =
   print_endline "--------------------------\nParsed:";
@@ -164,9 +164,16 @@ let () =
   | None -> print_endline "PARSING FAILED"
   | Some (e, _) ->
       print_endline "PARSING SUCCESSFUL";
-      print_endline (string_of_factor e 0);
+      print_endline (string_of_expr e);
 
-      print_endline "--------------------------"
+      print_endline "--------------------------";
+
+      (* evaluate it *)
+      let c_e = condense_expr e in
+
+      let result = eval_c_expr c_e [] in
+
+      print_endline (string_of_value result)
 
 let () = ignore test_expr
 let () = run_repl ()

@@ -1,5 +1,6 @@
 open Lex
 open Expr
+open Tostring
 
 (* Idea - Make a module for each level of parser - Use a functor to combine them
    - Use another functor to then combine all of those into condensed parser
@@ -102,6 +103,13 @@ module ParserUtils = struct
 
   let ( let* ) = ( >>= )
 
+  let ( >== ) (x : 'a option) (f : 'a -> 'b option) : 'b option =
+    match x with
+    | Some x -> f x
+    | None -> None
+
+  let ( let= ) = ( >== )
+
   let expect_token (expected : token_type) : unit parser =
    fun tokens ->
     match tokens with
@@ -125,7 +133,8 @@ module ParserUtils = struct
     List.fold_left ( <|> ) fail parsers
 
   let unimplemented_parser (parser_name : string) : 'a parser =
-   fun _ -> failwith (parser_name ^ " is unimplemented")
+    print_endline ("WARNING! Unimplemented parser: " ^ parser_name);
+    fail
 
   let remove_last (lst : 'a list) : 'a * 'a list =
     match List.rev lst with
@@ -133,6 +142,7 @@ module ParserUtils = struct
     | last :: rest -> (last, List.rev rest)
 
   let combine_expressions exprs seps =
+    (* note that the reversed lists are inputted into the aux function *)
     let rec combine_expressions_aux exprs_rev seps_rev terminal_function
         combine_function =
       match (exprs_rev, seps_rev) with
@@ -145,7 +155,7 @@ module ParserUtils = struct
             e s
       | _ -> failwith "impossible"
     in
-    combine_expressions_aux exprs seps
+    combine_expressions_aux (List.rev exprs) (List.rev seps)
 
   let combine_arith_exprs_into_rel_expr arith_exprs rel_ops =
     combine_expressions arith_exprs rel_ops
@@ -248,7 +258,10 @@ end = struct
     return (Id id)
 
   and paren_factor_parser : factor parser =
-    unimplemented_parser "paren_factor_parser"
+    let* () = expect_token LParen in
+    let* expr = expr_parser in
+    let* () = expect_token RParen in
+    return (ParenFactor expr)
 
   and opposite_parser () : factor parser =
     let* () = expect_token Opposite in
@@ -320,16 +333,21 @@ end = struct
     let* factors = parse_several factor_parser in
 
     (* combine the factors into a single app factor *)
-    let rec combine_factors factors =
+    let rec combine_factors factors : app_factor option =
       match factors with
-      | [] -> failwith "Should not happen - combine_factors"
-      | [ factor ] -> FactorUnderApplication factor
-      | factors_list ->
-          let last, factors_without_last = remove_last factors_list in
-          Application (combine_factors factors_without_last, last)
+      | [] -> None
+      | [ factor ] -> Some (FactorUnderApplication factor)
+      | factors_list -> (
+          (* make the recursive call *)
+          match combine_factors (List.tl factors_list) with
+          | Some app_factor ->
+              Some (Application (app_factor, List.hd factors_list))
+          | None -> None)
     in
 
-    return (combine_factors factors)
+    match combine_factors factors with
+    | Some app_factor -> return app_factor
+    | None -> fail
 
   let app_factor_parser = application_parser <|> factor_under_application_parser
 end
@@ -372,6 +390,12 @@ end = struct
         | Plus | Minus | Addop _ -> true
         | _ -> false)
     in
+
+    (* print the terms and addops *)
+    print_endline "terms: ";
+    List.iter (fun t -> print_endline (string_of_arith_term t 0)) terms;
+    print_endline "addops: ";
+    List.iter (fun a -> print_endline (string_of_token_type a)) addops;
 
     return (combine_terms_into_arith_expr terms addops)
 
@@ -453,8 +477,30 @@ end = struct
     let* cons_expr = cons_expr_parser () in
     return (Cons (disjunction, cons_expr))
 
+  and list_syntactic_sugar_parser () : cons_expr parser =
+    let* () = expect_token LBracket in
+    let* exprs = parse_sep_delim DisjunctionParser.disjunction_parser Comma in
+    let* () = expect_token RBracket in
+
+    (* fold the exprs into a cons chain *)
+    let rec fold_exprs_into_cons_chain exprs =
+      match exprs with
+      | [] -> None
+      | [ expr ] -> Some (DisjunctionUnderCons expr)
+      | expr :: rest -> (
+          match fold_exprs_into_cons_chain rest with
+          | Some folded_rest -> Some (Cons (expr, folded_rest))
+          | None -> None)
+    in
+
+    match fold_exprs_into_cons_chain exprs with
+    | Some cons_expr -> return cons_expr
+    | None -> fail
+
   and cons_expr_parser () : cons_expr parser =
-    cons_branch_parser () <|> disjunction_under_cons_parser
+    cons_branch_parser ()
+    <|> list_syntactic_sugar_parser ()
+    <|> disjunction_under_cons_parser
 
   let cons_expr_parser : cons_expr parser = cons_expr_parser ()
 end
@@ -462,5 +508,8 @@ end
 and ExprParser : sig
   val expr_parser : expr parser
 end = struct
-  let expr_parser : expr parser = unimplemented_parser "expr_parser"
+  let expr_parser : expr parser =
+    let* () = parse_print "expr_parser is not implemented properly yet!" in
+    let* cons_expr = ConsExprParser.cons_expr_parser in
+    return (ConsExpr cons_expr)
 end
