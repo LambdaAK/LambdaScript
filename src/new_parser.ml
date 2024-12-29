@@ -9,7 +9,10 @@ open Expr
    fully evaluated already, so the mutual recursion would work
 
    Use recursive modules to organize the parsers for the different levels in the
-   grammar *)
+   grammar
+
+   Make sure each chain of <|> has the correct order of parsers. Larger parsers
+   should usually come earlier in the chain. *)
 
 type 'a parser_result = 'a option
 type 'a parser = token_type list -> ('a * token_type list) parser_result
@@ -68,6 +71,35 @@ module ParserUtils = struct
 
     parse_sep_delim []
 
+  (** Parses a list of 'a, separated by delimiters. Takes:
+      - a parser for 'a
+      - a predicate function to check if a token is a delimiter Returns a tuple
+        of:
+      - a list of 'a (parsed results)
+      - a list of token_type (delimiters encountered) There will be one more 'a
+        than delimiters if parsing succeeds. *)
+  let parse_with_delims (parser : 'a parser) (is_delim : token_type -> bool) :
+      ('a list * token_type list) parser =
+    let rec helper acc_values acc_delims tokens =
+      match parser tokens with
+      | Some (value, remaining_tokens) -> (
+          (* Check for a delimiter *)
+          match remaining_tokens with
+          | delim :: rest when is_delim delim ->
+              (* Parse the delimiter and continue *)
+              helper (value :: acc_values) (delim :: acc_delims) rest
+          | _ ->
+              (* No more delimiters, return results *)
+              Some
+                ( (List.rev (value :: acc_values), List.rev acc_delims),
+                  remaining_tokens ))
+      | None ->
+          (* Parsing failed for the first item or subsequent values *)
+          if acc_values = [] then None
+          else Some ((List.rev acc_values, List.rev acc_delims), tokens)
+    in
+    fun tokens -> helper [] [] tokens
+
   let ( let* ) = ( >>= )
 
   let expect_token (expected : token_type) : unit parser =
@@ -99,6 +131,50 @@ module ParserUtils = struct
     match List.rev lst with
     | [] -> failwith "remove_last: empty list"
     | last :: rest -> (last, List.rev rest)
+
+  let combine_expressions exprs seps =
+    let rec combine_expressions_aux exprs_rev seps_rev terminal_function
+        combine_function =
+      match (exprs_rev, seps_rev) with
+      | [], [] -> failwith "impossible"
+      | e :: [], [] -> terminal_function e
+      | e :: e_rest, s :: s_rest ->
+          combine_function
+            (combine_expressions_aux e_rest s_rest terminal_function
+               combine_function)
+            e s
+      | _ -> failwith "impossible"
+    in
+    combine_expressions_aux exprs seps
+
+  let combine_arith_exprs_into_rel_expr arith_exprs rel_ops =
+    combine_expressions arith_exprs rel_ops
+      (fun a -> ArithmeticUnderRelExpr a)
+      (fun rel_expr arith_expr rel_op ->
+        match rel_op with
+        | Relop s -> CustomRelExpr (s, rel_expr, arith_expr)
+        | _ -> failwith "impossible")
+
+  let combine_factors_into_term factors mulops =
+    combine_expressions factors mulops
+      (fun f -> Factor f)
+      (fun term factor mulop ->
+        match mulop with
+        | Mulop "*" -> Mul (term, factor)
+        | Mulop "/" -> Div (term, factor)
+        | Mulop "%" -> Mod (term, factor)
+        | Mulop s -> CustomTerm (s, term, factor)
+        | _ -> failwith "impossible")
+
+  let combine_terms_into_arith_expr terms addops =
+    combine_expressions terms addops
+      (fun t -> Term t)
+      (fun arith_expr term addop ->
+        match addop with
+        | Addop "+" -> Plus (arith_expr, term)
+        | Addop "-" -> Minus (arith_expr, term)
+        | Addop s -> CustomArithExpr (s, arith_expr, term)
+        | _ -> failwith "impossible")
 end
 
 open ParserUtils
@@ -204,10 +280,12 @@ end = struct
   let factor_parser = factor_parser ()
 end
 
-and AppFactorParser : sig end = struct
+and AppFactorParser : sig
+  val app_factor_parser : app_factor parser
+end = struct
   open FactorParser
 
-  let rec factor_under_application_parser : app_factor parser =
+  let factor_under_application_parser : app_factor parser =
     let* factor = factor_parser in
     return (FactorUnderApplication factor)
 
@@ -228,6 +306,124 @@ and AppFactorParser : sig end = struct
     return (combine_factors factors)
 
   let app_factor_parser = application_parser <|> factor_under_application_parser
+end
+
+and TermParser : sig
+  val term_parser : term parser
+end = struct
+  open AppFactorParser
+
+  let factor_parser : term parser =
+    let* factor = app_factor_parser in
+    return (Factor factor)
+
+  let term_op_parser : term parser =
+    (* first, parse app_factors separated by delimiters *)
+    let* app_factors, seps =
+      parse_with_delims app_factor_parser (function
+        | Plus | Minus | Times | Mod | Divide | Mulop _ -> true
+        | _ -> false)
+    in
+
+    (* combine the app factors into a single term *)
+    return (combine_factors_into_term app_factors seps)
+
+  (* combine them into a single term *)
+
+  let term_parser : term parser = term_op_parser <|> factor_parser
+end
+
+and ArithExprParser : sig
+  val arith_expr_parser : arith_expr parser
+end = struct
+  let term_parser : arith_expr parser =
+    let* term = TermParser.term_parser in
+    return (Term term)
+
+  let arith_op_parser : arith_expr parser =
+    let* terms, addops =
+      parse_with_delims TermParser.term_parser (function
+        | Plus | Minus | Addop _ -> true
+        | _ -> false)
+    in
+
+    return (combine_terms_into_arith_expr terms addops)
+
+  let arith_expr_parser : arith_expr parser = arith_op_parser <|> term_parser
+end
+
+and RelExprParser : sig
+  val rel_expr_parser : rel_expr parser
+end = struct
+  let relation_parser : rel_expr parser =
+    (* parse a lit of arith_exprs *)
+    let* arith_expr, rel_ops =
+      parse_with_delims ArithExprParser.arith_expr_parser (function
+        | LT | GT | LE | GE | EQ | NE | Relop _ -> true
+        | _ -> false)
+    in
+
+    (* combine the arith_exprs and rel_ops into a rel_expr *)
+    return (combine_arith_exprs_into_rel_expr arith_expr rel_ops)
+
+  let rel_expr_parser : rel_expr parser = unimplemented_parser "rel_expr_parser"
+end
+
+and ConjunctionParser : sig
+  val conjunction_parser : conjunction parser
+end = struct
+  let rec relation_under_conjunction_parser : conjunction parser =
+    let* rel_expr = RelExprParser.rel_expr_parser in
+    return (RelationUnderConjunction rel_expr)
+
+  and conjunction_branch_parser () : conjunction parser =
+    let* rel_expr = RelExprParser.rel_expr_parser in
+    let* () = expect_token AND in
+    let* conjunction = conjunction_parser () in
+    return (Conjunction (rel_expr, conjunction))
+
+  and conjunction_parser () =
+    relation_under_conjunction_parser <|> conjunction_branch_parser ()
+
+  let conjunction_parser : conjunction parser = conjunction_parser ()
+end
+
+and DisjunctionParser : sig
+  val disjunction_parser : disjunction parser
+end = struct
+  let rec conjunction_under_disjunction_parser : disjunction parser =
+    let* conjunction = ConjunctionParser.conjunction_parser in
+    return (ConjunctionUnderDisjunction conjunction)
+
+  and disjunction_branch_parser () : disjunction parser =
+    let* conjunction = ConjunctionParser.conjunction_parser in
+    let* () = expect_token OR in
+    let* disjunction = disjunction_parser () in
+    return (Disjunction (conjunction, disjunction))
+
+  and disjunction_parser () : disjunction parser =
+    unimplemented_parser "disjunction_parser"
+
+  let disjunction_parser : disjunction parser = disjunction_parser ()
+end
+
+and ConsExprParser : sig
+  val cons_expr_parser : cons_expr parser
+end = struct
+  let rec disjunction_under_cons_parser : cons_expr parser =
+    let* disjunction = DisjunctionParser.disjunction_parser in
+    return (DisjunctionUnderCons disjunction)
+
+  and cons_branch_parser () : cons_expr parser =
+    let* disjunction = DisjunctionParser.disjunction_parser in
+    let* () = expect_token ConsToken in
+    let* cons_expr = cons_expr_parser () in
+    return (Cons (disjunction, cons_expr))
+
+  and cons_expr_parser () : cons_expr parser =
+    cons_branch_parser () <|> disjunction_under_cons_parser
+
+  let cons_expr_parser : cons_expr parser = cons_expr_parser ()
 end
 
 and ExprParser : sig
