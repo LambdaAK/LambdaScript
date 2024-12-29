@@ -284,6 +284,7 @@ end = struct
 
   and list_sugar_parser () : factor parser =
     let* () = expect_token LBracket in
+    print_endline "parsing list sugar";
     let* exprs = parse_sep_delim expr_parser Comma in
     let* () = expect_token RBracket in
     return (ListSugar exprs)
@@ -297,6 +298,7 @@ end = struct
   and factor_parser () =
     let factor_parsers =
       [
+        list_sugar_parser ();
         boolean_parser;
         string_parser;
         unit_parser;
@@ -307,7 +309,6 @@ end = struct
         opposite_parser ();
         vector_parser ();
         nil_parser;
-        list_sugar_parser ();
         list_enumeration_parser ();
         list_comprehension_parser ();
       ]
@@ -477,30 +478,8 @@ end = struct
     let* cons_expr = cons_expr_parser () in
     return (Cons (disjunction, cons_expr))
 
-  and list_syntactic_sugar_parser () : cons_expr parser =
-    let* () = expect_token LBracket in
-    let* exprs = parse_sep_delim DisjunctionParser.disjunction_parser Comma in
-    let* () = expect_token RBracket in
-
-    (* fold the exprs into a cons chain *)
-    let rec fold_exprs_into_cons_chain exprs =
-      match exprs with
-      | [] -> None
-      | [ expr ] -> Some (DisjunctionUnderCons expr)
-      | expr :: rest -> (
-          match fold_exprs_into_cons_chain rest with
-          | Some folded_rest -> Some (Cons (expr, folded_rest))
-          | None -> None)
-    in
-
-    match fold_exprs_into_cons_chain exprs with
-    | Some cons_expr -> return cons_expr
-    | None -> fail
-
   and cons_expr_parser () : cons_expr parser =
-    cons_branch_parser ()
-    <|> list_syntactic_sugar_parser ()
-    <|> disjunction_under_cons_parser
+    cons_branch_parser () <|> disjunction_under_cons_parser
 
   let cons_expr_parser : cons_expr parser = cons_expr_parser ()
 end

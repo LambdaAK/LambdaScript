@@ -145,7 +145,7 @@ let run_repl () : unit =
   in
   repl_loop env static_env
 
-let test_input = "1 :: 2 :: 3 :: 4 :: 5 :: []"
+let test_input = "[1, 2, 3, 4, 5]"
 let test_tokens = attempt_lex test_input
 
 (* print the tokens *)
