@@ -55,22 +55,27 @@ module ParserUtils = struct
     in
     parse_several' []
 
-  let parse_sep_delim (parser : 'a parser) (delim : token_type) : 'a list parser
-      =
-    let rec parse_sep_delim acc tokens =
-      match parser tokens with
-      | Some (result, remaining_tokens) -> (
-          match remaining_tokens with
-          | [] -> Some (List.rev (result :: acc), [])
-          | _ -> (
-              match List.hd remaining_tokens with
-              | t when t = delim ->
-                  parse_sep_delim acc (List.tl remaining_tokens)
-              | _ -> parse_sep_delim (result :: acc) remaining_tokens))
-      | None -> Some (List.rev acc, tokens)
-    in
+(**
+    * Parses a list of 'a, separated by delimiters. Takes:
+    * - a parser for 'a
+    * - a delimiter token_type
+    * Returns a list of 'a (parsed results)
+    * There will be one more 'a than delimiters if parsing succeeds.
+    * First, parses an 'a, if possible. If not possible, returns [], []
+    * Otherwise, parses 'a, and then (delim, 'a) pairs until there isn't a delimiter next    
 
-    parse_sep_delim []
+*)
+  let parse_sep_delim (parser : 'a parser) (delim : token_type) : 'a list parser =
+    let rec helper acc_values tokens =
+      match parser tokens with
+      | Some (value, remaining_tokens) -> (
+          match remaining_tokens with
+          | delim_token :: rest when delim_token = delim ->
+              helper (value :: acc_values) rest
+          | _ -> Some (List.rev (value :: acc_values), remaining_tokens))
+      | None -> Some (List.rev acc_values, tokens)
+    in
+    fun tokens -> helper [] tokens
 
   (** Parses a list of 'a, separated by delimiters. Takes:
       - a parser for 'a
