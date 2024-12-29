@@ -33,6 +33,30 @@ type relop =
   | GE
   | RelopCustom of string
 
+
+
+
+(*
+  Parser combinators
+  
+  <*>
+  >>= chains two parsers together
+  let* same as >>= but can be used in a let expression/definition
+  <|> or combinator - tries the first parser, if it fails, tries the second parser
+  
+
+
+
+*)
+
+
+
+
+
+
+
+
+
 let get_relop_if_exists (tokens : token list) =
   match tokens with
   | { token_type = Relop "=="; line = _ } :: t -> (Some EQ, t)
