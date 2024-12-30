@@ -1,6 +1,5 @@
 open Lex
 open Expr
-open Tostring
 
 (* Idea - Make a module for each level of parser - Use a functor to combine them
    - Use another functor to then combine all of those into condensed parser
@@ -13,7 +12,13 @@ open Tostring
    grammar
 
    Make sure each chain of <|> has the correct order of parsers. Larger parsers
-   should usually come earlier in the chain. *)
+   should usually come earlier in the chain. 
+   
+   The reason the parser is very slow is because of <|>. We are not using lookahead in order to
+   determine which parser to use. At leach level, we use at least 2 parsers, which 
+   compounds, and makes the time complexity really bad. *)
+   
+   
 
 type 'a parser_result = 'a option
 type 'a parser = token_type list -> ('a * token_type list) parser_result
@@ -55,17 +60,13 @@ module ParserUtils = struct
     in
     parse_several' []
 
-(**
-    * Parses a list of 'a, separated by delimiters. Takes:
-    * - a parser for 'a
-    * - a delimiter token_type
-    * Returns a list of 'a (parsed results)
-    * There will be one more 'a than delimiters if parsing succeeds.
-    * First, parses an 'a, if possible. If not possible, returns [], []
-    * Otherwise, parses 'a, and then (delim, 'a) pairs until there isn't a delimiter next    
-
-*)
-  let parse_sep_delim (parser : 'a parser) (delim : token_type) : 'a list parser =
+  (** * Parses a list of 'a, separated by delimiters. Takes: * - a parser for 'a
+      * - a delimiter token_type * Returns a list of 'a (parsed results) * There
+      will be one more 'a than delimiters if parsing succeeds. * First, parses
+      an 'a, if possible. If not possible, returns [], [] * Otherwise, parses
+      'a, and then (delim, 'a) pairs until there isn't a delimiter next *)
+  let parse_sep_delim (parser : 'a parser) (delim : token_type) : 'a list parser
+      =
     let rec helper acc_values tokens =
       match parser tokens with
       | Some (value, remaining_tokens) -> (
@@ -195,6 +196,62 @@ module ParserUtils = struct
     let* () = return () in
     print_endline msg;
     return ()
+
+  (** [dispatch_parser dispatch_list default_parsers] creates a parser that
+      selects an appropriate sub-parser based on the current input tokens.
+
+      - [dispatch_list]: A list of predicate-parser pairs. Each predicate is a
+        function of type [token_type list -> bool] that checks whether the
+        current token list satisfies a condition. If the predicate returns
+        [true], the corresponding parser is invoked.
+
+      - [default_parsers]: A list of fallback parsers to try if none of the
+        predicates in [dispatch_list] match. These parsers are combined using
+        [<|>] (logical OR).
+
+      If none of the predicates match and no [default_parsers] succeed, the
+      combined parser will return [None].
+
+      Example usage:
+      {[
+        let factor_parser : factor parser =
+          dispatch_parser
+            [
+              (function
+              | tokens -> (
+                  match tokens with
+                  | Boolean _ :: _ -> true
+                  | _ -> (false, boolean_parser)));
+              (function
+              | tokens -> (
+                  match tokens with
+                  | Integer _ :: _ -> true
+                  | _ -> (false, integer_parser)));
+            ]
+            [ fail ]
+      ]}
+      This creates a [factor_parser] that tries: 1. [boolean_parser] if the
+      first token is a [Boolean]. 2. [integer_parser] if the first token is an
+      [Integer]. 3. Falls back to [fail] if no predicates match. *)
+
+  let dispatch_parser
+      (dispatch_list : ((token_type list -> bool) * 'a parser) list)
+      (default_parsers : 'a parser list) : 'a parser =
+    let rec try_dispatch dispatch_list tokens =
+      match dispatch_list with
+      | [] ->
+          (* None of the predicate functions matched; use default_parsers *)
+          List.fold_left ( <|> ) fail default_parsers tokens
+      | (predicate, parser) :: rest ->
+          if predicate tokens then parser tokens else try_dispatch rest tokens
+    in
+    fun tokens -> try_dispatch dispatch_list tokens
+
+  let check_tokens (next_token: token_type): bool parser =
+    fun tokens ->
+      match tokens with
+      | [] -> Some (false, tokens)
+      | token :: _ -> Some ((token = next_token), tokens)
 end
 
 open ParserUtils
@@ -242,14 +299,8 @@ end = struct
     let* () = parse_print "float_factor_parser" in
     let* f =
       expect_token_get_data (function
-        | FloatToken f ->
-            print_endline "got float token";
-
-            Some f
-        | _ ->
-            print_endline "didn't get float token";
-
-            None)
+        | FloatToken f -> Some f
+        | _ -> None)
     in
     return (FloatFactor f)
 
@@ -263,6 +314,7 @@ end = struct
     return (Id id)
 
   and paren_factor_parser : factor parser =
+    let* () = parse_print "paren_factor_parser" in
     let* () = expect_token LParen in
     let* expr = expr_parser in
     let* () = expect_token RParen in
@@ -289,7 +341,6 @@ end = struct
 
   and list_sugar_parser () : factor parser =
     let* () = expect_token LBracket in
-    print_endline "parsing list sugar";
     let* exprs = parse_sep_delim expr_parser Comma in
     let* () = expect_token RBracket in
     return (ListSugar exprs)
@@ -301,9 +352,21 @@ end = struct
     unimplemented_parser "list_comprehension_parser"
 
   and factor_parser () =
-    let factor_parsers =
+    print_endline "factor_parser";
+    dispatch_parser
       [
-        list_sugar_parser ();
+        ( (function
+          | LBracket :: _ -> true
+          | _ -> false),
+          list_sugar_parser () <|> list_enumeration_parser ()
+          <|> list_comprehension_parser ()
+          <|> nil_parser );
+        ( (function
+          | LParen :: _ -> true
+          | _ -> false),
+          vector_parser () <|> paren_factor_parser );
+      ]
+      [
         boolean_parser;
         string_parser;
         unit_parser;
@@ -312,15 +375,7 @@ end = struct
         id_parser;
         paren_factor_parser;
         opposite_parser ();
-        vector_parser ();
-        nil_parser;
-        list_enumeration_parser ();
-        list_comprehension_parser ();
       ]
-    in
-    combine_parsers factor_parsers
-
-  (* term parsers *)
 
   let factor_parser = factor_parser ()
 end
@@ -397,12 +452,6 @@ end = struct
         | _ -> false)
     in
 
-    (* print the terms and addops *)
-    print_endline "terms: ";
-    List.iter (fun t -> print_endline (string_of_arith_term t 0)) terms;
-    print_endline "addops: ";
-    List.iter (fun a -> print_endline (string_of_token_type a)) addops;
-
     return (combine_terms_into_arith_expr terms addops)
 
   let arith_expr_parser : arith_expr parser = arith_op_parser <|> term_parser
@@ -435,18 +484,17 @@ end
 and ConjunctionParser : sig
   val conjunction_parser : conjunction parser
 end = struct
-  let rec relation_under_conjunction_parser : conjunction parser =
-    let* rel_expr = RelExprParser.rel_expr_parser in
-    return (RelationUnderConjunction rel_expr)
 
-  and conjunction_branch_parser () : conjunction parser =
+  let rec conjunction_parser () : conjunction parser =
     let* rel_expr = RelExprParser.rel_expr_parser in
-    let* () = expect_token AND in
-    let* conjunction = conjunction_parser () in
-    return (Conjunction (rel_expr, conjunction))
-
-  and conjunction_parser () =
-    relation_under_conjunction_parser <|> conjunction_branch_parser ()
+    let* next_and = check_tokens AND in
+    match next_and with
+    | false ->
+      return (RelationUnderConjunction rel_expr)
+    | true ->
+      let* () = expect_token AND in
+      let* conjunction = conjunction_parser () in
+      return (Conjunction (rel_expr, conjunction))
 
   let conjunction_parser : conjunction parser = conjunction_parser ()
 end
@@ -454,39 +502,43 @@ end
 and DisjunctionParser : sig
   val disjunction_parser : disjunction parser
 end = struct
-  let rec conjunction_under_disjunction_parser : disjunction parser =
+  
+  let rec disjunction_parser (): disjunction parser =
     let* conjunction = ConjunctionParser.conjunction_parser in
-    return (ConjunctionUnderDisjunction conjunction)
-
-  and disjunction_branch_parser () : disjunction parser =
-    let* conjunction = ConjunctionParser.conjunction_parser in
-    let* () = expect_token OR in
-    let* disjunction = disjunction_parser () in
-    return (Disjunction (conjunction, disjunction))
-
-  and disjunction_parser () : disjunction parser =
-    disjunction_branch_parser () <|> conjunction_under_disjunction_parser
+    let* next_or = check_tokens OR in
+    match next_or with
+    | false ->
+      return (ConjunctionUnderDisjunction conjunction)
+    | true ->
+      let* () = expect_token OR in
+      let* disjunction = disjunction_parser () in
+      return (Disjunction (conjunction, disjunction))
 
   let disjunction_parser : disjunction parser = disjunction_parser ()
+
 end
 
 and ConsExprParser : sig
   val cons_expr_parser : cons_expr parser
 end = struct
-  let rec disjunction_under_cons_parser : cons_expr parser =
+
+  let rec cons_expr_parser () : cons_expr parser =
     let* disjunction = DisjunctionParser.disjunction_parser in
-    return (DisjunctionUnderCons disjunction)
+    (* check the next token *)
+    let* next_cons = check_tokens ConsToken in
 
-  and cons_branch_parser () : cons_expr parser =
-    let* disjunction = DisjunctionParser.disjunction_parser in
-    let* () = expect_token ConsToken in
-    let* cons_expr = cons_expr_parser () in
-    return (Cons (disjunction, cons_expr))
+    match next_cons with
+    | false ->
+      return (DisjunctionUnderCons disjunction)
 
-  and cons_expr_parser () : cons_expr parser =
-    cons_branch_parser () <|> disjunction_under_cons_parser
+    | true ->
+      let* () = expect_token ConsToken in
+      let* cons_expr = cons_expr_parser () in
+      return (Cons (disjunction, cons_expr))
 
-  let cons_expr_parser : cons_expr parser = cons_expr_parser ()
+    let cons_expr_parser : cons_expr parser = cons_expr_parser ()
+
+
 end
 
 and ExprParser : sig
