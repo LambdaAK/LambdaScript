@@ -12,13 +12,12 @@ open Expr
    grammar
 
    Make sure each chain of <|> has the correct order of parsers. Larger parsers
-   should usually come earlier in the chain. 
-   
-   The reason the parser is very slow is because of <|>. We are not using lookahead in order to
-   determine which parser to use. At leach level, we use at least 2 parsers, which 
-   compounds, and makes the time complexity really bad. *)
-   
-   
+   should usually come earlier in the chain.
+
+   The reason the parser is very slow is because of <|>. We are not using
+   lookahead in order to determine which parser to use. At leach level, we use
+   at least 2 parsers, which compounds, and makes the time complexity really
+   bad. *)
 
 type 'a parser_result = 'a option
 type 'a parser = token_type list -> ('a * token_type list) parser_result
@@ -247,18 +246,124 @@ module ParserUtils = struct
     in
     fun tokens -> try_dispatch dispatch_list tokens
 
-  let check_tokens (next_token: token_type): bool parser =
-    fun tokens ->
-      match tokens with
-      | [] -> Some (false, tokens)
-      | token :: _ -> Some ((token = next_token), tokens)
+  let check_tokens (next_token : token_type) : bool parser =
+   fun tokens ->
+    match tokens with
+    | [] -> Some (false, tokens)
+    | token :: _ -> Some (token = next_token, tokens)
 end
 
 open ParserUtils
 
 (* factor parsers *)
 
-module rec FactorParser : sig
+module rec PatParser : sig
+  val pat_parser : pat parser
+end = struct
+  module rec SubPatParser : sig
+    val sub_pat_parser : sub_pat parser
+  end = struct
+    let id_pat_parser : sub_pat parser =
+      (* next token should be id *)
+      let* id =
+        expect_token_get_data (function
+          | Id id -> Some id
+          | _ -> None)
+      in
+
+      return (IdPat id)
+
+    let unit_pat_parser : sub_pat parser =
+      let* () = expect_token Unit in
+      return UnitPat
+
+    let bool_pat_parser : sub_pat parser =
+      let* b =
+        expect_token_get_data (function
+          | Boolean b -> Some b
+          | _ -> None)
+      in
+
+      return (BoolPat b)
+
+    let int_pat_parser : sub_pat parser =
+      let* i =
+        expect_token_get_data (function
+          | Integer i -> Some i
+          | _ -> None)
+      in
+
+      return (IntPat i)
+
+    let string_pat_parser : sub_pat parser =
+      let* s =
+        expect_token_get_data (function
+          | StringToken s -> Some s
+          | _ -> None)
+      in
+
+      return (StringPat s)
+
+    let nil_pat_parser : sub_pat parser =
+      let* () = expect_token LBracket in
+      let* () = expect_token RBracket in
+      return NilPat
+
+    let infix_pat_parser : sub_pat parser =
+      let* s =
+        expect_token_get_data (function
+          | Relop s | Addop s | Mulop s -> Some s
+          | _ -> None)
+      in
+
+      return (InfixPat s)
+
+    let wildcard_pat_parser : sub_pat parser =
+      let* () = expect_token WildcardPattern in
+      return WildcardPat
+
+    let vector_pat_parser : sub_pat parser =
+      let* () = expect_token LParen in
+      let* pats = parse_sep_delim PatParser.pat_parser Comma in
+      let* () = expect_token RParen in
+      return (VectorPat pats)
+
+    let sub_pat_parser : sub_pat parser =
+      combine_parsers
+        [
+          id_pat_parser;
+          unit_pat_parser;
+          bool_pat_parser;
+          int_pat_parser;
+          string_pat_parser;
+          nil_pat_parser;
+          infix_pat_parser;
+          wildcard_pat_parser;
+          vector_pat_parser;
+        ]
+  end
+
+  and PatParser : sig
+    val pat_parser : pat parser
+  end = struct
+    let rec pat_parser () : pat parser =
+      let* sub_pat = SubPatParser.sub_pat_parser in
+      (* check for :: *)
+      let* next_cons = check_tokens ConsToken in
+      match next_cons with
+      | false -> return (SubPat sub_pat)
+      | true ->
+          let* () = expect_token ConsToken in
+          let* pat = pat_parser () in
+          return (ConsPat (sub_pat, pat))
+
+    let pat_parser : pat parser = pat_parser ()
+  end
+
+  include PatParser
+end
+
+and FactorParser : sig
   val factor_parser : factor parser
 end = struct
   open ExprParser
@@ -484,17 +589,15 @@ end
 and ConjunctionParser : sig
   val conjunction_parser : conjunction parser
 end = struct
-
   let rec conjunction_parser () : conjunction parser =
     let* rel_expr = RelExprParser.rel_expr_parser in
     let* next_and = check_tokens AND in
     match next_and with
-    | false ->
-      return (RelationUnderConjunction rel_expr)
+    | false -> return (RelationUnderConjunction rel_expr)
     | true ->
-      let* () = expect_token AND in
-      let* conjunction = conjunction_parser () in
-      return (Conjunction (rel_expr, conjunction))
+        let* () = expect_token AND in
+        let* conjunction = conjunction_parser () in
+        return (Conjunction (rel_expr, conjunction))
 
   let conjunction_parser : conjunction parser = conjunction_parser ()
 end
@@ -502,50 +605,77 @@ end
 and DisjunctionParser : sig
   val disjunction_parser : disjunction parser
 end = struct
-  
-  let rec disjunction_parser (): disjunction parser =
+  let rec disjunction_parser () : disjunction parser =
     let* conjunction = ConjunctionParser.conjunction_parser in
     let* next_or = check_tokens OR in
     match next_or with
-    | false ->
-      return (ConjunctionUnderDisjunction conjunction)
+    | false -> return (ConjunctionUnderDisjunction conjunction)
     | true ->
-      let* () = expect_token OR in
-      let* disjunction = disjunction_parser () in
-      return (Disjunction (conjunction, disjunction))
+        let* () = expect_token OR in
+        let* disjunction = disjunction_parser () in
+        return (Disjunction (conjunction, disjunction))
 
   let disjunction_parser : disjunction parser = disjunction_parser ()
-
 end
 
 and ConsExprParser : sig
   val cons_expr_parser : cons_expr parser
 end = struct
-
   let rec cons_expr_parser () : cons_expr parser =
     let* disjunction = DisjunctionParser.disjunction_parser in
     (* check the next token *)
     let* next_cons = check_tokens ConsToken in
 
     match next_cons with
-    | false ->
-      return (DisjunctionUnderCons disjunction)
-
+    | false -> return (DisjunctionUnderCons disjunction)
     | true ->
-      let* () = expect_token ConsToken in
-      let* cons_expr = cons_expr_parser () in
-      return (Cons (disjunction, cons_expr))
+        let* () = expect_token ConsToken in
+        let* cons_expr = cons_expr_parser () in
+        return (Cons (disjunction, cons_expr))
 
-    let cons_expr_parser : cons_expr parser = cons_expr_parser ()
-
-
+  let cons_expr_parser : cons_expr parser = cons_expr_parser ()
 end
 
 and ExprParser : sig
   val expr_parser : expr parser
 end = struct
-  let expr_parser : expr parser =
-    let* () = parse_print "expr_parser is not implemented properly yet!" in
+  let rec cons_expr_parser : expr parser =
     let* cons_expr = ConsExprParser.cons_expr_parser in
     return (ConsExpr cons_expr)
+
+  and function_parser () : expr parser =
+    let* () = expect_token Fn in
+    let* pat = PatParser.pat_parser in
+    let* () = expect_token Arrow in
+    let* body = expr_parser () in
+    return (Function (pat, None, body))
+
+  and ternary_parser () : expr parser =
+    (* parse if *)
+    let* () = expect_token If in
+    (* parse the condition *)
+    let* condition = expr_parser () in
+    (* parse then *)
+    let* () = expect_token Then in
+    (* parse the then branch *)
+    let* then_branch = expr_parser () in
+    (* parse else *)
+    let* () = expect_token Else in
+    (* parse the else branch *)
+    let* else_branch = expr_parser () in
+    return (Ternary (condition, then_branch, else_branch))
+
+  and bind_rec_parser : expr parser = unimplemented_parser "bind_rec_parser"
+  and switch_parser : expr parser = unimplemented_parser "switch_parser"
+
+  and expr_parser () : expr parser =
+    function_parser () <|> bind_rec_parser <|> switch_parser
+    <|> ternary_parser () <|> cons_expr_parser
+
+  let expr_parser : expr parser = expr_parser ()
+  let () = ignore function_parser
+  let () = ignore bind_rec_parser
+  let () = ignore switch_parser
+  let () = ignore ternary_parser
+  let () = ignore cons_expr_parser
 end

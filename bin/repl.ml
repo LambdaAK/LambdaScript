@@ -145,9 +145,7 @@ let run_repl () : unit =
   in
   repl_loop env static_env
 
-let test_input =
-  "(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((1)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))"
-
+let test_input = "if a then b else c"
 let test_tokens = attempt_lex test_input
 
 (* print the tokens *)
