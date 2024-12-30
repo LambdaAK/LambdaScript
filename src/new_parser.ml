@@ -167,6 +167,12 @@ module ParserUtils = struct
       (fun a -> ArithmeticUnderRelExpr a)
       (fun rel_expr arith_expr rel_op ->
         match rel_op with
+        | Relop s when s = "==" -> Relation (EQ, rel_expr, arith_expr)
+        | Relop s when s = "!=" -> Relation (NE, rel_expr, arith_expr)
+        | Relop s when s = "<" -> Relation (LT, rel_expr, arith_expr)
+        | Relop s when s = ">" -> Relation (GT, rel_expr, arith_expr)
+        | Relop s when s = "<=" -> Relation (LE, rel_expr, arith_expr)
+        | Relop s when s = ">=" -> Relation (GE, rel_expr, arith_expr)
         | Relop s -> CustomRelExpr (s, rel_expr, arith_expr)
         | _ -> failwith "impossible")
 
@@ -469,7 +475,7 @@ end = struct
         ( (function
           | LParen :: _ -> true
           | _ -> false),
-          vector_parser () <|> paren_factor_parser );
+          paren_factor_parser <|> vector_parser () );
       ]
       [
         boolean_parser;
@@ -510,6 +516,8 @@ end = struct
               Some (Application (app_factor, List.hd factors_list))
           | None -> None)
     in
+
+    let combine_factors factors = combine_factors (List.rev factors) in
 
     match combine_factors factors with
     | Some app_factor -> return app_factor
@@ -665,11 +673,30 @@ end = struct
     let* else_branch = expr_parser () in
     return (Ternary (condition, then_branch, else_branch))
 
-  and bind_rec_parser : expr parser = unimplemented_parser "bind_rec_parser"
+  and bind_rec_parser () : expr parser =
+    let* () = expect_token Let in
+    let* () = expect_token Rec in
+    let* pat = PatParser.pat_parser in
+    (* parse argument patterns *)
+    let* arg_pats = parse_several PatParser.pat_parser in
+    let* () = expect_token Equals in
+    let* e1 = expr_parser () in
+    let* () = expect_token In in
+    let* e2 = expr_parser () in
+
+    (* wrap body in functions *)
+    let rec wrap_e1_in_functions body arg_pats =
+      match arg_pats with
+      | [] -> body
+      | pat :: rest -> Function (pat, None, wrap_e1_in_functions body rest)
+    in
+
+    return (BindRec (pat, None, wrap_e1_in_functions e1 arg_pats, e2))
+
   and switch_parser : expr parser = unimplemented_parser "switch_parser"
 
   and expr_parser () : expr parser =
-    function_parser () <|> bind_rec_parser <|> switch_parser
+    function_parser () <|> bind_rec_parser () <|> switch_parser
     <|> ternary_parser () <|> cons_expr_parser
 
   let expr_parser : expr parser = expr_parser ()
