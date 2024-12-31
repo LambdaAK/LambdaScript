@@ -3,9 +3,9 @@ open Language.Ceval
 open Language.Typecheck
 open Language.Condense
 open Language.Ctostringtree.CToStringTree
-open Language.Parse
 open Language.Lex
 open Language.Env
+open Language.New_parser.ExprParser
 
 let modify_tests : bool = false
 
@@ -266,20 +266,35 @@ let type_test (expr : string) (expected_output : string) : test =
       (fun (id, code) ->
         (* get the type of the value *)
         let tokens : token list = code |> list_of_string |> lex in
-        let e, _ = parse_expr tokens in
-        let c_e = condense_expr e in
-        let t = type_of_c_expr c_e [] in
-        (id, t))
+
+        let a = expr_parser (List.map (fun t -> t.token_type) tokens) in
+
+        match a with
+        | None -> failwith "Could not parse the expression"
+        | Some (e, _) ->
+            let c_e = condense_expr e in
+
+            let t = type_of_c_expr c_e [] in
+            (id, t))
       code_mapping
     @ built_ins_types
   in
-  let result : string =
-    type_of_c_expr
-      (expr |> list_of_string |> lex |> parse_expr |> fst |> condense_expr)
-      static_env
-    |> string_of_c_type
+  (* let result : string = type_of_c_expr (expr |> list_of_string |> lex |>
+     parse_expr |> fst |> condense_expr) static_env |> string_of_c_type in *)
+
+  let tokens = expr |> list_of_string |> lex in
+  let token_types = List.map (fun t -> t.token_type) tokens in
+  let parser_result = expr_parser token_types in
+  let parsed_expr =
+    match parser_result with
+    | None -> failwith "Could not parse the expression"
+    | Some (e, _) -> e
   in
-  assert_equal result expected_output
+  let condensed_expr = condense_expr parsed_expr in
+  let type_result = type_of_c_expr condensed_expr static_env in
+  let type_string = string_of_c_type type_result in
+
+  assert_equal type_string expected_output
 
 let type_is_bool (program : string) = type_test program "bool"
 let type_is_int (program : string) = type_test program "int"
@@ -576,14 +591,14 @@ let function_type_tests =
     (* factorial *)
     ("let rec f x = if x == 0 then 1 else x * f (x - 1) in f", "int -> int");
     (* fibonacci *)
-    ( "let rec f x = if x == 0 then 0 else if x == 1 then 1 else f (x - 1) + \
-       f (x - 2) in f",
+    ( "let rec f x = if x == 0 then 0 else if x == 1 then 1 else f (x - 1) + f \
+       (x - 2) in f",
       "int -> int" );
     (* sum of first n numbers *)
     ("let rec f x = if x == 0 then 0 else x + f (x - 1) in f", "int -> int");
     (* sum of first n odd numbers *)
-    ( "let rec f x = if x == 0 then 0 else if x == 1 then 1 else 2 * x - 1 + \
-       f (x - 1) in f",
+    ( "let rec f x = if x == 0 then 0 else if x == 1 then 1 else 2 * x - 1 + f \
+       (x - 1) in f",
       "int -> int" );
     (* sum of first n even numbers *)
     ( "let rec f x = if x == 0 then 0 else if x == 1 then 2 else 2 * x + f (x \

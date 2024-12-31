@@ -198,8 +198,9 @@ module ParserUtils = struct
         | _ -> failwith "impossible")
 
   let parse_print (msg : string) : unit parser =
+    ignore msg;
     let* () = return () in
-    print_endline msg;
+    (*print_endline msg;*)
     return ()
 
   (** [dispatch_parser dispatch_list default_parsers] creates a parser that

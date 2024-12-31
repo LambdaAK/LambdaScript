@@ -1,8 +1,8 @@
 open Lex
-open Parse
 open Condense
 open Cexpr
 open Env
+open New_parser.ExprParser
 
 let rec string_of_env (env : env) =
   List.fold_left
@@ -274,10 +274,18 @@ and eval_list_enumeration e1 e2 env =
       ListValue (make_list_tr a b [])
   | _ -> failwith "eval_list_enumeration failed"
 
+(* let eval_c_empty_env (s : string) : value = eval_c_expr (s |> list_of_string
+   |> lex |> parse_expr |> fst |> condense_expr) [] *)
+
 let eval_c_empty_env (s : string) : value =
-  eval_c_expr
-    (s |> list_of_string |> lex |> parse_expr |> fst |> condense_expr)
-    []
+  let tokens = s |> list_of_string |> lex in
+  let token_types = List.map (fun t -> t.token_type) tokens in
+  let parse_result = expr_parser token_types in
+  match parse_result with
+  | None -> failwith "parsing failed"
+  | Some (e, _) ->
+      let c_e = condense_expr e in
+      eval_c_expr c_e []
 
 let initial_env : (string * value) list =
   List.map
@@ -292,11 +300,19 @@ let initial_env : (string * value) list =
 let c_eval_ce (ce : c_expr) : string =
   eval_c_expr ce initial_env |> string_of_value
 
+(* let c_eval (s : string) : string = eval_c_expr (s |> list_of_string |> lex |>
+   parse_expr |> fst |> condense_expr) initial_env |> string_of_value *)
+
 let c_eval (s : string) : string =
-  eval_c_expr
-    (s |> list_of_string |> lex |> parse_expr |> fst |> condense_expr)
-    initial_env
-  |> string_of_value
+  let tokens = s |> list_of_string |> lex in
+  let token_types = List.map (fun t -> t.token_type) tokens in
+  let parse_result = expr_parser token_types in
+  match parse_result with
+  | None -> failwith "parsing failed"
+  | Some (e, _) ->
+      let c_e = condense_expr e in
+      let result = eval_c_expr c_e initial_env in
+      string_of_value result
 
 let rec create_generic_type : c_pat -> c_type = function
   | CUnitPat -> UnitType

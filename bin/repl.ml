@@ -1,21 +1,29 @@
-open Language.Parse
 open Language.Lex
 open Language.Cexpr
 open Language.Ceval
 open Language.Condense
 open Language.Typecheck
 open Language.Ctostringtree.CToStringTree
-open Language.Tostring
 open Language.Typefixer
 open Language.Ceval_defn
 open Language.Env
-open Language.New_parser
+open Language.New_parser.ExprParser
+open Language.Parse
 
 let attempt_lex (input_string : string) : token list =
   input_string |> list_of_string |> lex
 
+(* let attempt_parse (tokens : token list) : c_expr = tokens |> parse_expr |>
+   fst |> condense_expr *)
+
 let attempt_parse (tokens : token list) : c_expr =
-  tokens |> parse_expr |> fst |> condense_expr
+  let token_types = List.map (fun t -> t.token_type) tokens in
+  let parser_result = expr_parser token_types in
+  match parser_result with
+  | None -> failwith "failure to parse in attempt_parse"
+  | Some (e, _) ->
+      let c_e = condense_expr e in
+      c_e
 
 let attempt_parse_defn (tokens : token list) : c_defn =
   tokens |> parse_defn |> fst |> condense_defn
@@ -136,7 +144,12 @@ let run_repl () : unit =
       (fun (id, code) ->
         (* get the type of the value *)
         let tokens : token list = code |> list_of_string |> lex in
-        let e, _ = parse_expr tokens in
+        let tokens = List.map (fun t -> t.token_type) tokens in
+
+        let parser_result = expr_parser tokens in
+
+        let e = parser_result |> Option.get |> fst in
+
         let c_e = condense_expr e in
         let t = type_of_c_expr c_e [] in
         (id, t))
@@ -145,37 +158,30 @@ let run_repl () : unit =
   in
   repl_loop env static_env
 
-let test_input = "[[x, y]| x = [1, 2, 3], y = [1, 2, 3, 4, 5]]"
+(* let test_input = "[[x, y]| x = [1, 2, 3], y = [1, 2, 3, 4, 5]]"
 
-(* lex the input *)
-let test_tokens = attempt_lex test_input
+   (* lex the input *) let test_tokens = attempt_lex test_input
 
-(* print the tokens *)
+   (* print the tokens *)
 
-let () =
-  print_endline "--------------------------\nTokens:";
-  List.iter (fun t -> t |> string_of_token |> print_endline) test_tokens;
-  print_endline "--------------------------"
+   let () = print_endline "--------------------------\nTokens:"; List.iter (fun
+   t -> t |> string_of_token |> print_endline) test_tokens; print_endline
+   "--------------------------"
 
-let test_expr =
-  ExprParser.expr_parser (List.map (fun t -> t.token_type) test_tokens)
+   let test_expr = expr_parser (List.map (fun t -> t.token_type) test_tokens)
 
-let () =
-  print_endline "--------------------------\nParsed:";
-  match test_expr with
-  | None -> print_endline "PARSING FAILED"
-  | Some (e, _) ->
-      print_endline "PARSING SUCCESSFUL";
-      print_endline (string_of_expr e);
+   let () = print_endline "--------------------------\nParsed:"; match test_expr
+   with | None -> print_endline "PARSING FAILED" | Some (e, _) -> print_endline
+   "PARSING SUCCESSFUL"; print_endline (string_of_expr e);
 
-      print_endline "--------------------------";
+   print_endline "--------------------------";
 
-      (* evaluate it *)
-      let c_e = condense_expr e in
+   (* evaluate it *) let c_e = condense_expr e in
 
-      let result = eval_c_expr c_e [] in
+   let result = eval_c_expr c_e [] in
 
-      print_endline (string_of_value result)
+   print_endline (string_of_value result)
 
-let () = ignore test_expr
+   let () = ignore test_expr*)
+
 let () = run_repl ()
