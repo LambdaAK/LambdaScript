@@ -693,16 +693,79 @@ end = struct
 
     return (BindRec (pat, None, wrap_e1_in_functions e1 arg_pats, e2))
 
-  and switch_parser : expr parser = unimplemented_parser "switch_parser"
+  and bind_parser () : expr parser =
+    let* () = expect_token Let in
+    let* pat = PatParser.pat_parser in
+    (* parse argument patterns *)
+    let* arg_parts = parse_several PatParser.pat_parser in
+    let* () = expect_token Equals in
+    let* e1 = expr_parser () in
+    let* () = expect_token In in
+    let* e2 = expr_parser () in
+
+    (* 
+
+       we now have
+
+       let pat a b c .... = e1 in e2
+
+       we will represent this as
+
+       (fun a -> fun b -> fun c -> .... -> e2) e1 *)
+    let rec wrap_in_functions body arg_parts =
+      match arg_parts with
+      | [] -> body
+      | pat :: rest -> Function (pat, None, wrap_in_functions body rest)
+    in
+
+    let wrapped_e2 = wrap_in_functions e2 arg_parts in
+
+    let wrapped_e2 =
+      FactorUnderApplication (ParenFactor (Function (pat, None, wrapped_e2)))
+    in
+
+    let wrapped_e1 = ParenFactor e1 in
+
+    let app = Application (wrapped_e2, wrapped_e1) in
+
+    (* wrap it to be an expr *)
+    let app_as_expr =
+      ConsExpr
+        (DisjunctionUnderCons
+           (ConjunctionUnderDisjunction
+              (RelationUnderConjunction
+                 (ArithmeticUnderRelExpr (Term (Factor app))))))
+    in
+
+    ignore pat;
+
+    return app_as_expr
+
+  and branch_parser () : switch_branch parser =
+    (* | pat -> expr *)
+    let* () = expect_token Pipe in
+    let* pat = PatParser.pat_parser in
+    let* () = expect_token Arrow in
+    let* expr = expr_parser () in
+    return (pat, expr)
+
+  and switch_parser () : expr parser =
+    (* switch e => branches *)
+    (*
+      Branches have the form
+      | pat -> expr
+    *)
+    let* () = expect_token Switch in
+    let* e = expr_parser () in
+    let* () = expect_token SwitchArrow in
+    (* parse the branches *)
+    let* branches = parse_several (branch_parser ()) in
+    let* () = expect_token End in
+    return (Switch (e, branches))
 
   and expr_parser () : expr parser =
-    function_parser () <|> bind_rec_parser () <|> switch_parser
-    <|> ternary_parser () <|> cons_expr_parser
+    function_parser () <|> bind_rec_parser () <|> bind_parser ()
+    <|> switch_parser () <|> ternary_parser () <|> cons_expr_parser
 
   let expr_parser : expr parser = expr_parser ()
-  let () = ignore function_parser
-  let () = ignore bind_rec_parser
-  let () = ignore switch_parser
-  let () = ignore ternary_parser
-  let () = ignore cons_expr_parser
 end

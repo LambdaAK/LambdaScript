@@ -145,8 +145,7 @@ let run_repl () : unit =
   in
   repl_loop env static_env
 
-let test_input =
-  "let rec fib n = if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 20"
+let test_input = "let x = 1 in let y = 2 in x + y"
 
 (* lex the input *)
 let test_tokens = attempt_lex test_input
