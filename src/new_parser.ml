@@ -257,6 +257,14 @@ module ParserUtils = struct
     match tokens with
     | [] -> Some (false, tokens)
     | token :: _ -> Some (token = next_token, tokens)
+
+  let int_to_expr (i : int) : expr =
+    ConsExpr
+      (DisjunctionUnderCons
+         (ConjunctionUnderDisjunction
+            (RelationUnderConjunction
+               (ArithmeticUnderRelExpr
+                  (Term (Factor (FactorUnderApplication (Integer i))))))))
 end
 
 open ParserUtils
@@ -457,10 +465,46 @@ end = struct
     return (ListSugar exprs)
 
   and list_enumeration_parser () : factor parser =
-    unimplemented_parser "list_enumeration_parser"
+    (* [a ... b]
+
+       is equivalent to
+
+       [a, a + 1, a + 2, ..., b]
+
+       where a and b are integers *)
+    let* () = expect_token LBracket in
+    let* a =
+      expect_token_get_data (function
+        | Integer i -> Some i
+        | _ -> None)
+    in
+
+    let* () = expect_token Enum in
+
+    let* b =
+      expect_token_get_data (function
+        | Integer i -> Some i
+        | _ -> None)
+    in
+
+    let* () = expect_token RBracket in
+
+    return (ListEnumeration (int_to_expr a, int_to_expr b))
+
+  and list_comprehension_branch_parser : (pat * expr) parser =
+    let* pat = PatParser.pat_parser in
+    let* () = expect_token Equals in
+    let* expr = expr_parser in
+    return (pat, expr)
 
   and list_comprehension_parser () : factor parser =
-    unimplemented_parser "list_comprehension_parser"
+    (* [e | p1 = e1, pn = pn] *)
+    let* () = expect_token LBracket in
+    let* expr = expr_parser in
+    let* () = expect_token Pipe in
+    let* branches = parse_sep_delim list_comprehension_branch_parser Comma in
+    let* () = expect_token RBracket in
+    return (ListComprehension (expr, branches))
 
   and factor_parser () =
     print_endline "factor_parser";
