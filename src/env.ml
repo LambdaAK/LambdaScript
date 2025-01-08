@@ -54,6 +54,7 @@ map|}
     ("*", {|\a -> \b -> a * b|});
     ("/", {|\a -> \b -> a / b|});
     ("%", {|\a -> \b -> a % b|});
+    ("<>", {|\a -> \b -> if a == b then false else true|});
   ]
 
 (* definitions of the REPL *)
