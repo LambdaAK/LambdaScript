@@ -1,5 +1,6 @@
 open Lex
 open Expr
+open Tostring
 
 (* Idea - Make a module for each level of parser - Use a functor to combine them
    - Use another functor to then combine all of those into condensed parser
@@ -699,9 +700,19 @@ end = struct
   and function_parser () : expr parser =
     let* () = expect_token Fn in
     let* pat = PatParser.pat_parser in
+
+    (* Parse [ compound_type ] if possible, store it in an option*)
+    let* type_annotation_option : compound_type option =
+      (let* () = expect_token LBracket in
+       let* ct = CompoundTypeParser.compound_type_parser in
+       let* () = expect_token RBracket in
+       return (Some ct))
+      <|> return None
+    in
+
     let* () = expect_token Arrow in
     let* body = expr_parser () in
-    return (Function (pat, None, body))
+    return (Function (pat, type_annotation_option, body))
 
   and ternary_parser () : expr parser =
     (* parse if *)
@@ -718,35 +729,74 @@ end = struct
     let* else_branch = expr_parser () in
     return (Ternary (condition, then_branch, else_branch))
 
+  and pat_and_type_annotation_parser =
+    (* parse a pattern *)
+    let* pat = PatParser.pat_parser in
+    (* parse [ compound_type ] if possible, store it in an option *)
+    let* type_annotation_option : compound_type option =
+      (let* () = expect_token LBracket in
+       let* ct = CompoundTypeParser.compound_type_parser in
+       let* () = expect_token RBracket in
+       return (Some ct))
+      <|> return None
+    in
+
+    return (pat, type_annotation_option)
+
   and bind_rec_parser () : expr parser =
     let* () = expect_token Let in
     let* () = expect_token Rec in
     let* pat = PatParser.pat_parser in
     (* parse argument patterns *)
-    let* arg_pats = parse_several PatParser.pat_parser in
+    let* arg_pats_and_type_annotations : (pat * compound_type option) list =
+      parse_several pat_and_type_annotation_parser
+    in
     let* () = expect_token Equals in
     let* e1 = expr_parser () in
     let* () = expect_token In in
     let* e2 = expr_parser () in
 
     (* wrap body in functions *)
-    let rec wrap_e1_in_functions body arg_pats =
-      match arg_pats with
+    let rec wrap_e1_in_functions body
+        (arg_pats_and_type_annotations : (pat * compound_type option) list) =
+      match arg_pats_and_type_annotations with
       | [] -> body
-      | pat :: rest -> Function (pat, None, wrap_e1_in_functions body rest)
+      | (pat, cto) :: rest -> Function (pat, cto, wrap_e1_in_functions body rest)
     in
 
-    return (BindRec (pat, None, wrap_e1_in_functions e1 arg_pats, e2))
+    return
+      (BindRec
+         (pat, None, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2))
+
+  and expr_to_factor (e : expr) : factor = ParenFactor e
+
+  and expr_to_app_factor (e : expr) : app_factor =
+    FactorUnderApplication (expr_to_factor e)
+
+  and app_factor_to_expr (af : app_factor) : expr =
+    ConsExpr
+      (DisjunctionUnderCons
+         (ConjunctionUnderDisjunction
+            (RelationUnderConjunction
+               (ArithmeticUnderRelExpr (Term (Factor af))))))
 
   and bind_parser () : expr parser =
     let* () = expect_token Let in
     let* pat = PatParser.pat_parser in
     (* parse argument patterns *)
-    let* arg_parts = parse_several PatParser.pat_parser in
+    let* args_pats_and_type_annotations =
+      parse_several pat_and_type_annotation_parser
+    in
     let* () = expect_token Equals in
     let* e1 = expr_parser () in
     let* () = expect_token In in
     let* e2 = expr_parser () in
+
+    (* print the arg patterns *)
+    print_endline "arg patterns";
+    List.iter
+      (fun (pat, _) -> print_endline (string_of_pat pat))
+      args_pats_and_type_annotations;
 
     (* 
 
@@ -757,34 +807,31 @@ end = struct
        we will represent this as
 
        (fun a -> fun b -> fun c -> .... -> e2) e1 *)
-    let rec wrap_in_functions body arg_parts =
-      match arg_parts with
-      | [] -> body
-      | pat :: rest -> Function (pat, None, wrap_in_functions body rest)
+    let rec wrap e1 args_pats_and_type_annotations =
+      match args_pats_and_type_annotations with
+      | [] -> e1
+      | (pat, cto) :: rest -> Function (pat, cto, wrap e1 rest)
     in
 
-    let wrapped_e2 = wrap_in_functions e2 arg_parts in
+    let assigned_expression = wrap e1 args_pats_and_type_annotations in
 
-    let wrapped_e2 =
-      FactorUnderApplication (ParenFactor (Function (pat, None, wrapped_e2)))
+    print_endline (string_of_expr assigned_expression);
+
+    let func = Function (pat, None, e2) in
+
+    (* fix assigned_expression and func *)
+    let app =
+      Application (expr_to_app_factor func, expr_to_factor assigned_expression)
     in
 
-    let wrapped_e1 = ParenFactor e1 in
+    let final = app_factor_to_expr app in
 
-    let app = Application (wrapped_e2, wrapped_e1) in
+    ignore (pat, e2);
+    ignore expr_to_app_factor;
+    ignore app_factor_to_expr;
+    ignore expr_to_factor;
 
-    (* wrap it to be an expr *)
-    let app_as_expr =
-      ConsExpr
-        (DisjunctionUnderCons
-           (ConjunctionUnderDisjunction
-              (RelationUnderConjunction
-                 (ArithmeticUnderRelExpr (Term (Factor app))))))
-    in
-
-    ignore pat;
-
-    return app_as_expr
+    return final
 
   and branch_parser () : switch_branch parser =
     (* | pat -> expr *)
@@ -813,4 +860,80 @@ end = struct
     <|> switch_parser () <|> ternary_parser () <|> cons_expr_parser
 
   let expr_parser : expr parser = expr_parser ()
+end
+
+and FactorTypeParser : sig
+  val factor_type_parser : factor_type parser
+end = struct
+  let integer_type_parser : factor_type parser =
+    let* () = expect_token IntegerType in
+    return IntegerType
+
+  let string_type_parser : factor_type parser =
+    let* () = expect_token StringType in
+    return StringType
+
+  let boolean_type_parser : factor_type parser =
+    let* () = expect_token BooleanType in
+    return BooleanType
+
+  let unit_type_parser : factor_type parser =
+    let* () = expect_token UnitType in
+    return UnitType
+
+  let float_type_parser : factor_type parser =
+    let* () = expect_token FloatType in
+    return FloatType
+
+  let type_var_written_parser : factor_type parser =
+    let* s =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    return (TypeVarWritten s)
+
+  let paren_factor_type_parser : factor_type parser =
+    let* () = expect_token LParen in
+    let* ct = CompoundTypeParser.compound_type_parser in
+    let* () = expect_token RParen in
+    return (ParenFactorType ct)
+
+  let vector_type_parser : factor_type parser =
+    let* () = expect_token LParen in
+    let* cts = parse_sep_delim CompoundTypeParser.compound_type_parser Comma in
+    let* () = expect_token RParen in
+    return (VectorType cts)
+
+  let list_type_parser : factor_type parser =
+    let* () = expect_token LBracket in
+    let* ct = CompoundTypeParser.compound_type_parser in
+    let* () = expect_token RBracket in
+    return (ListType ct)
+
+  let factor_type_parser () : factor_type parser =
+    integer_type_parser <|> string_type_parser <|> boolean_type_parser
+    <|> unit_type_parser <|> float_type_parser <|> type_var_written_parser
+    <|> paren_factor_type_parser <|> vector_type_parser <|> list_type_parser
+
+  let factor_type_parser = factor_type_parser ()
+end
+
+and CompoundTypeParser : sig
+  val compound_type_parser : compound_type parser
+end = struct
+  let rec basic_type_parser : compound_type parser =
+    let* factor_type = FactorTypeParser.factor_type_parser in
+    return (BasicType factor_type)
+
+  and function_type_parser () : compound_type parser =
+    let* ft = FactorTypeParser.factor_type_parser in
+    let* () = expect_token Arrow in
+    let* ct = compound_type_parser () in
+    return (FunctionType (ft, ct))
+
+  and compound_type_parser () : compound_type parser =
+    function_type_parser () <|> basic_type_parser
+
+  let compound_type_parser : compound_type parser = compound_type_parser ()
 end
