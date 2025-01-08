@@ -166,7 +166,8 @@ let is_bop_prefix : char -> bool = function
   | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' -> true
   | _ -> false
 
-let is_special = (* + - * / % < > = & | : ; , *)
+let is_special =
+  (* + - * / % < > = & | : ; , *)
   function
   | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' | '&' | '|' | ':' | ';' | ','
     -> true
@@ -201,6 +202,8 @@ let bop_from_char_list (lst : char list) =
     | _ -> failwith "invalid bop passed to bop_from_char_list"
 
 let lex_bop (lst : char list) =
+  print_endline "lexing bop";
+
   let rec get_bop_chars (lst : char list) (acc : char list) :
       char list * char list =
     match lst with
@@ -371,6 +374,7 @@ let lex (lst : char list) : token list =
             let new_token : token =
               { token_type = Arrow; line = !line_number }
             in
+
             new_token :: lex t
         | '<' :: '-' :: t ->
             let new_token : token =
@@ -466,3 +470,8 @@ let rec print_tokens_list : token list -> unit = function
   | token :: tail ->
       token |> string_of_token |> print_endline;
       print_tokens_list tail
+
+(* 
+
+   let sum [int -> int -> int] = \ a [int] -> \ b [int] -> a + b in sum (succ 4)
+   (sum 1 2) *)

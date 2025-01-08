@@ -347,11 +347,11 @@ end = struct
     let sub_pat_parser : sub_pat parser =
       combine_parsers
         [
-          id_pat_parser;
           unit_pat_parser;
           bool_pat_parser;
           int_pat_parser;
           string_pat_parser;
+          id_pat_parser;
           nil_pat_parser;
           infix_pat_parser;
           wildcard_pat_parser;
@@ -432,6 +432,20 @@ end = struct
         | Id id -> Some id
         | _ -> None)
     in
+    return (Id id)
+
+  and infix_id_parser : factor parser =
+    (* ( op ) *)
+    let* () = parse_print "infix_id_parser" in
+    print_endline "aaaa";
+    let* () = expect_token LParen in
+    let* id =
+      expect_token_get_data (function
+        | Relop s | Addop s | Mulop s -> Some s
+        | _ -> None)
+    in
+
+    let* () = expect_token RParen in
     return (Id id)
 
   and paren_factor_parser : factor parser =
@@ -521,7 +535,7 @@ end = struct
         ( (function
           | LParen :: _ -> true
           | _ -> false),
-          paren_factor_parser <|> vector_parser () );
+          infix_id_parser <|> paren_factor_parser <|> vector_parser () );
       ]
       [
         boolean_parser;
@@ -746,7 +760,7 @@ end = struct
   and bind_rec_parser () : expr parser =
     let* () = expect_token Let in
     let* () = expect_token Rec in
-    let* pat = PatParser.pat_parser in
+    let* pat, cto = pat_and_type_annotation_parser in
     (* parse argument patterns *)
     let* arg_pats_and_type_annotations : (pat * compound_type option) list =
       parse_several pat_and_type_annotation_parser
@@ -766,7 +780,7 @@ end = struct
 
     return
       (BindRec
-         (pat, None, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2))
+         (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2))
 
   and expr_to_factor (e : expr) : factor = ParenFactor e
 
@@ -782,7 +796,11 @@ end = struct
 
   and bind_parser () : expr parser =
     let* () = expect_token Let in
-    let* pat = PatParser.pat_parser in
+    let* pat, cto = pat_and_type_annotation_parser in
+
+    print_endline "pat: ";
+    print_endline (string_of_pat pat);
+
     (* parse argument patterns *)
     let* args_pats_and_type_annotations =
       parse_several pat_and_type_annotation_parser
@@ -817,7 +835,7 @@ end = struct
 
     print_endline (string_of_expr assigned_expression);
 
-    let func = Function (pat, None, e2) in
+    let func = Function (pat, cto, e2) in
 
     (* fix assigned_expression and func *)
     let app =
@@ -825,11 +843,6 @@ end = struct
     in
 
     let final = app_factor_to_expr app in
-
-    ignore (pat, e2);
-    ignore expr_to_app_factor;
-    ignore app_factor_to_expr;
-    ignore expr_to_factor;
 
     return final
 

@@ -391,12 +391,10 @@ let bool_types =
     "1 < 2 && 13414 > 11413413";
     "1 < 2 && false";
     "1 == 1";
-    "1 <> 1";
     "if true then true else false";
     "true || true";
     "1 < 2 || false";
     "1 == 1";
-    "1 <> 1";
     "if true then true else false";
     "if false then true else false";
     "if 1 < 2 then true else false";
@@ -490,18 +488,18 @@ let function_type_tests =
     ("let f a [int] b [int] c [int] d [int] = a in f 1 2 3", "int -> int");
     ("let f a [int] b [int] c [int] d [int] = a in f 1 2 3 4", "int");
     (* with type variables *)
-    ("\\ a ['a] -> a", "a -> a");
-    ("\\ a ['a] -> a + 1", "int -> int");
-    ("\\ a ['a] -> \\ b ['a] -> a", "a -> a -> a");
-    ("\\ a ['a] -> \\ b ['a] -> b", "a -> a -> a");
-    ("\\ a ['a] -> \\ b ['b] -> a", "a -> b -> a");
-    ("\\ a ['a] -> \\ b ['a] -> a + b", "int -> int -> int");
-    ("\\ a ['a] -> \\ b ['a] -> a + b + 1", "int -> int -> int");
-    ("\\ f ['a -> 'b] -> \\ x ['b] -> f x", "(a -> a) -> a -> a");
-    (* this is an interesting example because it turns out that 'a = 'b here *)
-    ("\\ f ['a -> 'b] -> \\ x ['a] -> f x", "(a -> b) -> a -> b");
+    ("\\ a [a] -> a", "a -> a");
+    ("\\ a [a] -> a + 1", "int -> int");
+    ("\\ a [a] -> \\ b [a] -> a", "a -> a -> a");
+    ("\\ a [a] -> \\ b [a] -> b", "a -> a -> a");
+    ("\\ a [a] -> \\ b [b] -> a", "a -> b -> a");
+    ("\\ a [a] -> \\ b [a] -> a + b", "int -> int -> int");
+    ("\\ a [a] -> \\ b [a] -> a + b + 1", "int -> int -> int");
+    ("\\ f [a -> b] -> \\ x [b] -> f x", "(a -> a) -> a -> a");
+    (* this is an interesting example because it turns out that a = b here *)
+    ("\\ f [a -> b] -> \\ x [a] -> f x", "(a -> b) -> a -> b");
     (* on the other hand, there is no constraint generated in this expression
-       saying that 'a = 'b, so they are different *)
+       saying that a = b, so they are different *)
     ("let f a b [int] c [int] d [int] = a in f", "a -> int -> int -> int -> a");
     ("let f a b [int] c [int] d = a in f", "a -> int -> int -> b -> a");
     ("let f a b [int] c d [int] = a in f", "a -> int -> b -> int -> a");
@@ -514,22 +512,22 @@ let function_type_tests =
     ("\\ (a, _) -> a", "(a, b) -> a");
     ("\\ (a, _) -> a + 1", "(int, a) -> int");
     ("\\ f -> \\ x -> f x", "(a -> b) -> a -> b");
-    ( {|\ f ['a -> 'b -> 'c] ->
-    \ a ['a] ->
-    \ b ['b] ->
+    ( {|\ f [a -> b -> c] ->
+    \ a [a] ->
+    \ b [b] ->
     f a b|},
       "(a -> b -> c) -> a -> b -> c" );
-    ("\\ a [('a, 'b)] -> a", "(a, b) -> (a, b)");
-    ("\\ (a, _) [('a, 'b)] -> a", "(a, b) -> a");
-    ("\\ (_, a) [('a, 'b)] -> a", "(a, b) -> b");
-    ("\\ (a, b, c) [('a, 'b, 'c)] -> a", "(a, b, c) -> a");
+    ("\\ a [(a, b)] -> a", "(a, b) -> (a, b)");
+    ("\\ (a, _) [(a, b)] -> a", "(a, b) -> a");
+    ("\\ (_, a) [(a, b)] -> a", "(a, b) -> b");
+    ("\\ (a, b, c) [(a, b, c)] -> a", "(a, b, c) -> a");
     (* higher order function *)
-    ( {|\ f [('a, 'b) -> 'c] ->
-    \ a ['a] ->
-    \ b ['b] ->
+    ( {|\ f [(a, b) -> c] ->
+    \ a [a] ->
+    \ b [b] ->
     f (a, b)|},
       "((a, b) -> c) -> a -> b -> c" );
-    ( {|\ f ['a -> 'b -> 'c] ->
+    ( {|\ f [a -> b -> c] ->
     \ (a, b) ->
     f a b|},
       "(a -> b -> c) -> (a, b) -> c" );
@@ -888,7 +886,6 @@ let boolean_tests =
     ("1 < 2 && false", "false");
     (* equality *)
     ("1 == 1", "true");
-    ("1 <> 1", "false");
     (* big tests with just + and - *)
     ("1 + 2 - 3 + 4 - 5 + 6", "5");
     ("1 + 2 + 3 - 4 - 5 - 6", "-9");

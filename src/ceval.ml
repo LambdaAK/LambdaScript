@@ -78,6 +78,7 @@ let rec bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
   | _ -> None
 
 let rec eval_c_expr (ce : c_expr) (env : env) =
+  print_endline "evaluating c expr";
   match ce with
   | EInt i -> IntegerValue i
   | EFloat f -> FloatValue f

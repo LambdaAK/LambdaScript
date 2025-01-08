@@ -103,8 +103,12 @@ and repl_expr (env : env) (static_env : static_env) (e : string) =
     (* end print *)
     let ce : c_expr = attempt_parse tokens in
 
+    print_endline "finished parsing";
+
     let t : c_type = attempt_type_check ce static_env in
     let t_string : string = string_of_c_type t in
+
+    print_endline "AAAAA";
 
     (* evaluate ce *)
     (* don't typecheck *)
