@@ -184,7 +184,7 @@ let apply_type (func : polymorphic_type) (inp : body_type) : polymorphic_type =
 let rec instantiate_type (t : polymorphic_type) : body_type =
   (* Apply t several times until we have a non-polymorphic type. *)
   match t with
-  | PolymorphicType (_, t) ->
+  | PolymorphicType _ as t ->
       let new_type_variable = fresh_type_var_new () in
       let applied = apply_type t new_type_variable in
       instantiate_type
@@ -197,7 +197,7 @@ let rec string_of_body_type : body_type -> string = function
   | BoolTypeBody -> "bool"
   | StringTypeBody -> "string"
   | UnitTypeBody -> "unit"
-  | TypeVarBody s -> s
+  | TypeVarBody s -> "t" ^ s
   | FunctionTypeBody (i, o) ->
       let i_string = string_of_body_type i in
       let o_string = string_of_body_type o in
