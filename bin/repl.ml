@@ -188,4 +188,13 @@ let run_repl () : unit =
 
    let () = ignore test_expr*)
 
+let t = PolymorphicType ("a", PolymorphicType ("b", BodyType (TypeVarBody "a")))
+let t_applied_once = apply_type t IntTypeBody
+
+let () =
+  print_endline "TYPE IS";
+  print_endline (string_of_polymorphic_type t);
+  print_endline "APPLIED TYPE IS";
+  print_endline (string_of_polymorphic_type t_applied_once)
+
 let () = run_repl ()

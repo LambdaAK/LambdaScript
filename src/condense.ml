@@ -173,4 +173,44 @@ and condense_type : compound_type -> c_type = function
   | BasicType bt -> factor_type_to_t bt
   | FunctionType (i, o) -> FunctionType (factor_type_to_t i, condense_type o)
 
+and find_all_vars_in_factor_type : factor_type -> string list = function
+  | IntegerType | StringType | BooleanType | UnitType | FloatType -> []
+  | TypeVarWritten s -> [ s ]
+  | ParenFactorType expr -> find_all_vars_in_compound_type expr
+  | VectorType types ->
+      List.concat (List.map find_all_vars_in_compound_type types)
+  | ListType et -> find_all_vars_in_compound_type et
+
+and find_all_vars_in_compound_type : compound_type -> string list = function
+  | BasicType bt -> find_all_vars_in_factor_type bt
+  | FunctionType (i, o) ->
+      List.concat
+        [ find_all_vars_in_factor_type i; find_all_vars_in_compound_type o ]
+
+and condense_factor_type : factor_type -> body_type = function
+  | IntegerType -> IntTypeBody
+  | StringType -> StringTypeBody
+  | BooleanType -> BoolTypeBody
+  | UnitType -> UnitTypeBody
+  | FloatType -> FloatTypeBody
+  | TypeVarWritten s -> TypeVarBody s
+  | ParenFactorType ct -> condense_compound_type ct
+  | VectorType types -> VectorTypeBody (List.map condense_compound_type types)
+  | ListType et -> ListType (condense_compound_type et)
+
+and condense_compound_type : compound_type -> body_type = function
+  | BasicType bt -> condense_factor_type bt
+  | FunctionType (i, o) ->
+      FunctionTypeBody (condense_factor_type i, condense_compound_type o)
+
+and condense_type_new : compound_type -> polymorphic_type =
+ fun ct ->
+  (* turn it into a body_type *)
+  let bt = condense_compound_type ct in
+  (* turn it into a nullary polymorphic type *)
+  let npt = BodyType bt in
+  
+  npt
+
+
 let condense_program = List.map condense_defn
