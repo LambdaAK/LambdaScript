@@ -369,6 +369,19 @@ and is_basic_type (t : c_type) : bool =
   | VectorType types -> List.for_all is_basic_type types
   | CListType et -> is_basic_type et
 
+(* Substitutes a type variable with a type throughout a list of type equations
+
+   Parameters: - var_id: The ID of the type variable to substitute - t: The type
+   to substitute in place of the type variable - equations: The list of type
+   equations to perform substitution on
+
+   Returns: A new list of type equations with all occurrences of TypeVar(var_id)
+   replaced with type t
+
+   For each equation (t1, t2) in the input list: 1. Substitute var_id with t in
+   t1 using substitute_in_type 2. Substitute var_id with t in t2 using
+   substitute_in_type 3. Create new equation with substituted types 4.
+   Recursively substitute through remaining equations *)
 and substitute (var_id : int) (t : c_type) (equations : type_equations) :
     type_equations =
   match equations with
