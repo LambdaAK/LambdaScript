@@ -340,9 +340,6 @@ and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
   | _ -> failwith "not a type var3"
 
 and type_of_c_expr (e : c_expr) (static_env : static_env) : c_type =
-  print_endline "getting type of";
-  print_endline (string_of_c_expr e);
-
   let t, constraints = generate static_env e in
 
   let constraints_without_written_type_vars =

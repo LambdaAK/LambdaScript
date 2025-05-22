@@ -202,8 +202,6 @@ let bop_from_char_list (lst : char list) =
     | _ -> failwith "invalid bop passed to bop_from_char_list"
 
 let lex_bop (lst : char list) =
-  print_endline "lexing bop";
-
   let rec get_bop_chars (lst : char list) (acc : char list) :
       char list * char list =
     match lst with

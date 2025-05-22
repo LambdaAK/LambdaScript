@@ -1,6 +1,5 @@
 open Lex
 open Expr
-open Tostring
 
 (* Idea - Make a module for each level of parser - Use a functor to combine them
    - Use another functor to then combine all of those into condensed parser
@@ -201,7 +200,6 @@ module ParserUtils = struct
   let parse_print (msg : string) : unit parser =
     ignore msg;
     let* () = return () in
-    (*print_endline msg;*)
     return ()
 
   (** [dispatch_parser dispatch_list default_parsers] creates a parser that
@@ -437,7 +435,6 @@ end = struct
   and infix_id_parser : factor parser =
     (* ( op ) *)
     let* () = parse_print "infix_id_parser" in
-    print_endline "aaaa";
     let* () = expect_token LParen in
     let* id =
       expect_token_get_data (function
@@ -523,7 +520,6 @@ end = struct
     return (ListComprehension (expr, branches))
 
   and factor_parser () =
-    print_endline "factor_parser";
     dispatch_parser
       [
         ( (function
@@ -798,9 +794,6 @@ end = struct
     let* () = expect_token Let in
     let* pat, cto = pat_and_type_annotation_parser in
 
-    print_endline "pat: ";
-    print_endline (string_of_pat pat);
-
     (* parse argument patterns *)
     let* args_pats_and_type_annotations =
       parse_several pat_and_type_annotation_parser
@@ -809,12 +802,6 @@ end = struct
     let* e1 = expr_parser () in
     let* () = expect_token In in
     let* e2 = expr_parser () in
-
-    (* print the arg patterns *)
-    print_endline "arg patterns";
-    List.iter
-      (fun (pat, _) -> print_endline (string_of_pat pat))
-      args_pats_and_type_annotations;
 
     (* 
 
@@ -832,8 +819,6 @@ end = struct
     in
 
     let assigned_expression = wrap e1 args_pats_and_type_annotations in
-
-    print_endline (string_of_expr assigned_expression);
 
     let func = Function (pat, cto, e2) in
 
