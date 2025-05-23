@@ -266,7 +266,7 @@ and reduce_eq (c : type_equations) : type_equations =
       else
         match (t1, t2) with
         | TypeVar id, _ when not (inside t1 t2) ->
-            (t1, t2) :: reduce_eq (substitute (int_of_string id) t2 c')
+            (t1, t2) :: reduce_eq (substitute id t2 c')
         | _, TypeVar _ -> reduce_eq ((t2, t1) :: c')
         | FunctionType (i1, o1), FunctionType (i2, o2) ->
             reduce_eq ((i1, i2) :: (o1, o2) :: c')
@@ -289,9 +289,35 @@ and reduce_eq (c : type_equations) : type_equations =
     @param subs The list of type equations representing substitutions
     @return The type that the variable should be substituted with *)
 and get_type (var : mono_type) (subs : type_equations) : mono_type =
-  match subs with
-  | [] -> var
-  | (t1, t2) :: subs' -> if t1 = var then t2 else get_type var subs'
+  match var with
+  | TypeVar _ -> (
+      let looked_up_type = get_type_of_type_var_if_possible var subs in
+      match looked_up_type with
+      | FunctionType (i, o) -> FunctionType (get_type i subs, get_type o subs)
+      | CListType et -> CListType (get_type et subs)
+      | VectorType types ->
+          VectorType (List.map (fun t -> get_type t subs) types)
+      | _ -> looked_up_type)
+  | FunctionType (i, o) -> FunctionType (get_type i subs, get_type o subs)
+  | VectorType types -> VectorType (List.map (fun t -> get_type t subs) types)
+  | IntType -> IntType
+  | FloatType -> FloatType
+  | BoolType -> BoolType
+  | StringType -> StringType
+  | UnitType -> UnitType
+  | CListType et -> CListType (get_type et subs)
+
+and get_type_of_type_var_if_possible (var : mono_type) (subs : type_equations) :
+    mono_type =
+  match var with
+  | TypeVar _ -> (
+      try
+        let looked_up = List.assoc var subs in
+        match looked_up with
+        | TypeVar _ -> get_type_of_type_var_if_possible looked_up subs
+        | _ -> looked_up
+      with Not_found -> var)
+  | _ -> failwith "not a type var"
 
 (** [inside inside_type outside_type] checks if a type appears inside another
     type.
@@ -337,7 +363,7 @@ and is_basic_type (t : mono_type) : bool =
     @return
       A new list of type equations with all occurrences of TypeVar(var_id)
       replaced with type t *)
-and substitute (var_id : int) (t : mono_type) (equations : type_equations) :
+and substitute (var_id : string) (t : mono_type) (equations : type_equations) :
     type_equations =
   let rec substitute_in_type (type_subbing_in : mono_type) : mono_type =
     match type_subbing_in with
@@ -346,7 +372,7 @@ and substitute (var_id : int) (t : mono_type) (equations : type_equations) :
     | BoolType -> BoolType
     | StringType -> StringType
     | UnitType -> UnitType
-    | TypeVar id -> if id = string_of_int var_id then t else TypeVar id
+    | TypeVar id -> if id = var_id then t else TypeVar id
     | FunctionType (t1, t2) ->
         FunctionType (substitute_in_type t1, substitute_in_type t2)
     | VectorType types -> VectorType (List.map substitute_in_type types)
@@ -427,5 +453,22 @@ and type_of_value (v : value) : mono_type =
 
 and type_of_c_expr (e : c_expr) : c_type =
   let t, constraints = generate [] e in
+
+  (* print the type and the constraints *)
+  print_endline "Type:";
+  print_endline (string_of_mono_type t);
+  print_endline "Constraints:";
+  print_endline (string_of_type_equations constraints);
+
   let solution = reduce_eq constraints in
-  Mono (get_type t solution)
+
+  (* print the solution *)
+  print_endline "Solution:";
+  print_endline (string_of_type_equations solution);
+
+  let the_type = get_type t solution in
+
+  print_endline "The type:";
+  print_endline (string_of_mono_type the_type);
+
+  Mono the_type
