@@ -171,7 +171,12 @@ let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
       ( input_type => output_type,
         constraints_from_pattern @ constraints_from_type_annotation @ c_output
       )
-  | EApp _ -> failwith "not implemented: generate (EApp)"
+  | EApp (e1, e2) ->
+      let t1, c1 = generate env e1 in
+      let t2, c2 = generate env e2 in
+      let type_of_expression = fresh_type_var () in
+      let new_constraint = (t1, FunctionType (t2, type_of_expression)) in
+      (type_of_expression, (new_constraint :: c1) @ c2)
   | EBindRec (pat, _, e1, e2) ->
       (* EBindRec (pat, _, e1, e2): let rec pat = e1 in e2 *)
       let function_id =
