@@ -495,6 +495,18 @@ and get_universal_type_vars (t : c_type) : c_type list =
   | CListType et -> get_universal_type_vars et |> List.sort_uniq compare
   | _ -> []
 
+(** [replace_types t replacements] recursively replaces type variables in [t]
+    according to [replacements].
+
+    - [t]: the type in which to perform replacements
+    - [replacements]: an association list mapping type variables (or universal
+      types) to their replacements
+
+    For each type variable or universal type in [t], if it appears in
+    [replacements], it is replaced with the corresponding type. The function
+    recurses into function types, vector types, and list types, applying
+    replacements throughout the structure. If a type variable is not found in
+    [replacements], it is left unchanged. *)
 and replace_types t replacements =
   match t with
   | TypeVar _ | UniversalType _ -> (

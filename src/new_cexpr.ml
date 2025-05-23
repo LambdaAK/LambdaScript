@@ -161,3 +161,25 @@ let rec string_of_mono_type : mono_type -> string = function
 let rec string_of_type : c_type -> string = function
   | Mono t -> string_of_mono_type t
   | PolyType (var, body) -> "∀" ^ var ^ ". " ^ string_of_type body
+
+(* Types form a lambda calculus. Here are functions that help us manipulate
+   types in this lambda calculus. *)
+
+(** [get_mono_type_vars t] returns a list of all unique type variable names
+    appearing in the monomorphic type [t].
+
+    This function recursively traverses the type structure and collects all
+    [TypeVar v] occurrences, removing duplicates.
+
+    @param t The monomorphic type to extract variables from
+    @return A list of unique type variable names (strings) appearing in [t] *)
+let get_mono_type_vars (t : mono_type) : string list =
+  let rec aux t acc =
+    match t with
+    | IntType | FloatType | BoolType | StringType | UnitType -> acc
+    | TypeVar v -> if List.mem v acc then acc else v :: acc
+    | FunctionType (t1, t2) -> aux t1 (aux t2 acc)
+    | VectorType ts -> List.fold_left (fun a t -> aux t a) acc ts
+    | CListType t' -> aux t' acc
+  in
+  aux t [] |> List.rev
