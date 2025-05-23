@@ -259,8 +259,25 @@ and type_of_pat (pat : c_pat) : mono_type * static_env * type_equations =
       (CListType t1, env1 @ env2, (CListType t1, t2) :: (c1 @ c2))
 
 and reduce_eq (c : type_equations) : type_equations =
-  ignore c;
-  failwith "not implemented: reduce_eq"
+  match c with
+  | [] -> []
+  | (t1, t2) :: c' -> (
+      if t1 = t2 then reduce_eq c'
+      else
+        match (t1, t2) with
+        | TypeVar id, _ when not (inside t1 t2) ->
+            (t1, t2) :: reduce_eq (substitute (int_of_string id) t2 c')
+        | _, TypeVar _ -> reduce_eq ((t2, t1) :: c')
+        | FunctionType (i1, o1), FunctionType (i2, o2) ->
+            reduce_eq ((i1, i2) :: (o1, o2) :: c')
+        | CListType et1, CListType et2 -> reduce_eq ((et1, et2) :: c')
+        | VectorType types1, VectorType types2 -> (
+            match (types1, types2) with
+            | type1 :: tail1, type2 :: tail2 ->
+                reduce_eq
+                  ((type1, type2) :: (VectorType tail1, VectorType tail2) :: c')
+            | _ -> raise TypeFailure)
+        | _ -> raise TypeFailure)
 
 (** [get_type var subs] applies a substitution to a type variable.
 
@@ -407,3 +424,8 @@ and get_type_vars (t : mono_type) : mono_type list =
 and type_of_value (v : value) : mono_type =
   ignore v;
   failwith "not implemented: type_of_value"
+
+and type_of_c_expr (e : c_expr) : c_type =
+  let t, constraints = generate [] e in
+  let solution = reduce_eq constraints in
+  Mono (get_type t solution)
