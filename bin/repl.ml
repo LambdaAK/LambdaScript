@@ -4,7 +4,7 @@ open Language.New_condense
 open Language.New_c_to_string
 open Language.New_typecheck
 
-let s = "\\ f -> \\ x -> f (f x)"
+let s = "(1, 2, 3, 4, 5)"
 let chars = s |> String.to_seq |> List.of_seq
 let lexed = lex chars |> List.map (fun t -> t.token_type)
 let e = expr_parser lexed |> Option.get |> fst

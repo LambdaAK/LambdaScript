@@ -13,7 +13,7 @@ let rec string_of_mono_type : mono_type -> string = function
       t1_str ^ " -> " ^ t2_str
   | VectorType ts ->
       let ts_str = List.map string_of_mono_type ts in
-      "[" ^ String.concat ", " ts_str ^ "]"
+      "(" ^ String.concat ", " ts_str ^ ")"
   | CListType t -> "[" ^ string_of_mono_type t ^ "]"
 
 let rec string_of_c_type : c_type -> string = function
@@ -26,7 +26,7 @@ let rec string_of_pat : c_pat -> string = function
   | CNilPat -> "[]"
   | CConsPat (p1, p2) -> string_of_pat p1 ^ " :: " ^ string_of_pat p2
   | CWildcardPat -> "_"
-  | CVectorPat ps -> "[" ^ String.concat ", " (List.map string_of_pat ps) ^ "]"
+  | CVectorPat ps -> "(" ^ String.concat ", " (List.map string_of_pat ps) ^ ")"
   | CStringPat s -> "\"" ^ s ^ "\""
   | CIdPat id -> id
   | CUnitPat -> "()"

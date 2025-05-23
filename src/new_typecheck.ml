@@ -104,7 +104,7 @@ and string_of_mono_type (t : mono_type) : string =
       "(" ^ t1_str ^ " -> " ^ t2_str ^ ")"
   | VectorType types ->
       let types_str = List.map string_of_mono_type types in
-      "[" ^ String.concat ", " types_str ^ "]"
+      "(" ^ String.concat ", " types_str ^ ")"
   | CListType et -> "[" ^ string_of_mono_type et ^ "]"
 
 (** [generate env e] performs type inference on the expression [e] in the static
