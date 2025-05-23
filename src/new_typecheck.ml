@@ -158,7 +158,19 @@ let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
             (* logical: both operands must be bool, result is bool *)
             (BoolType, ((t1, BoolType) :: (t2, BoolType) :: c1) @ c2)
       end
-  | EFunction _ -> failwith "not implemented: generate (EFunction)"
+  | EFunction (pat, cto, body) ->
+      let input_type, new_env_bindings, constraints_from_pattern =
+        type_of_pat pat
+      in
+      let constraints_from_type_annotation : type_equations =
+        match cto with
+        | Some t -> [ (input_type, instantiate t) ]
+        | None -> []
+      in
+      let output_type, c_output = generate (new_env_bindings @ env) body in
+      ( input_type => output_type,
+        constraints_from_pattern @ constraints_from_type_annotation @ c_output
+      )
   | EApp _ -> failwith "not implemented: generate (EApp)"
   | EBindRec (pat, _, e1, e2) ->
       (* EBindRec (pat, _, e1, e2): let rec pat = e1 in e2 *)
