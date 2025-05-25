@@ -20,8 +20,36 @@ let () =
 (* other stuff *)
 
 let () = print_endline "other stuff"
-let s = "let rec f x = x in f f"
-let chars = s |> String.to_seq |> List.of_seq
+
+let map_string =
+  {|
+  let rec map f lst = switch lst =>
+    | [] -> []
+    | h :: t -> f h :: map f t
+  end
+in map
+|}
+
+let filter_string =
+  {|
+  let rec filter p lst = switch lst =>
+    | [] -> []
+    | h :: t -> if p h then h :: filter p t else filter p t
+  end
+in filter
+  |}
+
+let fold_left_string =
+  {|
+  let rec fold_left f acc lst = switch lst =>
+    | [] -> acc
+    | h :: t -> fold_left f (f acc h) t
+  end
+in fold_left
+  |}
+
+let () = ignore (map_string, filter_string, fold_left_string)
+let chars = filter_string |> String.to_seq |> List.of_seq
 let lexed = lex chars |> List.map (fun t -> t.token_type)
 let e = expr_parser lexed |> Option.get |> fst
 

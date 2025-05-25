@@ -198,10 +198,11 @@ let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
       let function_type = fresh_type_var () in
       let new_env = (function_id, Mono function_type) :: env in
       let t1, c1 = generate new_env e1 in
-      (* Generalize the function type to make it polymorphic *)
-      let generalized_type = generalize c1 new_env t1 in
-      let t2, c2 = generate ((function_id, generalized_type) :: env) e2 in
+      (* Add constraint that function_type must equal t1 *)
       let new_constraint = (function_type, t1) in
+      (* Generalize the function type to make it polymorphic *)
+      let generalized_type = generalize (new_constraint :: c1) new_env t1 in
+      let t2, c2 = generate ((function_id, generalized_type) :: env) e2 in
       (t2, (new_constraint :: c1) @ c2)
   | ETernary (e1, e2, e3) ->
       let t1, c1 = generate env e1 in
