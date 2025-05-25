@@ -167,14 +167,8 @@ let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
         | Some t -> [ (input_type, instantiate t) ]
         | None -> []
       in
-      (* Generalize the input type before using it in the body *)
-      let generalized_input_type =
-        generalize constraints_from_pattern [] input_type
-      in
       let output_type, c_output =
-        generate
-          ((fst (List.hd new_env_bindings), generalized_input_type) :: env)
-          body
+        generate ((fst (List.hd new_env_bindings), Mono input_type) :: env) body
       in
       ( input_type => output_type,
         constraints_from_pattern @ constraints_from_type_annotation @ c_output
