@@ -20,7 +20,7 @@ let () =
 (* other stuff *)
 
 let () = print_endline "other stuff"
-let s = "(\\ f -> ((f 1) < 2) || (f true)) (\\ x -> x)"
+let s = "let rec f x = x in f f"
 let chars = s |> String.to_seq |> List.of_seq
 let lexed = lex chars |> List.map (fun t -> t.token_type)
 let e = expr_parser lexed |> Option.get |> fst

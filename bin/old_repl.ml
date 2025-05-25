@@ -5,7 +5,7 @@ open Language.Ctostringtree.CToStringTree
 open Language.Typecheck
 
 let () = print_endline "other stuff"
-let s = "(\\ x -> x + 1)"
+let s = "let rec f x = x in f f"
 let chars = s |> String.to_seq |> List.of_seq
 let lexed = lex chars
 

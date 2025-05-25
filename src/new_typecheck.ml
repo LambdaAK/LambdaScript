@@ -176,6 +176,11 @@ let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
   | EApp (e1, e2) -> (
       match e1 with
       | EFunction (CIdPat _, _, _) ->
+          (* TODO: In the future, we won't need this because we will make a new
+             AST variant for let expressions.
+
+             This currently takes care of let expressions, but it shouldn't
+             actually work in OCaml. *)
           generate_e_app_function_pat_is_id env e1 e2
       | _ ->
           let t1, c1 = generate env e1 in
@@ -193,7 +198,9 @@ let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
       let function_type = fresh_type_var () in
       let new_env = (function_id, Mono function_type) :: env in
       let t1, c1 = generate new_env e1 in
-      let t2, c2 = generate new_env e2 in
+      (* Generalize the function type to make it polymorphic *)
+      let generalized_type = generalize c1 new_env t1 in
+      let t2, c2 = generate ((function_id, generalized_type) :: env) e2 in
       let new_constraint = (function_type, t1) in
       (t2, (new_constraint :: c1) @ c2)
   | ETernary (e1, e2, e3) ->
