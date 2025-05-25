@@ -8,6 +8,8 @@ type substitutions = type_equations
 
 exception TypeFailure
 
+let ( => ) (t1 : c_type) (t2 : c_type) : c_type = FunctionType (t1, t2)
+
 let split3 (lst : ('a * 'b * 'c) list) : 'a list * 'b list * 'c list =
   let rec split3_helper (lst : ('a * 'b * 'c) list) (a : 'a list) (b : 'b list)
       (c : 'c list) : 'a list * 'b list * 'c list =
@@ -73,7 +75,14 @@ let rec generate (env : static_env) (e : c_expr) : c_type * type_equations =
             (* the input type must equal the annotated type *)
         | None -> []
       in
-      let output_type, c_output = generate (new_env_bindings @ env) body in
+      let generalized_input_type =
+        generalize constraints_from_pattern [] input_type
+      in
+      let output_type, c_output =
+        generate
+          ((fst (List.hd new_env_bindings), generalized_input_type) :: env)
+          body
+      in
       ( input_type => output_type,
         constraints_from_pattern @ constraints_from_type_annotation @ c_output
       )
@@ -341,6 +350,13 @@ and get_type_of_type_var_if_possible (var : c_type) (subs : substitutions) :
 
 and type_of_c_expr (e : c_expr) (static_env : static_env) : c_type =
   let t, constraints = generate static_env e in
+
+  (* print the type and constraints *)
+  print_endline "the type is: ";
+  print_endline (string_of_c_type t);
+  print_endline "the constraints are: ";
+  print_endline (string_of_type_equations constraints);
+  print_endline "--------------------------------";
 
   let constraints_without_written_type_vars =
     replace_written_types constraints

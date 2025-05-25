@@ -8,8 +8,16 @@ let rec string_of_mono_type : mono_type -> string = function
   | UnitType -> "unit"
   | TypeVar v -> v
   | FunctionType (t1, t2) ->
-      let t1_str = string_of_mono_type t1 in
-      let t2_str = string_of_mono_type t2 in
+      let t1_str =
+        match t1 with
+        | FunctionType _ -> "(" ^ string_of_mono_type t1 ^ ")"
+        | _ -> string_of_mono_type t1
+      in
+      let t2_str =
+        match t2 with
+        | FunctionType _ -> "(" ^ string_of_mono_type t2 ^ ")"
+        | _ -> string_of_mono_type t2
+      in
       t1_str ^ " -> " ^ t2_str
   | VectorType ts ->
       let ts_str = List.map string_of_mono_type ts in
@@ -83,7 +91,7 @@ let rec string_of_expr : c_expr -> string = function
         | CCons -> "::"
       in
       "(" ^ string_of_expr e1 ^ ") " ^ op_str ^ " (" ^ string_of_expr e2 ^ ")"
-  | EVector es -> "[" ^ String.concat ", " (List.map string_of_expr es) ^ "]"
+  | EVector es -> "(" ^ String.concat ", " (List.map string_of_expr es) ^ ")"
   | EListEnumeration (e1, e2) ->
       "[" ^ string_of_expr e1 ^ ".." ^ string_of_expr e2 ^ "]"
   | EListComprehension (e, generators) ->

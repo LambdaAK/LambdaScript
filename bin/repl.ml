@@ -3,8 +3,24 @@ open Language.New_parser.ExprParser
 open Language.New_condense
 open Language.New_c_to_string
 open Language.New_typecheck
+open Language.New_cexpr
 
-let s = "(1, 2, 3, 4, 5)"
+let t : mono_type = fresh_type_var ()
+
+let () =
+  print_endline "t: ";
+  print_endline (string_of_mono_type t)
+
+let new_t = swap_all_variables_in_type t
+
+let () =
+  print_endline "new_t: ";
+  print_endline (string_of_mono_type new_t)
+
+(* other stuff *)
+
+let () = print_endline "other stuff"
+let s = "(\\ x -> x)"
 let chars = s |> String.to_seq |> List.of_seq
 let lexed = lex chars |> List.map (fun t -> t.token_type)
 let e = expr_parser lexed |> Option.get |> fst

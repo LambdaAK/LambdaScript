@@ -167,16 +167,28 @@ let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
         | Some t -> [ (input_type, instantiate t) ]
         | None -> []
       in
-      let output_type, c_output = generate (new_env_bindings @ env) body in
+      (* Generalize the input type before using it in the body *)
+      let generalized_input_type =
+        generalize constraints_from_pattern [] input_type
+      in
+      let output_type, c_output =
+        generate
+          ((fst (List.hd new_env_bindings), generalized_input_type) :: env)
+          body
+      in
       ( input_type => output_type,
         constraints_from_pattern @ constraints_from_type_annotation @ c_output
       )
-  | EApp (e1, e2) ->
-      let t1, c1 = generate env e1 in
-      let t2, c2 = generate env e2 in
-      let type_of_expression = fresh_type_var () in
-      let new_constraint = (t1, FunctionType (t2, type_of_expression)) in
-      (type_of_expression, (new_constraint :: c1) @ c2)
+  | EApp (e1, e2) -> (
+      match e1 with
+      | EFunction (CIdPat _, _, _) ->
+          generate_e_app_function_pat_is_id env e1 e2
+      | _ ->
+          let t1, c1 = generate env e1 in
+          let t2, c2 = generate env e2 in
+          let type_of_expression = fresh_type_var () in
+          let new_constraint = (t1, FunctionType (t2, type_of_expression)) in
+          (type_of_expression, (new_constraint :: c1) @ c2))
   | EBindRec (pat, _, e1, e2) ->
       (* EBindRec (pat, _, e1, e2): let rec pat = e1 in e2 *)
       let function_id =
@@ -254,6 +266,52 @@ let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
         |> List.flatten
       in
       (type_that_all_branch_expressions_must_be, c1 @ branch_constraints)
+
+and generate_e_app_function_pat_is_id (env : static_env) (e1 : c_expr)
+    (e2 : c_expr) : mono_type * type_equations =
+  match e1 with
+  | EFunction (pattern, cto, body) ->
+      (* Get the function parameter name *)
+      let function_id : string =
+        match pattern with
+        | CIdPat id -> id
+        | _ -> failwith "not a valid pattern in new_typecheck.ml"
+      in
+
+      (* Get type and constraints from the pattern *)
+      let input_type, new_env_bindings, constraints_from_pattern =
+        type_of_pat pattern
+      in
+      let constraints_from_type_annotation : type_equations =
+        match cto with
+        | Some t -> [ (input_type, instantiate t) ]
+        | None -> []
+      in
+
+      (* Generate type and constraints for the argument *)
+      let t1, c1 = generate (new_env_bindings @ env) e2 in
+
+      (* Generalize the argument type to handle polymorphism *)
+      let generalized_type : c_type =
+        generalize c1 (new_env_bindings @ env) t1
+      in
+
+      (* Generate type and constraints for the function body *)
+      let t2, c2 = generate ((function_id, generalized_type) :: env) body in
+
+      (* Create a fresh type variable for the result *)
+      let output_type = fresh_type_var () in
+
+      ( output_type,
+        ((t2, output_type) :: constraints_from_pattern)
+        @ constraints_from_type_annotation @ c1 @ c2 )
+  | _ ->
+      (* If first is not a function, use the standard application logic *)
+      let t1, c1 = generate env e1 in
+      let t2, c2 = generate env e2 in
+      let type_of_expression = fresh_type_var () in
+      let new_constraint = (t1, FunctionType (t2, type_of_expression)) in
+      (type_of_expression, (new_constraint :: c1) @ c2)
 
 and type_of_pat (pat : c_pat) : mono_type * static_env * type_equations =
   match pat with
@@ -437,10 +495,50 @@ and instantiate (t : c_type) : mono_type =
     @return A polymorphic type with appropriate universal quantifiers *)
 and generalize (constraints : type_equations) (env : static_env) (t : mono_type)
     : c_type =
-  ignore constraints;
-  ignore env;
-  ignore t;
-  failwith "not implemented: generalize"
+  print_endline "Generalizing:";
+  print_endline (string_of_mono_type t);
+  print_endline "Constraints:";
+  print_endline (string_of_type_equations constraints);
+  print_endline "Env:";
+  print_endline (string_of_static_env env);
+
+  (* First reduce the constraints to get a solution *)
+  let solution = reduce_eq constraints in
+
+  (* Apply the solution to the type *)
+  let u1 = get_type t solution in
+
+  (* Get all type variables in the type *)
+  let type_vars = get_type_vars u1 in
+
+  (* Get all types from the environment *)
+  let env_types = List.map snd env in
+  let env_types =
+    List.map
+      (function
+        | Mono t -> t
+        | _ -> failwith "not a mono type")
+      env_types
+  in
+  let env_types = flatten_env_types env_types in
+
+  (* Filter out type variables that appear in the environment *)
+  let free_vars =
+    List.filter (fun t -> not (List.mem t env_types)) type_vars
+    |> List.map (function
+         | TypeVar v -> v
+         | _ -> failwith "not a type var")
+    |> List.sort_uniq compare
+  in
+
+  (* Create a polymorphic type by quantifying over free variables *)
+  let res =
+    List.fold_right (fun var acc -> PolyType (var, acc)) free_vars (Mono u1)
+  in
+
+  print_endline "Result of generalization:";
+  print_endline (string_of_c_type res);
+  res
 
 and flatten_env_types (types : mono_type list) : mono_type list =
   match types with
@@ -457,8 +555,12 @@ and flatten_env_types (types : mono_type list) : mono_type list =
     @param t The type to extract variables from
     @return A list of all type variables appearing in t *)
 and get_type_vars (t : mono_type) : mono_type list =
-  ignore t;
-  failwith "not implemented: get_type_vars"
+  match t with
+  | TypeVar _ -> [ t ]
+  | FunctionType (i, o) -> get_type_vars i @ get_type_vars o
+  | VectorType types -> List.flatten (List.map get_type_vars types)
+  | CListType et -> get_type_vars et
+  | _ -> []
 
 (** [type_of_value v] determines the type of a runtime value.
 
@@ -489,3 +591,10 @@ and type_of_c_expr (e : c_expr) : c_type =
   print_endline (string_of_mono_type the_type);
 
   Mono the_type
+
+(* swap all variables for new variables *)
+and swap_all_variables_in_type (t : mono_type) : mono_type =
+  (* First generalize the type to quantify over all variables *)
+  let generalized = generalize [] [] t in
+  (* Then instantiate it to get fresh variables *)
+  instantiate generalized

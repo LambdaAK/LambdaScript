@@ -14,11 +14,13 @@ bisect:
 	dune exec --instrument-with bisect_ppx --force test/test.exe
 	bisect-ppx-report html
 
-
 repl:
 	dune build bin/repl.exe
 	dune exec ./bin/repl.exe
 
+old_repl:
+	dune build bin/old_repl.exe
+	dune exec ./bin/old_repl.exe
 
 doc:
 	dune build @doc
