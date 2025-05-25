@@ -48,8 +48,17 @@ let fold_left_string =
 in fold_left
   |}
 
-let () = ignore (map_string, filter_string, fold_left_string)
-let chars = filter_string |> String.to_seq |> List.of_seq
+let fold_right_string =
+  {|
+  let rec fold_right f lst acc = switch lst =>
+    | [] -> acc
+    | h :: t -> f h (fold_right f t acc)
+  end
+in fold_right
+  |}
+
+let () = ignore (map_string, filter_string, fold_left_string, fold_right_string)
+let chars = fold_left_string |> String.to_seq |> List.of_seq
 let lexed = lex chars |> List.map (fun t -> t.token_type)
 let e = expr_parser lexed |> Option.get |> fst
 

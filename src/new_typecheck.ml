@@ -1,5 +1,6 @@
 open New_cexpr
 open New_c_to_string
+open New_typefixer
 
 type type_equation = mono_type * mono_type
 type type_equations = type_equation list
@@ -587,12 +588,17 @@ and type_of_c_expr (e : c_expr) : c_type =
   print_endline "Solution:";
   print_endline (string_of_type_equations solution);
 
-  let the_type = get_type t solution in
+  let the_mono_type = get_type t solution in
 
+  (* all variables must be universally quantified *)
   print_endline "The type:";
-  print_endline (string_of_mono_type the_type);
+  print_endline (string_of_mono_type the_mono_type);
 
-  Mono the_type
+  let the_mono_type = fix_type the_mono_type in
+
+  let the_c_type = generalize [] [] the_mono_type in
+
+  the_c_type
 
 (* swap all variables for new variables *)
 and swap_all_variables_in_type (t : mono_type) : mono_type =
