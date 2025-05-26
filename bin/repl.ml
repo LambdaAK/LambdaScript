@@ -61,12 +61,8 @@ let test_one =
 in map (\x -> if x then false else true) [true, false, true]
 |}
 
-let test_two =
-  {|
-let f one two three four five six seven eight nine ten eleven twelve
-       thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty
-       twentyone twentytwo twentythree twentyfour twentyfive twentysix
-       twentyseven twentyeight twentynine thirty = one in f
+let test_two = {|
+    \ f [a -> b] -> \ x [a] -> f
 |}
 
 let () =

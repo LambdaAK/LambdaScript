@@ -150,7 +150,10 @@ and condense_factor_type : factor_type -> mono_type = function
   | BooleanType -> BoolType
   | UnitType -> UnitType
   | FloatType -> FloatType
-  | TypeVarWritten i -> TypeVar i
+  | TypeVarWritten i ->
+      (* When converting a type var, we add the prefix `$written$_` so that the
+         name will not conflict with any internal type variables that we use. *)
+      TypeVar ("$written(" ^ i ^ ")")
   | ParenFactorType expr -> condense_compound_type expr
   | VectorType types -> VectorType (List.map condense_compound_type types)
   | ListType et -> CListType (condense_compound_type et)
