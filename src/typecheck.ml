@@ -192,7 +192,11 @@ let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
         | None -> []
       in
       let new_constraint = (t_pat, t1) in
-      let t2, c2 = generate (pat_env @ env) e2 in
+      (* Generalize the type of e1 before using it in e2 *)
+      let generalized_type = generalize (new_constraint :: c1) env t1 in
+      let t2, c2 =
+        generate ((fst (List.hd pat_env), generalized_type) :: env) e2
+      in
       ( t2,
         pat_constraints @ annotation_constraints @ (new_constraint :: c1) @ c2
       )

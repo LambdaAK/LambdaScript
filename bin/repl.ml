@@ -62,7 +62,7 @@ in map (\x -> if x then false else true) [true, false, true]
 |}
 
 let test_two = {|
-    let lst = [] in lst
+    let f x = x in f f
 |}
 
 let () =
