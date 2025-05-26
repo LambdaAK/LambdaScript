@@ -1,8 +1,8 @@
 open Language.Lex
-open Language.New_parser.ExprParser
-open Language.New_condense
-open Language.New_c_to_string
-open Language.New_typecheck
+open Language.Parser.ExprParser
+open Language.Condense
+open Language.C_to_string
+open Language.Typecheck
 open Language.Ceval
 open Language.Env
 

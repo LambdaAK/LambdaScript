@@ -1,8 +1,8 @@
 open Lex
-open New_condense
-open New_cexpr
+open Condense
+open Cexpr
 open Env
-open New_parser.ExprParser
+open Parser.ExprParser
 
 let rec string_of_env (env : env) =
   List.fold_left
@@ -59,7 +59,6 @@ let rec bind_pat (p : c_pat) (v : value) : env option =
       | _ -> None)
   | _ -> None
 
-open New_cexpr
 (** [bind_static p t] attempts to match the pattern [p] against the type [t] in
     a static (type-level) context. If the pattern matches the type, it returns
     [Some bindings], where [bindings] is a list of (variable name, type) pairs

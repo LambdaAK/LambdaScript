@@ -1,11 +1,11 @@
 open OUnit2
 open Language.Ceval
-open Language.New_typecheck
-open Language.New_condense
-open Language.New_c_to_string
+open Language.Typecheck
+open Language.Condense
+open Language.C_to_string
 open Language.Lex
 open Language.Env
-open Language.New_parser.ExprParser
+open Language.Parser.ExprParser
 
 let modify_tests : bool = false
 
@@ -272,9 +272,9 @@ let type_test (expr : string) (expected_output : string) : test =
         match a with
         | None -> failwith "Could not parse the expression"
         | Some (e, _) ->
-            let c_e : Language.New_cexpr.c_expr = condense_expr e in
+            let c_e : Language.Cexpr.c_expr = condense_expr e in
 
-            let t : Language.New_cexpr.c_type =
+            let t : Language.Cexpr.c_type =
               type_of_c_expr built_ins_types c_e
             in
             (id, t))

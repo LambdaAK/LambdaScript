@@ -1,4 +1,4 @@
-open New_cexpr
+open Cexpr
 
 let rec string_of_mono_type : mono_type -> string = function
   | IntType -> "int"

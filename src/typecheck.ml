@@ -1,6 +1,6 @@
-open New_cexpr
-open New_c_to_string
-open New_typefixer
+open Cexpr
+open C_to_string
+open Typefixer
 
 type type_equation = mono_type * mono_type
 type type_equations = type_equation list

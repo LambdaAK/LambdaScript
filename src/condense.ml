@@ -1,5 +1,5 @@
 open Expr
-open New_cexpr
+open Cexpr
 
 let rec condense_pat : pat -> c_pat = function
   | SubPat sub_pat -> condense_sub_pat sub_pat
