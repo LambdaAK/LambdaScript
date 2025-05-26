@@ -160,15 +160,12 @@ and condense_compound_type : compound_type -> mono_type = function
   | FunctionType (i, o) ->
       FunctionType (condense_factor_type i, condense_compound_type o)
 
-(* Given a type, condense it into a mono_type, then turn it into a polymorphic
-   c_type where all type variables are universally quantified *)
+(* Given a type, condense it into a mono_type, then just wrap it as a
+   monomorphic c_type *)
 and condense_type : compound_type -> c_type = function
   | ct ->
       let mono_t = condense_compound_type ct in
-      let type_vars = all_type_vars_in_type mono_t in
-      List.fold_right
-        (fun var acc -> PolyType (var, acc))
-        type_vars (Mono mono_t)
+      Mono mono_t
 
 and condense_generator ((pat, expr) : generator) : c_pat * c_expr =
   (condense_pat pat, condense_expr expr)

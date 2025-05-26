@@ -163,9 +163,7 @@ let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
         | Some t -> [ (input_type, instantiate t) ]
         | None -> []
       in
-      let output_type, c_output =
-        generate ((fst (List.hd new_env_bindings), Mono input_type) :: env) body
-      in
+      let output_type, c_output = generate (new_env_bindings @ env) body in
       ( input_type => output_type,
         constraints_from_pattern @ constraints_from_type_annotation @ c_output
       )
@@ -569,3 +567,8 @@ and swap_all_variables_in_type (t : mono_type) : mono_type =
   let generalized = generalize [] [] t in
   (* Then instantiate it to get fresh variables *)
   instantiate generalized
+
+let rec get_mono_type (t : c_type) : mono_type =
+  match t with
+  | Mono t -> t
+  | PolyType (_, t) -> get_mono_type t

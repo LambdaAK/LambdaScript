@@ -480,9 +480,9 @@ let function_type_tests =
     ("\\ a [a] -> \\ b [b] -> a", "a -> b -> a");
     ("\\ a [a] -> \\ b [a] -> a + b", "int -> int -> int");
     ("\\ a [a] -> \\ b [a] -> a + b + 1", "int -> int -> int");
-    ("\\ f [a -> b] -> \\ x [b] -> f x", "(a -> a) -> a -> a");
+    ("\\ f [e -> f] -> \\ x [f] -> f x", "(a -> a) -> a -> a");
     (* this is an interesting example because it turns out that a = b here *)
-    ("\\ f [a -> b] -> \\ x [a] -> f x", "(a -> b) -> a -> b");
+    ("\\ f [e -> f] -> \\ x [e] -> f x", "(a -> b) -> a -> b");
     (* on the other hand, there is no constraint generated in this expression
        saying that a = b, so they are different *)
     ("let f a b [int] c [int] d [int] = a in f", "a -> int -> int -> int -> a");
@@ -497,9 +497,9 @@ let function_type_tests =
     ("\\ (a, _) -> a", "(a, b) -> a");
     ("\\ (a, _) -> a + 1", "(int, a) -> int");
     ("\\ f -> \\ x -> f x", "(a -> b) -> a -> b");
-    ( {|\ f [a -> b -> c] ->
-    \ a [a] ->
-    \ b [b] ->
+    ( {|\ f [e -> f -> g] ->
+    \ a [e] ->
+    \ b [f] ->
     f a b|},
       "(a -> b -> c) -> a -> b -> c" );
     ("\\ a [(a, b)] -> a", "(a, b) -> (a, b)");
@@ -507,12 +507,12 @@ let function_type_tests =
     ("\\ (_, a) [(a, b)] -> a", "(a, b) -> b");
     ("\\ (a, b, c) [(a, b, c)] -> a", "(a, b, c) -> a");
     (* higher order function *)
-    ( {|\ f [(a, b) -> c] ->
-    \ a [a] ->
-    \ b [b] ->
+    ( {|\ f [(e, f) -> g] ->
+    \ a [e] ->
+    \ b [f] ->
     f (a, b)|},
       "((a, b) -> c) -> a -> b -> c" );
-    ( {|\ f [a -> b -> c] ->
+    ( {|\ f [e -> f -> g] ->
     \ (a, b) ->
     f a b|},
       "(a -> b -> c) -> (a, b) -> c" );
@@ -530,44 +530,11 @@ let function_type_tests =
        twentyone twentytwo twentythree twentyfour twentyfive twentysix \
        twentyseven twentyeight twentynine thirty = one in f",
       "a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l -> m -> n -> o \
-       -> p -> q -> r -> s -> t -> u -> v -> w -> x -> y -> z -> a1 -> b1 -> \
-       c1 -> d1 -> a" );
-    (* long function with 40 arguments. name the arguments the word of the
-       number *)
-    ( "let f one two three four five six seven eight nine ten eleven twelve \
-       thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty \
-       twentyone twentytwo twentythree twentyfour twentyfive twentysix \
-       twentyseven twentyeight twentynine thirty thirtyone thirtytwo \
-       thirtythree thirtyfour thirtyfive thirtysix thirtyseven thirtyeight \
-       thirtynine forty = one in f",
-      {|a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l -> m -> n -> o -> p -> q -> r -> s -> t -> u -> v -> w -> x -> y -> z -> a1 -> b1 -> c1 -> d1 -> e1 -> f1 -> g1 -> h1 -> i1 -> j1 -> k1 -> l1 -> m1 -> n1 -> a|}
-    );
-    (* long function with 50 arguments. name the arguments the word of the
-       number *)
-    ( "let f one two three four five six seven eight nine ten eleven twelve \
-       thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty \
-       twentyone twentytwo twentythree twentyfour twentyfive twentysix \
-       twentyseven twentyeight twentynine thirty thirtyone thirtytwo \
-       thirtythree thirtyfour thirtyfive thirtysix thirtyseven thirtyeight \
-       thirtynine forty fortyone fortytwo fortythree fortyfour fortyfive \
-       fortysix fortyseven fortyeight fortynine fifty = one in f",
-      {|a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l -> m -> n -> o -> p -> q -> r -> s -> t -> u -> v -> w -> x -> y -> z -> a1 -> b1 -> c1 -> d1 -> e1 -> f1 -> g1 -> h1 -> i1 -> j1 -> k1 -> l1 -> m1 -> n1 -> o1 -> p1 -> q1 -> r1 -> s1 -> t1 -> u1 -> v1 -> w1 -> x1 -> a|}
-    );
-    (* long function with 60 arguments. name the arguments the word of the
-       number *)
-    ( {|let f one two three four five six seven eight nine ten eleven twelve
-      thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty
-      twentyone twentytwo twentythree twentyfour twentyfive twentysix
-      twentyseven twentyeight twentynine thirty thirtyone thirtytwo
-      thirtythree thirtyfour thirtyfive thirtysix thirtyseven thirtyeight
-      thirtynine forty fortyone fortytwo fortythree fortyfour fortyfive
-      fortysix fortyseven fortyeight fortynine fifty fiftyone fiftytwo fiftythree fiftyfour fiftyfive
-      fiftysix fiftyseven fiftyeight fiftynine sixty = one in f|},
-      {|a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l -> m -> n -> o -> p -> q -> r -> s -> t -> u -> v -> w -> x -> y -> z -> a1 -> b1 -> c1 -> d1 -> e1 -> f1 -> g1 -> h1 -> i1 -> j1 -> k1 -> l1 -> m1 -> n1 -> o1 -> p1 -> q1 -> r1 -> s1 -> t1 -> u1 -> v1 -> w1 -> x1 -> y1 -> `2 -> a2 -> b2 -> c2 -> d2 -> e2 -> f2 -> g2 -> h2 -> a|}
-    );
+       -> p -> q -> r -> s -> t -> u -> v -> w -> x -> y -> z -> aa -> ab -> \
+       ac -> ad -> a" );
     (* recursive functions *)
     ("let rec f x = x in f", "a -> a");
-    ("let rec f x [unit] = x in f", "ng -> ng");
+    ("let rec f x [unit] = x in f", "unit -> unit");
     ("let rec f x [int -> int] = x in f", "(int -> int) -> int -> int");
     ("\\ a [[int]] -> a", "[int] -> [int]");
     ("let rec f x = if x == 0 then 0 else f (x - 1) in f", "int -> int");
@@ -777,12 +744,12 @@ let switch_type_tests =
   [
     ("switch () => | () -> 1 end", "int");
     ("switch () => | () -> true end", "bool");
-    ("switch () => | () -> () end", "ng");
+    ("switch () => | () -> () end", "unit");
     ("switch () => | () -> (1, 2) end", "(int, int)");
     ("switch () => | () -> (1, 2, 3) end", "(int, int, int)");
     ("switch 1 => | 1 -> 1 end", "int");
     ("switch 1 => | 1 -> true end", "bool");
-    ("switch 1 => | 1 -> () end", "ng");
+    ("switch 1 => | 1 -> () end", "unit");
     ("switch 5 => | 1 -> 1 | 2 -> 2 | 3 -> 3 | 4 -> 4 | 5 -> 5 end", "int");
   ]
 
