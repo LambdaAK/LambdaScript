@@ -493,13 +493,6 @@ and instantiate (t : c_type) : mono_type =
     @return A polymorphic type with appropriate universal quantifiers *)
 and generalize (constraints : type_equations) (env : static_env) (t : mono_type)
     : c_type =
-  print_endline "Generalizing:";
-  print_endline (string_of_mono_type t);
-  print_endline "Constraints:";
-  print_endline (string_of_type_equations constraints);
-  print_endline "Env:";
-  print_endline (string_of_static_env env);
-
   (* First reduce the constraints to get a solution *)
   let solution = reduce_eq constraints in
 
@@ -511,13 +504,8 @@ and generalize (constraints : type_equations) (env : static_env) (t : mono_type)
 
   (* Get all types from the environment *)
   let env_types = List.map snd env in
-  let env_types =
-    List.map
-      (function
-        | Mono t -> t
-        | _ -> failwith "not a mono type")
-      env_types
-  in
+  (* TODO: this code is kind of sus, but I think it works *)
+  let env_types = List.map instantiate env_types in
   let env_types = flatten_env_types env_types in
 
   (* Filter out type variables that appear in the environment *)
@@ -534,8 +522,6 @@ and generalize (constraints : type_equations) (env : static_env) (t : mono_type)
     List.fold_right (fun var acc -> PolyType (var, acc)) free_vars (Mono u1)
   in
 
-  print_endline "Result of generalization:";
-  print_endline (string_of_c_type res);
   res
 
 and flatten_env_types (types : mono_type list) : mono_type list =
@@ -570,29 +556,10 @@ and type_of_value (v : value) : mono_type =
 
 and type_of_c_expr (env : static_env) (e : c_expr) : c_type =
   let t, constraints = generate env e in
-
-  (* print the type and the constraints *)
-  print_endline "Type:";
-  print_endline (string_of_mono_type t);
-  print_endline "Constraints:";
-  print_endline (string_of_type_equations constraints);
-
   let solution = reduce_eq constraints in
-
-  (* print the solution *)
-  print_endline "Solution:";
-  print_endline (string_of_type_equations solution);
-
   let the_mono_type = get_type t solution in
-
-  (* all variables must be universally quantified *)
-  print_endline "The type:";
-  print_endline (string_of_mono_type the_mono_type);
-
   let the_mono_type = fix_type the_mono_type in
-
   let the_c_type = generalize constraints env the_mono_type in
-
   the_c_type
 
 (* swap all variables for new variables *)

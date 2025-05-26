@@ -139,7 +139,7 @@ module ParserUtils = struct
     List.fold_left ( <|> ) fail parsers
 
   let unimplemented_parser (parser_name : string) : 'a parser =
-    print_endline ("WARNING! Unimplemented parser: " ^ parser_name);
+    ignore parser_name;
     fail
 
   let remove_last (lst : 'a list) : 'a * 'a list =
@@ -199,7 +199,7 @@ module ParserUtils = struct
         | _ -> failwith "impossible")
 
   let parse_print (msg : string) : unit parser =
-    print_endline msg;
+    ignore msg;
     return ()
 
   (** [parse_print_tokens ()] is a parser utility function for debugging.
@@ -211,11 +211,7 @@ module ParserUtils = struct
 
       This is useful for inspecting the state of the token list at a particular
       point in the parsing process. *)
-  let parse_print_tokens () : unit parser =
-   fun tokens ->
-    print_endline "Tokens:";
-    List.iter (fun t -> print_endline (string_of_token_type t)) tokens;
-    Some ((), tokens)
+  let parse_print_tokens () : unit parser = fun tokens -> Some ((), tokens)
 
   (** [dispatch_parser dispatch_list default_parsers] creates a parser that
       selects an appropriate sub-parser based on the current input tokens.

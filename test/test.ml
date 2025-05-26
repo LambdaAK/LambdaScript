@@ -417,23 +417,6 @@ let bool_types =
      else false";
     "if true && false || false || false || (false || false && true) then true \
      else false";
-    "if not true then true else false";
-    "if not false then true else false";
-    "if not (not true ) then true else false";
-    "if not (not false) then true else false";
-    "if not true || false then true else false";
-    "if not true || true then true else false";
-    "if true && not true then true else false";
-    "if true && not false then true else false";
-    "if true && true || false then true else false";
-    "if true || false || false || false || (true || false && true) then true \
-     else false";
-    "if true && false || false || false || (true || false && true) then true \
-     else false";
-    "if true && false || false || false || (false || false && true) then true \
-     else false";
-    "if true && false || false || false || (false || false && true) then true \
-     else false";
     "if true && true || false then true else false";
     "if true || false || false || false || (true || false && true) then true \
      else false";

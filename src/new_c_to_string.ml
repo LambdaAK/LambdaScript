@@ -4,7 +4,7 @@ let rec string_of_mono_type : mono_type -> string = function
   | IntType -> "int"
   | FloatType -> "float"
   | BoolType -> "bool"
-  | StringType -> "string"
+  | StringType -> "str"
   | UnitType -> "unit"
   | TypeVar v -> v
   | FunctionType (t1, t2) ->

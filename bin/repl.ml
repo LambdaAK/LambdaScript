@@ -61,6 +61,18 @@ let test_one =
 in map (\x -> if x then false else true) [true, false, true]
 |}
 
+let test_two =
+  {|
+let f one two three four five six seven eight nine ten eleven twelve
+      thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty
+      twentyone twentytwo twentythree twentyfour twentyfive twentysix
+      twentyseven twentyeight twentynine thirty thirtyone thirtytwo
+      thirtythree thirtyfour thirtyfive thirtysix thirtyseven thirtyeight
+      thirtynine forty fortyone fortytwo fortythree fortyfour fortyfive
+      fortysix fortyseven fortyeight fortynine fifty fiftyone fiftytwo fiftythree fiftyfour fiftyfive
+      fiftysix fiftyseven fiftyeight fiftynine sixty = one in f
+|}
+
 let () =
   ignore
     ( map_string,
@@ -68,9 +80,11 @@ let () =
       fold_left_string,
       fold_right_string,
       flip_string,
-      trivial_string )
+      trivial_string,
+      test_one,
+      test_two )
 
-let chars = test_one |> String.to_seq |> List.of_seq
+let chars = test_two |> String.to_seq |> List.of_seq
 let lexed = lex chars |> List.map (fun t -> t.token_type)
 let e = expr_parser lexed |> Option.get |> fst
 
