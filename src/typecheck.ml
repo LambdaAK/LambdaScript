@@ -5,6 +5,26 @@ open Typefixer
 type type_equation = mono_type * mono_type
 type type_equations = type_equation list
 
+type type_error =
+  | UnboundVariable of string
+  | TypeMismatch of mono_type * mono_type
+  | PatternMismatch of c_pat * mono_type
+  | OtherError of string
+
+type 'a type_check_result =
+  | Ok of 'a
+  | Error of type_error
+
+let return (x : 'a) : 'a type_check_result = Ok x
+
+let ( >>= ) (x : 'a type_check_result) (f : 'a -> 'b type_check_result) :
+    'b type_check_result =
+  match x with
+  | Ok x -> f x
+  | Error e -> Error e
+
+let ( let* ) = ( >>= )
+
 exception TypeFailure
 
 (* Algorithm for performing type inference:
@@ -507,14 +527,6 @@ and get_type_vars (t : mono_type) : mono_type list =
   | VectorType types -> List.flatten (List.map get_type_vars types)
   | CListType et -> get_type_vars et
   | _ -> []
-
-(** [type_of_value v] determines the type of a runtime value.
-
-    @param v The value to determine the type of
-    @return The monomorphic type of the value *)
-and type_of_value (v : value) : mono_type =
-  ignore v;
-  failwith "not implemented: type_of_value"
 
 and type_of_c_expr (env : static_env) (e : c_expr) : c_type =
   let t, constraints = generate env e in
