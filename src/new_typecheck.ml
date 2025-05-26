@@ -568,8 +568,8 @@ and type_of_value (v : value) : mono_type =
   ignore v;
   failwith "not implemented: type_of_value"
 
-and type_of_c_expr (e : c_expr) : c_type =
-  let t, constraints = generate [] e in
+and type_of_c_expr (env : static_env) (e : c_expr) : c_type =
+  let t, constraints = generate env e in
 
   (* print the type and the constraints *)
   print_endline "Type:";
@@ -591,7 +591,7 @@ and type_of_c_expr (e : c_expr) : c_type =
 
   let the_mono_type = fix_type the_mono_type in
 
-  let the_c_type = generalize [] [] the_mono_type in
+  let the_c_type = generalize constraints env the_mono_type in
 
   the_c_type
 

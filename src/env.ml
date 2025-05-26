@@ -1,14 +1,14 @@
-open Cexpr
+open New_cexpr
 
 (* definitions of initial dynamic and static environments *)
 
 let built_ins : (string * value * c_type) list =
   [
-    ("println", BuiltInFunction Println, StringType => UnitType);
-    ("print", BuiltInFunction Print, StringType => UnitType);
-    ("int_to_str", BuiltInFunction IntToString, IntType => StringType);
-    ("int_to_float", BuiltInFunction IntToFloat, IntType => FloatType);
-    ("float_to_int", BuiltInFunction FloatToInt, FloatType => IntType);
+    ("println", BuiltInFunction Println, Mono (StringType => UnitType));
+    ("print", BuiltInFunction Print, Mono (StringType => UnitType));
+    ("int_to_str", BuiltInFunction IntToString, Mono (IntType => StringType));
+    ("int_to_float", BuiltInFunction IntToFloat, Mono (IntType => FloatType));
+    ("float_to_int", BuiltInFunction FloatToInt, Mono (FloatType => IntType));
   ]
 
 let built_ins_values : (string * value) list =

@@ -1,6 +1,6 @@
 open Lex
-open Condense
-open Cexpr
+open New_condense
+open New_cexpr
 open Env
 open New_parser.ExprParser
 
@@ -59,21 +59,51 @@ let rec bind_pat (p : c_pat) (v : value) : env option =
       | _ -> None)
   | _ -> None
 
+open New_cexpr
+(** [bind_static p t] attempts to match the pattern [p] against the type [t] in
+    a static (type-level) context. If the pattern matches the type, it returns
+    [Some bindings], where [bindings] is a list of (variable name, type) pairs
+    for each identifier bound in the pattern. If the pattern does not match the
+    type, it returns [None].
+
+    - [CUnitPat, UnitType]: matches the unit pattern to the unit type, returns
+      empty bindings.
+    - [CWildcardPat, _]: wildcard pattern matches any type, returns empty
+      bindings.
+    - [CIdPat s, _]: identifier pattern matches any type, binds the identifier
+      to the type.
+    - [CVectorPat patterns, VectorType types]: recursively matches each pattern
+      in the vector to the corresponding type in the vector type. Returns the
+      combined bindings if all match, otherwise [None].
+    - [_]: any other pattern-type combination does not match, returns [None]. *)
+
 let rec bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
-  match (p, t) with
-  | CUnitPat, UnitType -> Some []
-  | CWildcardPat, _ -> Some []
-  | CIdPat s, _ -> Some [ (s, t) ]
-  | CVectorPat patterns, VectorType types -> (
-      match (patterns, types) with
-      | [], [] -> Some []
-      | p :: pt, t :: tt -> (
-          match bind_static p t with
-          | None -> None
-          | Some bindings -> (
-              match bind_static (CVectorPat pt) (VectorType tt) with
+  (* Helper to extract the monomorphic type from a c_type, if possible *)
+  let rec get_mono_type (t : c_type) : mono_type option =
+    match t with
+    | Mono m -> Some m
+    | PolyType (_, t') -> get_mono_type t'
+  in
+  match p with
+  | CUnitPat -> (
+      match get_mono_type t with
+      | Some UnitType -> Some []
+      | _ -> None)
+  | CWildcardPat -> Some []
+  | CIdPat s -> Some [ (s, t) ]
+  | CVectorPat patterns -> (
+      match get_mono_type t with
+      | Some (VectorType types) -> (
+          match (patterns, types) with
+          | [], [] -> Some []
+          | p :: pt, t :: tt -> (
+              match bind_static p (Mono t) with
               | None -> None
-              | Some bindings' -> Some (bindings @ bindings')))
+              | Some bindings -> (
+                  match bind_static (CVectorPat pt) (Mono (VectorType tt)) with
+                  | None -> None
+                  | Some bindings' -> Some (bindings @ bindings')))
+          | _ -> None)
       | _ -> None)
   | _ -> None
 
@@ -315,16 +345,26 @@ let c_eval (s : string) : string =
       string_of_value result
 
 let rec create_generic_type : c_pat -> c_type = function
-  | CUnitPat -> UnitType
-  | CWildcardPat -> fresh_type_var ()
-  | CIdPat _ -> fresh_type_var ()
-  | CIntPat _ -> IntType
-  | CStringPat _ -> StringType
-  | CBoolPat _ -> BoolType
-  | CNilPat -> CListType (fresh_type_var ())
-  | CConsPat _ -> CListType (fresh_type_var ())
+  | CUnitPat -> Mono UnitType
+  | CWildcardPat -> Mono (fresh_type_var ())
+  | CIdPat _ -> Mono (fresh_type_var ())
+  | CIntPat _ -> Mono IntType
+  | CStringPat _ -> Mono StringType
+  | CBoolPat _ -> Mono BoolType
+  | CNilPat -> Mono (CListType (fresh_type_var ()))
+  | CConsPat _ -> Mono (CListType (fresh_type_var ()))
   | CVectorPat patterns ->
-      VectorType (List.map (fun p -> create_generic_type p) patterns)
+      Mono
+        (VectorType
+           (List.map
+              (fun p ->
+                match create_generic_type p with
+                | Mono t -> t
+                | PolyType (_, _) ->
+                    failwith
+                      "Polymorphic types not supported in create_generic_type \
+                       for vectors")
+              patterns))
 
 let rec expr_of_pat : c_pat -> c_expr = function
   | CUnitPat -> EUnit

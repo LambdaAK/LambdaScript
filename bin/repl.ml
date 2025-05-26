@@ -3,21 +3,8 @@ open Language.New_parser.ExprParser
 open Language.New_condense
 open Language.New_c_to_string
 open Language.New_typecheck
-open Language.New_cexpr
-
-let t : mono_type = fresh_type_var ()
-
-let () =
-  print_endline "t: ";
-  print_endline (string_of_mono_type t)
-
-let new_t = swap_all_variables_in_type t
-
-let () =
-  print_endline "new_t: ";
-  print_endline (string_of_mono_type new_t)
-
-(* other stuff *)
+open Language.Ceval
+open Language.Env
 
 let () = print_endline "other stuff"
 
@@ -65,6 +52,15 @@ let trivial_string = {|
   let rec f x = f x in f
 |}
 
+let test_one =
+  {|
+  let rec map f lst = switch lst =>
+  | [] -> []
+  | h :: t -> f h :: map f t
+  end
+in map (\x -> if x then false else true) [true, false, true]
+|}
+
 let () =
   ignore
     ( map_string,
@@ -74,7 +70,7 @@ let () =
       flip_string,
       trivial_string )
 
-let chars = fold_left_string |> String.to_seq |> List.of_seq
+let chars = test_one |> String.to_seq |> List.of_seq
 let lexed = lex chars |> List.map (fun t -> t.token_type)
 let e = expr_parser lexed |> Option.get |> fst
 
@@ -86,5 +82,13 @@ let () =
   print_endline "Parsed expression";
   print_endline (string_of_expr ce)
 
-let t = type_of_c_expr ce
+let t = type_of_c_expr built_ins_types ce
 let () = t |> string_of_c_type |> print_endline
+
+(* then, evaluate the expression and print the result *)
+
+let value = eval_c_expr ce []
+
+let () =
+  print_endline "Value: ";
+  print_endline (string_of_value value)

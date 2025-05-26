@@ -1,8 +1,8 @@
 open OUnit2
 open Language.Ceval
-open Language.Typecheck
-open Language.Condense
-open Language.Ctostringtree.CToStringTree
+open Language.New_typecheck
+open Language.New_condense
+open Language.New_c_to_string
 open Language.Lex
 open Language.Env
 open Language.New_parser.ExprParser
@@ -272,9 +272,11 @@ let type_test (expr : string) (expected_output : string) : test =
         match a with
         | None -> failwith "Could not parse the expression"
         | Some (e, _) ->
-            let c_e = condense_expr e in
+            let c_e : Language.New_cexpr.c_expr = condense_expr e in
 
-            let t = type_of_c_expr c_e [] in
+            let t : Language.New_cexpr.c_type =
+              type_of_c_expr built_ins_types c_e
+            in
             (id, t))
       code_mapping
     @ built_ins_types
@@ -291,7 +293,7 @@ let type_test (expr : string) (expected_output : string) : test =
     | Some (e, _) -> e
   in
   let condensed_expr = condense_expr parsed_expr in
-  let type_result = type_of_c_expr condensed_expr static_env in
+  let type_result = type_of_c_expr static_env condensed_expr in
   let type_string = string_of_c_type type_result in
 
   assert_equal type_string expected_output

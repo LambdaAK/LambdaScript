@@ -1,5 +1,6 @@
 open Lex
 open Expr
+open Tostring
 
 (* Idea - Make a module for each level of parser - Use a functor to combine them
    - Use another functor to then combine all of those into condensed parser
@@ -198,9 +199,23 @@ module ParserUtils = struct
         | _ -> failwith "impossible")
 
   let parse_print (msg : string) : unit parser =
-    ignore msg;
-    let* () = return () in
+    print_endline msg;
     return ()
+
+  (** [parse_print_tokens ()] is a parser utility function for debugging.
+
+      When invoked, it prints all tokens currently available to the parser to
+      standard output, one per line, prefixed by "Tokens:". It does not consume
+      or modify the token stream, and always succeeds, returning
+      [Some ((), tokens)].
+
+      This is useful for inspecting the state of the token list at a particular
+      point in the parsing process. *)
+  let parse_print_tokens () : unit parser =
+   fun tokens ->
+    print_endline "Tokens:";
+    List.iter (fun t -> print_endline (string_of_token_type t)) tokens;
+    Some ((), tokens)
 
   (** [dispatch_parser dispatch_list default_parsers] creates a parser that
       selects an appropriate sub-parser based on the current input tokens.
@@ -764,7 +779,12 @@ end = struct
     let* () = expect_token Equals in
     let* e1 = expr_parser () in
     let* () = expect_token In in
+    (* TODO: Try printing what the remaining tokens are here *)
     let* e2 = expr_parser () in
+
+    (* print what e2 is *)
+    let* () = parse_print "e2:" in
+    let* () = parse_print (string_of_expr e2) in
 
     (* wrap body in functions *)
     let rec wrap_e1_in_functions body
