@@ -220,7 +220,8 @@ let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
   | EListEnumeration (e1, e2) ->
       let t1, c1 = generate env e1 in
       let t2, c2 = generate env e2 in
-      (CListType t1, ((CListType t1, t2) :: c1) @ c2)
+      (* Enumerations can only be done with integers *)
+      (CListType IntType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
   | EListComprehension (e, generators) ->
       let env, generator_constraints =
         List.fold_left
