@@ -49,6 +49,15 @@ and condense_expr : expr -> c_expr = function
   | Ternary (e1, e2, e3) ->
       ETernary (condense_expr e1, condense_expr e2, condense_expr e3)
   | ConsExpr ce -> condense_cons_expr ce
+  | Bind (pat, cto, e1, e2) ->
+      (* TODO: fix this later *)
+      EBind
+        ( condense_pat pat,
+          (match cto with
+          | None -> None
+          | Some ct -> Some (condense_type ct)),
+          condense_expr e1,
+          condense_expr e2 )
   | BindRec (pat, cto, e1, e2) ->
       EBindRec
         ( condense_pat pat,

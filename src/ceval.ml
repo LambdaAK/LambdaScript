@@ -166,6 +166,15 @@ let rec eval_c_expr (ce : c_expr) (env : env) =
           | Some env'' -> eval_c_expr e (env'' @ env')
           | None -> failwith "eval_c_expr: EApp")
       | _ -> failwith "eval_c_expr: EApp")
+  | EBind (pattern, _, e1, e2) ->
+      (* We have let p = e1 in e2. We can convert this to (fun p -> e2) e1 and
+         evaluate that instead. As far as dynamic semantics go, they are the
+         same thing! *)
+
+      (* construct the modified expression *)
+      let modified_expr = EApp (EFunction (pattern, None, e2), e1) in
+      (* evaluate the modified expression *)
+      eval_c_expr modified_expr env
   | EBindRec (pattern, _, e1, e2) -> (
       let v1 : value = eval_c_expr e1 env in
       let v1_rec =

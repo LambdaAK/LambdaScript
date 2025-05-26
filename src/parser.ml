@@ -794,58 +794,33 @@ end = struct
       (BindRec
          (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2))
 
-  and expr_to_factor (e : expr) : factor = ParenFactor e
-
-  and expr_to_app_factor (e : expr) : app_factor =
-    FactorUnderApplication (expr_to_factor e)
-
-  and app_factor_to_expr (af : app_factor) : expr =
-    ConsExpr
-      (DisjunctionUnderCons
-         (ConjunctionUnderDisjunction
-            (RelationUnderConjunction
-               (ArithmeticUnderRelExpr (Term (Factor af))))))
-
   and bind_parser () : expr parser =
     let* () = expect_token Let in
     let* pat, cto = pat_and_type_annotation_parser in
-
     (* parse argument patterns *)
-    let* args_pats_and_type_annotations =
+    let* arg_pats_and_type_annotations : (pat * compound_type option) list =
       parse_several pat_and_type_annotation_parser
     in
     let* () = expect_token Equals in
     let* e1 = expr_parser () in
     let* () = expect_token In in
+    (* TODO: Try printing what the remaining tokens are here *)
     let* e2 = expr_parser () in
 
-    (* 
+    (* print what e2 is *)
+    let* () = parse_print "e2:" in
+    let* () = parse_print (string_of_expr e2) in
 
-       we now have
-
-       let pat a b c .... = e1 in e2
-
-       we will represent this as
-
-       (fun a -> fun b -> fun c -> .... -> e2) e1 *)
-    let rec wrap e1 args_pats_and_type_annotations =
-      match args_pats_and_type_annotations with
-      | [] -> e1
-      | (pat, cto) :: rest -> Function (pat, cto, wrap e1 rest)
+    (* wrap body in functions *)
+    let rec wrap_e1_in_functions body
+        (arg_pats_and_type_annotations : (pat * compound_type option) list) =
+      match arg_pats_and_type_annotations with
+      | [] -> body
+      | (pat, cto) :: rest -> Function (pat, cto, wrap_e1_in_functions body rest)
     in
 
-    let assigned_expression = wrap e1 args_pats_and_type_annotations in
-
-    let func = Function (pat, cto, e2) in
-
-    (* fix assigned_expression and func *)
-    let app =
-      Application (expr_to_app_factor func, expr_to_factor assigned_expression)
-    in
-
-    let final = app_factor_to_expr app in
-
-    return final
+    return
+      (Bind (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2))
 
   and branch_parser () : switch_branch parser =
     (* | pat -> expr *)

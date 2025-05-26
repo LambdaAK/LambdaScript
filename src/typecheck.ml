@@ -182,6 +182,20 @@ let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
           let type_of_expression = fresh_type_var () in
           let new_constraint = (t1, FunctionType (t2, type_of_expression)) in
           (type_of_expression, (new_constraint :: c1) @ c2))
+  | EBind (pat, cto, e1, e2) ->
+      (* let pat [: t] = e1 in e2 *)
+      let t_pat, pat_env, pat_constraints = type_of_pat pat in
+      let t1, c1 = generate env e1 in
+      let annotation_constraints =
+        match cto with
+        | Some t -> [ (t_pat, instantiate t) ]
+        | None -> []
+      in
+      let new_constraint = (t_pat, t1) in
+      let t2, c2 = generate (pat_env @ env) e2 in
+      ( t2,
+        pat_constraints @ annotation_constraints @ (new_constraint :: c1) @ c2
+      )
   | EBindRec (pat, _, e1, e2) ->
       (* EBindRec (pat, _, e1, e2): let rec pat = e1 in e2 *)
       let function_id =

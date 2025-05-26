@@ -56,6 +56,14 @@ let rec string_of_expr : c_expr -> string = function
         | None -> ""
       in
       "fn " ^ string_of_pat pat ^ type_annot ^ " -> " ^ string_of_expr body
+  | EBind (pat, t_opt, e1, e2) ->
+      let type_annot =
+        match t_opt with
+        | Some t -> " : " ^ string_of_type t
+        | None -> ""
+      in
+      "let " ^ string_of_pat pat ^ type_annot ^ " = " ^ string_of_expr e1
+      ^ " in " ^ string_of_expr e2
   | EBindRec (pat, t_opt, e1, e2) ->
       let type_annot =
         match t_opt with

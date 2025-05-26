@@ -47,6 +47,7 @@ and expr =
   | Function of pat * compound_type option * expr
   | Ternary of expr * expr * expr
   | ConsExpr of cons_expr
+  | Bind of pat * compound_type option * expr * expr
   | BindRec of pat * compound_type option * expr * expr
   | Switch of expr * switch_branch list
 
