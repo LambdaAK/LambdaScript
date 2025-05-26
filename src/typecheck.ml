@@ -167,21 +167,12 @@ let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
       ( input_type => output_type,
         constraints_from_pattern @ constraints_from_type_annotation @ c_output
       )
-  | EApp (e1, e2) -> (
-      match e1 with
-      | EFunction (CIdPat _, _, _) ->
-          (* TODO: In the future, we won't need this because we will make a new
-             AST variant for let expressions.
-
-             This currently takes care of let expressions, but it shouldn't
-             actually work in OCaml. *)
-          generate_e_app_function_pat_is_id env e1 e2
-      | _ ->
-          let t1, c1 = generate env e1 in
-          let t2, c2 = generate env e2 in
-          let type_of_expression = fresh_type_var () in
-          let new_constraint = (t1, FunctionType (t2, type_of_expression)) in
-          (type_of_expression, (new_constraint :: c1) @ c2))
+  | EApp (e1, e2) ->
+      let t1, c1 = generate env e1 in
+      let t2, c2 = generate env e2 in
+      let result_type = fresh_type_var () in
+      let app_constraint = (t1, FunctionType (t2, result_type)) in
+      (result_type, (app_constraint :: c1) @ c2)
   | EBind (pat, cto, e1, e2) ->
       (* let pat [: t] = e1 in e2 *)
       let t_pat, pat_env, pat_constraints = type_of_pat pat in
@@ -281,52 +272,6 @@ let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
         |> List.flatten
       in
       (type_that_all_branch_expressions_must_be, c1 @ branch_constraints)
-
-and generate_e_app_function_pat_is_id (env : static_env) (e1 : c_expr)
-    (e2 : c_expr) : mono_type * type_equations =
-  match e1 with
-  | EFunction (pattern, cto, body) ->
-      (* Get the function parameter name *)
-      let function_id : string =
-        match pattern with
-        | CIdPat id -> id
-        | _ -> failwith "not a valid pattern in new_typecheck.ml"
-      in
-
-      (* Get type and constraints from the pattern *)
-      let input_type, new_env_bindings, constraints_from_pattern =
-        type_of_pat pattern
-      in
-      let constraints_from_type_annotation : type_equations =
-        match cto with
-        | Some t -> [ (input_type, instantiate t) ]
-        | None -> []
-      in
-
-      (* Generate type and constraints for the argument *)
-      let t1, c1 = generate (new_env_bindings @ env) e2 in
-
-      (* Generalize the argument type to handle polymorphism *)
-      let generalized_type : c_type =
-        generalize c1 (new_env_bindings @ env) t1
-      in
-
-      (* Generate type and constraints for the function body *)
-      let t2, c2 = generate ((function_id, generalized_type) :: env) body in
-
-      (* Create a fresh type variable for the result *)
-      let output_type = fresh_type_var () in
-
-      ( output_type,
-        ((t2, output_type) :: constraints_from_pattern)
-        @ constraints_from_type_annotation @ c1 @ c2 )
-  | _ ->
-      (* If first is not a function, use the standard application logic *)
-      let t1, c1 = generate env e1 in
-      let t2, c2 = generate env e2 in
-      let type_of_expression = fresh_type_var () in
-      let new_constraint = (t1, FunctionType (t2, type_of_expression)) in
-      (type_of_expression, (new_constraint :: c1) @ c2)
 
 and type_of_pat (pat : c_pat) : mono_type * static_env * type_equations =
   match pat with

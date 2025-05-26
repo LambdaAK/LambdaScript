@@ -705,9 +705,6 @@ let polymorphism_tests =
     ("let f x = x in let g = f in g f", "a -> a");
     ("let f x = x in let g = f in f g f g", "a -> a");
     ("let f x = x in let a = f 1 in f true", "bool");
-    ("(\\ f -> f 1 < 5 || f true) (\\ x -> x)", "bool");
-    ("(\\ f -> (f 0 1) < 5 || (f true 0)) (\\ x -> \\ y -> x)", "bool");
-    ("(\\ f -> (f 0 1) < 5 || (f true false)) (\\ x -> \\ y -> y)", "bool");
     ( {|
     let f x = x in
     let g = f in
@@ -723,21 +720,6 @@ let polymorphism_tests =
     (f f f f g g g g g g h h h h h h h i i i i i i f f f f f f f g g g g g g h h h h h i i i i i f f f f f f f f f f f f f f f f f f f g g g g g g g) 1 < 2 || (f g h f) true
   |},
       "bool" );
-    ( {|
-    (\ f -> 
-      (\ g -> 
-        g 1 < 5 || g true) 
-      f) (\ x -> x)
-  |},
-      "bool" );
-    ( {|
-    (\ x -> \ y -> \ z -> x y || x 1 < 2) (\ x -> x) true ()
-  |},
-      "bool" );
-    ( {|
-    (\ x -> \ y -> \ z -> x y || x 1 < 2) (\ x -> x) true
-  |},
-      "a -> bool" );
   ]
 
 let switch_type_tests =
