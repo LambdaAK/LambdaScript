@@ -13,20 +13,22 @@ let rec string_of_mono_type : mono_type -> string = function
         | FunctionType _ -> "(" ^ string_of_mono_type t1 ^ ")"
         | _ -> string_of_mono_type t1
       in
-      let t2_str =
-        match t2 with
-        | FunctionType _ -> "(" ^ string_of_mono_type t2 ^ ")"
-        | _ -> string_of_mono_type t2
-      in
-      t1_str ^ " -> " ^ t2_str
+      t1_str ^ " -> " ^ string_of_mono_type t2
   | VectorType ts ->
       let ts_str = List.map string_of_mono_type ts in
       "(" ^ String.concat ", " ts_str ^ ")"
   | CListType t -> "[" ^ string_of_mono_type t ^ "]"
 
-let rec string_of_c_type : c_type -> string = function
+let string_of_c_type (ct : c_type) : string =
+  let rec collect_vars acc = function
+    | PolyType (v, body) -> collect_vars (acc @ [ v ]) body
+    | Mono t -> (acc, t)
+  in
+  match ct with
   | Mono t -> string_of_mono_type t
-  | PolyType (var, body) -> "∀" ^ var ^ ". " ^ string_of_c_type body
+  | PolyType _ ->
+      let _, t = collect_vars [] ct in
+      string_of_mono_type t
 
 let rec string_of_pat : c_pat -> string = function
   | CIntPat i -> string_of_int i

@@ -86,11 +86,6 @@ let rec string_of_static_env (env : static_env) : string =
   | (id, t) :: env' ->
       id ^ " : " ^ string_of_c_type t ^ "\n" ^ string_of_static_env env'
 
-and string_of_c_type (t : c_type) : string =
-  match t with
-  | Mono t -> string_of_mono_type t
-  | PolyType (id, t) -> "∀" ^ id ^ "." ^ string_of_c_type t
-
 and string_of_mono_type (t : mono_type) : string =
   match t with
   | IntType -> "int"
