@@ -274,8 +274,10 @@ let type_test (expr : string) (expected_output : string) : test =
         | Some (e, _) ->
             let c_e : Language.Cexpr.c_expr = condense_expr e in
 
-            let t : Language.Cexpr.c_type =
-              type_of_c_expr built_ins_types c_e
+            let t =
+              match type_of_c_expr built_ins_types c_e with
+              | Ok t -> t
+              | _ -> failwith "type failure"
             in
             (id, t))
       code_mapping
@@ -293,7 +295,11 @@ let type_test (expr : string) (expected_output : string) : test =
     | Some (e, _) -> e
   in
   let condensed_expr = condense_expr parsed_expr in
-  let type_result = type_of_c_expr static_env condensed_expr in
+  let type_result =
+    match type_of_c_expr static_env condensed_expr with
+    | Ok t -> t
+    | _ -> failwith "type failure"
+  in
   let type_string = string_of_c_type type_result in
 
   assert_equal type_string expected_output

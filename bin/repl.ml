@@ -88,7 +88,11 @@ let () =
   print_endline "Parsed expression";
   print_endline (string_of_expr ce)
 
-let t = type_of_c_expr built_ins_types ce
+let t =
+  match type_of_c_expr built_ins_types ce with
+  | Ok t -> t
+  | _ -> failwith "type failure"
+
 let () = t |> string_of_c_type |> print_endline
 
 (* then, evaluate the expression and print the result *)
