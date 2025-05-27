@@ -286,7 +286,7 @@ and generate_e_bind (env : static_env) (pat : c_pat) (cto : c_type option)
   in
   let new_constraint = (t_pat, t1) in
   (* Generalize the type of e1 before using it in e2 *)
-  let generalized_type = generalize (new_constraint :: c1) env t1 in
+  let* generalized_type = generalize (new_constraint :: c1) env t1 in
   let* t2, c2 =
     generate ((fst (List.hd pat_env), generalized_type) :: env) e2
   in
@@ -315,7 +315,7 @@ and generate_e_bind_rec (env : static_env) (pat : c_pat) (e1 : c_expr)
   (* Add constraint that function_type must equal t1 *)
   let new_constraint = (function_type, t1) in
   (* Generalize the function type to make it polymorphic *)
-  let generalized_type = generalize (new_constraint :: c1) new_env t1 in
+  let* generalized_type = generalize (new_constraint :: c1) new_env t1 in
   let* t2, c2 = generate ((function_id, generalized_type) :: env) e2 in
   return (t2, (new_constraint :: c1) @ c2)
 
@@ -625,7 +625,7 @@ and instantiate (t : c_type) : mono_type =
     @param t The monomorphic type to generalize
     @return A polymorphic type with appropriate universal quantifiers *)
 and generalize (constraints : type_equations) (env : static_env) (t : mono_type)
-    : c_type =
+    : c_type type_check_result =
   (* First reduce the constraints to get a solution *)
   let solution = reduce_eq constraints in
 
@@ -654,8 +654,7 @@ and generalize (constraints : type_equations) (env : static_env) (t : mono_type)
   let res =
     List.fold_right (fun var acc -> PolyType (var, acc)) free_vars (Mono u1)
   in
-
-  res
+  return res
 
 and flatten_env_types (types : mono_type list) : mono_type list =
   match types with
@@ -684,15 +683,16 @@ and type_of_c_expr (env : static_env) (e : c_expr) : c_type type_check_result =
   let solution = reduce_eq constraints in
   let the_mono_type = get_type t solution in
   let the_mono_type = fix_type the_mono_type in
-  let the_c_type = generalize constraints env the_mono_type in
+  let* the_c_type = generalize constraints env the_mono_type in
   return the_c_type
 
 (* swap all variables for new variables *)
-and swap_all_variables_in_type (t : mono_type) : mono_type =
+and swap_all_variables_in_type (t : mono_type) : mono_type type_check_result =
   (* First generalize the type to quantify over all variables *)
-  let generalized = generalize [] [] t in
+  let* generalized = generalize [] [] t in
   (* Then instantiate it to get fresh variables *)
-  instantiate generalized
+  let instantiated = instantiate generalized in
+  return instantiated
 
 let rec get_mono_type (t : c_type) : mono_type =
   match t with
