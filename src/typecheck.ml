@@ -684,18 +684,26 @@ and generalize (constraints : type_equations) (env : static_env) (t : mono_type)
 
   (* Get all types from the environment *)
   let env_types = List.map snd env in
-  (* TODO: this code is kind of sus, but I think it works *)
   let env_types = List.map instantiate env_types in
   let env_types = flatten_env_types env_types in
 
   (* Filter out type variables that appear in the environment *)
-  let free_vars =
-    List.filter (fun t -> not (List.mem t env_types)) type_vars
-    |> List.map (function
-         | TypeVar v -> v
-         | _ -> failwith "not a type var")
-    |> List.sort_uniq compare
+  let free_vars_result =
+    type_vars
+    |> List.filter (fun t -> not (List.mem t env_types))
+    |> List.fold_left
+         (fun acc t ->
+           match acc with
+           | Error _ as e -> e
+           | Ok vars -> (
+               match t with
+               | TypeVar v -> Ok (v :: vars)
+               | _ -> Error (OtherError "not a type var")))
+         (Ok [])
   in
+
+  let* free_vars = free_vars_result in
+  let free_vars = List.sort_uniq compare free_vars in
 
   (* Create a polymorphic type by quantifying over free variables *)
   let res =
