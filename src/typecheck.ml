@@ -140,158 +140,178 @@ and string_of_mono_type (t : mono_type) : string =
       A pair [(t, constraints)] where [t] is the inferred type and [constraints]
       is the list of type equations *)
 let rec generate (env : static_env) (e : c_expr) : mono_type * type_equations =
-  (* pattern match on e *)
   match e with
-  | EInt _ -> (IntType, [])
-  | EFloat _ -> (FloatType, [])
-  | EBool _ -> (BoolType, [])
-  | EString _ -> (StringType, [])
-  | EUnit -> (UnitType, [])
-  | ENil -> (CListType (fresh_type_var ()), [])
-  | EId x ->
-      let uninstantiated : c_type = List.assoc x env in
-      let t = instantiate uninstantiated in
-      (t, [])
-  | EBop (op, e1, e2) ->
-      let t1, c1 = generate env e1 in
-      let t2, c2 = generate env e2 in
-      begin
-        match op with
-        | CCons ->
-            (* e1 :: e2, e2 must be a list of the type of e1 *)
-            (t2, ((CListType t1, t2) :: c1) @ c2)
-        | CPlus | CMinus | CMul | CDiv | CMod ->
-            (* arithmetic: both operands must be int, result is int *)
-            (IntType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
-        | CGE | CGT | CLE | CLT ->
-            (* comparisons: both operands must be int, result is bool *)
-            (BoolType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
-        | CEQ | CNE ->
-            (* equality/inequality: operands must be same type, result is
-               bool *)
-            (BoolType, ((t1, t2) :: c1) @ c2)
-        | CAnd | COr ->
-            (* logical: both operands must be bool, result is bool *)
-            (BoolType, ((t1, BoolType) :: (t2, BoolType) :: c1) @ c2)
-      end
-  | EFunction (pat, cto, body) ->
-      let input_type, new_env_bindings, constraints_from_pattern =
-        type_of_pat pat
-      in
-      let constraints_from_type_annotation : type_equations =
-        match cto with
-        | Some t -> [ (input_type, instantiate t) ]
-        | None -> []
-      in
-      let output_type, c_output = generate (new_env_bindings @ env) body in
-      ( input_type => output_type,
-        constraints_from_pattern @ constraints_from_type_annotation @ c_output
-      )
-  | EApp (e1, e2) ->
-      let t1, c1 = generate env e1 in
-      let t2, c2 = generate env e2 in
-      let result_type = fresh_type_var () in
-      let app_constraint = (t1, FunctionType (t2, result_type)) in
-      (result_type, (app_constraint :: c1) @ c2)
-  | EBind (pat, cto, e1, e2) ->
-      (* let pat [: t] = e1 in e2 *)
-      let t_pat, pat_env, pat_constraints = type_of_pat pat in
-      let t1, c1 = generate env e1 in
-      let annotation_constraints =
-        match cto with
-        | Some t -> [ (t_pat, instantiate t) ]
-        | None -> []
-      in
-      let new_constraint = (t_pat, t1) in
-      (* Generalize the type of e1 before using it in e2 *)
-      let generalized_type = generalize (new_constraint :: c1) env t1 in
-      let t2, c2 =
-        generate ((fst (List.hd pat_env), generalized_type) :: env) e2
-      in
-      ( t2,
-        pat_constraints @ annotation_constraints @ (new_constraint :: c1) @ c2
-      )
-  | EBindRec (pat, _, e1, e2) ->
-      (* EBindRec (pat, _, e1, e2): let rec pat = e1 in e2 *)
-      let function_id =
-        match pat with
-        | CIdPat id -> id
-        | _ -> failwith "not a valid pattern in new_typecheck.ml"
-      in
-      let function_type = fresh_type_var () in
-      let new_env = (function_id, Mono function_type) :: env in
-      let t1, c1 = generate new_env e1 in
-      (* Add constraint that function_type must equal t1 *)
-      let new_constraint = (function_type, t1) in
-      (* Generalize the function type to make it polymorphic *)
-      let generalized_type = generalize (new_constraint :: c1) new_env t1 in
-      let t2, c2 = generate ((function_id, generalized_type) :: env) e2 in
-      (t2, (new_constraint :: c1) @ c2)
-  | ETernary (e1, e2, e3) ->
-      let t1, c1 = generate env e1 in
-      let t2, c2 = generate env e2 in
-      let t3, c3 = generate env e3 in
-
-      let type_of_expression = fresh_type_var () in
-
-      ( type_of_expression,
-        (t1, BoolType) :: (t2, type_of_expression) :: (t3, type_of_expression)
-        :: c1
-        @ c2 @ c3 )
-  | EVector expressions ->
-      let list_of_types, list_of_lists_of_constraints =
-        List.split (List.map (generate env) expressions)
-      in
-
-      (VectorType list_of_types, List.flatten list_of_lists_of_constraints)
-  | EListEnumeration (e1, e2) ->
-      let t1, c1 = generate env e1 in
-      let t2, c2 = generate env e2 in
-      (* Enumerations can only be done with integers *)
-      (CListType IntType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
+  | EInt _ -> generate_e_int
+  | EFloat _ -> generate_e_float
+  | EBool _ -> generate_e_bool
+  | EString _ -> generate_e_string
+  | EUnit -> generate_e_unit
+  | ENil -> generate_e_nil ()
+  | EId x -> generate_e_id env x
+  | EBop (op, e1, e2) -> generate_e_bop env op e1 e2
+  | EFunction (pat, cto, body) -> generate_e_function env pat cto body
+  | EApp (e1, e2) -> generate_e_app env e1 e2
+  | EBind (pat, cto, e1, e2) -> generate_e_bind env pat cto e1 e2
+  | EBindRec (pat, _, e1, e2) -> generate_e_bind_rec env pat e1 e2
+  | ETernary (e1, e2, e3) -> generate_e_ternary env e1 e2 e3
+  | EVector expressions -> generate_e_vector env expressions
+  | EListEnumeration (e1, e2) -> generate_e_list_enumeration env e1 e2
   | EListComprehension (e, generators) ->
-      let env, generator_constraints =
-        List.fold_left
-          (fun (env, constraints) (p, e) ->
-            let type_of_pattern, pattern_env, const = type_of_pat p in
-            let type_of_expression, expression_constraints =
-              generate (pattern_env @ env) e
-            in
-            let new_constraint =
-              (type_of_expression, CListType type_of_pattern)
-            in
-            ( pattern_env @ env,
-              (new_constraint :: const) @ expression_constraints @ constraints
-            ))
-          (env, []) generators
-      in
+      generate_e_list_comprehension env e generators
+  | ESwitch (e1, branches) -> generate_e_switch env e1 branches
 
-      (* generate the type and constraints of the expression *)
-      let type_of_expression, expression_constraints = generate env e in
+and generate_e_int = (IntType, [])
+and generate_e_float = (FloatType, [])
+and generate_e_bool = (BoolType, [])
+and generate_e_string = (StringType, [])
+and generate_e_unit = (UnitType, [])
+and generate_e_nil () = (CListType (fresh_type_var ()), [])
 
-      ( CListType type_of_expression,
-        expression_constraints @ generator_constraints )
-  | ESwitch (e1, branches) ->
-      let t1, c1 = generate env e1 in
-      let type_that_all_branch_expressions_must_be = fresh_type_var () in
-      let branch_constraints =
-        List.map
-          (fun (pat, expr) ->
-            let type_of_pattern, pattern_env, const = type_of_pat pat in
-            let type_of_branch_expression, branch_expression_constraints =
-              generate (pattern_env @ env) expr
-            in
-            (* the type of the pattern must match the type of the switch expr *)
-            (* the type of the branch expr must match the result type *)
-            (type_of_pattern, t1)
-            :: ( type_of_branch_expression,
-                 type_that_all_branch_expressions_must_be )
-            :: const
-            @ branch_expression_constraints)
-          branches
-        |> List.flatten
-      in
-      (type_that_all_branch_expressions_must_be, c1 @ branch_constraints)
+and generate_e_bop (env : static_env) (op : c_bop) (e1 : c_expr) (e2 : c_expr) :
+    mono_type * type_equations =
+  let t1, c1 = generate env e1 in
+  let t2, c2 = generate env e2 in
+  match op with
+  | CCons ->
+      (* e1 :: e2, e2 must be a list of the type of e1 *)
+      (t2, ((CListType t1, t2) :: c1) @ c2)
+  | CPlus | CMinus | CMul | CDiv | CMod ->
+      (* arithmetic: both operands must be int, result is int *)
+      (IntType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
+  | CGE | CGT | CLE | CLT ->
+      (* comparisons: both operands must be int, result is bool *)
+      (BoolType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
+  | CEQ | CNE ->
+      (* equality/inequality: operands must be same type, result is bool *)
+      (BoolType, ((t1, t2) :: c1) @ c2)
+  | CAnd | COr ->
+      (* logical: both operands must be bool, result is bool *)
+      (BoolType, ((t1, BoolType) :: (t2, BoolType) :: c1) @ c2)
+
+and generate_e_id (env : static_env) (x : string) : mono_type * type_equations =
+  let uninstantiated : c_type = List.assoc x env in
+  let t = instantiate uninstantiated in
+  (t, [])
+
+and generate_e_function (env : static_env) (pat : c_pat) (cto : c_type option)
+    (body : c_expr) : mono_type * type_equations =
+  let input_type, new_env_bindings, constraints_from_pattern =
+    type_of_pat pat
+  in
+  let constraints_from_type_annotation : type_equations =
+    match cto with
+    | Some t -> [ (input_type, instantiate t) ]
+    | None -> []
+  in
+  let output_type, c_output = generate (new_env_bindings @ env) body in
+  ( input_type => output_type,
+    constraints_from_pattern @ constraints_from_type_annotation @ c_output )
+
+and generate_e_app (env : static_env) (e1 : c_expr) (e2 : c_expr) :
+    mono_type * type_equations =
+  let t1, c1 = generate env e1 in
+  let t2, c2 = generate env e2 in
+  let result_type = fresh_type_var () in
+  let app_constraint = (t1, FunctionType (t2, result_type)) in
+  (result_type, (app_constraint :: c1) @ c2)
+
+and generate_e_bind (env : static_env) (pat : c_pat) (cto : c_type option)
+    (e1 : c_expr) (e2 : c_expr) : mono_type * type_equations =
+  let t_pat, pat_env, pat_constraints = type_of_pat pat in
+  let t1, c1 = generate env e1 in
+  let annotation_constraints =
+    match cto with
+    | Some t -> [ (t_pat, instantiate t) ]
+    | None -> []
+  in
+  let new_constraint = (t_pat, t1) in
+  (* Generalize the type of e1 before using it in e2 *)
+  let generalized_type = generalize (new_constraint :: c1) env t1 in
+  let t2, c2 = generate ((fst (List.hd pat_env), generalized_type) :: env) e2 in
+  (t2, pat_constraints @ annotation_constraints @ (new_constraint :: c1) @ c2)
+
+and generate_e_bind_rec (env : static_env) (pat : c_pat) (e1 : c_expr)
+    (e2 : c_expr) : mono_type * type_equations =
+  let function_id =
+    match pat with
+    | CIdPat id -> id
+    | _ -> failwith "not a valid pattern in new_typecheck.ml"
+  in
+  let function_type = fresh_type_var () in
+  let new_env = (function_id, Mono function_type) :: env in
+  let t1, c1 = generate new_env e1 in
+  (* Add constraint that function_type must equal t1 *)
+  let new_constraint = (function_type, t1) in
+  (* Generalize the function type to make it polymorphic *)
+  let generalized_type = generalize (new_constraint :: c1) new_env t1 in
+  let t2, c2 = generate ((function_id, generalized_type) :: env) e2 in
+  (t2, (new_constraint :: c1) @ c2)
+
+and generate_e_ternary (env : static_env) (e1 : c_expr) (e2 : c_expr)
+    (e3 : c_expr) : mono_type * type_equations =
+  let t1, c1 = generate env e1 in
+  let t2, c2 = generate env e2 in
+  let t3, c3 = generate env e3 in
+  let type_of_expression = fresh_type_var () in
+  ( type_of_expression,
+    (t1, BoolType) :: (t2, type_of_expression) :: (t3, type_of_expression) :: c1
+    @ c2 @ c3 )
+
+and generate_e_vector (env : static_env) (expressions : c_expr list) :
+    mono_type * type_equations =
+  let list_of_types, list_of_lists_of_constraints =
+    List.split (List.map (generate env) expressions)
+  in
+  (VectorType list_of_types, List.flatten list_of_lists_of_constraints)
+
+and generate_e_list_enumeration (env : static_env) (e1 : c_expr) (e2 : c_expr) :
+    mono_type * type_equations =
+  let t1, c1 = generate env e1 in
+  let t2, c2 = generate env e2 in
+  (* Enumerations can only be done with integers *)
+  (CListType IntType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
+
+and generate_e_list_comprehension (env : static_env) (e : c_expr)
+    (generators : (c_pat * c_expr) list) : mono_type * type_equations =
+  let env, generator_constraints =
+    List.fold_left
+      (fun (env, constraints) (p, e) ->
+        let type_of_pattern, pattern_env, const = type_of_pat p in
+        let type_of_expression, expression_constraints =
+          generate (pattern_env @ env) e
+        in
+        let new_constraint = (type_of_expression, CListType type_of_pattern) in
+        ( pattern_env @ env,
+          (new_constraint :: const) @ expression_constraints @ constraints ))
+      (env, []) generators
+  in
+
+  (* generate the type and constraints of the expression *)
+  let type_of_expression, expression_constraints = generate env e in
+
+  (CListType type_of_expression, expression_constraints @ generator_constraints)
+
+and generate_e_switch (env : static_env) (e1 : c_expr)
+    (branches : (c_pat * c_expr) list) : mono_type * type_equations =
+  let t1, c1 = generate env e1 in
+  let type_that_all_branch_expressions_must_be = fresh_type_var () in
+  let branch_constraints =
+    List.map
+      (fun (pat, expr) ->
+        let type_of_pattern, pattern_env, const = type_of_pat pat in
+        let type_of_branch_expression, branch_expression_constraints =
+          generate (pattern_env @ env) expr
+        in
+        (* the type of the pattern must match the type of the switch expr *)
+        (* the type of the branch expr must match the result type *)
+        (type_of_pattern, t1)
+        :: (type_of_branch_expression, type_that_all_branch_expressions_must_be)
+        :: const
+        @ branch_expression_constraints)
+      branches
+    |> List.flatten
+  in
+  (type_that_all_branch_expressions_must_be, c1 @ branch_constraints)
 
 and type_of_pat (pat : c_pat) : mono_type * static_env * type_equations =
   match pat with
