@@ -15,6 +15,16 @@ type 'a type_check_result =
   | Ok of 'a
   | Error of type_error
 
+let string_of_type_check_error (e : type_error) : string =
+  match e with
+  | UnboundVariable s -> "Unbound variable: " ^ s
+  | TypeMismatch (t1, t2) ->
+      "Type mismatch: " ^ string_of_mono_type t1 ^ " != "
+      ^ string_of_mono_type t2
+  | PatternMismatch (p, t) ->
+      "Pattern mismatch: " ^ string_of_pat p ^ " != " ^ string_of_mono_type t
+  | OtherError s -> "Other error: " ^ s
+
 let return (x : 'a) : 'a type_check_result = Ok x
 
 let ( >>= ) (x : 'a type_check_result) (f : 'a -> 'b type_check_result) :
@@ -304,10 +314,14 @@ and generate_e_bind (env : static_env) (pat : c_pat) (cto : c_type option)
 *)
 and generate_e_bind_rec (env : static_env) (pat : c_pat) (e1 : c_expr)
     (e2 : c_expr) : (mono_type * type_equations) type_check_result =
-  let function_id =
+  let* function_id =
     match pat with
-    | CIdPat id -> id
-    | _ -> failwith "not a valid pattern in new_typecheck.ml"
+    | CIdPat id -> return id
+    | _ ->
+        Error
+          (OtherError
+             ("Invalid pattern in recursive let binding: expected an \
+               identifier, got: " ^ string_of_pat pat))
   in
   let function_type = fresh_type_var () in
   let new_env = (function_id, Mono function_type) :: env in

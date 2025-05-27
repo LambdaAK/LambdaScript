@@ -62,7 +62,7 @@ in map (\x -> if x then false else true) [true, false, true]
 |}
 
 let test_two = {|
-    let f x = x in f f
+    let rec (a, b) = (1, 2) in a
 |}
 
 let () =
@@ -91,7 +91,7 @@ let () =
 let t =
   match type_of_c_expr built_ins_types ce with
   | Ok t -> t
-  | _ -> failwith "type failure"
+  | Error e -> failwith (string_of_type_check_error e)
 
 let () = t |> string_of_c_type |> print_endline
 
