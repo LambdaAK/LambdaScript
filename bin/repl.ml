@@ -62,7 +62,7 @@ in map (\x -> if x then false else true) [true, false, true]
 |}
 
 let test_two = {|
-    let rec (a, b) = (1, 2) in a
+    \a -> a
 |}
 
 let () =

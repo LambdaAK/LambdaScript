@@ -35,6 +35,11 @@ let ( >>= ) (x : 'a type_check_result) (f : 'a -> 'b type_check_result) :
 
 let ( let* ) = ( >>= )
 
+let unwrap_type_check_result (x : 'a type_check_result) : 'a =
+  match x with
+  | Ok x -> x
+  | Error e -> failwith (string_of_type_check_error e)
+
 exception TypeFailure
 
 (* Algorithm for performing type inference:
@@ -248,6 +253,7 @@ and generate_e_bop (env : static_env) (op : c_bop) (e1 : c_expr) (e2 : c_expr) :
 *)
 and generate_e_function (env : static_env) (pat : c_pat) (cto : c_type option)
     (body : c_expr) : (mono_type * type_equations) type_check_result =
+  print_endline "generating e_function";
   let input_type, new_env_bindings, constraints_from_pattern =
     type_of_pat pat
   in
@@ -257,6 +263,18 @@ and generate_e_function (env : static_env) (pat : c_pat) (cto : c_type option)
     | None -> []
   in
   let* output_type, c_output = generate (new_env_bindings @ env) body in
+
+  print_endline "generated e_function";
+  print_endline ("input_type: " ^ string_of_mono_type input_type);
+  print_endline ("output_type: " ^ string_of_mono_type output_type);
+  print_endline
+    ("constraints_from_pattern: "
+    ^ string_of_type_equations constraints_from_pattern);
+  print_endline
+    ("constraints_from_type_annotation: "
+    ^ string_of_type_equations constraints_from_type_annotation);
+  print_endline ("c_output: " ^ string_of_type_equations c_output);
+
   return
     ( input_type => output_type,
       constraints_from_pattern @ constraints_from_type_annotation @ c_output )
@@ -508,36 +526,68 @@ and reduce_eq (c : type_equations) : type_equations =
     @param var The type variable to look up
     @param subs The list of type equations representing substitutions
     @return The type that the variable should be substituted with *)
-and get_type (var : mono_type) (subs : type_equations) : mono_type =
+and get_type (var : mono_type) (subs : type_equations) :
+    mono_type type_check_result =
   match var with
-  | TypeVar _ -> (
-      let looked_up_type = get_type_of_type_var_if_possible var subs in
+  | TypeVar v -> (
+      let* looked_up_type = get_type_of_type_var v subs in
       match looked_up_type with
-      | FunctionType (i, o) -> FunctionType (get_type i subs, get_type o subs)
-      | CListType et -> CListType (get_type et subs)
+      | FunctionType (i, o) ->
+          let* i_type = get_type i subs in
+          let* o_type = get_type o subs in
+          return (FunctionType (i_type, o_type))
+      | CListType et ->
+          let* et_type = get_type et subs in
+          return (CListType et_type)
+      (* Recursively applies the substitution [subs] to each element of the
+         vector type [types], returning a new VectorType with all elements
+         substituted. *)
       | VectorType types ->
-          VectorType (List.map (fun t -> get_type t subs) types)
-      | _ -> looked_up_type)
-  | FunctionType (i, o) -> FunctionType (get_type i subs, get_type o subs)
-  | VectorType types -> VectorType (List.map (fun t -> get_type t subs) types)
-  | IntType -> IntType
-  | FloatType -> FloatType
-  | BoolType -> BoolType
-  | StringType -> StringType
-  | UnitType -> UnitType
-  | CListType et -> CListType (get_type et subs)
+          let rec aux acc = function
+            | [] -> return (VectorType (List.rev acc))
+            | t :: ts ->
+                let* t_type = get_type t subs in
+                aux (t_type :: acc) ts
+          in
+          aux [] types
+      | _ -> return looked_up_type)
+  | FunctionType (i, o) ->
+      let* i_type = get_type i subs in
+      let* o_type = get_type o subs in
+      return (FunctionType (i_type, o_type))
+  | VectorType types ->
+      (* Recursively applies the substitution [subs] to each element of the
+         vector type [types], returning a new VectorType with all elements
+         substituted. *)
+      let rec aux acc = function
+        | [] -> return (VectorType (List.rev acc))
+        | t :: ts ->
+            let* t_type = get_type t subs in
+            aux (t_type :: acc) ts
+      in
+      aux [] types
+  | IntType -> return IntType
+  | FloatType -> return FloatType
+  | BoolType -> return BoolType
+  | StringType -> return StringType
+  | UnitType -> return UnitType
+  | CListType et ->
+      let* et_type = get_type et subs in
+      return (CListType et_type)
 
-and get_type_of_type_var_if_possible (var : mono_type) (subs : type_equations) :
-    mono_type =
-  match var with
-  | TypeVar _ -> (
-      try
-        let looked_up = List.assoc var subs in
-        match looked_up with
-        | TypeVar _ -> get_type_of_type_var_if_possible looked_up subs
-        | _ -> looked_up
-      with Not_found -> var)
-  | _ -> failwith "not a type var"
+and get_type_of_type_var (var : string) (subs : type_equations) :
+    mono_type type_check_result =
+  print_endline "get_type_of_type_var";
+  print_endline ("subs: " ^ string_of_type_equations subs);
+  print_endline ("var: " ^ var);
+  match List.assoc_opt (TypeVar var) subs with
+  | Some looked_up -> (
+      match looked_up with
+      | TypeVar new_var -> get_type_of_type_var new_var subs
+      | _ -> return looked_up)
+  | None ->
+      print_endline "UNBOUND";
+      Error (UnboundVariable var)
 
 (** [inside inside_type outside_type] checks if a type appears inside another
     type.
@@ -644,7 +694,7 @@ and generalize (constraints : type_equations) (env : static_env) (t : mono_type)
   let solution = reduce_eq constraints in
 
   (* Apply the solution to the type *)
-  let u1 = get_type t solution in
+  let* u1 = get_type t solution in
 
   (* Get all type variables in the type *)
   let type_vars = get_type_vars u1 in
@@ -693,9 +743,14 @@ and get_type_vars (t : mono_type) : mono_type list =
   | _ -> []
 
 and type_of_c_expr (env : static_env) (e : c_expr) : c_type type_check_result =
+  print_endline "GETTING TYPE";
   let* t, constraints = generate env e in
+
+  (* Print the constraints after computing them *)
+  print_endline ("Constraints:\n" ^ string_of_type_equations constraints);
+
   let solution = reduce_eq constraints in
-  let the_mono_type = get_type t solution in
+  let* the_mono_type = get_type t solution in
   let the_mono_type = fix_type the_mono_type in
   let* the_c_type = generalize constraints env the_mono_type in
   return the_c_type

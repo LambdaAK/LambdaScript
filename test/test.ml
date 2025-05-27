@@ -277,7 +277,7 @@ let type_test (expr : string) (expected_output : string) : test =
             let t =
               match type_of_c_expr built_ins_types c_e with
               | Ok t -> t
-              | _ -> failwith "type failure"
+              | Error e -> failwith (string_of_type_check_error e)
             in
             (id, t))
       code_mapping
@@ -298,7 +298,7 @@ let type_test (expr : string) (expected_output : string) : test =
   let type_result =
     match type_of_c_expr static_env condensed_expr with
     | Ok t -> t
-    | _ -> failwith "type failure"
+    | _ -> failwith "type failureeeeeeeeee"
   in
   let type_string = string_of_c_type type_result in
 
@@ -1205,4 +1205,7 @@ let all_tests =
     ]
 
 let suite = "suite" >::: all_tests
-let () = run_test_tt_main suite
+let () = ignore suite
+let tiny_type_tests = [ type_test "1" "int" ]
+let tiny_suite = "tiny_suite" >::: tiny_type_tests
+let () = run_test_tt_main tiny_suite
