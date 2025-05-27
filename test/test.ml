@@ -1205,7 +1205,4 @@ let all_tests =
     ]
 
 let suite = "suite" >::: all_tests
-let () = ignore suite
-let tiny_type_tests = [ type_test "1" "int" ]
-let tiny_suite = "tiny_suite" >::: tiny_type_tests
-let () = run_test_tt_main tiny_suite
+let () = run_test_tt_main suite

@@ -253,7 +253,6 @@ and generate_e_bop (env : static_env) (op : c_bop) (e1 : c_expr) (e2 : c_expr) :
 *)
 and generate_e_function (env : static_env) (pat : c_pat) (cto : c_type option)
     (body : c_expr) : (mono_type * type_equations) type_check_result =
-  print_endline "generating e_function";
   let input_type, new_env_bindings, constraints_from_pattern =
     type_of_pat pat
   in
@@ -263,17 +262,6 @@ and generate_e_function (env : static_env) (pat : c_pat) (cto : c_type option)
     | None -> []
   in
   let* output_type, c_output = generate (new_env_bindings @ env) body in
-
-  print_endline "generated e_function";
-  print_endline ("input_type: " ^ string_of_mono_type input_type);
-  print_endline ("output_type: " ^ string_of_mono_type output_type);
-  print_endline
-    ("constraints_from_pattern: "
-    ^ string_of_type_equations constraints_from_pattern);
-  print_endline
-    ("constraints_from_type_annotation: "
-    ^ string_of_type_equations constraints_from_type_annotation);
-  print_endline ("c_output: " ^ string_of_type_equations c_output);
 
   return
     ( input_type => output_type,
@@ -577,17 +565,12 @@ and get_type (var : mono_type) (subs : type_equations) :
 
 and get_type_of_type_var (var : string) (subs : type_equations) :
     mono_type type_check_result =
-  print_endline "get_type_of_type_var";
-  print_endline ("subs: " ^ string_of_type_equations subs);
-  print_endline ("var: " ^ var);
   match List.assoc_opt (TypeVar var) subs with
   | Some looked_up -> (
       match looked_up with
       | TypeVar new_var -> get_type_of_type_var new_var subs
       | _ -> return looked_up)
-  | None ->
-      print_endline "UNBOUND";
-      Error (UnboundVariable var)
+  | None -> return (TypeVar var)
 
 (** [inside inside_type outside_type] checks if a type appears inside another
     type.
@@ -743,11 +726,7 @@ and get_type_vars (t : mono_type) : mono_type list =
   | _ -> []
 
 and type_of_c_expr (env : static_env) (e : c_expr) : c_type type_check_result =
-  print_endline "GETTING TYPE";
   let* t, constraints = generate env e in
-
-  (* Print the constraints after computing them *)
-  print_endline ("Constraints:\n" ^ string_of_type_equations constraints);
 
   let solution = reduce_eq constraints in
   let* the_mono_type = get_type t solution in
