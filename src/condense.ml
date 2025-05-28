@@ -72,6 +72,13 @@ and condense_expr : expr -> c_expr = function
           List.map
             (fun (pat, expr) -> (condense_pat pat, condense_expr expr))
             branches )
+  | Block parts ->
+      EBlock
+        (List.map
+           (function
+             | Definition d -> Defn (condense_defn d)
+             | Expr e -> Expr (condense_expr e))
+           parts)
 
 and condense_cons_expr : cons_expr -> c_expr = function
   | Cons (e1, e2) -> EBop (CCons, condense_disjunction e1, condense_cons_expr e2)

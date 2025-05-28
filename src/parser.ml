@@ -713,10 +713,22 @@ end
 
 and ExprParser : sig
   val expr_parser : expr parser
+  val pat_and_type_annotation_parser : (pat * compound_type option) parser
 end = struct
   let rec cons_expr_parser : expr parser =
     let* cons_expr = ConsExprParser.cons_expr_parser in
     return (ConsExpr cons_expr)
+
+  and block_parser () : expr parser =
+    (* TODO: I'm pretty sure this code works. I think once we get rid of let
+       expressions, it will be fine. *)
+    let* () = expect_token LBrace in
+
+    let* parts =
+      parse_sep_delim ExprOrDefnParser.expr_or_defn_parser Semicolon
+    in
+    let* () = expect_token RBrace in
+    return (Block parts)
 
   and function_parser () : expr parser =
     let* () = expect_token Fn in
@@ -845,8 +857,9 @@ end = struct
     return (Switch (e, branches))
 
   and expr_parser () : expr parser =
-    function_parser () <|> bind_rec_parser () <|> bind_parser ()
-    <|> switch_parser () <|> ternary_parser () <|> cons_expr_parser
+    block_parser () <|> function_parser () <|> bind_rec_parser ()
+    <|> bind_parser () <|> switch_parser () <|> ternary_parser ()
+    <|> cons_expr_parser
 
   let expr_parser : expr parser = expr_parser ()
 end
@@ -925,4 +938,64 @@ end = struct
     function_type_parser () <|> basic_type_parser
 
   let compound_type_parser : compound_type parser = compound_type_parser ()
+end
+
+and DefnParser : sig
+  val defn_parser : defn parser
+end = struct
+  let let_defn_parser () : defn parser =
+    let* () = expect_token Let in
+    let* pat, cto = ExprParser.pat_and_type_annotation_parser in
+    (* parse argument patterns *)
+    let* arg_pats_and_type_annotations : (pat * compound_type option) list =
+      parse_several ExprParser.pat_and_type_annotation_parser
+    in
+    let* () = expect_token Equals in
+    let* e1 = ExprParser.expr_parser in
+
+    (* wrap body in functions *)
+    let rec wrap_e1_in_functions body
+        (arg_pats_and_type_annotations : (pat * compound_type option) list) =
+      match arg_pats_and_type_annotations with
+      | [] -> body
+      | (pat, cto) :: rest -> Function (pat, cto, wrap_e1_in_functions body rest)
+    in
+
+    return
+      (Defn (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations))
+
+  let let_rec_defn_parser () : defn parser =
+    let* () = expect_token Let in
+    let* () = expect_token Rec in
+    let* pat, cto = ExprParser.pat_and_type_annotation_parser in
+    (* parse argument patterns *)
+    let* arg_pats_and_type_annotations : (pat * compound_type option) list =
+      parse_several ExprParser.pat_and_type_annotation_parser
+    in
+    let* () = expect_token Equals in
+    let* e1 = ExprParser.expr_parser in
+
+    (* wrap body in functions *)
+    let rec wrap_e1_in_functions body
+        (arg_pats_and_type_annotations : (pat * compound_type option) list) =
+      match arg_pats_and_type_annotations with
+      | [] -> body
+      | (pat, cto) :: rest -> Function (pat, cto, wrap_e1_in_functions body rest)
+    in
+
+    return
+      (DefnRec (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations))
+
+  let defn_parser : defn parser = let_rec_defn_parser () <|> let_defn_parser ()
+end
+
+and ExprOrDefnParser : sig
+  val expr_or_defn_parser : expr_or_defn parser
+end = struct
+  let expr_or_defn_parser : expr_or_defn parser =
+    (let* defn = DefnParser.defn_parser in
+     return (Definition defn))
+    <|>
+    let* expr = ExprParser.expr_parser in
+    return (Expr expr)
 end

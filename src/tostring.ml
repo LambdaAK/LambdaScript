@@ -87,6 +87,22 @@ let rec string_of_expr (e : expr) (level : int) : string =
       ^ e3_string
       ^ indentations_with_newline level
       ^ ")"
+  | Block parts ->
+      let parts_string =
+        String.concat
+          (",\n" ^ indentations_with_newline (level + 1))
+          (List.map
+             (function
+               | Expr e -> "Expr (" ^ string_of_expr e (level + 1) ^ ")"
+               | Definition d ->
+                   "Definition (" ^ string_of_defn d (level + 1) ^ ")")
+             parts)
+      in
+      "Block (\n"
+      ^ indentations_with_newline (level + 1)
+      ^ parts_string
+      ^ indentations_with_newline level
+      ^ ")"
   | Switch (e, branches) ->
       let e_string : string = string_of_expr e (level + 1) in
       let branches_string : string =
@@ -390,6 +406,31 @@ and string_of_factor (factor : factor) (level : int) =
       ^ String.concat
           (",\n" ^ indentations_with_newline (level + 1))
           (List.map (fun e -> string_of_expr e (level + 1)) es)
+      ^ ")"
+
+and string_of_defn (d : defn) (level : int) =
+  let cto_string cto =
+    match cto with
+    | None -> ""
+    | Some ct ->
+        indentations_with_newline (level + 1)
+        ^ string_of_compound_type ct (level + 1)
+        ^ ","
+  in
+  match d with
+  | Defn (p, cto, e) ->
+      "Defn ("
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_pat p ^ "," ^ cto_string cto
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_expr e (level + 1)
+      ^ ")"
+  | DefnRec (p, cto, e) ->
+      "DefnRec ("
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_pat p ^ "," ^ cto_string cto
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_expr e (level + 1)
       ^ ")"
 
 let string_of_expr (e : expr) = string_of_expr e 0

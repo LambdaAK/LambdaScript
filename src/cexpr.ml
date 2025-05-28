@@ -51,10 +51,15 @@ and c_defn =
 
 and c_switch_branch = c_pat * c_expr
 
+and c_expr_or_c_defn =
+  | Expr of c_expr
+  | Defn of c_defn
+
 and c_expr =
   | EFunction of c_pat * c_type option * c_expr
   | EBind of c_pat * c_type option * c_expr * c_expr
   | EBindRec of c_pat * c_type option * c_expr * c_expr
+  | EBlock of c_expr_or_c_defn list
   | ETernary of c_expr * c_expr * c_expr
   | ESwitch of c_expr * c_switch_branch list
   | EBool of bool

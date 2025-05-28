@@ -175,6 +175,40 @@ let rec generate (env : static_env) (e : c_expr) :
   | EListComprehension (e, generators) ->
       generate_e_list_comprehension env e generators
   | ESwitch (e1, branches) -> generate_e_switch env e1 branches
+  | EBlock [] -> return (UnitType, [])
+  | EBlock parts -> (
+      (* if the last part is a definition, then the entire thing evaluates to
+         unit *)
+      let last_part = List.hd (List.rev parts) in
+      let other_parts = List.rev (List.tl (List.rev parts)) in
+
+      (* if last part is a definition, then the type of the block is unit *)
+      match last_part with
+      | Defn _ -> return (UnitType, [])
+      | Expr e ->
+          (* generate each definition in the block *)
+          let* new_env, defn_equations =
+            let rec process_defns acc_env acc_equations = function
+              | [] -> return (acc_env, acc_equations)
+              | Defn d :: rest ->
+                  let* new_env = generate_defn acc_env d in
+                  process_defns new_env acc_equations rest
+              | Expr _ :: rest -> process_defns acc_env acc_equations rest
+            in
+            process_defns env [] other_parts
+          in
+
+          (* generate type for the last expression in the new environment *)
+          let* last_type, last_equations = generate new_env e in
+
+          (* combine all equations *)
+          return (last_type, defn_equations @ last_equations))
+
+(* use List.fold_left to generate the type constraints for each definition*)
+
+(* use fold_left to generate the type constraints for each definition *)
+
+(* otherwise, we need to generate type constraints for the entire block *)
 
 (** [generate_e_int] generates type constraints for integer literals.
     @return A pair containing IntType and an empty list of constraints *)
@@ -749,6 +783,79 @@ and swap_all_variables_in_type (t : mono_type) : mono_type type_check_result =
   (* Then instantiate it to get fresh variables *)
   let instantiated = instantiate generalized in
   return instantiated
+
+and generate_defn (env : static_env) (defn : c_defn) :
+    static_env type_check_result =
+  match defn with
+  | CDefn (pat, type_annotation, body) ->
+      (* Generate type and equations for the body *)
+      let* body_type, body_equations = generate env body in
+
+      (* Get pattern type and bindings *)
+      let pattern_type, pattern_env, pattern_equations = type_of_pat pat in
+
+      (* Handle type annotation if present *)
+      let annotation_equations =
+        match type_annotation with
+        | Some t -> [ (pattern_type, instantiate t) ]
+        | None -> []
+      in
+
+      (* Combine all equations *)
+      let all_equations =
+        body_equations @ pattern_equations @ annotation_equations
+      in
+
+      (* Generalize the body type *)
+      let* generalized_type = generalize all_equations env body_type in
+
+      (* Create new environment with pattern bindings using the generalized
+         type *)
+      let new_env =
+        List.map (fun (id, _) -> (id, generalized_type)) pattern_env
+      in
+
+      (* Return new environment with pattern bindings *)
+      return (new_env @ env)
+  | CDefnRec (pat, type_annotation, body) ->
+      (* For recursive definitions, we need to add the binding to the
+         environment before type checking the body *)
+      let pattern_type, pattern_env, pattern_equations = type_of_pat pat in
+
+      (* Create a fresh type variable for the recursive binding *)
+      let rec_type = fresh_type_var () in
+      let rec_env = (fst (List.hd pattern_env), Mono rec_type) :: env in
+
+      (* Generate type and equations for the body with the recursive binding *)
+      let* body_type, body_equations = generate rec_env body in
+
+      (* Add constraint that the recursive type must match the body type *)
+      let rec_constraint = (rec_type, body_type) in
+
+      (* Handle type annotation if present *)
+      let annotation_equations =
+        match type_annotation with
+        | Some t -> [ (pattern_type, instantiate t) ]
+        | None -> []
+      in
+
+      (* Combine all equations *)
+      let all_equations =
+        body_equations @ pattern_equations @ annotation_equations
+        @ [ rec_constraint ]
+      in
+
+      (* Generalize the body type *)
+      let* generalized_type = generalize all_equations env body_type in
+
+      (* Create new environment with pattern bindings using the generalized
+         type *)
+      let new_env =
+        List.map (fun (id, _) -> (id, generalized_type)) pattern_env
+      in
+
+      (* Return new environment with pattern bindings *)
+      return (new_env @ env)
 
 let rec get_mono_type (t : c_type) : mono_type =
   match t with

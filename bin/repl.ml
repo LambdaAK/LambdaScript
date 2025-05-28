@@ -62,7 +62,11 @@ in map (\x -> if x then false else true) [true, false, true]
 |}
 
 let test_two = {|
-    \a -> a
+    {
+      let x = 5;
+      let y = 100;
+      x + y
+    }
 |}
 
 let () =

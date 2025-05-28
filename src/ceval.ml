@@ -28,7 +28,7 @@ and string_of_value = function
       in
       "[" ^ values_string ^ "]"
 
-let rec bind_pat (p : c_pat) (v : value) : env option =
+and bind_pat (p : c_pat) (v : value) : env option =
   match (p, v) with
   | CUnitPat, UnitValue -> Some []
   | CWildcardPat, _ -> Some []
@@ -76,7 +76,7 @@ let rec bind_pat (p : c_pat) (v : value) : env option =
       combined bindings if all match, otherwise [None].
     - [_]: any other pattern-type combination does not match, returns [None]. *)
 
-let rec bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
+and bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
   (* Helper to extract the monomorphic type from a c_type, if possible *)
   let rec get_mono_type (t : c_type) : mono_type option =
     match t with
@@ -106,7 +106,7 @@ let rec bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
       | _ -> None)
   | _ -> None
 
-let rec eval_c_expr (ce : c_expr) (env : env) =
+and eval_c_expr (ce : c_expr) (env : env) =
   match ce with
   | EInt i -> IntegerValue i
   | EFloat f -> FloatValue f
@@ -118,6 +118,23 @@ let rec eval_c_expr (ce : c_expr) (env : env) =
   | EBop (op, e1, e2) -> eval_bop op e1 e2 env
   | EFunction (p, _, e) -> FunctionClosure (env, p, None, e)
   | EListEnumeration (e1, e2) -> eval_list_enumeration e1 e2 env
+  | EBlock parts ->
+      let rec eval_block_parts parts env =
+        match parts with
+        | [] -> UnitValue (* when there are no parts, evaluate to unit *)
+        | [ Expr e ] -> eval_c_expr e env
+        | Expr e :: t ->
+            (* if the last part is an expression, we evaluate to it *)
+            let _ = eval_c_expr e env in
+            eval_block_parts t env
+        | Defn d :: t ->
+            (* when the next part is a definition, we run the definition and add
+               to the env, then continue evaluating the rest of the block*)
+            let new_env = eval_defn d env in
+            eval_block_parts t new_env
+      in
+
+      eval_block_parts parts env
   | EListComprehension (e, generators) ->
       let envs : env list = generate_envs_from_generators generators env in
       let values = List.map (fun en -> eval_c_expr e en) envs in
@@ -315,7 +332,7 @@ and eval_list_enumeration e1 e2 env =
 (* let eval_c_empty_env (s : string) : value = eval_c_expr (s |> list_of_string
    |> lex |> parse_expr |> fst |> condense_expr) [] *)
 
-let eval_c_empty_env (s : string) : value =
+and eval_c_empty_env (s : string) : value =
   let tokens = s |> list_of_string |> lex in
   let token_types = List.map (fun t -> t.token_type) tokens in
   let parse_result = expr_parser token_types in
@@ -325,7 +342,7 @@ let eval_c_empty_env (s : string) : value =
       let c_e = condense_expr e in
       eval_c_expr c_e []
 
-let initial_env : (string * value) list =
+and initial_env () : (string * value) list =
   List.map
     (fun (id, code) ->
       let v : value = eval_c_empty_env code in
@@ -335,13 +352,13 @@ let initial_env : (string * value) list =
 
 (* env code *)
 
-let c_eval_ce (ce : c_expr) : string =
-  eval_c_expr ce initial_env |> string_of_value
+and c_eval_ce (ce : c_expr) : string =
+  eval_c_expr ce (initial_env ()) |> string_of_value
 
 (* let c_eval (s : string) : string = eval_c_expr (s |> list_of_string |> lex |>
    parse_expr |> fst |> condense_expr) initial_env |> string_of_value *)
 
-let c_eval (s : string) : string =
+and c_eval (s : string) : string =
   let tokens = s |> list_of_string |> lex in
   let token_types = List.map (fun t -> t.token_type) tokens in
   let parse_result = expr_parser token_types in
@@ -349,10 +366,10 @@ let c_eval (s : string) : string =
   | None -> failwith "parsing failed"
   | Some (e, _) ->
       let c_e = condense_expr e in
-      let result = eval_c_expr c_e initial_env in
+      let result = eval_c_expr c_e (initial_env ()) in
       string_of_value result
 
-let rec create_generic_type : c_pat -> c_type = function
+and create_generic_type : c_pat -> c_type = function
   | CUnitPat -> Mono UnitType
   | CWildcardPat -> Mono (fresh_type_var ())
   | CIdPat _ -> Mono (fresh_type_var ())
@@ -374,7 +391,7 @@ let rec create_generic_type : c_pat -> c_type = function
                        for vectors")
               patterns))
 
-let rec expr_of_pat : c_pat -> c_expr = function
+and expr_of_pat : c_pat -> c_expr = function
   | CUnitPat -> EUnit
   | CWildcardPat -> failwith "expr_of_pat: wildcard pattern not allowed"
   | CIdPat s -> EId s
@@ -384,3 +401,38 @@ let rec expr_of_pat : c_pat -> c_expr = function
   | CNilPat -> ENil
   | CConsPat (p1, p2) -> EBop (CCons, expr_of_pat p1, expr_of_pat p2)
   | CVectorPat patterns -> EVector (List.map expr_of_pat patterns)
+
+(** [eval_defn d env] takes a definition [d] and an environment [env], executes
+    the definition, and returns the new environment after running the
+    definition. This function is responsible for updating the environment with
+    any new bindings introduced by the definition. *)
+and eval_defn (d : c_defn) (env : env) : env =
+  match d with
+  | CDefn (pat, _, body) -> (
+      (* Evaluate the body in the current environment *)
+      let value = eval_c_expr body env in
+      (* Try to bind the pattern to the value *)
+      match bind_pat pat value with
+      | None -> failwith "eval_defn: pattern match failed"
+      | Some new_bindings -> new_bindings @ env)
+  | CDefnRec (pat, _, body) -> (
+      (* For recursive definitions, we need to create a recursive closure *)
+      let value = eval_c_expr body env in
+      let value_rec =
+        match value with
+        | FunctionClosure (closure_env, closure_pat, _, closure_body) ->
+            RecursiveFunctionClosure
+              (ref closure_env, closure_pat, None, closure_body)
+        | _ ->
+            value (* not a function, so the rec doesn't really mean anything *)
+      in
+      (* Try to bind the pattern to the recursive value *)
+      match bind_pat pat value_rec with
+      | None -> failwith "eval_defn: pattern match failed"
+      | Some new_bindings ->
+          (* If it's a recursive function, backpatch the environment *)
+          (match value_rec with
+          | RecursiveFunctionClosure (env_ref, _, _, _) ->
+              env_ref := new_bindings @ env
+          | _ -> ());
+          new_bindings @ env)

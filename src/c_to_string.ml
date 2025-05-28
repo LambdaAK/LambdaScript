@@ -49,6 +49,31 @@ let rec string_of_expr : c_expr -> string = function
   | EUnit -> "()"
   | EId id -> id
   | ENil -> "[]"
+  | EBlock parts ->
+      let defns, e =
+        match parts with
+        | [] -> ([], EUnit)
+        | _ ->
+            let rev = List.rev parts in
+            let e = List.hd rev in
+            let defns = List.rev (List.tl rev) in
+            let defns =
+              List.filter_map
+                (function
+                  | Defn d -> Some d
+                  | Expr _ -> None)
+                defns
+            in
+            let e =
+              match e with
+              | Expr e -> e
+              | Defn _ -> EUnit
+            in
+            (defns, e)
+      in
+      "{\n"
+      ^ String.concat "\n" (List.map string_of_defn defns)
+      ^ "\n" ^ string_of_expr e ^ "\n}"
   | EFunction (pat, t_opt, body) ->
       let type_annot =
         match t_opt with
@@ -112,7 +137,7 @@ let rec string_of_expr : c_expr -> string = function
              generators)
       ^ "]"
 
-let string_of_defn : c_defn -> string = function
+and string_of_defn : c_defn -> string = function
   | CDefn (pat, t_opt, e) ->
       let type_annot =
         match t_opt with

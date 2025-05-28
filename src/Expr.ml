@@ -43,6 +43,10 @@ type defn =
 
 and switch_branch = pat * expr
 
+and expr_or_defn =
+  | Expr of expr
+  | Definition of defn
+
 and expr =
   | Function of pat * compound_type option * expr
   | Ternary of expr * expr * expr
@@ -50,6 +54,7 @@ and expr =
   | Bind of pat * compound_type option * expr * expr
   | BindRec of pat * compound_type option * expr * expr
   | Switch of expr * switch_branch list
+  | Block of expr_or_defn list
 
 and cons_expr =
   (* :: *)
