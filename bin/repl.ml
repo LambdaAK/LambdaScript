@@ -6,11 +6,47 @@ open Language.Typecheck
 open Language.Ceval
 open Language.Cexpr
 
+(* ANSI color codes *)
+let color_reset = "\027[0m"
+let color_red = "\027[31m"
+let color_green = "\027[32m"
+let color_yellow = "\027[33m"
+let color_blue = "\027[34m"
+let color_magenta = "\027[35m"
+let color_cyan = "\027[36m"
+let color_bold = "\027[1m"
+let color_dim = "\027[2m"
+
+(* Color printing functions *)
+let print_colored color text = print_string (color ^ text ^ color_reset)
+let print_colored_line color text = print_endline (color ^ text ^ color_reset)
+
+let print_separator () =
+  print_colored_line color_dim "-----------------------------"
+
+let print_error msg = print_colored_line color_red ("Error: " ^ msg)
+
+let print_type_info typ =
+  print_colored color_blue "Type : ";
+  print_colored_line color_cyan (string_of_c_type typ)
+
+let print_value_info value =
+  print_colored color_blue "Value: ";
+  print_colored_line color_yellow (string_of_value value)
+
+let print_name_info name =
+  print_colored color_blue "Name : ";
+  print_colored_line color_magenta name
+
 type repl_result =
   | NoChange
   | NewBindings of static_env * env
 
 let repl (static_env : static_env) (dynamic_env : env) : repl_result =
+  (* Print prompt *)
+  print_colored (color_bold ^ color_green) "λ> ";
+  flush_all ();
+
   (* get input from the user . convert to list of chars*)
   let input = read_line () |> String.to_seq |> List.of_seq in
   (* lex tokens *)
@@ -21,7 +57,7 @@ let repl (static_env : static_env) (dynamic_env : env) : repl_result =
 
   match expr_or_defn with
   | None ->
-      print_endline "Parsing failed";
+      print_error "Parsing failed";
       NoChange
   | Some (Expr expr, _) ->
       ((* parsing succeeded *)
@@ -34,11 +70,11 @@ let repl (static_env : static_env) (dynamic_env : env) : repl_result =
            (* evaluate the expression *)
            let value = eval_c_expr c_expr dynamic_env in
            (* pretty print the type and value *)
-           print_endline "-----------------------------";
-           print_endline ("Type : " ^ string_of_c_type t);
-           print_endline ("Value: " ^ string_of_value value);
-           print_endline "-----------------------------"
-       | Error e -> print_endline (string_of_type_check_error e));
+           print_separator ();
+           print_type_info t;
+           print_value_info value;
+           print_separator ()
+       | Error e -> print_error (string_of_type_check_error e));
       NoChange
   | Some (Definition defn, _) -> (
       (* condense the definition *)
@@ -46,7 +82,7 @@ let repl (static_env : static_env) (dynamic_env : env) : repl_result =
 
       match generate_defn static_env c_defn with
       | Error e ->
-          print_endline (string_of_type_check_error e);
+          print_error (string_of_type_check_error e);
           NoChange
       | Ok new_static_bindings ->
           (*evaluate the definition, since it typechcked*)
@@ -60,11 +96,11 @@ let repl (static_env : static_env) (dynamic_env : env) : repl_result =
                 | None ->
                     failwith ("Internal error: value for " ^ name ^ " not found")
               in
-              print_endline "-----------------------------";
-              print_endline ("Name : " ^ name);
-              print_endline ("Type : " ^ string_of_c_type typ);
-              print_endline ("Value: " ^ string_of_value value);
-              print_endline "-----------------------------")
+              print_separator ();
+              print_name_info name;
+              print_type_info typ;
+              print_value_info value;
+              print_separator ())
             new_static_bindings;
           NewBindings (new_static_bindings, new_dynamic_bindings))
 
@@ -79,6 +115,12 @@ let rec run_repl_loop static_env dynamic_env =
         (new_dynamic_bindings @ dynamic_env)
 
 let run_repl () =
+  (* Print welcome message *)
+  print_colored_line (color_bold ^ color_cyan)
+    "💻 Welcome to the Colorized OCaml REPL!";
+  print_colored_line color_dim "Type expressions or definitions to get started.";
+  print_newline ();
+
   let static_env = [] in
   let dynamic_env = [] in
   run_repl_loop static_env dynamic_env
