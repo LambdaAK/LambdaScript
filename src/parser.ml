@@ -999,3 +999,9 @@ end = struct
     let* expr = ExprParser.expr_parser in
     return (Expr expr)
 end
+
+and ProgramParser : sig
+  val program_parser : program parser
+end = struct
+  let program_parser : program parser = parse_several DefnParser.defn_parser
+end
