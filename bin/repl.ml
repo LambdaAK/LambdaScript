@@ -4,103 +4,38 @@ open Language.Condense
 open Language.C_to_string
 open Language.Typecheck
 open Language.Ceval
-open Language.Env
 
-let () = print_endline "other stuff"
+let rec repeat_forever (f : unit -> unit) =
+  f ();
+  repeat_forever f
 
-let map_string =
-  {|
-  let rec map f lst = switch lst =>
-    | [] -> []
-    | h :: t -> f h :: map f t
-  end
-in map
-|}
+let repl () =
+  (* get input from the user . convert to list of chars*)
+  let input = read_line () |> String.to_seq |> List.of_seq in
+  (* lex tokens *)
 
-let filter_string =
-  {|
-  let rec filter p lst = switch lst =>
-    | [] -> []
-    | h :: t -> if p h then h :: filter p t else filter p t
-  end
-in filter
-  |}
+  let tokens = lex input |> List.map (fun t -> t.token_type) in
 
-let fold_left_string =
-  {|
-  let rec fold_left f acc lst = switch lst =>
-    | [] -> acc
-    | h :: t -> fold_left f (f acc h) t
-  end
-in fold_left
-  |}
+  match expr_parser tokens with
+  | Some (expr, _) -> (
+      (* parsing succeeded *)
+      (* condense the expression *)
+      let c_expr = condense_expr expr in
+      (* type check the expression *)
+      match type_of_c_expr [] c_expr with
+      | Ok t ->
+          (* it typechecked properly *)
+          (* evaluate the expression *)
+          let value = eval_c_expr c_expr [] in
+          (* pretty print the type and value *)
+          print_endline "-----------------------------";
+          print_endline ("Type : " ^ string_of_c_type t);
+          print_endline ("Value: " ^ string_of_value value);
+          print_endline "-----------------------------"
+      | Error e -> print_endline (string_of_type_check_error e))
+  | None ->
+      (* parsing failed *)
+      print_endline "Parsing failed"
 
-let fold_right_string =
-  {|
-  let rec fold_right f lst acc = switch lst =>
-    | [] -> acc
-    | h :: t -> f h (fold_right f t acc)
-  end
-in fold_right
-  |}
-
-let flip_string = {|
-  let rec flip f x y = f y x in flip
-|}
-
-let trivial_string = {|
-  let rec f x = f x in f
-|}
-
-let test_one =
-  {|
-  let rec map f lst = switch lst =>
-  | [] -> []
-  | h :: t -> f h :: map f t
-  end
-in map (\x -> if x then false else true) [true, false, true]
-|}
-
-let test_two = {|
-    
-    {let (x, y) = (1, 2); x + y}
-    
-|}
-
-let () =
-  ignore
-    ( map_string,
-      filter_string,
-      fold_left_string,
-      fold_right_string,
-      flip_string,
-      trivial_string,
-      test_one,
-      test_two )
-
-let chars = test_two |> String.to_seq |> List.of_seq
-let lexed = lex chars |> List.map (fun t -> t.token_type)
-let e = expr_parser lexed |> Option.get |> fst
-
-(* Condense e into a c_expr object *)
-
-let ce = condense_expr e
-
-let () =
-  print_endline "Parsed expression";
-  print_endline (string_of_expr ce)
-
-let t =
-  match type_of_c_expr built_ins_types ce with
-  | Ok t -> t
-  | Error e -> failwith (string_of_type_check_error e)
-
-let () = t |> string_of_c_type |> print_endline
-
-(* then, evaluate the expression and print the result *)
-
-let value = eval_c_expr ce []
-
-let () =
-  print_endline "Value: ";
-  print_endline (string_of_value value)
+let run_repl () = repeat_forever repl
+let () = run_repl ()
