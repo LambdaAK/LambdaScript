@@ -1189,6 +1189,56 @@ let eval_test_data =
 
 let eval_tests = List.map (fun (a, b) -> eval_test a b) eval_test_data
 
+let block_tests =
+  [
+    (* Empty block *)
+    ("{}", "()");
+    (* Block with single expression *)
+    ("{1}", "1");
+    (* Block with multiple expressions *)
+    ("{1; 2; 3}", "3");
+    (* Block with definitions *)
+    ("{let x = 1; let y = 2}", "()");
+    (* Block with definitions and expressions *)
+    ("{let x = 1; let y = 2; x + y}", "3");
+    (* Block with nested blocks *)
+    ("{{1; 2}; {3; 4}}", "4");
+    (* Block with recursive definitions *)
+    ("{let rec f x = if x == 0 then 1 else x * f (x - 1); f 5}", "120");
+    (* Block with type annotations *)
+    ("{let x [int] = 1; let y [int] = 2; x + y}", "3");
+    (* Block with pattern matching *)
+    ("{let (x, y) = (1, 2); x + y}", "3");
+    (* Block with function definitions *)
+    ("{let f x = x + 1; let g x = x * 2; f (g 5)}", "11");
+  ]
+
+let block_type_tests : test list =
+  List.map
+    (fun (a, b) -> type_test a b)
+    [
+      (* Empty block *)
+      ("{}", "unit");
+      (* Block with single expression *)
+      ("{1}", "int");
+      (* Block with multiple expressions *)
+      ("{1; 2; 3}", "int");
+      (* Block with definitions *)
+      ("{let x = 1; let y = 2}", "unit");
+      (* Block with definitions and expressions *)
+      ("{let x = 1; let y = 2; x + y}", "int");
+      (* Block with nested blocks *)
+      ("{{1; 2}; {3; 4}}", "int");
+      (* Block with recursive definitions *)
+      ("{let rec f x = if x == 0 then 1 else x * f (x - 1); f 5}", "int");
+      (* Block with type annotations *)
+      ("{let x [int] = 1; let y [int] = 2; x + y}", "int");
+      (* Block with pattern matching *)
+      ("{let (x, y) = (1, 2); x + y}", "int");
+      (* Block with function definitions *)
+      ("{let f x = x + 1; let g x = x * 2; f (g 5)}", "int");
+    ]
+
 let all_tests =
   List.flatten
     [
@@ -1202,6 +1252,8 @@ let all_tests =
       list_type_tests;
       switch_type_tests;
       polymorphism_tests;
+      List.map (fun (a, b) -> eval_test a b) block_tests;
+      block_type_tests;
     ]
 
 let suite = "suite" >::: all_tests

@@ -1,6 +1,7 @@
 open Cexpr
 open C_to_string
 open Typefixer
+open Ceval
 
 type type_equation = mono_type * mono_type
 type type_equations = type_equation list
@@ -809,10 +810,14 @@ and generate_defn (env : static_env) (defn : c_defn) :
       (* Generalize the body type *)
       let* generalized_type = generalize all_equations env body_type in
 
-      (* Create new environment with pattern bindings using the generalized
-         type *)
+      (* Create new environment with pattern bindings using bind_static *)
       let new_env =
-        List.map (fun (id, _) -> (id, generalized_type)) pattern_env
+        match bind_static pat generalized_type with
+        | Some bindings ->
+            (* Use pattern_env to ensure we have all the variables *)
+            let var_names = List.map fst pattern_env in
+            List.filter (fun (id, _) -> List.mem id var_names) bindings
+        | None -> failwith "Pattern binding failed"
       in
 
       (* Return new environment with pattern bindings *)
@@ -848,10 +853,14 @@ and generate_defn (env : static_env) (defn : c_defn) :
       (* Generalize the body type *)
       let* generalized_type = generalize all_equations env body_type in
 
-      (* Create new environment with pattern bindings using the generalized
-         type *)
+      (* Create new environment with pattern bindings using bind_static *)
       let new_env =
-        List.map (fun (id, _) -> (id, generalized_type)) pattern_env
+        match bind_static pat generalized_type with
+        | Some bindings ->
+            (* Use pattern_env to ensure we have all the variables *)
+            let var_names = List.map fst pattern_env in
+            List.filter (fun (id, _) -> List.mem id var_names) bindings
+        | None -> failwith "Pattern binding failed"
       in
 
       (* Return new environment with pattern bindings *)
