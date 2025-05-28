@@ -853,7 +853,6 @@ end = struct
     let* () = expect_token SwitchArrow in
     (* parse the branches *)
     let* branches = parse_several (branch_parser ()) in
-    let* () = expect_token End in
     return (Switch (e, branches))
 
   and expr_parser () : expr parser =

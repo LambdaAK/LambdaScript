@@ -1,2 +1,7 @@
-let rec fold op acc arr <- switch arr => | [] -> acc | h :: t -> op h (fold op t acc) end
+let rec fold_right f lst acc =
+switch lst =>
+  | [] -> acc
+  | h :: t -> f h (fold_right f t acc)
+
+let () = println (fold_right (\s -> \acc -> s ^ " " ^ acc) ["hello", "world", "lambda", "script"] "")
 

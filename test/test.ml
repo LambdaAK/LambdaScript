@@ -596,7 +596,7 @@ let function_type_tests =
       \    switch lst =>\n\
       \    | [] -> acc\n\
       \    | h :: t -> op h (fold op t acc)\n\
-      \    end\n\
+      \    \n\
       \  in\n\
       \  \n\
       \  let rec map f lst =\n\
@@ -611,7 +611,7 @@ let function_type_tests =
     switch lst =>
     | [] -> acc
     | h :: t -> op h (fold op t acc)
-    end
+    
   in
   
   let filter pred = fold (\ x -> \ acc -> if pred x then x :: acc else acc) []
@@ -623,7 +623,7 @@ let function_type_tests =
     switch lst =>
     | [] -> acc
     | h :: t -> fold op t (op h acc)
-    end
+    
   in
   
   let filter pred = fold (\ x -> \ acc -> if pred x then x :: acc else acc) []
@@ -691,13 +691,13 @@ let list_type_tests =
     ("[1 ... 10000]", "[int]");
     ("[1 ... 10000000]", "[int]");
     ("[1 ... 0]", "[int]");
-    ("[x * x | x = [1, 2, 3, 4, 5]]", "[int]");
-    ( {|[(x, y, z) | x = [1, 2, 3], y = ["hello", "world"], z = [true, false]]|},
+    ("[x * x | x <- [1, 2, 3, 4, 5]]", "[int]");
+    ( {|[(x, y, z) | x <- [1, 2, 3], y <- ["hello", "world"], z <- [true, false]]|},
       "[(int, str, bool)]" );
     ({|
-      [x | x = [1, 2, 3, 4, 5], x = [true, false]]
+      [x | x <- [1, 2, 3, 4, 5], x <- [true, false]]
       |}, "[bool]");
-    ({|[x | x = [1, 2, 3, 4, 5], x = []]|}, "[a]");
+    ({|[x | x <- [1, 2, 3, 4, 5], x <- []]|}, "[a]");
   ]
 
 let polymorphism_tests =
@@ -730,15 +730,15 @@ let polymorphism_tests =
 
 let switch_type_tests =
   [
-    ("switch () => | () -> 1 end", "int");
-    ("switch () => | () -> true end", "bool");
-    ("switch () => | () -> () end", "unit");
-    ("switch () => | () -> (1, 2) end", "(int, int)");
-    ("switch () => | () -> (1, 2, 3) end", "(int, int, int)");
-    ("switch 1 => | 1 -> 1 end", "int");
-    ("switch 1 => | 1 -> true end", "bool");
-    ("switch 1 => | 1 -> () end", "unit");
-    ("switch 5 => | 1 -> 1 | 2 -> 2 | 3 -> 3 | 4 -> 4 | 5 -> 5 end", "int");
+    ("switch () => | () -> 1", "int");
+    ("switch () => | () -> true", "bool");
+    ("switch () => | () -> ()", "unit");
+    ("switch () => | () -> (1, 2)", "(int, int)");
+    ("switch () => | () -> (1, 2, 3)", "(int, int, int)");
+    ("switch 1 => | 1 -> 1", "int");
+    ("switch 1 => | 1 -> true", "bool");
+    ("switch 1 => | 1 -> ()", "unit");
+    ("switch 5 => | 1 -> 1 | 2 -> 2 | 3 -> 3 | 4 -> 4 | 5 -> 5", "int");
   ]
 
 let arithmetic_tests =
@@ -844,13 +844,13 @@ let ternary_tests =
 
 let switch_tests =
   [
-    ("switch () => | () -> 1 end", "1");
-    ("switch () => | () -> true end", "true");
-    ("switch () => | () -> () end", "()");
-    ("switch () => | () -> (1, 2) end", "(1, 2)");
-    ("switch () => | () -> (1, 2, 3) end", "(1, 2, 3)");
-    ("switch 1 => | 1 -> 1 end", "1");
-    ("switch 1 => | 1 -> true end", "true");
+    ("switch () => | () -> 1", "1");
+    ("switch () => | () -> true", "true");
+    ("switch () => | () -> ()", "()");
+    ("switch () => | () -> (1, 2)", "(1, 2)");
+    ("switch () => | () -> (1, 2, 3)", "(1, 2, 3)");
+    ("switch 1 => | 1 -> 1", "1");
+    ("switch 1 => | 1 -> true", "true");
   ]
 
 let minus_tests =
@@ -908,7 +908,7 @@ let list_tests =
     switch lst =>
     | [] -> acc
     | h :: t -> op h (fold_right op t acc)
-  end
+  
 in
 
 fold_right (\x -> \y -> x + y) [1,2,3,4,5,6,7,8,9,10] 0
@@ -920,22 +920,20 @@ fold_right (\x -> \y -> x + y) [1,2,3,4,5,6,7,8,9,10] 0
     ({|[15 ... 15]|}, "[15]");
     ({|[1 ... 1]|}, "[1]");
     ( {|
-    [(x, y) | x = [1, 2, 3], y = [4, 5, 6]]
+    [(x, y) | x <- [1, 2, 3], y <- [4, 5, 6]]
     |},
       "[(1, 4), (1, 5), (1, 6), (2, 4), (2, 5), (2, 6), (3, 4), (3, 5), (3, 6)]"
     );
-    ({|[x + y | x = [1, 2, 3], y = [4, 5, 6]]|}, "[5, 6, 7, 6, 7, 8, 7, 8, 9]");
+    ({|[x + y | x <- [1, 2, 3], y <- [4, 5, 6]]|}, "[5, 6, 7, 6, 7, 8, 7, 8, 9]");
     ( {|
     let rec fold_right op lst acc =
       switch lst =>
       | [] -> acc
       | h :: t -> op h (fold_right op t acc)
-    end
     in
 
-    fold_right (\x -> \y -> x + y) [1 ... 10] 0
-    
-    |},
+    fold_right (\x -> \y -> x + y) [1,2,3,4,5,6,7,8,9,10] 0
+  |},
       "55" );
   ]
 
@@ -946,7 +944,7 @@ let fold_type_tests =
       switch arr =>
       | [] -> acc
       | h :: t -> fold op t (op acc h)
-      end
+      
     in
     fold
   |},
@@ -956,7 +954,7 @@ let fold_type_tests =
     switch arr =>
     | [] -> acc
     | h :: t -> op h (fold op t acc)
-    end
+    
   in
   fold
   |},

@@ -27,7 +27,6 @@ let code_mapping : (string * string) list =
 switch arr =>
   | [] -> []
   | h :: t -> f h :: map f t
-end
 in
 map|}
     );
@@ -36,7 +35,6 @@ map|}
 switch arr =>
   | [] -> []
   | h :: t -> if f h then h :: filter f t else filter f t
-end
 in
 filter|}
     );
@@ -45,7 +43,6 @@ filter|}
       switch lst =>
       | [] -> acc
       | h :: t -> fold f (f acc h) t
-      end
       in fold
     |}
     );
@@ -54,7 +51,6 @@ filter|}
       switch lst =>
       | [] -> acc
       | h :: t -> f h (fold f t acc)
-      end 
       in fold|}
     );
     ("+", {|\a -> \b -> a + b|});
