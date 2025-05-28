@@ -517,7 +517,7 @@ end = struct
 
   and list_comprehension_branch_parser : (pat * expr) parser =
     let* pat = PatParser.pat_parser in
-    let* () = expect_token Equals in
+    let* () = expect_token BindArrow in
     let* expr = expr_parser in
     return (pat, expr)
 

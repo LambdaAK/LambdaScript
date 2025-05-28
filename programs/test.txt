@@ -22,7 +22,7 @@ switch lst =>
   | h :: t -> f h (fold_right f t acc)
 end
 
-let numbers = [1 ... 100]
+let numbers = [1 ... 100000]
 let strings = "hello" :: "world" :: "lambda" :: "script" :: []
 
 let doubled = map (\x -> x * 2) numbers
@@ -33,5 +33,26 @@ let even_numbers = filter (\x -> x % 2 == 0) numbers
 let () = println "Even numbers:"
 let () = println (int_to_str (fold_left (\acc -> \x -> acc + x) 0 even_numbers))
 
+let process_list lst = {
+  let doubled = map (\x -> x * 2) lst;
+  let sum = fold_left (\acc -> \x -> acc + x) 0 doubled;
+  let () = println "Sum of doubled numbers:";
+  let () = println (int_to_str sum);
+  
+  let filtered = filter (\x -> x > 50) doubled;
+  let count = fold_left (\acc -> \x -> acc + 1) 0 filtered;
+  let () = println "Count of numbers > 50:";
+  let () = println (int_to_str count);
+  
+  count
+}
 
-let () = println "Higher-order functions defined successfully!"
+let result = process_list numbers
+let () = println "Final result:"
+let () = println (int_to_str result)
+
+let () = println "Testing list comprehension:"
+let pairs = [x * y | x <- [1 ... 50], y <- [1 ... 300]]
+let () = println (int_to_str (fold_left (\acc -> \x -> acc + x) 0 pairs))
+
+let () = println "Tests ran successfully!"
