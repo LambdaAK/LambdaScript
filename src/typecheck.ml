@@ -192,8 +192,8 @@ let rec generate (env : static_env) (e : c_expr) :
             let rec process_defns acc_env acc_equations = function
               | [] -> return (acc_env, acc_equations)
               | Defn d :: rest ->
-                  let* new_env = generate_defn acc_env d in
-                  process_defns new_env acc_equations rest
+                  let* new_bindings = generate_defn acc_env d in
+                  process_defns (new_bindings @ acc_env) acc_equations rest
               | Expr _ :: rest -> process_defns acc_env acc_equations rest
             in
             process_defns env [] other_parts
@@ -722,10 +722,13 @@ and generalize (constraints : type_equations) (env : static_env) (t : mono_type)
   let env_types = List.map instantiate env_types in
   let env_types = flatten_env_types env_types in
 
+  (* Get all type variables in the environment *)
+  let env_vars = List.flatten (List.map get_type_vars env_types) in
+
   (* Filter out type variables that appear in the environment *)
   let free_vars_result =
     type_vars
-    |> List.filter (fun t -> not (List.mem t env_types))
+    |> List.filter (fun t -> not (List.mem t env_vars))
     |> List.fold_left
          (fun acc t ->
            match acc with
@@ -811,7 +814,7 @@ and generate_defn (env : static_env) (defn : c_defn) :
       let* generalized_type = generalize all_equations env body_type in
 
       (* Create new environment with pattern bindings using bind_static *)
-      let new_env =
+      let new_bindings =
         match bind_static pat generalized_type with
         | Some bindings ->
             (* Use pattern_env to ensure we have all the variables *)
@@ -820,8 +823,8 @@ and generate_defn (env : static_env) (defn : c_defn) :
         | None -> failwith "Pattern binding failed"
       in
 
-      (* Return new environment with pattern bindings *)
-      return (new_env @ env)
+      (* Return only the new bindings *)
+      return new_bindings
   | CDefnRec (pat, type_annotation, body) ->
       (* For recursive definitions, we need to add the binding to the
          environment before type checking the body *)
@@ -854,7 +857,7 @@ and generate_defn (env : static_env) (defn : c_defn) :
       let* generalized_type = generalize all_equations env body_type in
 
       (* Create new environment with pattern bindings using bind_static *)
-      let new_env =
+      let new_bindings =
         match bind_static pat generalized_type with
         | Some bindings ->
             (* Use pattern_env to ensure we have all the variables *)
@@ -863,8 +866,8 @@ and generate_defn (env : static_env) (defn : c_defn) :
         | None -> failwith "Pattern binding failed"
       in
 
-      (* Return new environment with pattern bindings *)
-      return (new_env @ env)
+      (* Return only the new bindings *)
+      return new_bindings
 
 let rec get_mono_type (t : c_type) : mono_type =
   match t with

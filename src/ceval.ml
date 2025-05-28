@@ -130,8 +130,8 @@ and eval_c_expr (ce : c_expr) (env : env) =
         | Defn d :: t ->
             (* when the next part is a definition, we run the definition and add
                to the env, then continue evaluating the rest of the block*)
-            let new_env = eval_defn d env in
-            eval_block_parts t new_env
+            let new_bindings = eval_defn d env in
+            eval_block_parts t (new_bindings @ env)
       in
 
       eval_block_parts parts env
@@ -403,9 +403,9 @@ and expr_of_pat : c_pat -> c_expr = function
   | CVectorPat patterns -> EVector (List.map expr_of_pat patterns)
 
 (** [eval_defn d env] takes a definition [d] and an environment [env], executes
-    the definition, and returns the new environment after running the
-    definition. This function is responsible for updating the environment with
-    any new bindings introduced by the definition. *)
+    the definition, and returns the new bindings introduced by the definition.
+    The caller is responsible for updating the environment with these bindings.
+*)
 and eval_defn (d : c_defn) (env : env) : env =
   match d with
   | CDefn (pat, _, body) -> (
@@ -414,7 +414,7 @@ and eval_defn (d : c_defn) (env : env) : env =
       (* Try to bind the pattern to the value *)
       match bind_pat pat value with
       | None -> failwith "eval_defn: pattern match failed"
-      | Some new_bindings -> new_bindings @ env)
+      | Some new_bindings -> new_bindings)
   | CDefnRec (pat, _, body) -> (
       (* For recursive definitions, we need to create a recursive closure *)
       let value = eval_c_expr body env in
@@ -435,4 +435,4 @@ and eval_defn (d : c_defn) (env : env) : env =
           | RecursiveFunctionClosure (env_ref, _, _, _) ->
               env_ref := new_bindings @ env
           | _ -> ());
-          new_bindings @ env)
+          new_bindings)
