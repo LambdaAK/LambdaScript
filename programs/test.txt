@@ -1,2 +1,37 @@
-let () = println "A"
-let () = println "B"
+let rec map f arr =
+switch arr =>
+  | [] -> []
+  | h :: t -> f h :: map f t
+end
+
+let rec filter f arr =
+switch arr =>
+  | [] -> []
+  | h :: t -> if f h then h :: filter f t else filter f t
+end
+
+let rec fold_left f acc lst =
+switch lst =>
+  | [] -> acc
+  | h :: t -> fold_left f (f acc h) t
+end
+
+let rec fold_right f lst acc =
+switch lst =>
+  | [] -> acc
+  | h :: t -> f h (fold_right f t acc)
+end
+
+let numbers = [1 ... 100]
+let strings = "hello" :: "world" :: "lambda" :: "script" :: []
+
+let doubled = map (\x -> x * 2) numbers
+let () = println "Doubled numbers:"
+let () = println (int_to_str (fold_left (\acc -> \x -> acc + x) 0 doubled))
+
+let even_numbers = filter (\x -> x % 2 == 0) numbers
+let () = println "Even numbers:"
+let () = println (int_to_str (fold_left (\acc -> \x -> acc + x) 0 even_numbers))
+
+
+let () = println "Higher-order functions defined successfully!"
