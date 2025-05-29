@@ -324,6 +324,7 @@ let lex (lst : char list) : token list =
         match lst with
         | [] -> []
         | ' ' :: t -> lex t (* ignore white space *)
+        | '\t' :: t -> lex t (* ignore tabs *)
         | '\n' :: t ->
             line_number := !line_number + 1;
             lex t (* ignore new lines, increment the line number *)

@@ -42,15 +42,24 @@ type repl_result =
   | NoChange
   | NewBindings of static_env * env
 
+(** [read_multiline ()] reads input from the user until a line containing only
+    ";;" is encountered. The ;; can be on the first line or any subsequent line.
+    @return The concatenated input lines *)
+let rec read_multiline () =
+  let line = read_line () in
+  if String.trim line = ";;" then ""
+  else if String.ends_with ~suffix:";;" (String.trim line) then
+    String.sub line 0 (String.length line - 2)
+  else line ^ "\n" ^ read_multiline ()
+
 let repl (static_env : static_env) (dynamic_env : env) : repl_result =
   (* Print prompt *)
   print_colored (color_bold ^ color_green) "λ> ";
   flush_all ();
 
-  (* get input from the user . convert to list of chars*)
-  let input = read_line () |> String.to_seq |> List.of_seq in
+  (* get multiline input from the user *)
+  let input = read_multiline () |> String.to_seq |> List.of_seq in
   (* lex tokens *)
-
   let tokens = lex input |> List.map (fun t -> t.token_type) in
 
   let expr_or_defn = expr_or_defn_parser tokens in
