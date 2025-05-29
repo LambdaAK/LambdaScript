@@ -468,8 +468,3 @@ let rec print_tokens_list : token list -> unit = function
   | token :: tail ->
       token |> string_of_token |> print_endline;
       print_tokens_list tail
-
-(* 
-
-   let sum [int -> int -> int] = \ a [int] -> \ b [int] -> a + b in sum (succ 4)
-   (sum 1 2) *)

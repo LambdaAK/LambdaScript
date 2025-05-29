@@ -116,9 +116,7 @@ let rec run_repl_loop static_env dynamic_env =
 
 let run_repl () =
   (* Print welcome message *)
-  print_colored_line (color_bold ^ color_cyan)
-    "💻 Welcome to the Colorized OCaml REPL!";
-  print_colored_line color_dim "Type expressions or definitions to get started.";
+  print_colored_line (color_bold ^ color_cyan) "💻 LambdaScript REPL";
   print_newline ();
 
   let static_env = [] in
