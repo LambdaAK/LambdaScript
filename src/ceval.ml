@@ -56,6 +56,11 @@ let ( >>= ) (x : 'a eval_result) (f : 'a -> 'b eval_result) : 'b eval_result =
     ]} *)
 let ( let* ) = ( >>= )
 
+let unwrap_eval_result (result : 'a eval_result) : 'a =
+  match result with
+  | Ok x -> x
+  | Error _ -> failwith "unwrap_eval_result: error"
+
 let rec string_of_env (env : env) =
   List.fold_left
     (fun acc (id, v) -> acc ^ "(" ^ id ^ ", " ^ string_of_value v ^ ") ")
