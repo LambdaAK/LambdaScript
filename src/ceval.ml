@@ -240,7 +240,7 @@ and eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       let* v1 : value = eval_c_expr e1 env in
       let* v2 : value = eval_c_expr e2 env in
       match v1 with
-      | BuiltInFunction f -> eval_builtin f v2 |> return
+      | BuiltInFunction f -> eval_builtin f v2
       | FunctionClosure (env', p, _, e) -> (
           match bind_pat p v2 with
           | Some env'' -> eval_c_expr e (env'' @ env')
@@ -289,18 +289,18 @@ and eval_c_expr (ce : c_expr) (env : env) : value eval_result =
           | None -> failwith "no pattern matched"
           | Some new_bindings -> eval_c_expr e2 (new_bindings @ env)))
 
-and eval_builtin (f : builtin_function) (v : value) : value =
+and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   match (f, v) with
   | Println, StringValue s ->
       print_endline s;
-      UnitValue
+      return UnitValue
   | Print, StringValue s ->
       print_string s;
-      UnitValue
-  | IntToString, IntegerValue i -> StringValue (string_of_int i)
-  | IntToFloat, IntegerValue i -> FloatValue (float_of_int i)
-  | FloatToInt, FloatValue f -> IntegerValue (int_of_float f)
-  | _ -> failwith "eval_builtin: unimplemented"
+      return UnitValue
+  | IntToString, IntegerValue i -> StringValue (string_of_int i) |> return
+  | IntToFloat, IntegerValue i -> FloatValue (float_of_int i) |> return
+  | FloatToInt, FloatValue f -> IntegerValue (int_of_float f) |> return
+  | _ -> Error (OtherError "eval_builtin: unimplemented")
 
 and generate_envs_from_generators generators env : env list eval_result =
   match generators with
@@ -333,13 +333,13 @@ and eval_bop (op : c_bop) (e1 : c_expr) (e2 : c_expr) (env : env) :
       match v1 with
       | BooleanValue false -> BooleanValue false |> return
       | BooleanValue true -> eval_c_expr e2 env
-      | _ -> failwith "eval_bop: CAnd")
+      | _ -> Error (OtherError "eval_bop: CAnd expects boolean operands"))
   | COr -> (
       let* v1 : value = eval_c_expr e1 env in
       match v1 with
       | BooleanValue true -> BooleanValue true |> return
       | BooleanValue false -> eval_c_expr e2 env
-      | _ -> failwith "eval_bop: COr")
+      | _ -> Error (OtherError "eval_bop: COr expects boolean operands"))
   | _ -> (
       let* v1 : value = eval_c_expr e1 env in
       let* v2 : value = eval_c_expr e2 env in
@@ -384,9 +384,9 @@ and eval_bop (op : c_bop) (e1 : c_expr) (e2 : c_expr) (env : env) :
           print_endline v2_string;
           print_endline op_string;
 
-          failwith "eval_bop unimplemented")
+          Error (OtherError "eval_bop: unimplemented"))
 
-and eval_list_enumeration e1 e2 env =
+and eval_list_enumeration e1 e2 env : value eval_result =
   let* v1 = eval_c_expr e1 env in
   let* v2 = eval_c_expr e2 env in
   match (v1, v2) with
@@ -396,7 +396,7 @@ and eval_list_enumeration e1 e2 env =
         else make_list_tr (a + 1) b (IntegerValue a :: acc)
       in
       ListValue (make_list_tr a b []) |> return
-  | _ -> failwith "eval_list_enumeration failed"
+  | _ -> Error (OtherError "eval_list_enumeration: expected two integers")
 
 (* let eval_c_empty_env (s : string) : value = eval_c_expr (s |> list_of_string
    |> lex |> parse_expr |> fst |> condense_expr) [] *)
@@ -406,31 +406,40 @@ and eval_c_empty_env (s : string) : value eval_result =
   let token_types = List.map (fun t -> t.token_type) tokens in
   let parse_result = expr_parser token_types in
   match parse_result with
-  | None -> failwith "parsing failed"
+  | None -> Error (OtherError "eval_c_empty_env: parsing failed")
   | Some (e, _) ->
       let c_e = condense_expr e in
       eval_c_expr c_e []
 
-and initial_env () : (string * value) list =
-  List.map
-    (fun (id, code) ->
-      match eval_c_empty_env code with
-      | Ok v -> (id, v)
-      | Error _ -> failwith ("initial_env: failed to evaluate code for " ^ id))
-    code_mapping
-  @ built_ins_values
+and initial_env () : (string * value) list eval_result =
+  let rec map_env acc = function
+    | [] -> Ok (List.rev acc @ built_ins_values)
+    | (id, code) :: rest -> (
+        match eval_c_empty_env code with
+        | Ok v -> map_env ((id, v) :: acc) rest
+        | Error e ->
+            Error
+              (OtherError
+                 ("initial_env: failed to evaluate code for " ^ id ^ ": "
+                 ^
+                 match e with
+                 | OtherError msg -> msg
+                 | _ -> "")))
+  in
+  map_env [] code_mapping
 
 (* env code *)
 
-and c_eval_ce (ce : c_expr) : string =
-  match eval_c_expr ce (initial_env ()) with
-  | Ok v -> string_of_value v
+and c_eval_ce (ce : c_expr) : string eval_result =
+  let* initial_env = initial_env () in
+  match eval_c_expr ce initial_env with
+  | Ok v -> string_of_value v |> return
   | Error _ -> failwith "c_eval_ce: evaluation failed"
 
 (* let c_eval (s : string) : string = eval_c_expr (s |> list_of_string |> lex |>
    parse_expr |> fst |> condense_expr) initial_env |> string_of_value *)
 
-and c_eval (s : string) : string =
+and c_eval (s : string) : string eval_result =
   let tokens = s |> list_of_string |> lex in
   let token_types = List.map (fun t -> t.token_type) tokens in
   let parse_result = expr_parser token_types in
@@ -438,8 +447,9 @@ and c_eval (s : string) : string =
   | None -> failwith "parsing failed"
   | Some (e, _) -> (
       let c_e = condense_expr e in
-      match eval_c_expr c_e (initial_env ()) with
-      | Ok v -> string_of_value v
+      let* initial_env = initial_env () in
+      match eval_c_expr c_e initial_env with
+      | Ok v -> string_of_value v |> return
       | Error _ -> failwith "c_eval: evaluation failed")
 
 and create_generic_type : c_pat -> c_type = function

@@ -37,7 +37,7 @@ let interpret (filename : string) =
       let condensed_program = List.map condense_defn program in
 
       let static_env : static_env = built_ins_types in
-      let dynamic_env : env = initial_env () in
+      let dynamic_env : env = initial_env () |> unwrap_eval_result in
 
       (* use fold_left to iterate through the definitions and evaluate them *)
       let static_env, dynamic_env =

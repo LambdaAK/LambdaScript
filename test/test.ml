@@ -256,7 +256,7 @@ module PolymorphismTypeTestModifier =
 
 let eval_test (expr : string) (expected_output : string) : test =
   expr ^ " SHOULD YIELD " ^ expected_output >:: fun _ ->
-  let result : string = c_eval expr in
+  let result : string = c_eval expr |> unwrap_eval_result in
   assert_equal result expected_output
 
 let type_test (expr : string) (expected_output : string) : test =
