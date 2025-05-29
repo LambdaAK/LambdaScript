@@ -65,15 +65,18 @@ let repl (static_env : static_env) (dynamic_env : env) : repl_result =
        let c_expr = condense_expr expr in
        (* type check the expression *)
        match type_of_c_expr static_env c_expr with
-       | Ok t ->
+       | Ok t -> begin
            (* it typechecked properly *)
            (* evaluate the expression *)
-           let value = eval_c_expr c_expr dynamic_env in
-           (* pretty print the type and value *)
-           print_separator ();
-           print_type_info t;
-           print_value_info value;
-           print_separator ()
+           match eval_c_expr c_expr dynamic_env with
+           | Ok value ->
+               (* pretty print the type and value *)
+               print_separator ();
+               print_type_info t;
+               print_value_info value;
+               print_separator ()
+           | Error _ -> failwith "Evaluation failed"
+         end
        | Error e -> print_error (string_of_type_check_error e));
       NoChange
   | Some (Definition defn, _) -> (
@@ -86,7 +89,11 @@ let repl (static_env : static_env) (dynamic_env : env) : repl_result =
           NoChange
       | Ok new_static_bindings ->
           (*evaluate the definition, since it typechcked*)
-          let new_dynamic_bindings = eval_defn c_defn dynamic_env in
+          let new_dynamic_bindings =
+            match eval_defn c_defn dynamic_env with
+            | Ok v -> v
+            | Error _ -> failwith "Evaluation failed"
+          in
           (* print all of the new bindings *)
           List.iter
             (fun (name, typ) ->

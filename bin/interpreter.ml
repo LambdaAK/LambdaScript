@@ -45,7 +45,12 @@ let interpret (filename : string) =
           (fun (static_env, dynamic_env) defn ->
             match generate_defn static_env defn with
             | Ok new_bindings ->
-                let new_dynamic_bindings = eval_defn defn dynamic_env in
+                (* TODO: propagate the monadic errors *)
+                let new_dynamic_bindings =
+                  match eval_defn defn dynamic_env with
+                  | Ok v -> v
+                  | Error _ -> failwith "Evaluation failed"
+                in
                 (new_bindings @ static_env, new_dynamic_bindings @ dynamic_env)
             | Error e ->
                 print_endline (string_of_type_check_error e);
