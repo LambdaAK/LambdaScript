@@ -56,16 +56,27 @@ let ( >>= ) (x : 'a eval_result) (f : 'a -> 'b eval_result) : 'b eval_result =
     ]} *)
 let ( let* ) = ( >>= )
 
+(** [unwrap_eval_result result] unwraps an eval_result, returning the value if
+    successful or failing with an error message if the result is an error.
+    @param result The eval_result to unwrap
+    @return The unwrapped value
+    @raise Failure if the result is an error *)
 let unwrap_eval_result (result : 'a eval_result) : 'a =
   match result with
   | Ok x -> x
   | Error _ -> failwith "unwrap_eval_result: error"
 
+(** [string_of_env env] converts an environment to a string representation.
+    @param env The environment to convert
+    @return A string representation of the environment *)
 let rec string_of_env (env : env) =
   List.fold_left
     (fun acc (id, v) -> acc ^ "(" ^ id ^ ", " ^ string_of_value v ^ ") ")
     "" env
 
+(** [string_of_value v] converts a value to its string representation.
+    @param v The value to convert
+    @return A string representation of the value *)
 and string_of_value = function
   | IntegerValue i -> string_of_int i
   | FloatValue f -> string_of_float f
@@ -85,8 +96,13 @@ and string_of_value = function
       in
       "[" ^ values_string ^ "]"
 
+(** [bind_pat p v] attempts to match a pattern [p] against a value [v]. If
+    successful, returns Some bindings where bindings is a list of (id, value)
+    pairs. If unsuccessful, returns None.
+    @param p The pattern to match
+    @param v The value to match against
+    @return Some bindings if match successful, None otherwise *)
 and bind_pat (p : c_pat) (v : value) : env option =
-  (* TODO: use the eval_result monad to handle failure to bind here *)
   match (p, v) with
   | CUnitPat, UnitValue -> Some []
   | CWildcardPat, _ -> Some []
@@ -96,8 +112,6 @@ and bind_pat (p : c_pat) (v : value) : env option =
   | CBoolPat b, BooleanValue c -> if b = c then Some [] else None
   | CNilPat, ListValue [] -> Some []
   | CConsPat (p1, p2), ListValue (v1 :: v2) -> (
-      (* v1 is matched against p1 and v2 is matched against p2 if both match,
-         then the bindings from both are returned *)
       match bind_pat p1 v1 with
       | None -> None
       | Some bindings -> (
@@ -164,7 +178,12 @@ and bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
       | _ -> None)
   | _ -> None
 
-and eval_c_expr (ce : c_expr) (env : env) : value eval_result =
+(** [eval_c_expr ce env] evaluates a condensed expression [ce] in the context of
+    environment [env].
+    @param ce The condensed expression to evaluate
+    @param env The environment to evaluate in
+    @return The result of evaluation *)
+let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
   match ce with
   | EInt i -> IntegerValue i |> return
   | EFloat f -> FloatValue f |> return
@@ -228,14 +247,14 @@ and eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       in
 
       match find_bindings_and_body_if_possible branches v with
-      | None -> failwith "no pattern matched in switch"
+      | None -> Error (OtherError "no pattern matched in switch")
       | Some (bindings, e) -> eval_c_expr e (bindings @ env))
   | ETernary (e1, e2, e3) -> (
       let* v1 : value = eval_c_expr e1 env in
       match v1 with
       | BooleanValue true -> eval_c_expr e2 env
       | BooleanValue false -> eval_c_expr e3 env
-      | _ -> failwith "eval_c_expr: ETernary")
+      | _ -> Error (OtherError "eval_c_expr: ETernary"))
   | EApp (e1, e2) -> (
       let* v1 : value = eval_c_expr e1 env in
       let* v2 : value = eval_c_expr e2 env in
@@ -244,14 +263,14 @@ and eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       | FunctionClosure (env', p, _, e) -> (
           match bind_pat p v2 with
           | Some env'' -> eval_c_expr e (env'' @ env')
-          | None -> failwith "eval_c_expr: EApp")
+          | None -> Error (OtherError "eval_c_expr: EApp"))
       (* recursive function *)
       | RecursiveFunctionClosure (env'_ref, p, _, e) -> (
           let env' : env = !env'_ref in
           match bind_pat p v2 with
           | Some env'' -> eval_c_expr e (env'' @ env')
-          | None -> failwith "eval_c_expr: EApp")
-      | _ -> failwith "eval_c_expr: EApp")
+          | None -> Error (OtherError "eval_c_expr: EApp"))
+      | _ -> Error (OtherError "eval_c_expr: EApp"))
   | EBind (pattern, _, e1, e2) ->
       (* We have let p = e1 in e2. We can convert this to (fun p -> e2) e1 and
          evaluate that instead. As far as dynamic semantics go, they are the
@@ -278,7 +297,7 @@ and eval_c_expr (ce : c_expr) (env : env) : value eval_result =
             bind_pat pattern v1_rec
           in
           match recursive_bindings_option with
-          | None -> failwith "no pattern matched"
+          | None -> Error (OtherError "no pattern matched in let rec")
           | Some recursive_bindings ->
               env_ref := recursive_bindings @ env;
               eval_c_expr e2 (recursive_bindings @ env))
@@ -286,7 +305,7 @@ and eval_c_expr (ce : c_expr) (env : env) : value eval_result =
           (* evaluate a regular let expression *)
           let new_bindings_option : env option = bind_pat pattern v1_rec in
           match new_bindings_option with
-          | None -> failwith "no pattern matched"
+          | None -> Error (OtherError "no pattern matched in let rec")
           | Some new_bindings -> eval_c_expr e2 (new_bindings @ env)))
 
 and eval_builtin (f : builtin_function) (v : value) : value eval_result =
@@ -326,7 +345,6 @@ and generate_envs_from_generators generators env : env list eval_result =
 
 and eval_bop (op : c_bop) (e1 : c_expr) (e2 : c_expr) (env : env) :
     value eval_result =
-  (* these are seperate because they require short circuit evaluation *)
   match op with
   | CAnd -> (
       let* v1 : value = eval_c_expr e1 env in
@@ -356,35 +374,7 @@ and eval_bop (op : c_bop) (e1 : c_expr) (e2 : c_expr) (env : env) :
       | CGT, IntegerValue a, IntegerValue b -> BooleanValue (a > b) |> return
       | CGE, IntegerValue a, IntegerValue b -> BooleanValue (a >= b) |> return
       | CCons, v, ListValue vs -> ListValue (v :: vs) |> return
-      | _ ->
-          (* print the operator *)
-          let op_string : string =
-            match op with
-            | CPlus -> "+"
-            | CMinus -> "-"
-            | CMul -> "*"
-            | CDiv -> "/"
-            | CMod -> "%"
-            | CEQ -> "=="
-            | CNE -> "!="
-            | CLT -> "<"
-            | CLE -> "<="
-            | CGT -> ">"
-            | CGE -> ">="
-            | CAnd -> "&&"
-            | COr -> "||"
-            | CCons -> "::"
-          in
-
-          (* print the values *)
-          let v1_string : string = string_of_value v1 in
-          let v2_string : string = string_of_value v2 in
-
-          print_endline v1_string;
-          print_endline v2_string;
-          print_endline op_string;
-
-          Error (OtherError "eval_bop: unimplemented"))
+      | _ -> Error (OtherError "eval_bop: unimplemented"))
 
 and eval_list_enumeration e1 e2 env : value eval_result =
   let* v1 = eval_c_expr e1 env in
@@ -434,23 +424,20 @@ and c_eval_ce (ce : c_expr) : string eval_result =
   let* initial_env = initial_env () in
   match eval_c_expr ce initial_env with
   | Ok v -> string_of_value v |> return
-  | Error _ -> failwith "c_eval_ce: evaluation failed"
-
-(* let c_eval (s : string) : string = eval_c_expr (s |> list_of_string |> lex |>
-   parse_expr |> fst |> condense_expr) initial_env |> string_of_value *)
+  | Error _ -> Error (OtherError "c_eval_ce: evaluation failed")
 
 and c_eval (s : string) : string eval_result =
   let tokens = s |> list_of_string |> lex in
   let token_types = List.map (fun t -> t.token_type) tokens in
   let parse_result = expr_parser token_types in
   match parse_result with
-  | None -> failwith "parsing failed"
+  | None -> Error (OtherError "c_eval: parsing failed")
   | Some (e, _) -> (
       let c_e = condense_expr e in
       let* initial_env = initial_env () in
       match eval_c_expr c_e initial_env with
       | Ok v -> string_of_value v |> return
-      | Error _ -> failwith "c_eval: evaluation failed")
+      | Error _ -> Error (OtherError "c_eval: evaluation failed"))
 
 and create_generic_type : c_pat -> c_type = function
   | CUnitPat -> Mono UnitType
@@ -474,6 +461,15 @@ and create_generic_type : c_pat -> c_type = function
                        for vectors")
               patterns))
 
+(** [expr_of_pat p] converts a pattern [p] of type [c_pat] into a corresponding
+    expression of type [c_expr]. This is useful for cases where a pattern needs
+    to be treated as an expression, such as in pattern matching code generation
+    or evaluation. Note that wildcard patterns are not allowed and will raise an
+    exception.
+
+    @param p The pattern to convert
+    @return The corresponding expression
+    @raise Failure if the pattern is a wildcard (CWildcardPat) *)
 and expr_of_pat : c_pat -> c_expr = function
   | CUnitPat -> EUnit
   | CWildcardPat -> failwith "expr_of_pat: wildcard pattern not allowed"
@@ -485,10 +481,11 @@ and expr_of_pat : c_pat -> c_expr = function
   | CConsPat (p1, p2) -> EBop (CCons, expr_of_pat p1, expr_of_pat p2)
   | CVectorPat patterns -> EVector (List.map expr_of_pat patterns)
 
-(** [eval_defn d env] takes a definition [d] and an environment [env], executes
-    the definition, and returns the new bindings introduced by the definition.
-    The caller is responsible for updating the environment with these bindings.
-*)
+(** [eval_defn d env] evaluates a definition [d] in the context of environment
+    [env].
+    @param d The definition to evaluate
+    @param env The environment to evaluate in
+    @return The new bindings introduced by the definition *)
 and eval_defn (d : c_defn) (env : env) : env eval_result =
   match d with
   | CDefn (pat, _, body) -> (
@@ -496,7 +493,7 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       let* value = eval_c_expr body env in
       (* Try to bind the pattern to the value *)
       match bind_pat pat value with
-      | None -> failwith "eval_defn: pattern match failed"
+      | None -> Error (OtherError "eval_defn: pattern match failed")
       | Some new_bindings -> new_bindings |> return)
   | CDefnRec (pat, _, body) -> (
       (* For recursive definitions, we need to create a recursive closure *)
