@@ -516,3 +516,40 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
               env_ref := new_bindings @ env
           | _ -> ());
           new_bindings |> return)
+
+and string_of_bop = function
+  | CPlus -> "+"
+  | CMinus -> "-"
+  | CMul -> "*"
+  | CDiv -> "/"
+  | CMod -> "%"
+  | CEQ -> "=="
+  | CNE -> "!="
+  | CLT -> "<"
+  | CLE -> "<="
+  | CGT -> ">"
+  | CGE -> ">="
+  | CAnd -> "&&"
+  | COr -> "||"
+  | CCons -> "::"
+
+and string_of_pat = function
+  | CUnitPat -> "()"
+  | CWildcardPat -> "_"
+  | CIdPat s -> s
+  | CIntPat i -> string_of_int i
+  | CStringPat s -> "\"" ^ s ^ "\""
+  | CBoolPat b -> string_of_bool b
+  | CNilPat -> "[]"
+  | CConsPat (p1, p2) -> string_of_pat p1 ^ " :: " ^ string_of_pat p2
+  | CVectorPat ps -> "(" ^ String.concat ", " (List.map string_of_pat ps) ^ ")"
+
+and string_of_eval_error = function
+  | PatternMatchError (p, v) ->
+      "Pattern match error: " ^ string_of_pat p ^ " != " ^ string_of_value v
+  | BinaryOpError (op, v1, v2) ->
+      "Binary operation error: " ^ string_of_bop op ^ " " ^ string_of_value v1
+      ^ " " ^ string_of_value v2
+  | UnboundVariable s -> "Unbound variable: " ^ s
+  | TypeError s -> "Type error: " ^ s
+  | OtherError s -> "Error: " ^ s

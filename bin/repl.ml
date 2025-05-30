@@ -77,12 +77,16 @@ let repl (static_env : static_env) (dynamic_env : env) : repl_result =
        | Ok t -> begin
            (* it typechecked properly *)
            (* evaluate the expression *)
-           let value = unwrap_eval_result (eval_c_expr c_expr dynamic_env) in
-           (* pretty print the type and value *)
-           print_separator ();
-           print_type_info t;
-           print_value_info value;
-           print_separator ()
+           begin
+             match eval_c_expr c_expr dynamic_env with
+             | Ok value ->
+                 (* pretty print the type and value *)
+                 print_separator ();
+                 print_type_info t;
+                 print_value_info value;
+                 print_separator ()
+             | Error e -> print_error (string_of_eval_error e)
+           end
          end
        | Error e -> print_error (string_of_type_check_error e));
       NoChange
