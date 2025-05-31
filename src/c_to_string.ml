@@ -6,7 +6,7 @@ let rec string_of_mono_type : mono_type -> string = function
   | BoolType -> "bool"
   | StringType -> "str"
   | UnitType -> "unit"
-  | TypeVar v -> v
+  | TypeVar v -> "'" ^ v
   | FunctionType (t1, t2) ->
       let t1_str =
         match t1 with

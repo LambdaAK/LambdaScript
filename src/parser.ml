@@ -889,7 +889,7 @@ end = struct
   let type_var_written_parser : factor_type parser =
     let* s =
       expect_token_get_data (function
-        | Id s -> Some s
+        | TypeVar s -> Some s
         | _ -> None)
     in
     return (TypeVarWritten s)

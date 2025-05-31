@@ -57,6 +57,7 @@ type token_type =
   | Addop of string (* start with + or - *)
   | Mulop of string (* start with * / or % *)
   | Type
+  | TypeVariable of string
 
 type token = {
   token_type : token_type;
@@ -128,6 +129,7 @@ let string_of_token_type : token_type -> string = function
   | Mulop s -> "<mulop: " ^ s ^ ">"
   | Equals -> "<equals>"
   | Type -> "<type>"
+  | TypeVariable s -> "<type variable: " ^ s ^ ">"
 [@@coverage off]
 
 let string_of_token : token -> string =
@@ -307,13 +309,40 @@ let rec lex_id (lst : char list) (acc : string) : token * char list =
       lex_id t (acc ^^ c) (* a digit, and not the first character *)
   | _ -> ({ token_type = Id acc; line = 0 }, lst)
 
-(* A type variable has the following form 'x where x is an identifier *)
+let is_lowercase : char -> bool = function
+  | 'a'
+  | 'b'
+  | 'c'
+  | 'd'
+  | 'e'
+  | 'f'
+  | 'g'
+  | 'h'
+  | 'i'
+  | 'j'
+  | 'k'
+  | 'l'
+  | 'm'
+  | 'n'
+  | 'o'
+  | 'p'
+  | 'q'
+  | 'r'
+  | 's'
+  | 't'
+  | 'u'
+  | 'v'
+  | 'w'
+  | 'x'
+  | 'y'
+  | 'z' -> true
+  | _ -> false
 
-let lex_type_var (tokens_after_single_quote : char list) : token * char list =
-  match lex_id tokens_after_single_quote "" with
-  | { token_type = Id i; line = _ }, tokens_after_type_var ->
-      ({ token_type = TypeVar i; line = 0 }, tokens_after_type_var)
-  | _ -> failwith "expected an identifier after single quote"
+let rec lex_type_var (tokens_after_single_quote : char list) (acc : string) :
+    token * char list =
+  match tokens_after_single_quote with
+  | c :: t when is_lowercase c -> lex_type_var t (acc ^ string_of_char c)
+  | _ -> ({ token_type = TypeVar acc; line = 0 }, tokens_after_single_quote)
 
 let lex (lst : char list) : token list =
   let line_number : int ref = ref 1 in
@@ -351,7 +380,7 @@ let lex (lst : char list) : token list =
             new_token :: lex t
         | '\'' :: tokens_after_single_quote ->
             let type_var_token, tokens_after_type_var =
-              lex_type_var tokens_after_single_quote
+              lex_type_var tokens_after_single_quote ""
             in
             type_var_token :: lex tokens_after_type_var
         | '_' :: t ->

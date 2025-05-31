@@ -787,7 +787,6 @@ and get_type_vars (t : mono_type) : mono_type list =
 and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :
     c_type type_check_result =
   let- t, constraints = generate env type_env e in
-
   let solution = reduce_eq constraints type_env in
   let- the_mono_type = get_type t solution type_env in
   let the_mono_type = fix_type the_mono_type in

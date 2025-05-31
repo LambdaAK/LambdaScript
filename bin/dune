@@ -25,3 +25,10 @@
  (libraries Language)
  (instrumentation
   (backend bisect_ppx)))
+
+(executable
+ (name typecheck_tester)
+ (modules typecheck_tester)
+ (libraries Language)
+ (instrumentation
+  (backend bisect_ppx)))

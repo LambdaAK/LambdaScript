@@ -388,7 +388,6 @@ let bool_types =
     "not true || true";
     "true && not true";
     "true && not false";
-    "1 < 2";
     "1 > 2";
     "1 <= 2";
     "1 <= 1";
@@ -398,13 +397,8 @@ let bool_types =
     "1 < 2 && 13414 < 11413413";
     "1 < 2 && 13414 > 11413413";
     "1 < 2 && false";
-    "1 == 1";
     "if true then true else false";
-    "true || true";
     "1 < 2 || false";
-    "1 == 1";
-    "if true then true else false";
-    "if false then true else false";
     "if 1 < 2 then true else false";
     "if 1 > 2 then true else false";
     "if not true then true else false";
@@ -432,24 +426,24 @@ let string_types = [ {|""|}; {|"hello"|} ]
 
 let function_type_tests =
   [
-    ("\\ n -> n", "a -> a");
+    ("\\ n -> n", "'a -> 'a");
     ("\\ n -> n + 1", "int -> int");
     ("\\ a -> \\ b -> a + b", "int -> int -> int");
     ("\\ n [int] -> n", "int -> int");
     ("\\ n [int] -> n + 1", "int -> int");
     ("\\ a [int] -> \\ b [int] -> a + b", "int -> int -> int");
-    ("\\ a -> \\ b -> a", "a -> b -> a");
-    ("\\ a -> \\ b -> b", "a -> b -> b");
-    ("\\ a [int] -> \\ b -> b", "int -> a -> a");
-    ("\\ a -> \\ b [int] -> b", "a -> int -> int");
+    ("\\ a -> \\ b -> a", "'a -> 'b -> 'a");
+    ("\\ a -> \\ b -> b", "'a -> 'b -> 'b");
+    ("\\ a [int] -> \\ b -> b", "int -> 'a -> 'a");
+    ("\\ a -> \\ b [int] -> b", "'a -> int -> int");
     ("\\ a [int] -> \\ b [int] -> b", "int -> int -> int");
     ("\\ a [int] -> \\ b [int] -> a", "int -> int -> int");
     ("\\ a [int] -> \\ b [int] -> a + b", "int -> int -> int");
     ("\\ a [int] -> \\ b [int] -> a + b + 1", "int -> int -> int");
     ("\\ a [int] -> \\ b [int] -> a + b + 1 + 2", "int -> int -> int");
     ("\\ (a, b) [(int, int)] -> a + b", "(int, int) -> int");
-    ("\\ (a, _) -> \\ (_, b) -> a + b", "(int, a) -> (b, int) -> int");
-    ("\\ (a, _) -> \\ (_, b) -> a || b", "(bool, a) -> (b, bool) -> bool");
+    ("\\ (a, _) -> \\ (_, b) -> a + b", "(int, 'a) -> ('b, int) -> int");
+    ("\\ (a, _) -> \\ (_, b) -> a || b", "(bool, 'a) -> ('b, bool) -> bool");
     ( {|\ (a, b) ->
     \ (c, d) ->
     if a then b
@@ -457,9 +451,10 @@ let function_type_tests =
     else 1|},
       "(bool, int) -> (bool, int) -> int" );
     (* more complicated function type tests *)
-    ("\\ a -> \\ b -> \\ c -> a ( b ( c ) )", "(a -> b) -> (c -> a) -> c -> b");
+    ( "\\ a -> \\ b -> \\ c -> a ( b ( c ) )",
+      "('a -> 'b) -> ('c -> 'a) -> 'c -> 'b" );
     (* tests with syntax sugar let expressions *)
-    ("let f x = x in f", "a -> a");
+    ("let f x = x in f", "'a -> 'a");
     ("let f x = x + 1 in f", "int -> int");
     ("let f x = x + 1 in f 1", "int");
     ("let f x = x + 1 in f 1 + 1", "int");
@@ -469,7 +464,7 @@ let function_type_tests =
     ("let f a b c = a + b + c in f 1", "int -> int -> int");
     ("let f a b c = a + b + c in f 1 2", "int -> int");
     ("let f a b c = a + b + c in f 1 2 3", "int");
-    ("let f a b c d = a in f", "a -> b -> c -> d -> a");
+    ("let f a b c d = a in f", "'a -> 'b -> 'c -> 'd -> 'a");
     (* typed arguments *)
     ( "let f a [int] b [int] c [int] d [int] = a in f",
       "int -> int -> int -> int -> int" );
@@ -479,67 +474,67 @@ let function_type_tests =
     ("let f a [int] b [int] c [int] d [int] = a in f 1 2 3", "int -> int");
     ("let f a [int] b [int] c [int] d [int] = a in f 1 2 3 4", "int");
     (* with type variables *)
-    ("\\ a [a] -> a", "a -> a");
-    ("\\ a [a] -> a + 1", "int -> int");
-    ("\\ a [a] -> \\ b [a] -> a", "a -> a -> a");
-    ("\\ a [a] -> \\ b [a] -> b", "a -> a -> a");
-    ("\\ a [a] -> \\ b [b] -> a", "a -> b -> a");
-    ("\\ a [a] -> \\ b [a] -> a + b", "int -> int -> int");
-    ("\\ a [a] -> \\ b [a] -> a + b + 1", "int -> int -> int");
-    ("\\ f [e -> f] -> \\ x [f] -> f x", "(a -> a) -> a -> a");
+    ("\\ a ['a] -> a", "'a -> 'a");
+    ("\\ a ['a] -> a + 1", "int -> int");
+    ("\\ a ['a] -> \\ b ['a] -> a", "'a -> 'a -> 'a");
+    ("\\ a ['a] -> \\ b ['a] -> b", "'a -> 'a -> 'a");
+    ("\\ a ['a] -> \\ b ['b] -> a", "'a -> 'b -> 'a");
+    ("\\ a ['a] -> \\ b ['a] -> a + b", "int -> int -> int");
+    ("\\ a ['a] -> \\ b ['a] -> a + b + 1", "int -> int -> int");
+    ("\\ f ['e -> 'f] -> \\ x ['f] -> f x", "('a -> 'a) -> 'a -> 'a");
     (* this is an interesting example because it turns out that a = b here *)
-    ("\\ f [e -> f] -> \\ x [e] -> f x", "(a -> b) -> a -> b");
+    ("\\ f ['e -> 'f] -> \\ x ['e] -> f x", "('a -> 'b) -> 'a -> 'b");
     (* on the other hand, there is no constraint generated in this expression
        saying that a = b, so they are different *)
-    ("let f a b [int] c [int] d [int] = a in f", "a -> int -> int -> int -> a");
-    ("let f a b [int] c [int] d = a in f", "a -> int -> int -> b -> a");
-    ("let f a b [int] c d [int] = a in f", "a -> int -> b -> int -> a");
-    ("let f a b [int] c d = a in f", "a -> int -> b -> c -> a");
-    ("let f a b c [int] d [int] = b in f", "a -> b -> int -> int -> b");
-    ("let f a b c [int] d = b in f", "a -> b -> int -> c -> b");
-    ("let f a b c d [str] = c in f", "a -> b -> c -> str -> c");
-    ("let f a b c d = c in f", "a -> b -> c -> d -> c");
-    ("let f a b c d [str] = d in f", "a -> b -> c -> str -> str");
-    ("\\ (a, _) -> a", "(a, b) -> a");
-    ("\\ (a, _) -> a + 1", "(int, a) -> int");
-    ("\\ f -> \\ x -> f x", "(a -> b) -> a -> b");
-    ( {|\ f [e -> f -> g] ->
-    \ a [e] ->
-    \ b [f] ->
+    ("let f a b [int] c [int] d [int] = a in f", "'a -> int -> int -> int -> 'a");
+    ("let f a b [int] c [int] d = a in f", "'a -> int -> int -> 'b -> 'a");
+    ("let f a b [int] c d [int] = a in f", "'a -> int -> 'b -> int -> 'a");
+    ("let f a b [int] c d = a in f", "'a -> int -> 'b -> 'c -> 'a");
+    ("let f a b c [int] d [int] = b in f", "'a -> 'b -> int -> int -> 'b");
+    ("let f a b c [int] d = b in f", "'a -> 'b -> int -> 'c -> 'b");
+    ("let f a b c d [str] = c in f", "'a -> 'b -> 'c -> str -> 'c");
+    ("let f a b c d = c in f", "'a -> 'b -> 'c -> 'd -> 'c");
+    ("let f a b c d [str] = d in f", "'a -> 'b -> 'c -> str -> str");
+    ("\\ (a, _) -> a", "('a, 'b) -> 'a");
+    ("\\ (a, _) -> a + 1", "(int, 'a) -> int");
+    ("\\ f -> \\ x -> f x", "('a -> 'b) -> 'a -> 'b");
+    ( {|\ f ['e -> 'f -> 'g] ->
+    \ a ['e] ->
+    \ b ['f] ->
     f a b|},
-      "(a -> b -> c) -> a -> b -> c" );
-    ("\\ a [(a, b)] -> a", "(a, b) -> (a, b)");
-    ("\\ (a, _) [(a, b)] -> a", "(a, b) -> a");
-    ("\\ (_, a) [(a, b)] -> a", "(a, b) -> b");
-    ("\\ (a, b, c) [(a, b, c)] -> a", "(a, b, c) -> a");
+      "('a -> 'b -> 'c) -> 'a -> 'b -> 'c" );
+    ("\\ a [('a, 'b)] -> a", "('a, 'b) -> ('a, 'b)");
+    ("\\ (a, _) [('a, 'b)] -> a", "('a, 'b) -> 'a");
+    ("\\ (_, a) [('a, 'b)] -> a", "('a, 'b) -> 'b");
+    ("\\ (a, b, c) [('a, 'b, 'c)] -> a", "('a, 'b, 'c) -> 'a");
     (* higher order function *)
-    ( {|\ f [(e, f) -> g] ->
-    \ a [e] ->
-    \ b [f] ->
+    ( {|\ f [('e, 'f) -> 'g] ->
+    \ a ['e] ->
+    \ b ['f] ->
     f (a, b)|},
-      "((a, b) -> c) -> a -> b -> c" );
-    ( {|\ f [e -> f -> g] ->
+      "(('a, 'b) -> 'c) -> 'a -> 'b -> 'c" );
+    ( {|\ f ['e -> 'f -> 'g] ->
     \ (a, b) ->
     f a b|},
-      "(a -> b -> c) -> (a, b) -> c" );
+      "('a -> 'b -> 'c) -> ('a, 'b) -> 'c" );
     (* long function with 10 arguments and return the first *)
     ( "let f a b c d e f g h i j = a in f",
-      "a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> a" );
+      "'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'j -> 'a" );
     (* long function with 20 arguments *)
     ( "let f a b c d e f g h i j k l m n o p q r s t = a in f",
-      "a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l -> m -> n -> o \
-       -> p -> q -> r -> s -> t -> a" );
+      "'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'j -> 'k -> 'l -> \
+       'm -> 'n -> 'o -> 'p -> 'q -> 'r -> 's -> 't -> 'a" );
     (* long function with 30 arguments. name the arguments the word of the
        number *)
     ( "let f one two three four five six seven eight nine ten eleven twelve \
        thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty \
        twentyone twentytwo twentythree twentyfour twentyfive twentysix \
        twentyseven twentyeight twentynine thirty = one in f",
-      "a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l -> m -> n -> o \
-       -> p -> q -> r -> s -> t -> u -> v -> w -> x -> y -> z -> aa -> ab -> \
-       ac -> ad -> a" );
+      "'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'j -> 'k -> 'l -> \
+       'm -> 'n -> 'o -> 'p -> 'q -> 'r -> 's -> 't -> 'u -> 'v -> 'w -> 'x -> \
+       'y -> 'z -> 'aa -> 'ab -> 'ac -> 'ad -> 'a" );
     (* recursive functions *)
-    ("let rec f x = x in f", "a -> a");
+    ("let rec f x = x in f", "'a -> 'a");
     ("let rec f x [unit] = x in f", "unit -> unit");
     ("let rec f x [int -> int] = x in f", "(int -> int) -> int -> int");
     ("\\ a [[int]] -> a", "[int] -> [int]");
@@ -605,7 +600,7 @@ let function_type_tests =
       \  in\n\
       \  \n\
       \  map",
-      "(a -> b) -> [a] -> [b]" );
+      "('a -> 'b) -> ['a] -> ['b]" );
     (* filter implemented using fold_right *)
     ( {|let rec fold op lst acc =
     switch lst =>
@@ -617,7 +612,7 @@ let function_type_tests =
   let filter pred = fold (\ x -> \ acc -> if pred x then x :: acc else acc) []
   
   in filter|},
-      "(a -> bool) -> [a] -> [a]" );
+      "('a -> bool) -> ['a] -> ['a]" );
     (* filter implemented using fold_left *)
     ( {|let rec fold op acc lst =
     switch lst =>
@@ -629,7 +624,7 @@ let function_type_tests =
   let filter pred = fold (\ x -> \ acc -> if pred x then x :: acc else acc) []
   
   in filter|},
-      "(a -> bool) -> [a] -> [a]" );
+      "('a -> bool) -> ['a] -> ['a]" );
   ]
 
 let pair_type_tests =
@@ -672,7 +667,7 @@ let vector_type_tests =
 
 let list_type_tests =
   [
-    ("[]", "[a]");
+    ("[]", "['a]");
     ("1 :: []", "[int]");
     ("1 :: 2 :: []", "[int]");
     ("1 :: 2 :: 3 :: []", "[int]");
@@ -684,10 +679,10 @@ let list_type_tests =
     (* nested list *)
     ("(1 :: []) :: []", "[[int]]");
     ("(1 :: 2 :: []) :: []", "[[int]]");
-    ("[] :: []", "[[a]]");
-    ("[] :: [] :: []", "[[a]]");
-    ("([] :: []) :: []", "[[[a]]]");
-    ("(([] :: []) :: []) :: []", "[[[[a]]]]");
+    ("[] :: []", "[['a]]");
+    ("[] :: [] :: []", "[['a]]");
+    ("([] :: []) :: []", "[[['a]]]");
+    ("(([] :: []) :: []) :: []", "[[[['a]]]]");
     ("[1 ... 10000]", "[int]");
     ("[1 ... 10000000]", "[int]");
     ("[1 ... 0]", "[int]");
@@ -697,19 +692,19 @@ let list_type_tests =
     ({|
       [x | x <- [1, 2, 3, 4, 5], x <- [true, false]]
       |}, "[bool]");
-    ({|[x | x <- [1, 2, 3, 4, 5], x <- []]|}, "[a]");
+    ({|[x | x <- [1, 2, 3, 4, 5], x <- []]|}, "['a]");
   ]
 
 let polymorphism_tests =
   [
-    ("let f x = x in f f", "a -> a");
-    ("let f x = x in f f f", "a -> a");
-    ("let f x = x in f f f f", "a -> a");
-    ("let f x = x in f f f f f", "a -> a");
+    ("let f x = x in f f", "'a -> 'a");
+    ("let f x = x in f f f", "'a -> 'a");
+    ("let f x = x in f f f f", "'a -> 'a");
+    ("let f x = x in f f f f f", "'a -> 'a");
     ("let f x = x in f 1 < 5 || f true", "bool");
-    ("let f x = x in let g = f in g g", "a -> a");
-    ("let f x = x in let g = f in g f", "a -> a");
-    ("let f x = x in let g = f in f g f g", "a -> a");
+    ("let f x = x in let g = f in g g", "'a -> 'a");
+    ("let f x = x in let g = f in g f", "'a -> 'a");
+    ("let f x = x in let g = f in f g f g", "'a -> 'a");
     ("let f x = x in let a = f 1 in f true", "bool");
     ( {|
     let f x = x in
@@ -717,7 +712,7 @@ let polymorphism_tests =
     let h = g in
     h h
   |},
-      "a -> a" );
+      "'a -> 'a" );
     ( {|
     let f x = x in
     let g = f in
@@ -948,7 +943,7 @@ let fold_type_tests =
     in
     fold
   |},
-      "(a -> b -> a) -> [b] -> a -> a" );
+      "('a -> 'b -> 'a) -> ['b] -> 'a -> 'a" );
     ( {|
   let rec fold op arr acc =
     switch arr =>
@@ -958,7 +953,7 @@ let fold_type_tests =
   in
   fold
   |},
-      "(a -> b -> b) -> [a] -> b -> b" );
+      "('a -> 'b -> 'b) -> ['a] -> 'b -> 'b" );
   ]
 
 let complex_tests =

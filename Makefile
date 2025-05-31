@@ -34,3 +34,7 @@ cloc:
 parser_tester:
 	dune build bin/parser_tester.exe
 	dune exec ./bin/parser_tester.exe
+
+typecheck:
+	dune build bin/typecheck_tester.exe
+	dune exec ./bin/typecheck_tester.exe
