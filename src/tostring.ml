@@ -56,7 +56,14 @@ let rec string_of_basic_type (ft : factor_type) (level : int) : string =
           (List.map (fun t -> string_of_compound_type t (level + 1)) types)
       ^ indentations_with_newline level
       ^ ")"
-  | _ -> "Not implemented yet"
+  | ListType t ->
+      "ListType ("
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_compound_type t (level + 1)
+      ^ indentations_with_newline level
+      ^ ")"
+  | FloatType -> "FloatType"
+  | TypeVarWritten v -> "TypeVarWritten (" ^ v ^ ")"
 
 and string_of_compound_type (ct : compound_type) (level : int) =
   match ct with
