@@ -18,3 +18,10 @@
  (libraries Language)
  (instrumentation
   (backend bisect_ppx)))
+
+(executable
+ (name parser_tester)
+ (modules parser_tester)
+ (libraries Language)
+ (instrumentation
+  (backend bisect_ppx)))

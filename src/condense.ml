@@ -37,6 +37,7 @@ let rec condense_defn : defn -> c_defn = function
       in
       let c : c_expr = condense_expr body_expression in
       CDefnRec (a, b, c)
+  | TypeAliasDefinition (name, ct) -> CTypeAlias (name, condense_type ct)
 
 and condense_expr : expr -> c_expr = function
   | Function (pat, ct_opt, expr) ->

@@ -868,6 +868,7 @@ and generate_defn (env : static_env) (defn : c_defn) :
 
       (* Return only the new bindings *)
       return new_bindings
+  | CTypeAlias _ -> Error (OtherError "Type aliases not supported yet!")
 
 let rec get_mono_type (t : c_type) : mono_type =
   match t with

@@ -56,6 +56,7 @@ type token_type =
   | Relop of string (* start with = < or >, and are not = *)
   | Addop of string (* start with + or - *)
   | Mulop of string (* start with * / or % *)
+  | Type
 
 type token = {
   token_type : token_type;
@@ -126,6 +127,7 @@ let string_of_token_type : token_type -> string = function
   | Addop s -> "<addop: " ^ s ^ ">"
   | Mulop s -> "<mulop: " ^ s ^ ">"
   | Equals -> "<equals>"
+  | Type -> "<type>"
 [@@coverage off]
 
 let string_of_token : token -> string =
@@ -235,6 +237,7 @@ let keywords =
     ("end", End);
     ("enum", Enum);
     ("float", FloatType);
+    ("type", Type);
   ]
   |> List.map (fun (s, t) -> (list_of_string s, t))
 

@@ -985,18 +985,30 @@ end = struct
     return
       (DefnRec (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations))
 
-  let defn_parser : defn parser = let_rec_defn_parser () <|> let_defn_parser ()
+  let type_alias_defn_parser () : defn parser =
+    let* () = expect_token Type in
+    let* name =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* () = expect_token Equals in
+    let* ct = CompoundTypeParser.compound_type_parser in
+    return (TypeAliasDefinition (name, ct))
+
+  let defn_parser : defn parser =
+    let_rec_defn_parser () <|> let_defn_parser () <|> type_alias_defn_parser ()
 end
 
 and ExprOrDefnParser : sig
   val expr_or_defn_parser : expr_or_defn parser
 end = struct
   let expr_or_defn_parser : expr_or_defn parser =
-    (let* defn = DefnParser.defn_parser in
-     return (Definition defn))
+    (let* expr = ExprParser.expr_parser in
+     return (Expr expr))
     <|>
-    let* expr = ExprParser.expr_parser in
-    return (Expr expr)
+    let* defn = DefnParser.defn_parser in
+    return (Definition defn)
 end
 
 and ProgramParser : sig
