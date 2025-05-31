@@ -43,8 +43,8 @@ let interpret (filename : string) =
       let static_env, dynamic_env =
         List.fold_left
           (fun (static_env, dynamic_env) defn ->
-            match generate_defn static_env defn with
-            | Ok new_bindings ->
+            match generate_defn static_env [] defn with
+            | Ok (new_bindings, _) ->
                 (* TODO: propagate the monadic errors *)
                 let new_dynamic_bindings =
                   match eval_defn defn dynamic_env with

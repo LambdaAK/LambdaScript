@@ -73,7 +73,7 @@ let repl (static_env : static_env) (dynamic_env : env) : repl_result =
        (* condense the expression *)
        let c_expr = condense_expr expr in
        (* type check the expression *)
-       match type_of_c_expr static_env c_expr with
+       match type_of_c_expr static_env [] c_expr with
        | Ok t -> begin
            (* it typechecked properly *)
            (* evaluate the expression *)
@@ -94,11 +94,11 @@ let repl (static_env : static_env) (dynamic_env : env) : repl_result =
       (* condense the definition *)
       let c_defn = condense_defn defn in
 
-      match generate_defn static_env c_defn with
+      match generate_defn static_env [] c_defn with
       | Error e ->
           print_error (string_of_type_check_error e);
           NoChange
-      | Ok new_static_bindings ->
+      | Ok (new_static_bindings, _) ->
           (*evaluate the definition, since it typechcked*)
           let new_dynamic_bindings =
             unwrap_eval_result (eval_defn c_defn dynamic_env)

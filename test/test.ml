@@ -275,7 +275,7 @@ let type_test (expr : string) (expected_output : string) : test =
             let c_e : Language.Cexpr.c_expr = condense_expr e in
 
             let t =
-              match type_of_c_expr built_ins_types c_e with
+              match type_of_c_expr built_ins_types [] c_e with
               | Ok t -> t
               | Error e -> failwith (string_of_type_check_error e)
             in
@@ -296,7 +296,7 @@ let type_test (expr : string) (expected_output : string) : test =
   in
   let condensed_expr = condense_expr parsed_expr in
   let type_result =
-    match type_of_c_expr static_env condensed_expr with
+    match type_of_c_expr static_env [] condensed_expr with
     | Ok t -> t
     | _ -> failwith "type failureeeeeeeeee"
   in
