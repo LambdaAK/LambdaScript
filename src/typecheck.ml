@@ -343,7 +343,7 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
   in
   let new_constraint = (t_pat, t1) in
   (* Generalize the type of e1 before using it in e2 *)
-  let- generalized_type = generalize (new_constraint :: c1) env t1 in
+  let- generalized_type = generalize (new_constraint :: c1) env type_env t1 in
   let- t2, c2 =
     generate ((fst (List.hd pat_env), generalized_type) :: env) type_env e2
   in
@@ -377,7 +377,9 @@ and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
   (* Add constraint that function_type must equal t1 *)
   let new_constraint = (function_type, t1) in
   (* Generalize the function type to make it polymorphic *)
-  let- generalized_type = generalize (new_constraint :: c1) new_env t1 in
+  let- generalized_type =
+    generalize (new_constraint :: c1) new_env type_env t1
+  in
   let- t2, c2 = generate ((function_id, generalized_type) :: env) type_env e2 in
   return (t2, (new_constraint :: c1) @ c2)
 
@@ -529,24 +531,25 @@ and type_of_pat (pat : c_pat) : mono_type * static_env * type_equations =
       (* [t1] = t2 *)
       (CListType t1, env1 @ env2, (CListType t1, t2) :: (c1 @ c2))
 
-and reduce_eq (c : type_equations) : type_equations =
+and reduce_eq (c : type_equations) (type_env : type_env) : type_equations =
   match c with
   | [] -> []
   | (t1, t2) :: c' -> (
-      if t1 = t2 then reduce_eq c'
+      if t1 = t2 then reduce_eq c' type_env
       else
         match (t1, t2) with
         | TypeVar id, _ when not (inside t1 t2) ->
-            (t1, t2) :: reduce_eq (substitute id t2 c')
-        | _, TypeVar _ -> reduce_eq ((t2, t1) :: c')
+            (t1, t2) :: reduce_eq (substitute id t2 c') type_env
+        | _, TypeVar _ -> reduce_eq ((t2, t1) :: c') type_env
         | FunctionType (i1, o1), FunctionType (i2, o2) ->
-            reduce_eq ((i1, i2) :: (o1, o2) :: c')
-        | CListType et1, CListType et2 -> reduce_eq ((et1, et2) :: c')
+            reduce_eq ((i1, i2) :: (o1, o2) :: c') type_env
+        | CListType et1, CListType et2 -> reduce_eq ((et1, et2) :: c') type_env
         | VectorType types1, VectorType types2 -> (
             match (types1, types2) with
             | type1 :: tail1, type2 :: tail2 ->
                 reduce_eq
                   ((type1, type2) :: (VectorType tail1, VectorType tail2) :: c')
+                  type_env
             | _ -> raise TypeFailure)
         | _ -> raise TypeFailure)
 
@@ -559,18 +562,18 @@ and reduce_eq (c : type_equations) : type_equations =
     @param var The type variable to look up
     @param subs The list of type equations representing substitutions
     @return The type that the variable should be substituted with *)
-and get_type (var : mono_type) (subs : type_equations) :
+and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
     mono_type type_check_result =
   match var with
   | TypeVar v -> (
       let- looked_up_type = get_type_of_type_var v subs in
       match looked_up_type with
       | FunctionType (i, o) ->
-          let- i_type = get_type i subs in
-          let- o_type = get_type o subs in
+          let- i_type = get_type i subs type_env in
+          let- o_type = get_type o subs type_env in
           return (FunctionType (i_type, o_type))
       | CListType et ->
-          let- et_type = get_type et subs in
+          let- et_type = get_type et subs type_env in
           return (CListType et_type)
       (* Recursively applies the substitution [subs] to each element of the
          vector type [types], returning a new VectorType with all elements
@@ -579,14 +582,14 @@ and get_type (var : mono_type) (subs : type_equations) :
           let rec aux acc = function
             | [] -> return (VectorType (List.rev acc))
             | t :: ts ->
-                let- t_type = get_type t subs in
+                let- t_type = get_type t subs type_env in
                 aux (t_type :: acc) ts
           in
           aux [] types
       | _ -> return looked_up_type)
   | FunctionType (i, o) ->
-      let- i_type = get_type i subs in
-      let- o_type = get_type o subs in
+      let- i_type = get_type i subs type_env in
+      let- o_type = get_type o subs type_env in
       return (FunctionType (i_type, o_type))
   | VectorType types ->
       (* Recursively applies the substitution [subs] to each element of the
@@ -595,7 +598,7 @@ and get_type (var : mono_type) (subs : type_equations) :
       let rec aux acc = function
         | [] -> return (VectorType (List.rev acc))
         | t :: ts ->
-            let- t_type = get_type t subs in
+            let- t_type = get_type t subs type_env in
             aux (t_type :: acc) ts
       in
       aux [] types
@@ -605,7 +608,7 @@ and get_type (var : mono_type) (subs : type_equations) :
   | StringType -> return StringType
   | UnitType -> return UnitType
   | CListType et ->
-      let- et_type = get_type et subs in
+      let- et_type = get_type et subs type_env in
       return (CListType et_type)
 
 and get_type_of_type_var (var : string) (subs : type_equations) :
@@ -716,13 +719,13 @@ and instantiate (t : c_type) : mono_type =
     @param env The current static environment
     @param t The monomorphic type to generalize
     @return A polymorphic type with appropriate universal quantifiers *)
-and generalize (constraints : type_equations) (env : static_env) (t : mono_type)
-    : c_type type_check_result =
+and generalize (constraints : type_equations) (env : static_env)
+    (type_env : type_env) (t : mono_type) : c_type type_check_result =
   (* First reduce the constraints to get a solution *)
-  let solution = reduce_eq constraints in
+  let solution = reduce_eq constraints type_env in
 
   (* Apply the solution to the type *)
-  let- u1 = get_type t solution in
+  let- u1 = get_type t solution type_env in
 
   (* Get all type variables in the type *)
   let type_vars = get_type_vars u1 in
@@ -785,16 +788,16 @@ and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :
     c_type type_check_result =
   let- t, constraints = generate env type_env e in
 
-  let solution = reduce_eq constraints in
-  let- the_mono_type = get_type t solution in
+  let solution = reduce_eq constraints type_env in
+  let- the_mono_type = get_type t solution type_env in
   let the_mono_type = fix_type the_mono_type in
-  let- the_c_type = generalize constraints env the_mono_type in
+  let- the_c_type = generalize constraints env type_env the_mono_type in
   return the_c_type
 
 (* swap all variables for new variables *)
 and swap_all_variables_in_type (t : mono_type) : mono_type type_check_result =
   (* First generalize the type to quantify over all variables *)
-  let- generalized = generalize [] [] t in
+  let- generalized = generalize [] [] [] t in
   (* Then instantiate it to get fresh variables *)
   let instantiated = instantiate generalized in
   return instantiated
@@ -822,7 +825,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       in
 
       (* Generalize the body type *)
-      let- generalized_type = generalize all_equations env body_type in
+      let- generalized_type = generalize all_equations env type_env body_type in
 
       (* Create new environment with pattern bindings using bind_static *)
       let new_bindings =
@@ -865,7 +868,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       in
 
       (* Generalize the body type *)
-      let- generalized_type = generalize all_equations env body_type in
+      let- generalized_type = generalize all_equations env type_env body_type in
 
       (* Create new environment with pattern bindings using bind_static *)
       let new_bindings =
