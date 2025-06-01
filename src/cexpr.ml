@@ -36,6 +36,7 @@ type mono_type =
   | StringType
   | UnitType
   | TypeVar of type_var
+  | TypeName of string
   | FunctionType of mono_type * mono_type
   | VectorType of mono_type list
   | CListType of mono_type
@@ -48,7 +49,7 @@ type c_type =
 and c_defn =
   | CDefn of c_pat * c_type option * c_expr
   | CDefnRec of c_pat * c_type option * c_expr
-  | CTypeAlias of string * c_type
+  | CTypeAlias of string * mono_type
 
 and c_switch_branch = c_pat * c_expr
 
@@ -164,6 +165,7 @@ let rec string_of_mono_type : mono_type -> string = function
       let ts_str = List.map string_of_mono_type ts in
       "[" ^ String.concat ", " ts_str ^ "]"
   | CListType t -> "[" ^ string_of_mono_type t ^ "]"
+  | TypeName v -> v
 
 let rec string_of_type : c_type -> string = function
   | Mono t -> string_of_mono_type t
@@ -188,5 +190,6 @@ let get_mono_type_vars (t : mono_type) : string list =
     | FunctionType (t1, t2) -> aux t1 (aux t2 acc)
     | VectorType ts -> List.fold_left (fun a t -> aux t a) acc ts
     | CListType t' -> aux t' acc
+    | TypeName _ -> acc
   in
   aux t [] |> List.rev

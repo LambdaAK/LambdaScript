@@ -894,6 +894,15 @@ end = struct
     in
     return (TypeVarWritten s)
 
+  let type_name_parser : factor_type parser =
+    let* s =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+
+    return (TypeName s)
+
   let paren_factor_type_parser : factor_type parser =
     let* () = expect_token LParen in
     let* ct = CompoundTypeParser.compound_type_parser in
@@ -916,6 +925,7 @@ end = struct
     integer_type_parser <|> string_type_parser <|> boolean_type_parser
     <|> unit_type_parser <|> float_type_parser <|> type_var_written_parser
     <|> paren_factor_type_parser <|> vector_type_parser <|> list_type_parser
+    <|> type_name_parser
 
   let factor_type_parser = factor_type_parser ()
 end
@@ -993,8 +1003,8 @@ end = struct
         | _ -> None)
     in
     let* () = expect_token Equals in
-    let* ct = CompoundTypeParser.compound_type_parser in
-    return (TypeAliasDefinition (name, ct))
+    let* ft = FactorTypeParser.factor_type_parser in
+    return (TypeAliasDefinition (name, ft))
 
   let defn_parser : defn parser =
     let_rec_defn_parser () <|> let_defn_parser () <|> type_alias_defn_parser ()

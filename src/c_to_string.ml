@@ -17,6 +17,7 @@ let rec string_of_mono_type : mono_type -> string = function
   | VectorType ts ->
       let ts_str = List.map string_of_mono_type ts in
       "(" ^ String.concat ", " ts_str ^ ")"
+  | TypeName t -> t
   | CListType t -> "[" ^ string_of_mono_type t ^ "]"
 
 let string_of_c_type (ct : c_type) : string =
@@ -152,7 +153,7 @@ and string_of_defn : c_defn -> string = function
         | None -> ""
       in
       "let rec " ^ string_of_pat pat ^ type_annot ^ " = " ^ string_of_expr e
-  | CTypeAlias (name, t) -> "type " ^ name ^ " = " ^ string_of_type t
+  | CTypeAlias (name, t) -> "type " ^ name ^ " = " ^ string_of_mono_type t
 
 let rec string_of_program : c_program -> string = function
   | [] -> ""

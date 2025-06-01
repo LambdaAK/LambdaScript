@@ -1,7 +1,7 @@
 open Cexpr
 open C_to_string
-open Typefixer
 open Ceval
+open Typefixer
 
 type type_equation = mono_type * mono_type
 type type_equations = type_equation list
@@ -43,7 +43,16 @@ let unwrap_type_check_result (x : 'a type_check_result) : 'a =
 
 exception TypeFailure
 
-type type_env = (string * c_type) list
+(* maps type names to their types *)
+type type_env = (string * mono_type) list
+
+let string_of_type_env (env : type_env) : string =
+  let rec aux acc = function
+    | [] -> acc
+    | (id, t) :: env' ->
+        aux (id ^ " : " ^ string_of_mono_type t ^ "\n" ^ acc) env'
+  in
+  aux "" env
 
 (* Algorithm for performing type inference:
 
@@ -140,6 +149,7 @@ and string_of_mono_type (t : mono_type) : string =
       let types_str = List.map string_of_mono_type types in
       "(" ^ String.concat ", " types_str ^ ")"
   | CListType et -> "[" ^ string_of_mono_type et ^ "]"
+  | TypeName v -> v
 
 (** [generate env e] performs type inference on the expression [e] in the static
     environment [env].
@@ -158,7 +168,7 @@ and string_of_mono_type (t : mono_type) : string =
       A pair [(t, constraints)] where [t] is the inferred type and [constraints]
       is the list of type equations *)
 let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
-    (mono_type * type_equations) type_check_result =
+    (mono_type * type_equations * type_env) type_check_result =
   match e with
   | EInt _ -> generate_e_int
   | EFloat _ -> generate_e_float
@@ -178,7 +188,7 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
   | EListComprehension (e, generators) ->
       generate_e_list_comprehension env type_env e generators
   | ESwitch (e1, branches) -> generate_e_switch env type_env e1 branches
-  | EBlock [] -> return (UnitType, [])
+  | EBlock [] -> return (UnitType, [], [])
   | EBlock parts -> (
       (* if the last part is a definition, then the entire thing evaluates to
          unit *)
@@ -187,25 +197,30 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
 
       (* if last part is a definition, then the type of the block is unit *)
       match last_part with
-      | Defn _ -> return (UnitType, [])
+      | Defn _ -> return (UnitType, [], [])
       | Expr e ->
           (* generate each definition in the block *)
-          let- new_env, defn_equations =
-            let rec process_defns acc_env acc_equations = function
-              | [] -> return (acc_env, acc_equations)
+          let- new_env, defn_equations, _ =
+            let rec process_defns acc_env acc_equations acc_type_env = function
+              | [] -> return (acc_env, acc_equations, acc_type_env)
               | Defn d :: rest ->
-                  let- new_bindings, _ = generate_defn acc_env type_env d in
-                  process_defns (new_bindings @ acc_env) acc_equations rest
-              | Expr _ :: rest -> process_defns acc_env acc_equations rest
+                  let- new_bindings, new_type_env =
+                    generate_defn acc_env acc_type_env d
+                  in
+                  process_defns (new_bindings @ acc_env) acc_equations
+                    (new_type_env @ acc_type_env)
+                    rest
+              | Expr _ :: rest ->
+                  process_defns acc_env acc_equations acc_type_env rest
             in
-            process_defns env [] other_parts
+            process_defns env [] type_env other_parts
           in
 
           (* generate type for the last expression in the new environment *)
-          let- last_type, last_equations = generate new_env type_env e in
+          let- last_type, last_equations, _ = generate new_env type_env e in
 
           (* combine all equations *)
-          return (last_type, defn_equations @ last_equations))
+          return (last_type, defn_equations @ last_equations, []))
 
 (* use List.fold_left to generate the type constraints for each definition*)
 
@@ -215,29 +230,29 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
 
 (** [generate_e_int] generates type constraints for integer literals.
     @return A pair containing IntType and an empty list of constraints *)
-and generate_e_int = return (IntType, [])
+and generate_e_int = return (IntType, [], [])
 
 (** [generate_e_float] generates type constraints for float literals.
     @return A pair containing FloatType and an empty list of constraints *)
-and generate_e_float = return (FloatType, [])
+and generate_e_float = return (FloatType, [], [])
 
 (** [generate_e_bool] generates type constraints for boolean literals.
     @return A pair containing BoolType and an empty list of constraints *)
-and generate_e_bool = return (BoolType, [])
+and generate_e_bool = return (BoolType, [], [])
 
 (** [generate_e_string] generates type constraints for string literals.
     @return A pair containing StringType and an empty list of constraints *)
-and generate_e_string = return (StringType, [])
+and generate_e_string = return (StringType, [], [])
 
 (** [generate_e_unit] generates type constraints for unit literals.
     @return A pair containing UnitType and an empty list of constraints *)
-and generate_e_unit = return (UnitType, [])
+and generate_e_unit = return (UnitType, [], [])
 
 (** [generate_e_nil] generates type constraints for nil literals.
     @return
       A pair containing a list type with a fresh type variable and an empty list
       of constraints *)
-and generate_e_nil () = return (CListType (fresh_type_var ()), [])
+and generate_e_nil () = return (CListType (fresh_type_var ()), [], [])
 
 (** [generate_e_id env x] generates type constraints for identifier expressions.
     @param env The static environment mapping identifiers to their types
@@ -246,10 +261,10 @@ and generate_e_nil () = return (CListType (fresh_type_var ()), [])
       A pair containing the instantiated type of the identifier and an empty
       list of constraints *)
 and generate_e_id (env : static_env) (x : string) :
-    (mono_type * type_equations) type_check_result =
+    (mono_type * type_equations * type_env) type_check_result =
   let uninstantiated : c_type = List.assoc x env in
   let t = instantiate uninstantiated in
-  return (t, [])
+  return (t, [], [])
 
 (** [generate_e_bop env op e1 e2] generates type constraints for binary
     operations.
@@ -260,26 +275,26 @@ and generate_e_id (env : static_env) (x : string) :
     @return A pair containing the result type and constraints for the operation
 *)
 and generate_e_bop (env : static_env) (type_env : type_env) (op : c_bop)
-    (e1 : c_expr) (e2 : c_expr) : (mono_type * type_equations) type_check_result
-    =
-  let- t1, c1 = generate env type_env e1 in
-  let- t2, c2 = generate env type_env e2 in
+    (e1 : c_expr) (e2 : c_expr) :
+    (mono_type * type_equations * type_env) type_check_result =
+  let- t1, c1, _ = generate env type_env e1 in
+  let- t2, c2, _ = generate env type_env e2 in
   match op with
   | CCons ->
       (* e1 :: e2, e2 must be a list of the type of e1 *)
-      return (t2, ((CListType t1, t2) :: c1) @ c2)
+      return (t2, ((CListType t1, t2) :: c1) @ c2, [])
   | CPlus | CMinus | CMul | CDiv | CMod ->
       (* arithmetic: both operands must be int, result is int *)
-      return (IntType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
+      return (IntType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2, [])
   | CGE | CGT | CLE | CLT ->
       (* comparisons: both operands must be int, result is bool *)
-      return (BoolType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
+      return (BoolType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2, [])
   | CEQ | CNE ->
       (* equality/inequality: operands must be same type, result is bool *)
-      return (BoolType, ((t1, t2) :: c1) @ c2)
+      return (BoolType, ((t1, t2) :: c1) @ c2, [])
   | CAnd | COr ->
       (* logical: both operands must be bool, result is bool *)
-      return (BoolType, ((t1, BoolType) :: (t2, BoolType) :: c1) @ c2)
+      return (BoolType, ((t1, BoolType) :: (t2, BoolType) :: c1) @ c2, [])
 
 (** [generate_e_function env pat cto body] generates type constraints for
     function expressions.
@@ -291,7 +306,7 @@ and generate_e_bop (env : static_env) (type_env : type_env) (op : c_bop)
 *)
 and generate_e_function (env : static_env) (type_env : type_env) (pat : c_pat)
     (cto : c_type option) (body : c_expr) :
-    (mono_type * type_equations) type_check_result =
+    (mono_type * type_equations * type_env) type_check_result =
   let input_type, new_env_bindings, constraints_from_pattern =
     type_of_pat pat
   in
@@ -300,13 +315,14 @@ and generate_e_function (env : static_env) (type_env : type_env) (pat : c_pat)
     | Some t -> [ (input_type, instantiate t) ]
     | None -> []
   in
-  let- output_type, c_output =
+  let- output_type, c_output, _ =
     generate (new_env_bindings @ env) type_env body
   in
 
   return
     ( input_type => output_type,
-      constraints_from_pattern @ constraints_from_type_annotation @ c_output )
+      constraints_from_pattern @ constraints_from_type_annotation @ c_output,
+      [] )
 
 (** [generate_e_app env e1 e2] generates type constraints for function
     application.
@@ -316,12 +332,12 @@ and generate_e_function (env : static_env) (type_env : type_env) (pat : c_pat)
     @return
       A pair containing the result type and constraints for the application *)
 and generate_e_app (env : static_env) (type_env : type_env) (e1 : c_expr)
-    (e2 : c_expr) : (mono_type * type_equations) type_check_result =
-  let- t1, c1 = generate env type_env e1 in
-  let- t2, c2 = generate env type_env e2 in
+    (e2 : c_expr) : (mono_type * type_equations * type_env) type_check_result =
+  let- t1, c1, _ = generate env type_env e1 in
+  let- t2, c2, _ = generate env type_env e2 in
   let result_type = fresh_type_var () in
   let app_constraint = (t1, FunctionType (t2, result_type)) in
-  return (result_type, (app_constraint :: c1) @ c2)
+  return (result_type, (app_constraint :: c1) @ c2, [])
 
 (** [generate_e_bind env pat cto e1 e2] generates type constraints for let
     bindings.
@@ -333,9 +349,9 @@ and generate_e_app (env : static_env) (type_env : type_env) (e1 : c_expr)
     @return A pair containing the type of e2 and constraints for the binding *)
 and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
     (cto : c_type option) (e1 : c_expr) (e2 : c_expr) :
-    (mono_type * type_equations) type_check_result =
+    (mono_type * type_equations * type_env) type_check_result =
   let t_pat, pat_env, pat_constraints = type_of_pat pat in
-  let- t1, c1 = generate env type_env e1 in
+  let- t1, c1, _ = generate env type_env e1 in
   let annotation_constraints =
     match cto with
     | Some t -> [ (t_pat, instantiate t) ]
@@ -344,11 +360,13 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
   let new_constraint = (t_pat, t1) in
   (* Generalize the type of e1 before using it in e2 *)
   let- generalized_type = generalize (new_constraint :: c1) env type_env t1 in
-  let- t2, c2 =
+  let- t2, c2, _ =
     generate ((fst (List.hd pat_env), generalized_type) :: env) type_env e2
   in
   return
-    (t2, pat_constraints @ annotation_constraints @ (new_constraint :: c1) @ c2)
+    ( t2,
+      pat_constraints @ annotation_constraints @ (new_constraint :: c1) @ c2,
+      [] )
 
 (** [generate_e_bind_rec env pat e1 e2] generates type constraints for recursive
     let bindings.
@@ -360,8 +378,8 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
       A pair containing the type of e2 and constraints for the recursive binding
 *)
 and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
-    (e1 : c_expr) (e2 : c_expr) : (mono_type * type_equations) type_check_result
-    =
+    (e1 : c_expr) (e2 : c_expr) :
+    (mono_type * type_equations * type_env) type_check_result =
   let- function_id =
     match pat with
     | CIdPat id -> return id
@@ -373,15 +391,17 @@ and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
   in
   let function_type = fresh_type_var () in
   let new_env = (function_id, Mono function_type) :: env in
-  let- t1, c1 = generate new_env type_env e1 in
+  let- t1, c1, _ = generate new_env type_env e1 in
   (* Add constraint that function_type must equal t1 *)
   let new_constraint = (function_type, t1) in
   (* Generalize the function type to make it polymorphic *)
   let- generalized_type =
     generalize (new_constraint :: c1) new_env type_env t1
   in
-  let- t2, c2 = generate ((function_id, generalized_type) :: env) type_env e2 in
-  return (t2, (new_constraint :: c1) @ c2)
+  let- t2, c2, _ =
+    generate ((function_id, generalized_type) :: env) type_env e2
+  in
+  return (t2, (new_constraint :: c1) @ c2, [])
 
 (** [generate_e_ternary env e1 e2 e3] generates type constraints for ternary
     expressions.
@@ -391,17 +411,18 @@ and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
     @param e3 The else expression
     @return A pair containing the result type and constraints for the ternary *)
 and generate_e_ternary (env : static_env) (type_env : type_env) (e1 : c_expr)
-    (e2 : c_expr) (e3 : c_expr) : (mono_type * type_equations) type_check_result
-    =
-  let- t1, c1 = generate env type_env e1 in
-  let- t2, c2 = generate env type_env e2 in
-  let- t3, c3 = generate env type_env e3 in
+    (e2 : c_expr) (e3 : c_expr) :
+    (mono_type * type_equations * type_env) type_check_result =
+  let- t1, c1, _ = generate env type_env e1 in
+  let- t2, c2, _ = generate env type_env e2 in
+  let- t3, c3, _ = generate env type_env e3 in
   let type_of_expression = fresh_type_var () in
   return
     ( type_of_expression,
       (t1, BoolType) :: (t2, type_of_expression) :: (t3, type_of_expression)
       :: c1
-      @ c2 @ c3 )
+      @ c2 @ c3,
+      [] )
 
 (** [generate_e_vector env expressions] generates type constraints for vector
     expressions.
@@ -409,19 +430,20 @@ and generate_e_ternary (env : static_env) (type_env : type_env) (e1 : c_expr)
     @param expressions The list of expressions in the vector
     @return A pair containing the vector type and constraints for the vector *)
 and generate_e_vector (env : static_env) (type_env : type_env)
-    (expressions : c_expr list) : (mono_type * type_equations) type_check_result
-    =
+    (expressions : c_expr list) :
+    (mono_type * type_equations * type_env) type_check_result =
   let- results =
     let rec aux acc_types acc_constraints = function
       | [] -> return (List.rev acc_types, List.rev acc_constraints)
       | e :: es ->
-          let- t, c = generate env type_env e in
+          let- t, c, _ = generate env type_env e in
           aux (t :: acc_types) (c :: acc_constraints) es
     in
     aux [] [] expressions
   in
   let list_of_types, list_of_lists_of_constraints = results in
-  return (VectorType list_of_types, List.flatten list_of_lists_of_constraints)
+  return
+    (VectorType list_of_types, List.flatten list_of_lists_of_constraints, [])
 
 (** [generate_e_list_enumeration env e1 e2] generates type constraints for list
     enumeration.
@@ -431,12 +453,12 @@ and generate_e_vector (env : static_env) (type_env : type_env)
     @return A pair containing the list type and constraints for the enumeration
 *)
 and generate_e_list_enumeration (env : static_env) (type_env : type_env)
-    (e1 : c_expr) (e2 : c_expr) : (mono_type * type_equations) type_check_result
-    =
-  let- t1, c1 = generate env type_env e1 in
-  let- t2, c2 = generate env type_env e2 in
+    (e1 : c_expr) (e2 : c_expr) :
+    (mono_type * type_equations * type_env) type_check_result =
+  let- t1, c1, _ = generate env type_env e1 in
+  let- t2, c2, _ = generate env type_env e2 in
   (* Enumerations can only be done with integers *)
-  return (CListType IntType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2)
+  return (CListType IntType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2, [])
 
 (** [generate_e_list_comprehension env e generators] generates type constraints
     for list comprehensions.
@@ -447,13 +469,13 @@ and generate_e_list_enumeration (env : static_env) (type_env : type_env)
       A pair containing the list type and constraints for the comprehension *)
 and generate_e_list_comprehension (env : static_env) (type_env : type_env)
     (e : c_expr) (generators : (c_pat * c_expr) list) :
-    (mono_type * type_equations) type_check_result =
+    (mono_type * type_equations * type_env) type_check_result =
   let- env, generator_constraints =
     let rec aux acc_env acc_constraints = function
       | [] -> return (acc_env, acc_constraints)
       | (p, e) :: rest ->
           let type_of_pattern, pattern_env, const = type_of_pat p in
-          let- type_of_expression, expression_constraints =
+          let- type_of_expression, expression_constraints, _ =
             generate (pattern_env @ acc_env) type_env e
           in
           let new_constraint =
@@ -470,11 +492,14 @@ and generate_e_list_comprehension (env : static_env) (type_env : type_env)
     aux env [] generators
   in
 
-  let- type_of_expression, expression_constraints = generate env type_env e in
+  let- type_of_expression, expression_constraints, _ =
+    generate env type_env e
+  in
 
   return
     ( CListType type_of_expression,
-      expression_constraints @ generator_constraints )
+      expression_constraints @ generator_constraints,
+      [] )
 
 (** [generate_e_switch env e1 branches] generates type constraints for switch
     expressions.
@@ -484,15 +509,15 @@ and generate_e_list_comprehension (env : static_env) (type_env : type_env)
     @return A pair containing the result type and constraints for the switch *)
 and generate_e_switch (env : static_env) (type_env : type_env) (e1 : c_expr)
     (branches : (c_pat * c_expr) list) :
-    (mono_type * type_equations) type_check_result =
-  let- t1, c1 = generate env type_env e1 in
+    (mono_type * type_equations * type_env) type_check_result =
+  let- t1, c1, _ = generate env type_env e1 in
   let type_that_all_branch_expressions_must_be = fresh_type_var () in
   let- branch_constraints =
     let rec aux acc_constraints = function
       | [] -> return acc_constraints
       | (pat, expr) :: rest ->
           let type_of_pattern, pattern_env, const = type_of_pat pat in
-          let- type_of_branch_expression, branch_expression_constraints =
+          let- type_of_branch_expression, branch_expression_constraints, _ =
             generate (pattern_env @ env) type_env expr
           in
           let new_constraint =
@@ -509,7 +534,8 @@ and generate_e_switch (env : static_env) (type_env : type_env) (e1 : c_expr)
   in
   return
     ( type_that_all_branch_expressions_must_be,
-      c1 @ List.flatten branch_constraints )
+      c1 @ List.flatten branch_constraints,
+      [] )
 
 and type_of_pat (pat : c_pat) : mono_type * static_env * type_equations =
   match pat with
@@ -550,7 +576,7 @@ and reduce_eq (c : type_equations) (type_env : type_env) : type_equations =
                 reduce_eq
                   ((type1, type2) :: (VectorType tail1, VectorType tail2) :: c')
                   type_env
-            | _ -> raise TypeFailure)
+            | _ -> raise TypeFailure (* TOOD: replace these with Errors *))
         | _ -> raise TypeFailure)
 
 (** [get_type var subs] applies a substitution to a type variable.
@@ -610,6 +636,7 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
   | CListType et ->
       let- et_type = get_type et subs type_env in
       return (CListType et_type)
+  | TypeName v -> return (TypeName v)
 
 and get_type_of_type_var (var : string) (subs : type_equations) :
     mono_type type_check_result =
@@ -650,6 +677,7 @@ and is_basic_type (t : mono_type) : bool =
   | FunctionType (i, o) -> is_basic_type i && is_basic_type o
   | VectorType types -> List.for_all is_basic_type types
   | CListType et -> is_basic_type et
+  | TypeName _ -> false
 
 (** [substitute var_id t equations] substitutes a type variable with a type
     throughout a list of type equations.
@@ -678,6 +706,7 @@ and substitute (var_id : string) (t : mono_type) (equations : type_equations) :
         FunctionType (substitute_in_type t1, substitute_in_type t2)
     | VectorType types -> VectorType (List.map substitute_in_type types)
     | CListType et -> CListType (substitute_in_type et)
+    | TypeName v -> TypeName v
   in
   match equations with
   | [] -> []
@@ -786,11 +815,40 @@ and get_type_vars (t : mono_type) : mono_type list =
 
 and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :
     c_type type_check_result =
-  let- t, constraints = generate env type_env e in
-  let solution = reduce_eq constraints type_env in
+  let- t, constraints, _ = generate env type_env e in
+
+  (* print the original type and constraints *)
+  print_endline ("original type: " ^ string_of_mono_type t);
+  print_endline ("original constraints: " ^ string_of_type_equations constraints);
+
+  (* print the type environment *)
+  print_endline ("type environment: " ^ string_of_type_env type_env);
+
+  let- t = simplify_mono_type t type_env in
+  (* simplify constraints *)
+  let- simplified_constraints =
+    let rec simplify_constraint_list acc = function
+      | [] -> return (List.rev acc)
+      | (t1, t2) :: rest ->
+          let- t1_simplified = simplify_mono_type t1 type_env in
+          let- t2_simplified = simplify_mono_type t2 type_env in
+          simplify_constraint_list ((t1_simplified, t2_simplified) :: acc) rest
+    in
+    simplify_constraint_list [] constraints
+  in
+
+  (* print the simplified type constraints *)
+  print_endline ("simplified type: " ^ string_of_mono_type t);
+  print_endline
+    ("simplified constraints: "
+    ^ string_of_type_equations simplified_constraints);
+
+  let solution = reduce_eq simplified_constraints type_env in
   let- the_mono_type = get_type t solution type_env in
   let the_mono_type = fix_type the_mono_type in
-  let- the_c_type = generalize constraints env type_env the_mono_type in
+  let- the_c_type =
+    generalize simplified_constraints env type_env the_mono_type
+  in
   return the_c_type
 
 (* swap all variables for new variables *)
@@ -806,7 +864,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
   match defn with
   | CDefn (pat, type_annotation, body) ->
       (* Generate type and equations for the body *)
-      let- body_type, body_equations = generate env type_env body in
+      let- body_type, body_equations, _ = generate env type_env body in
 
       (* Get pattern type and bindings *)
       let pattern_type, pattern_env, pattern_equations = type_of_pat pat in
@@ -848,7 +906,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       let rec_env = (fst (List.hd pattern_env), Mono rec_type) :: env in
 
       (* Generate type and equations for the body with the recursive binding *)
-      let- body_type, body_equations = generate rec_env type_env body in
+      let- body_type, body_equations, _ = generate rec_env type_env body in
 
       (* Add constraint that the recursive type must match the body type *)
       let rec_constraint = (rec_type, body_type) in
@@ -884,6 +942,49 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
   | CTypeAlias (name, t) ->
       (* Return empty static env and type binding in type env *)
       return ([], [ (name, t) ])
+
+(* Given a type with type names, simplify it by replacing the type names with
+   the actual types
+
+   For example, if we declare type t = int, and we have type t -> t, we it will
+   get simplified to int -> int *)
+and simplify_type (t : c_type) (type_env : type_env) : c_type type_check_result
+    =
+  match t with
+  | Mono t ->
+      let- mono_t = simplify_mono_type t type_env in
+      return (Mono mono_t)
+  | PolyType (var, t) ->
+      let- t_simplified = simplify_type t type_env in
+      return (PolyType (var, t_simplified))
+
+and simplify_mono_type (t : mono_type) (type_env : type_env) :
+    mono_type type_check_result =
+  match t with
+  | IntType -> return IntType
+  | FloatType -> return FloatType
+  | BoolType -> return BoolType
+  | StringType -> return StringType
+  | UnitType -> return UnitType
+  | TypeVar _ -> return t
+  | FunctionType (t1, t2) ->
+      let- t1_simplified = simplify_mono_type t1 type_env in
+      let- t2_simplified = simplify_mono_type t2 type_env in
+      return (FunctionType (t1_simplified, t2_simplified))
+  | VectorType types ->
+      let rec aux acc = function
+        | [] -> return (VectorType (List.rev acc))
+        | t :: ts ->
+            let- t_simplified = simplify_mono_type t type_env in
+            aux (t_simplified :: acc) ts
+      in
+      aux [] types
+  | CListType t ->
+      let- t_simplified = simplify_mono_type t type_env in
+      return (CListType t_simplified)
+  | TypeName v ->
+      let t = List.assoc v type_env in
+      simplify_mono_type t type_env
 
 let rec get_mono_type (t : c_type) : mono_type =
   match t with

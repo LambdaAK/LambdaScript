@@ -32,7 +32,8 @@ and factor_type =
   | BooleanType
   | UnitType
   | FloatType
-  | TypeVarWritten of string
+  | TypeVarWritten of string (* 'a, 'b, etc. *)
+  | TypeName of string (* t, u, etc. *)
   | ParenFactorType of compound_type
   | VectorType of compound_type list
   | ListType of compound_type
@@ -40,7 +41,7 @@ and factor_type =
 type defn =
   | Defn of pat * compound_type option * expr
   | DefnRec of pat * compound_type option * expr
-  | TypeAliasDefinition of string * compound_type
+  | TypeAliasDefinition of string * factor_type
 
 and switch_branch = pat * expr
 

@@ -40,6 +40,7 @@ let rec create_substitution (t : mono_type) (seen : string list) :
   | BoolType -> []
   | StringType -> []
   | UnitType -> []
+  | TypeName _ -> []
 
 (* There may be type variables in t. We need to replace them with variables 1,
    2, ....
@@ -62,6 +63,7 @@ let fix_type (t : mono_type) : mono_type =
     | BoolType -> BoolType
     | StringType -> StringType
     | UnitType -> UnitType
+    | TypeName v -> TypeName v
   in
   let subs = create_substitution t [] in
   apply_substitution t subs

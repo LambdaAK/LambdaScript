@@ -37,7 +37,7 @@ let rec condense_defn : defn -> c_defn = function
       in
       let c : c_expr = condense_expr body_expression in
       CDefnRec (a, b, c)
-  | TypeAliasDefinition (name, ct) -> CTypeAlias (name, condense_type ct)
+  | TypeAliasDefinition (name, ct) -> CTypeAlias (name, condense_factor_type ct)
 
 and condense_expr : expr -> c_expr = function
   | Function (pat, ct_opt, expr) ->
@@ -171,6 +171,7 @@ and condense_factor_type : factor_type -> mono_type = function
       (* When converting a type var, we add the prefix `$written$_` so that the
          name will not conflict with any internal type variables that we use. *)
       TypeVar ("$written(" ^ i ^ ")")
+  | TypeName t -> TypeName t
   | ParenFactorType expr -> condense_compound_type expr
   | VectorType types -> VectorType (List.map condense_compound_type types)
   | ListType et -> CListType (condense_compound_type et)
@@ -204,3 +205,4 @@ and all_type_vars_in_type : mono_type -> string list = function
       List.concat (List.map all_type_vars_in_type types)
       |> List.sort_uniq compare
   | CListType et -> all_type_vars_in_type et
+  | TypeName _ -> []
