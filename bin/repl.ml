@@ -40,7 +40,7 @@ let print_name_info name =
 
 type repl_result =
   | NoChange
-  | NewBindings of static_env * env
+  | NewBindings of static_env * type_env
 
 (** [read_multiline ()] reads input from the user until a line containing only
     ";;" is encountered. The ;; can be on the first line or any subsequent line.
@@ -52,7 +52,8 @@ let rec read_multiline () =
     String.sub line 0 (String.length line - 2)
   else line ^ "\n" ^ read_multiline ()
 
-let repl (static_env : static_env) (dynamic_env : env) : repl_result =
+let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env) :
+    repl_result =
   (* Print prompt *)
   print_colored (color_bold ^ color_green) "λ> ";
   flush_all ();
@@ -68,42 +69,33 @@ let repl (static_env : static_env) (dynamic_env : env) : repl_result =
   | None ->
       print_error "Parsing failed";
       NoChange
-  | Some (Expr expr, _) ->
-      ((* parsing succeeded *)
-       (* condense the expression *)
-       let c_expr = condense_expr expr in
-       (* type check the expression *)
-       match type_of_c_expr static_env [] c_expr with
-       | Ok t -> begin
-           (* it typechecked properly *)
-           (* evaluate the expression *)
-           begin
-             match eval_c_expr c_expr dynamic_env with
-             | Ok value ->
-                 (* pretty print the type and value *)
-                 print_separator ();
-                 print_type_info t;
-                 print_value_info value;
-                 print_separator ()
-             | Error e -> print_error (string_of_eval_error e)
-           end
-         end
-       | Error e -> print_error (string_of_type_check_error e));
-      NoChange
+  | Some (Expr expr, _) -> (
+      let c_expr = condense_expr expr in
+      let result = type_of_c_expr static_env type_env c_expr in
+      match result with
+      | Ok t ->
+          (match eval_c_expr c_expr dynamic_env with
+          | Ok value ->
+              print_separator ();
+              print_type_info t;
+              print_value_info value;
+              print_separator ()
+          | Error e -> print_error (string_of_eval_error e));
+          NoChange
+      | Error e ->
+          print_error (string_of_type_check_error e);
+          NoChange)
   | Some (Definition defn, _) -> (
-      (* condense the definition *)
       let c_defn = condense_defn defn in
-
-      match generate_defn static_env [] c_defn with
+      let result = generate_defn static_env type_env c_defn in
+      match result with
       | Error e ->
           print_error (string_of_type_check_error e);
           NoChange
-      | Ok (new_static_bindings, _) ->
-          (*evaluate the definition, since it typechcked*)
+      | Ok (new_static_bindings, new_type_env) ->
           let new_dynamic_bindings =
             unwrap_eval_result (eval_defn c_defn dynamic_env)
           in
-          (* print all of the new bindings *)
           List.iter
             (fun (name, typ) ->
               let value =
@@ -118,17 +110,15 @@ let repl (static_env : static_env) (dynamic_env : env) : repl_result =
               print_value_info value;
               print_separator ())
             new_static_bindings;
-          NewBindings (new_static_bindings, new_dynamic_bindings))
+          NewBindings (new_static_bindings, new_type_env))
 
-(* parse defn or expr *)
-
-let rec run_repl_loop static_env dynamic_env =
-  match repl static_env dynamic_env with
-  | NoChange -> run_repl_loop static_env dynamic_env
-  | NewBindings (new_static_bindings, new_dynamic_bindings) ->
+let rec run_repl_loop static_env dynamic_env type_env =
+  match repl static_env dynamic_env type_env with
+  | NoChange -> run_repl_loop static_env dynamic_env type_env
+  | NewBindings (new_static_bindings, new_type_env) ->
       run_repl_loop
         (new_static_bindings @ static_env)
-        (new_dynamic_bindings @ dynamic_env)
+        dynamic_env (new_type_env @ type_env)
 
 let run_repl () =
   (* Print welcome message *)
@@ -137,6 +127,7 @@ let run_repl () =
 
   let static_env = [] in
   let dynamic_env = [] in
-  run_repl_loop static_env dynamic_env
+  let type_env = [] in
+  run_repl_loop static_env dynamic_env type_env
 
 let () = run_repl ()

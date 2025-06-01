@@ -517,7 +517,8 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
           | _ -> ());
           new_bindings |> return)
   | CTypeAlias _ ->
-      Error (OtherError "eval_defn: type aliases not supported yet!")
+      (* doesn't do anything *)
+      return []
 
 and string_of_bop = function
   | CPlus -> "+"
