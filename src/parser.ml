@@ -1003,8 +1003,8 @@ end = struct
         | _ -> None)
     in
     let* () = expect_token Equals in
-    let* ft = FactorTypeParser.factor_type_parser in
-    return (TypeAliasDefinition (name, ft))
+    let* ct = CompoundTypeParser.compound_type_parser in
+    return (TypeAliasDefinition (name, ct))
 
   let defn_parser : defn parser =
     let_rec_defn_parser () <|> let_defn_parser () <|> type_alias_defn_parser ()

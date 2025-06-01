@@ -440,7 +440,7 @@ and string_of_defn (d : defn) (level : int) =
       ^ indentations_with_newline (level + 1)
       ^ string_of_expr e (level + 1)
       ^ ")"
-  | TypeAliasDefinition (name, ft) ->
-      "type " ^ name ^ " = " ^ string_of_basic_type ft 0
+  | TypeAliasDefinition (name, ct) ->
+      "type " ^ name ^ " = " ^ string_of_compound_type ct 0
 
 let string_of_expr (e : expr) = string_of_expr e 0

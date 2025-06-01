@@ -41,7 +41,7 @@ and factor_type =
 type defn =
   | Defn of pat * compound_type option * expr
   | DefnRec of pat * compound_type option * expr
-  | TypeAliasDefinition of string * factor_type
+  | TypeAliasDefinition of string * compound_type
 
 and switch_branch = pat * expr
 
