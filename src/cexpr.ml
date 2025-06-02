@@ -52,7 +52,7 @@ type c_type =
 and c_defn =
   | CDefn of c_pat * c_type option * c_expr
   | CDefnRec of c_pat * c_type option * c_expr
-  | CTypeAlias of string * mono_type
+  | CTypeAlias of string * string list * mono_type
 
 and c_switch_branch = c_pat * c_expr
 

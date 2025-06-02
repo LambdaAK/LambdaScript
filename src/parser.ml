@@ -1013,7 +1013,7 @@ end = struct
     return
       (DefnRec (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations))
 
-  let type_alias_defn_parser () : defn parser =
+  let type_alias_defn_parser_no_args () : defn parser =
     let* () = expect_token Type in
     let* name =
       expect_token_get_data (function
@@ -1022,10 +1022,35 @@ end = struct
     in
     let* () = expect_token Equals in
     let* ct = CompoundTypeParser.compound_type_parser in
-    return (TypeDef (name, ct))
+    return (TypeDef (name, [], ct))
+
+  let string_parser : string parser =
+    let* s =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    return s
+
+  let type_alias_defn_parser_with_args () : defn parser =
+    let* () = expect_token Type in
+    let* name =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* () = expect_token LAngle in
+    (* Parse a list of identifiers and store the strings *)
+    let* args : string list = parse_sep_delim string_parser Comma in
+    let* () = expect_token RAngle in
+    let* () = expect_token Equals in
+    let* ct = CompoundTypeParser.compound_type_parser in
+    return (TypeDef (name, args, ct))
 
   let defn_parser : defn parser =
-    let_rec_defn_parser () <|> let_defn_parser () <|> type_alias_defn_parser ()
+    let_rec_defn_parser () <|> let_defn_parser ()
+    <|> type_alias_defn_parser_no_args ()
+    <|> type_alias_defn_parser_with_args ()
 end
 
 and ExprOrDefnParser : sig

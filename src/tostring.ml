@@ -448,6 +448,12 @@ and string_of_defn (d : defn) (level : int) =
       ^ indentations_with_newline (level + 1)
       ^ string_of_expr e (level + 1)
       ^ ")"
-  | TypeDef (name, ct) -> "type " ^ name ^ " = " ^ string_of_compound_type ct 0
+  | TypeDef (name, type_params, ct) ->
+      let params_str =
+        match type_params with
+        | [] -> ""
+        | params -> "<" ^ String.concat ", " params ^ ">"
+      in
+      "type " ^ name ^ params_str ^ " = " ^ string_of_compound_type ct 0
 
 let string_of_expr (e : expr) = string_of_expr e 0

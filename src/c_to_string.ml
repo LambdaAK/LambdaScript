@@ -156,7 +156,13 @@ and string_of_defn : c_defn -> string = function
         | None -> ""
       in
       "let rec " ^ string_of_pat pat ^ type_annot ^ " = " ^ string_of_expr e
-  | CTypeAlias (name, t) -> "type " ^ name ^ " = " ^ string_of_mono_type t
+  | CTypeAlias (name, type_params, t) ->
+      let params_str =
+        match type_params with
+        | [] -> ""
+        | params -> "<" ^ String.concat ", " params ^ ">"
+      in
+      "type " ^ name ^ params_str ^ " = " ^ string_of_mono_type t
 
 let rec string_of_program : c_program -> string = function
   | [] -> ""

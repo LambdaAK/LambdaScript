@@ -53,7 +53,7 @@ and factor_type =
 type defn =
   | Defn of pat * compound_type option * expr
   | DefnRec of pat * compound_type option * expr
-  | TypeDef of string * compound_type
+  | TypeDef of string * string list * compound_type
 
 and switch_branch = pat * expr
 

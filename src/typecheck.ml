@@ -943,9 +943,11 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
 
       (* Return value bindings in static env and empty type env *)
       return (new_bindings, [])
-  | CTypeAlias (name, t) ->
+  | CTypeAlias (name, args, t) -> (
       (* Return empty static env and type binding in type env *)
-      return ([], [ (name, t) ])
+      match args with
+      | [] -> return ([], [ (name, t) ])
+      | _ -> failwith "unimplemented: generate_defn")
 
 (* Given a type with type names, simplify it by replacing the type names with
    the actual types
