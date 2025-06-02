@@ -934,9 +934,9 @@ end = struct
         | Id s -> Some s
         | _ -> None)
     in
-    let* () = expect_token LAngle in
+    let* () = expect_token (Relop "<") in
     let* args = parse_sep_delim CompoundTypeParser.compound_type_parser Comma in
-    let* () = expect_token RAngle in
+    let* () = expect_token (Relop ">") in
     return (TypeApp (name, args))
 
   let factor_type_parser () : factor_type parser =
@@ -1025,9 +1025,10 @@ end = struct
     return (TypeDef (name, [], ct))
 
   let string_parser : string parser =
+    let* () = parse_print "string_parser" in
     let* s =
       expect_token_get_data (function
-        | Id s -> Some s
+        | TypeVar s -> Some s
         | _ -> None)
     in
     return s
@@ -1039,18 +1040,18 @@ end = struct
         | Id s -> Some s
         | _ -> None)
     in
-    let* () = expect_token LAngle in
+    let* () = expect_token (Relop "<") in
     (* Parse a list of identifiers and store the strings *)
     let* args : string list = parse_sep_delim string_parser Comma in
-    let* () = expect_token RAngle in
+    let* () = expect_token (Relop ">") in
     let* () = expect_token Equals in
     let* ct = CompoundTypeParser.compound_type_parser in
     return (TypeDef (name, args, ct))
 
   let defn_parser : defn parser =
-    let_rec_defn_parser () <|> let_defn_parser ()
+    type_alias_defn_parser_with_args ()
     <|> type_alias_defn_parser_no_args ()
-    <|> type_alias_defn_parser_with_args ()
+    <|> let_rec_defn_parser () <|> let_defn_parser ()
 end
 
 and ExprOrDefnParser : sig

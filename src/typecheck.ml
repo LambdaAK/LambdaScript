@@ -44,13 +44,16 @@ let unwrap_type_check_result (x : 'a type_check_result) : 'a =
 exception TypeFailure
 
 (* maps type names to their types *)
-type type_env = (string * mono_type) list
+type type_env = (string * string list * mono_type) list
 
 let string_of_type_env (env : type_env) : string =
   let rec aux acc = function
     | [] -> acc
-    | (id, t) :: env' ->
-        aux (id ^ " : " ^ string_of_mono_type t ^ "\n" ^ acc) env'
+    | (id, params, t) :: env' ->
+        let params_str =
+          if params = [] then "" else "<" ^ String.concat ", " params ^ ">"
+        in
+        aux (id ^ params_str ^ " : " ^ string_of_mono_type t ^ "\n" ^ acc) env'
   in
   aux "" env
 
@@ -829,6 +832,8 @@ and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :
   print_endline ("type environment: " ^ string_of_type_env type_env);
 
   let- t = simplify_mono_type t type_env in
+
+  print_endline "done simplifying type";
   (* simplify constraints *)
   let- simplified_constraints =
     let rec simplify_constraint_list acc = function
@@ -943,11 +948,9 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
 
       (* Return value bindings in static env and empty type env *)
       return (new_bindings, [])
-  | CTypeAlias (name, args, t) -> (
-      (* Return empty static env and type binding in type env *)
-      match args with
-      | [] -> return ([], [ (name, t) ])
-      | _ -> failwith "unimplemented: generate_defn")
+  | CTypeAlias (name, params, body) ->
+      (* Add the type alias to the type environment *)
+      return ([], [ (name, params, body) ])
 
 (* Given a type with type names, simplify it by replacing the type names with
    the actual types
@@ -972,12 +975,14 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
   | BoolType -> return BoolType
   | StringType -> return StringType
   | UnitType -> return UnitType
-  | TypeVar _ -> return t
+  | TypeVar v -> return (TypeVar v)
   | FunctionType (t1, t2) ->
+      (* Evaluate both input and output types *)
       let- t1_simplified = simplify_mono_type t1 type_env in
       let- t2_simplified = simplify_mono_type t2 type_env in
       return (FunctionType (t1_simplified, t2_simplified))
   | VectorType types ->
+      (* Evaluate each type in the vector *)
       let rec aux acc = function
         | [] -> return (VectorType (List.rev acc))
         | t :: ts ->
@@ -986,12 +991,65 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       in
       aux [] types
   | CListType t ->
+      (* Evaluate the element type *)
       let- t_simplified = simplify_mono_type t type_env in
       return (CListType t_simplified)
   | TypeName v ->
-      let t = List.assoc v type_env in
+      (* Look up and evaluate the type definition *)
+      let type_def =
+        List.find
+          (fun (n, _, _) ->
+            print_endline n;
+            n = v)
+          type_env
+      in
+      let _, _, t = type_def in
       simplify_mono_type t type_env
-  | CTypeApp _ -> failwith "unimplemented: simplify_mono_type"
+  | CTypeApp (name, args) ->
+      print_endline "simplifying app";
+      print_endline ("name: " ^ name);
+      print_endline ("type environment: " ^ string_of_type_env type_env);
+
+      (* First evaluate all the argument types *)
+      let rec eval_args acc = function
+        | [] -> return (List.rev acc)
+        | arg :: rest ->
+            let- arg_simplified = simplify_mono_type arg type_env in
+            eval_args (arg_simplified :: acc) rest
+      in
+      let- simplified_args = eval_args [] args in
+
+      (* Look up the type definition *)
+      let type_def = List.find (fun (n, _, _) -> n = name) type_env in
+      let _, params, body = type_def in
+
+      (* Create substitution mapping type parameters to their evaluated
+         arguments *)
+      let subst = List.combine params simplified_args in
+
+      (* Apply the substitution to the body type *)
+      let rec apply_subst t =
+        match t with
+        | TypeVar v -> (
+            (* Extract the variable name from $written(v) format *)
+            let var_name =
+              if String.length v > 9 && String.sub v 0 9 = "$written(" then
+                String.sub v 9 (String.length v - 10)
+              else v
+            in
+            match List.assoc_opt var_name subst with
+            | Some arg -> arg
+            | None -> t)
+        | FunctionType (i, o) -> FunctionType (apply_subst i, apply_subst o)
+        | VectorType types -> VectorType (List.map apply_subst types)
+        | CListType et -> CListType (apply_subst et)
+        | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
+        | _ -> t
+      in
+
+      (* Apply substitution and recursively evaluate the result *)
+      let substituted = apply_subst body in
+      simplify_mono_type substituted type_env
 
 let rec get_mono_type (t : c_type) : mono_type =
   match t with
