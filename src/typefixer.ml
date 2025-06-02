@@ -41,6 +41,13 @@ let rec create_substitution (t : mono_type) (seen : string list) :
   | StringType -> []
   | UnitType -> []
   | TypeName _ -> []
+  | CTypeApp (_, args) ->
+      List.fold_left
+        (fun (acc, seen) t ->
+          let subs = create_substitution t seen in
+          (acc @ subs, seen @ List.map fst subs))
+        ([], seen) args
+      |> fst
 
 (* There may be type variables in t. We need to replace them with variables 1,
    2, ....
@@ -64,6 +71,8 @@ let fix_type (t : mono_type) : mono_type =
     | StringType -> StringType
     | UnitType -> UnitType
     | TypeName v -> TypeName v
+    | CTypeApp (name, args) ->
+        CTypeApp (name, List.map (fun t -> apply_substitution t subs) args)
   in
   let subs = create_substitution t [] in
   apply_substitution t subs

@@ -58,6 +58,8 @@ type token_type =
   | Mulop of string (* start with * / or % *)
   | Type
   | TypeVariable of string
+  | LAngle
+  | RAngle
 
 type token = {
   token_type : token_type;
@@ -130,6 +132,8 @@ let string_of_token_type : token_type -> string = function
   | Equals -> "<equals>"
   | Type -> "<type>"
   | TypeVariable s -> "<type variable: " ^ s ^ ">"
+  | LAngle -> "<"
+  | RAngle -> ">"
 [@@coverage off]
 
 let string_of_token : token -> string =
@@ -466,6 +470,16 @@ let lex (lst : char list) : token list =
         | '}' :: t ->
             let new_token : token =
               { token_type = RBrace; line = !line_number }
+            in
+            new_token :: lex t
+        | '<' :: t ->
+            let new_token : token =
+              { token_type = LAngle; line = !line_number }
+            in
+            new_token :: lex t
+        | '>' :: t ->
+            let new_token : token =
+              { token_type = RAngle; line = !line_number }
             in
             new_token :: lex t
         | n :: _ when is_num_or_dot n ->

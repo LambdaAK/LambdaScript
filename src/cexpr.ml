@@ -40,6 +40,9 @@ type mono_type =
   | FunctionType of mono_type * mono_type
   | VectorType of mono_type list
   | CListType of mono_type
+  | CTypeApp of string * mono_type list
+(* the string is the name of the type constructor, and mono_type list is the
+   list of arguments*)
 
 (* Polymorphic types - universal quantifiers only at the top level *)
 type c_type =
@@ -166,6 +169,9 @@ let rec string_of_mono_type : mono_type -> string = function
       "[" ^ String.concat ", " ts_str ^ "]"
   | CListType t -> "[" ^ string_of_mono_type t ^ "]"
   | TypeName v -> v
+  | CTypeApp (name, args) ->
+      let args_str = List.map string_of_mono_type args in
+      name ^ "<" ^ String.concat ", " args_str ^ ">"
 
 let rec string_of_type : c_type -> string = function
   | Mono t -> string_of_mono_type t
@@ -191,5 +197,6 @@ let get_mono_type_vars (t : mono_type) : string list =
     | VectorType ts -> List.fold_left (fun a t -> aux t a) acc ts
     | CListType t' -> aux t' acc
     | TypeName _ -> acc
+    | CTypeApp (_, args) -> List.fold_left (fun a t -> aux t a) acc args
   in
   aux t [] |> List.rev

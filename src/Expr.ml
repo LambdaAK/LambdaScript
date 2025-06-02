@@ -22,6 +22,17 @@ type rel_op =
   | LE
   | GE
 
+(* Type applications
+
+   There is type currying, but, there is no partial application A type always
+   gets fully evaluated.
+
+   In the representation for a polymorphic type, it is not recursive. It is
+   parameterized by a list of type variables of fixed length
+
+   Syntax for type application is `pair<t1, t2>`, where t1 and t2 are
+   mono_type. *)
+
 type compound_type =
   | FunctionType of factor_type * compound_type
   | BasicType of factor_type
@@ -37,6 +48,7 @@ and factor_type =
   | ParenFactorType of compound_type
   | VectorType of compound_type list
   | ListType of compound_type
+  | TypeApp of string * compound_type list
 
 type defn =
   | Defn of pat * compound_type option * expr

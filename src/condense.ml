@@ -176,6 +176,7 @@ and condense_factor_type : factor_type -> mono_type = function
   | ParenFactorType expr -> condense_compound_type expr
   | VectorType types -> VectorType (List.map condense_compound_type types)
   | ListType et -> CListType (condense_compound_type et)
+  | TypeApp (name, args) -> CTypeApp (name, List.map condense_compound_type args)
 
 and condense_compound_type : compound_type -> mono_type = function
   | BasicType bt -> condense_factor_type bt
@@ -207,3 +208,6 @@ and all_type_vars_in_type : mono_type -> string list = function
       |> List.sort_uniq compare
   | CListType et -> all_type_vars_in_type et
   | TypeName _ -> []
+  | CTypeApp (_, args) ->
+      List.concat (List.map all_type_vars_in_type args)
+      |> List.sort_uniq compare

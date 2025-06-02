@@ -150,6 +150,7 @@ and string_of_mono_type (t : mono_type) : string =
       "(" ^ String.concat ", " types_str ^ ")"
   | CListType et -> "[" ^ string_of_mono_type et ^ "]"
   | TypeName v -> v
+  | CTypeApp _ -> failwith "typeApp unimplemented in typecheck.ml"
 
 (** [generate env e] performs type inference on the expression [e] in the static
     environment [env].
@@ -637,6 +638,7 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
       let- et_type = get_type et subs type_env in
       return (CListType et_type)
   | TypeName v -> return (TypeName v)
+  | CTypeApp _ -> failwith "unimplemented"
 
 and get_type_of_type_var (var : string) (subs : type_equations) :
     mono_type type_check_result =
@@ -678,6 +680,7 @@ and is_basic_type (t : mono_type) : bool =
   | VectorType types -> List.for_all is_basic_type types
   | CListType et -> is_basic_type et
   | TypeName _ -> false
+  | CTypeApp _ -> false
 
 (** [substitute var_id t equations] substitutes a type variable with a type
     throughout a list of type equations.
@@ -707,6 +710,7 @@ and substitute (var_id : string) (t : mono_type) (equations : type_equations) :
     | VectorType types -> VectorType (List.map substitute_in_type types)
     | CListType et -> CListType (substitute_in_type et)
     | TypeName v -> TypeName v
+    | CTypeApp _ -> failwith "unimplemented: substitute_in_type"
   in
   match equations with
   | [] -> []
@@ -985,6 +989,7 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
   | TypeName v ->
       let t = List.assoc v type_env in
       simplify_mono_type t type_env
+  | CTypeApp _ -> failwith "unimplemented: simplify_mono_type"
 
 let rec get_mono_type (t : c_type) : mono_type =
   match t with

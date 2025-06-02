@@ -65,6 +65,14 @@ let rec string_of_basic_type (ft : factor_type) (level : int) : string =
   | FloatType -> "FloatType"
   | TypeVarWritten v -> "TypeVarWritten (" ^ v ^ ")"
   | TypeName v -> "TypeName (" ^ v ^ ")"
+  | TypeApp (name, args) ->
+      "TypeApp (" ^ name ^ ", ["
+      ^ indentations_with_newline (level + 1)
+      ^ String.concat
+          (",\n" ^ indentations_with_newline (level + 1))
+          (List.map (fun t -> string_of_compound_type t (level + 1)) args)
+      ^ indentations_with_newline level
+      ^ "] )"
 
 and string_of_compound_type (ct : compound_type) (level : int) =
   match ct with

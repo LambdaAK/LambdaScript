@@ -921,11 +921,29 @@ end = struct
     let* () = expect_token RBracket in
     return (ListType ct)
 
+  let type_app_parser : factor_type parser =
+    (* type_name < args > where args is comma-separated
+
+       treat type_name as an id token each argument in args is a
+       compound_type *)
+
+    (* New type declaration syntax: type triple<a, b, c> = (a, b, c) type
+       option<a> = Some a | None type either<a, b> = Left a | Right b *)
+    let* name : string =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* () = expect_token LAngle in
+    let* args = parse_sep_delim CompoundTypeParser.compound_type_parser Comma in
+    let* () = expect_token RAngle in
+    return (TypeApp (name, args))
+
   let factor_type_parser () : factor_type parser =
     integer_type_parser <|> string_type_parser <|> boolean_type_parser
     <|> unit_type_parser <|> float_type_parser <|> type_var_written_parser
     <|> paren_factor_type_parser <|> vector_type_parser <|> list_type_parser
-    <|> type_name_parser
+    <|> type_app_parser <|> type_name_parser
 
   let factor_type_parser = factor_type_parser ()
 end

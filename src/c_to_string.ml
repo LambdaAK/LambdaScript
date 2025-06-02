@@ -19,6 +19,9 @@ let rec string_of_mono_type : mono_type -> string = function
       "(" ^ String.concat ", " ts_str ^ ")"
   | TypeName t -> t
   | CListType t -> "[" ^ string_of_mono_type t ^ "]"
+  | CTypeApp (name, args) ->
+      let args_str = List.map string_of_mono_type args in
+      name ^ "<" ^ String.concat ", " args_str ^ ">"
 
 let string_of_c_type (ct : c_type) : string =
   let rec collect_vars acc = function
