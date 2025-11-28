@@ -1004,6 +1004,7 @@ end = struct
     let* s =
       expect_token_get_data (function
         | TypeVar s -> Some s
+        | Id s -> Some s  (* Also accept plain identifiers *)
         | _ -> None)
     in
     return s
@@ -1015,10 +1016,18 @@ end = struct
         | Id s -> Some s
         | _ -> None)
     in
-    let* () = expect_token LAngle in
+    let* () =
+      expect_token_get_data (function
+        | Relop "<" -> Some ()
+        | _ -> None)
+    in
     (* Parse a list of identifiers and store the strings *)
     let* args : string list = parse_sep_delim string_parser Comma in
-    let* () = expect_token RAngle in
+    let* () =
+      expect_token_get_data (function
+        | Relop ">" -> Some ()
+        | _ -> None)
+    in
     let* () = expect_token Equals in
     let* ct = CompoundTypeParser.compound_type_parser in
     return (TypeDef (name, args, ct))

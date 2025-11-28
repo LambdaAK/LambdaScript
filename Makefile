@@ -38,3 +38,7 @@ parser_tester:
 typecheck:
 	dune build bin/typecheck_tester.exe
 	dune exec ./bin/typecheck_tester.exe
+
+parsetest:
+	dune build bin/parse_file.exe
+	dune exec ./bin/parse_file.exe "$(FILE)"

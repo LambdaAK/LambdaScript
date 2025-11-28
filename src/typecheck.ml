@@ -878,6 +878,9 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       (* Get pattern type and bindings *)
       let pattern_type, pattern_env, pattern_equations = type_of_pat pat in
 
+      (* Constraint: pattern type must match body type *)
+      let pattern_body_constraint = (pattern_type, body_type) in
+
       (* Handle type annotation if present *)
       let annotation_equations =
         match type_annotation with
@@ -888,6 +891,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       (* Combine all equations *)
       let all_equations =
         body_equations @ pattern_equations @ annotation_equations
+        @ [ pattern_body_constraint ]
       in
 
       (* Generalize the body type *)
@@ -920,6 +924,9 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       (* Add constraint that the recursive type must match the body type *)
       let rec_constraint = (rec_type, body_type) in
 
+      (* Constraint: pattern type must match body type *)
+      let pattern_body_constraint = (pattern_type, body_type) in
+
       (* Handle type annotation if present *)
       let annotation_equations =
         match type_annotation with
@@ -930,7 +937,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       (* Combine all equations *)
       let all_equations =
         body_equations @ pattern_equations @ annotation_equations
-        @ [ rec_constraint ]
+        @ [ rec_constraint; pattern_body_constraint ]
       in
 
       (* Generalize the body type *)

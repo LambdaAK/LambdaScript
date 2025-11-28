@@ -1,3 +1,7 @@
+type Integer<T> = T
+
+let a [int] = 1
+
 let rec map f arr =
 switch arr =>
   | [] -> []

@@ -32,3 +32,10 @@
  (libraries Language)
  (instrumentation
   (backend bisect_ppx)))
+
+(executable
+ (name parse_file)
+ (modules parse_file)
+ (libraries Language)
+ (instrumentation
+  (backend bisect_ppx)))
