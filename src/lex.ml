@@ -472,16 +472,6 @@ let lex (lst : char list) : token list =
               { token_type = RBrace; line = !line_number }
             in
             new_token :: lex t
-        | '<' :: t ->
-            let new_token : token =
-              { token_type = LAngle; line = !line_number }
-            in
-            new_token :: lex t
-        | '>' :: t ->
-            let new_token : token =
-              { token_type = RAngle; line = !line_number }
-            in
-            new_token :: lex t
         | n :: _ when is_num_or_dot n ->
             let int_token, tail = lex_num lst "" in
             int_token :: lex tail
