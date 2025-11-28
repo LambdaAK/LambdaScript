@@ -34,6 +34,13 @@ let string_of_c_type (ct : c_type) : string =
       let _, t = collect_vars [] ct in
       string_of_mono_type t
 
+(** Formats an optional type annotation.
+    Returns " : type" if Some type, or empty string if None. *)
+let format_type_annotation (t_opt : c_type option) : string =
+  match t_opt with
+  | Some t -> " : " ^ string_of_type t
+  | None -> ""
+
 let rec string_of_pat : c_pat -> string = function
   | CIntPat i -> string_of_int i
   | CBoolPat b -> string_of_bool b
@@ -79,28 +86,14 @@ let rec string_of_expr : c_expr -> string = function
       ^ String.concat "\n" (List.map string_of_defn defns)
       ^ "\n" ^ string_of_expr e ^ "\n}"
   | EFunction (pat, t_opt, body) ->
-      let type_annot =
-        match t_opt with
-        | Some t -> " : " ^ string_of_type t
-        | None -> ""
-      in
-      "fn " ^ string_of_pat pat ^ type_annot ^ " -> " ^ string_of_expr body
+      "fn " ^ string_of_pat pat ^ format_type_annotation t_opt ^ " -> "
+      ^ string_of_expr body
   | EBind (pat, t_opt, e1, e2) ->
-      let type_annot =
-        match t_opt with
-        | Some t -> " : " ^ string_of_type t
-        | None -> ""
-      in
-      "let " ^ string_of_pat pat ^ type_annot ^ " = " ^ string_of_expr e1
-      ^ " in " ^ string_of_expr e2
+      "let " ^ string_of_pat pat ^ format_type_annotation t_opt ^ " = "
+      ^ string_of_expr e1 ^ " in " ^ string_of_expr e2
   | EBindRec (pat, t_opt, e1, e2) ->
-      let type_annot =
-        match t_opt with
-        | Some t -> " : " ^ string_of_type t
-        | None -> ""
-      in
-      "let rec " ^ string_of_pat pat ^ type_annot ^ " = " ^ string_of_expr e1
-      ^ " in " ^ string_of_expr e2
+      "let rec " ^ string_of_pat pat ^ format_type_annotation t_opt ^ " = "
+      ^ string_of_expr e1 ^ " in " ^ string_of_expr e2
   | ETernary (cond, t_branch, f_branch) ->
       "if " ^ string_of_expr cond ^ " then " ^ string_of_expr t_branch
       ^ " else " ^ string_of_expr f_branch
