@@ -1,66 +1,6 @@
-type MyType<a, b> = [a -> b]
+type Pair<a, b> = (a, b)
 
-let functions [MyType<int, int>] = [\x -> x + 1, \x -> x - 1]
+type LeftIntPair<a> = Pair<int, a>
 
-let f = switch functions =>
-  | _ :: h :: _ -> h
-  | _ -> \ x -> x
+let x [LeftIntPair<bool>] = (1, bool)
 
-let res = f 10
-
-let () = println (int_to_str res)
-
-let rec map f arr =
-switch arr =>
-  | [] -> []
-  | h :: t -> f h :: map f t
-
-let rec filter f arr =
-switch arr =>
-  | [] -> []
-  | h :: t -> if f h then h :: filter f t else filter f t
-
-let rec fold_left f acc lst =
-switch lst =>
-  | [] -> acc
-  | h :: t -> fold_left f (f acc h) t
-
-let rec fold_right f lst acc =
-switch lst =>
-  | [] -> acc
-  | h :: t -> f h (fold_right f t acc)
-
-let numbers = [1 ... 100000]
-let strings = "hello" :: "world" :: "lambda" :: "script" :: []
-
-let doubled = map (\x -> x * 2) numbers
-let () = println "Doubled numbers:"
-let () = println (int_to_str (fold_left (\acc -> \x -> acc + x) 0 doubled))
-
-let even_numbers = filter (\x -> x % 2 == 0) numbers
-let () = println "Even numbers:"
-let () = println (int_to_str (fold_left (\acc -> \x -> acc + x) 0 even_numbers))
-
-let process_list lst = {
-  let doubled = map (\x -> x * 2) lst;
-  let sum = fold_left (\acc -> \x -> acc + x) 0 doubled;
-  let () = println "Sum of doubled numbers:";
-  let () = println (int_to_str sum);
-  
-  let filtered = filter (\x -> x > 50) doubled;
-  let count = fold_left (\acc -> \x -> acc + 1) 0 filtered;
-  let () = println "Count of numbers > 50:";
-  let () = println (int_to_str count);
-  
-  count
-}
-
-let result = process_list numbers
-let () = println "Final result:"
-let () = println (int_to_str result)
-
-let () = println "Testing list comprehension:"
-let pairs = [x * y | x <- [1 ... 50], y <- [1 ... 300]]
-let () = println (int_to_str (fold_left (\acc -> \x -> acc + x) 0 pairs))
-
-let () = println "Tests ran successfully!"

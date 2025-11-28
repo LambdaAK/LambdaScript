@@ -1528,6 +1528,156 @@ let program_expression_type_tests =
                let p [Pair<Pair<int>>] = ((1, 2), (3, 4))
              |}
              ~expr:"p" ~expected_type:"((int, int), (int, int))" );
+         (* ====== Type Alias Tests ====== *)
+         ( "simple type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type IntPair = (int, int)
+               let p [IntPair] = (1, 2)
+             |}
+             ~expr:"p" ~expected_type:"(int, int)" );
+         ( "type alias with single parameter" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Box<a> = (a, a, a)
+               let b [Box<int>] = (1, 2, 3)
+             |}
+             ~expr:"b" ~expected_type:"(int, int, int)" );
+         ( "function returning type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Pair<a> = (a, a)
+               let make_pair x = (x, x)
+             |}
+             ~expr:"make_pair 5" ~expected_type:"(int, int)" );
+         ( "function with type alias parameter" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Pair<a> = (a, a)
+               let first p = switch p => | (x, _) -> x
+             |}
+             ~expr:"first" ~expected_type:"('a, 'b) -> 'a" );
+         ( "type alias with list" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type IntList = [int]
+               let xs [IntList] = [1, 2, 3]
+             |}
+             ~expr:"xs" ~expected_type:"[int]" );
+         ( "type alias with function type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type IntFunction = int -> int
+               let f [IntFunction] = \x -> x + 1
+             |}
+             ~expr:"f" ~expected_type:"int -> int" );
+         ( "parameterized list type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type MyList<a> = [a]
+               let xs [MyList<int>] = [1, 2, 3]
+             |}
+             ~expr:"xs" ~expected_type:"[int]" );
+         ( "type alias in recursive function" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type IntList = [int]
+               let rec sum xs [IntList] =
+                 switch xs =>
+                 | [] -> 0
+                 | h :: t -> h + sum t
+             |}
+             ~expr:"sum" ~expected_type:"[int] -> int" );
+         ( "multiple type aliases composition" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Point = (int, int)
+               type Line = (Point, Point)
+               let l [Line] = ((0, 0), (1, 1))
+             |}
+             ~expr:"l" ~expected_type:"((int, int), (int, int))" );
+         ( "polymorphic type alias instantiation" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Container<a> = (a, [a])
+               let c1 [Container<int>] = (42, [1, 2, 3])
+             |}
+             ~expr:"c1" ~expected_type:"(int, [int])" );
+         ( "type alias with function composition" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Transformer<a> = a -> a
+               let double [Transformer<int>] = \x -> x * 2
+             |}
+             ~expr:"double 5" ~expected_type:"int" );
+         ( "deeply nested type aliases" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Pair<a> = (a, a)
+               type Quad<a> = Pair<Pair<a>>
+               let q [Quad<int>] = ((1, 2), (3, 4))
+             |}
+             ~expr:"q" ~expected_type:"((int, int), (int, int))" );
+         ( "function returning parameterized type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Wrapper<a> = (a, a)
+               let wrap x = (x, x)
+             |}
+             ~expr:"wrap" ~expected_type:"'a -> ('a, 'a)" );
+         ( "list of type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Pair<a> = (a, a)
+               let pairs = [(1, 2), (3, 4), (5, 6)]
+             |}
+             ~expr:"pairs" ~expected_type:"[(int, int)]" );
+         ( "type alias in switch pattern" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Pair<a> = (a, a)
+               let get_first p = switch p => | (x, _) -> x
+               let x = get_first (1, 2)
+             |}
+             ~expr:"x" ~expected_type:"int" );
+         ( "type alias with curried function" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type BinaryOp<a> = a -> a -> a
+               let add [BinaryOp<int>] = \x -> \y -> x + y
+             |}
+             ~expr:"add" ~expected_type:"int -> int -> int" );
+         ( "multi-parameter type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Pair<a, b> = (a, b)
+               let p [Pair<int, bool>] = (42, true)
+             |}
+             ~expr:"p" ~expected_type:"(int, bool)" );
+         ( "type alias referencing multi-parameter type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Pair<a, b> = (a, b)
+               type LeftIntPair<a> = Pair<int, a>
+               let p [LeftIntPair<bool>] = (42, true)
+             |}
+             ~expr:"p" ~expected_type:"(int, bool)" );
+         ( "triple type parameter alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Triple<a, b, c> = (a, (b, c))
+               let t [Triple<int, bool, str>] = (1, (true, "hello"))
+             |}
+             ~expr:"t" ~expected_type:"(int, (bool, str))" );
+         ( "nested multi-parameter type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Pair<a, b> = (a, b)
+               type Triple<a, b, c> = (a, (b, c))
+               type RightBoolTriple<a, b> = Triple<a, b, bool>
+               let x [RightBoolTriple<int, str>] = (1, ("hello", true))
+             |}
+             ~expr:"x" ~expected_type:"(int, (str, bool))" );
        ]
 
 let program_expression_value_tests =

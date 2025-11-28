@@ -266,9 +266,11 @@ and generate_e_nil () = return (CListType (fresh_type_var ()), [], [])
       list of constraints *)
 and generate_e_id (env : static_env) (x : string) :
     (mono_type * type_equations * type_env) type_check_result =
-  let uninstantiated : c_type = List.assoc x env in
-  let t = instantiate uninstantiated in
-  return (t, [], [])
+  match List.assoc_opt x env with
+  | Some uninstantiated ->
+      let t = instantiate uninstantiated in
+      return (t, [], [])
+  | None -> Error (UnboundVariable x)
 
 (** [generate_e_bop env op e1 e2] generates type constraints for binary
     operations.
@@ -1008,12 +1010,14 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       (* Evaluate the element type *)
       let- t_simplified = simplify_mono_type t type_env in
       return (CListType t_simplified)
-  | TypeName v ->
+  | TypeName v -> (
       (* Look up and evaluate the type definition *)
-      let type_def = List.find (fun (n, _, _) -> n = v) type_env in
-      let _, _, t = type_def in
-      simplify_mono_type t type_env
-  | CTypeApp (name, args) ->
+      match List.find_opt (fun (n, _, _) -> n = v) type_env with
+      | Some type_def ->
+          let _, _, t = type_def in
+          simplify_mono_type t type_env
+      | None -> Error (OtherError ("Type not found: " ^ v)))
+  | CTypeApp (name, args) -> (
       (* First evaluate all the argument types *)
       let rec eval_args acc = function
         | [] -> return (List.rev acc)
@@ -1024,41 +1028,43 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       let- simplified_args = eval_args [] args in
 
       (* Look up the type definition *)
-      let type_def = List.find (fun (n, _, _) -> n = name) type_env in
-      let _, params, body = type_def in
+      match List.find_opt (fun (n, _, _) -> n = name) type_env with
+      | Some type_def ->
+          let _, params, body = type_def in
 
-      (* Create substitution mapping type parameters to their evaluated
-         arguments *)
-      let subst = List.combine params simplified_args in
+          (* Create substitution mapping type parameters to their evaluated
+             arguments *)
+          let subst = List.combine params simplified_args in
 
-      (* Apply the substitution to the body type *)
-      let rec apply_subst t =
-        match t with
-        | TypeVar v -> (
-            (* Extract the variable name from $written(v) format *)
-            let var_name =
-              if String.length v > 9 && String.sub v 0 9 = "$written(" then
-                String.sub v 9 (String.length v - 10)
-              else v
-            in
-            match List.assoc_opt var_name subst with
-            | Some arg -> arg
-            | None -> t)
-        | TypeName v -> (
-            (* Check if this type name is actually a type parameter *)
-            match List.assoc_opt v subst with
-            | Some arg -> arg
-            | None -> t)
-        | FunctionType (i, o) -> FunctionType (apply_subst i, apply_subst o)
-        | VectorType types -> VectorType (List.map apply_subst types)
-        | CListType et -> CListType (apply_subst et)
-        | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
-        | _ -> t
-      in
+          (* Apply the substitution to the body type *)
+          let rec apply_subst t =
+            match t with
+            | TypeVar v -> (
+                (* Extract the variable name from $written(v) format *)
+                let var_name =
+                  if String.length v > 9 && String.sub v 0 9 = "$written(" then
+                    String.sub v 9 (String.length v - 10)
+                  else v
+                in
+                match List.assoc_opt var_name subst with
+                | Some arg -> arg
+                | None -> t)
+            | TypeName v -> (
+                (* Check if this type name is actually a type parameter *)
+                match List.assoc_opt v subst with
+                | Some arg -> arg
+                | None -> t)
+            | FunctionType (i, o) -> FunctionType (apply_subst i, apply_subst o)
+            | VectorType types -> VectorType (List.map apply_subst types)
+            | CListType et -> CListType (apply_subst et)
+            | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
+            | _ -> t
+          in
 
-      (* Apply substitution and recursively evaluate the result *)
-      let substituted = apply_subst body in
-      simplify_mono_type substituted type_env
+          (* Apply substitution and recursively evaluate the result *)
+          let substituted = apply_subst body in
+          simplify_mono_type substituted type_env
+      | None -> Error (OtherError ("Type not found: " ^ name)))
 
 let rec get_mono_type (t : c_type) : mono_type =
   match t with

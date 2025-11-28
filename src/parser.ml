@@ -276,9 +276,9 @@ module ParserUtils = struct
                (ArithmeticUnderRelExpr
                   (Term (Factor (FactorUnderApplication (Integer i))))))))
 
-  (** Wraps an expression body in a series of function abstractions.
-      Takes a body expression and a list of (pattern, type annotation) pairs,
-      and returns the body wrapped in nested Function constructors. *)
+  (** Wraps an expression body in a series of function abstractions. Takes a
+      body expression and a list of (pattern, type annotation) pairs, and
+      returns the body wrapped in nested Function constructors. *)
   let rec wrap_e1_in_functions body
       (arg_pats_and_type_annotations : (pat * compound_type option) list) =
     match arg_pats_and_type_annotations with
@@ -445,6 +445,20 @@ end = struct
     in
     return (Id id)
 
+  and type_as_id_parser : factor parser =
+    (* Handle type tokens (BooleanType, IntegerType, etc.) as identifiers in
+       expressions *)
+    let* id =
+      expect_token_get_data (function
+        | BooleanType -> Some "bool"
+        | IntegerType -> Some "int"
+        | StringType -> Some "string"
+        | FloatType -> Some "float"
+        | UnitType -> Some "unit"
+        | _ -> None)
+    in
+    return (Id id)
+
   and infix_id_parser : factor parser =
     (* ( op ) *)
     let* () = expect_token LParen in
@@ -551,6 +565,7 @@ end = struct
         integer_parser ();
         float_factor_parser;
         id_parser;
+        type_as_id_parser;
         paren_factor_parser;
         opposite_parser ();
       ]
@@ -791,7 +806,6 @@ end = struct
     let* e2 = expr_parser () in
 
     (* wrap body in functions *)
-
     return
       (BindRec
          (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2))
@@ -810,7 +824,6 @@ end = struct
     let* e2 = expr_parser () in
 
     (* wrap body in functions *)
-
     return
       (Bind (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2))
 
@@ -969,7 +982,6 @@ end = struct
     let* e1 = ExprParser.expr_parser in
 
     (* wrap body in functions *)
-
     return
       (Defn (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations))
 
@@ -985,7 +997,6 @@ end = struct
     let* e1 = ExprParser.expr_parser in
 
     (* wrap body in functions *)
-
     return
       (DefnRec (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations))
 
@@ -1004,7 +1015,7 @@ end = struct
     let* s =
       expect_token_get_data (function
         | TypeVar s -> Some s
-        | Id s -> Some s  (* Also accept plain identifiers *)
+        | Id s -> Some s (* Also accept plain identifiers *)
         | _ -> None)
     in
     return s

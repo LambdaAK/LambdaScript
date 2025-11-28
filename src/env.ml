@@ -9,6 +9,13 @@ let built_ins : (string * value * c_type) list =
     ("int_to_str", BuiltInFunction IntToString, Mono (IntType => StringType));
     ("int_to_float", BuiltInFunction IntToFloat, Mono (IntType => FloatType));
     ("float_to_int", BuiltInFunction FloatToInt, Mono (FloatType => IntType));
+    (* Built-in type constructors - these represent the types themselves when used as values *)
+    (* Using a fresh type variable that will be unified during type checking *)
+    ("bool", UnitValue, Mono BoolType);
+    ("int", UnitValue, Mono IntType);
+    ("string", UnitValue, Mono StringType);
+    ("float", UnitValue, Mono FloatType);
+    ("unit", UnitValue, Mono UnitType);
   ]
 
 let built_ins_values : (string * value) list =

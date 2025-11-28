@@ -33,7 +33,14 @@ let interpret (filename : string) =
   | None ->
       print_endline "Parsing failed";
       exit 1
-  | Some (program, _) ->
+  | Some (program, remaining) ->
+      (* Check if there are unparsed tokens remaining *)
+      (match remaining with
+      | [] -> () (* All tokens consumed, good! *)
+      | _ ->
+          print_endline ("Warning: " ^ string_of_int (List.length remaining) ^ " tokens remaining after parsing");
+          print_endline "The entire file was not parsed successfully.";
+          exit 1);
       let condensed_program = List.map condense_defn program in
 
       let static_env : static_env = built_ins_types in
