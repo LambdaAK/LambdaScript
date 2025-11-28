@@ -1,6 +1,5 @@
 open Lex
 open Expr
-open Tostring
 
 (* Idea - Make a module for each level of parser - Use a functor to combine them
    - Use another functor to then combine all of those into condensed parser
@@ -394,7 +393,6 @@ end = struct
   open ExprParser
 
   let rec boolean_parser : factor parser =
-    let* () = parse_print "boolean_parser" in
     let* b =
       expect_token_get_data (function
         | Boolean b -> Some b
@@ -403,7 +401,6 @@ end = struct
     return (Boolean b)
 
   and string_parser : factor parser =
-    let* () = parse_print "string_parser" in
     let* s =
       expect_token_get_data (function
         | StringToken s -> Some s
@@ -412,12 +409,10 @@ end = struct
     return (String s)
 
   and unit_parser : factor parser =
-    let* () = parse_print "unit_parser" in
     let* () = expect_token Unit in
     return Unit
 
   and integer_parser () : factor parser =
-    let* () = parse_print "integer_parser" in
     let* i =
       expect_token_get_data (function
         | Integer i -> Some i
@@ -426,7 +421,6 @@ end = struct
     return (Integer i)
 
   and float_factor_parser : factor parser =
-    let* () = parse_print "float_factor_parser" in
     let* f =
       expect_token_get_data (function
         | FloatToken f -> Some f
@@ -435,7 +429,6 @@ end = struct
     return (FloatFactor f)
 
   and id_parser : factor parser =
-    let* () = parse_print "id_parser" in
     let* id =
       expect_token_get_data (function
         | Id id -> Some id
@@ -445,7 +438,6 @@ end = struct
 
   and infix_id_parser : factor parser =
     (* ( op ) *)
-    let* () = parse_print "infix_id_parser" in
     let* () = expect_token LParen in
     let* id =
       expect_token_get_data (function
@@ -457,7 +449,6 @@ end = struct
     return (Id id)
 
   and paren_factor_parser : factor parser =
-    let* () = parse_print "paren_factor_parser" in
     let* () = expect_token LParen in
     let* expr = expr_parser in
     let* () = expect_token RParen in
@@ -790,10 +781,6 @@ end = struct
     (* TODO: Try printing what the remaining tokens are here *)
     let* e2 = expr_parser () in
 
-    (* print what e2 is *)
-    let* () = parse_print "e2:" in
-    let* () = parse_print (string_of_expr e2) in
-
     (* wrap body in functions *)
     let rec wrap_e1_in_functions body
         (arg_pats_and_type_annotations : (pat * compound_type option) list) =
@@ -818,10 +805,6 @@ end = struct
     let* () = expect_token In in
     (* TODO: Try printing what the remaining tokens are here *)
     let* e2 = expr_parser () in
-
-    (* print what e2 is *)
-    let* () = parse_print "e2:" in
-    let* () = parse_print (string_of_expr e2) in
 
     (* wrap body in functions *)
     let rec wrap_e1_in_functions body
@@ -1033,7 +1016,6 @@ end = struct
     return (TypeDef (name, [], ct))
 
   let string_parser : string parser =
-    let* () = parse_print "string_parser" in
     let* s =
       expect_token_get_data (function
         | TypeVar s -> Some s
