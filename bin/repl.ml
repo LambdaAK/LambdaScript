@@ -38,7 +38,7 @@ let print_name_info name =
 
 type repl_result =
   | NoChange
-  | NewBindings of static_env * type_env
+  | NewBindings of static_env * env * type_env
   | Quit
 
 (** [read_multiline ()] reads input from the user until a line containing only
@@ -81,7 +81,7 @@ let print_help () =
   print_colored_line color_cyan "  - Example: let x = 5;;";
   print_newline ()
 
-let handle_command cmd static_env type_env history =
+let handle_command cmd static_env dynamic_env type_env history =
   let trimmed = String.trim cmd in
   if trimmed = ":help" || trimmed = ":h" then (
     print_help ();
@@ -173,12 +173,15 @@ let handle_command cmd static_env type_env history =
             (match generate_defn static_env type_env c_defn with
             | Error e -> print_error (string_of_type_check_error e); NoChange
             | Ok (new_static_bindings, new_type_env) ->
+                let new_dynamic_bindings =
+                  unwrap_eval_result (eval_defn c_defn dynamic_env)
+                in
                 print_colored_line color_green "File loaded successfully!";
                 List.iter (fun (name, typ) ->
                   print_colored color_magenta ("  " ^ name ^ " : ");
                   print_colored_line color_cyan (string_of_c_type typ)
                 ) new_static_bindings;
-                NewBindings (new_static_bindings, new_type_env))
+                NewBindings (new_static_bindings, new_dynamic_bindings, new_type_env))
       with
       | Sys_error msg -> print_error ("File error: " ^ msg); NoChange
       | _ -> print_error "Failed to load file"; NoChange
@@ -204,7 +207,7 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env) (hi
     (NoChange, history)
   (* Check if input is a command *)
   else if String.starts_with ~prefix:":" (String.trim input_str) then
-    (handle_command input_str static_env type_env history, history)
+    (handle_command input_str static_env dynamic_env type_env history, history)
   else (
     (* Limit history to 100 entries *)
     let rec take n lst = 
@@ -263,16 +266,17 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env) (hi
               print_value_and_type value typ;
               print_separator ())
             new_static_bindings;
-          (NewBindings (new_static_bindings, new_type_env), new_history))
+          (NewBindings (new_static_bindings, new_dynamic_bindings, new_type_env), new_history))
   )
 
 let rec run_repl_loop static_env dynamic_env type_env history =
   match repl static_env dynamic_env type_env history with
   | (NoChange, new_history) -> run_repl_loop static_env dynamic_env type_env new_history
-  | (NewBindings (new_static_bindings, new_type_env), new_history) ->
+  | (NewBindings (new_static_bindings, new_dynamic_bindings, new_type_env), new_history) ->
       run_repl_loop
         (new_static_bindings @ static_env)
-        dynamic_env (new_type_env @ type_env) new_history
+        (new_dynamic_bindings @ dynamic_env)
+        (new_type_env @ type_env) new_history
   | (Quit, _) ->
       print_colored_line (color_bold ^ color_cyan) "Goodbye! 👋";
       exit 0

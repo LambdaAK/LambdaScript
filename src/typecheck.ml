@@ -842,16 +842,7 @@ and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :
     c_type type_check_result =
   let- t, constraints, _ = generate env type_env e in
 
-  (* print the original type and constraints *)
-  print_endline ("original type: " ^ string_of_mono_type t);
-  print_endline ("original constraints: " ^ string_of_type_equations constraints);
-
-  (* print the type environment *)
-  print_endline ("type environment: " ^ string_of_type_env type_env);
-
   let- t = simplify_mono_type t type_env in
-
-  print_endline "done simplifying type";
   (* simplify constraints *)
   let- simplified_constraints =
     let rec simplify_constraint_list acc = function
@@ -863,12 +854,6 @@ and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :
     in
     simplify_constraint_list [] constraints
   in
-
-  (* print the simplified type constraints *)
-  print_endline ("simplified type: " ^ string_of_mono_type t);
-  print_endline
-    ("simplified constraints: "
-    ^ string_of_type_equations simplified_constraints);
 
   let solution = reduce_eq simplified_constraints type_env in
   let- the_mono_type = get_type t solution type_env in
