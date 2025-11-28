@@ -275,6 +275,15 @@ module ParserUtils = struct
             (RelationUnderConjunction
                (ArithmeticUnderRelExpr
                   (Term (Factor (FactorUnderApplication (Integer i))))))))
+
+  (** Wraps an expression body in a series of function abstractions.
+      Takes a body expression and a list of (pattern, type annotation) pairs,
+      and returns the body wrapped in nested Function constructors. *)
+  let rec wrap_e1_in_functions body
+      (arg_pats_and_type_annotations : (pat * compound_type option) list) =
+    match arg_pats_and_type_annotations with
+    | [] -> body
+    | (pat, cto) :: rest -> Function (pat, cto, wrap_e1_in_functions body rest)
 end
 
 open ParserUtils
@@ -782,12 +791,6 @@ end = struct
     let* e2 = expr_parser () in
 
     (* wrap body in functions *)
-    let rec wrap_e1_in_functions body
-        (arg_pats_and_type_annotations : (pat * compound_type option) list) =
-      match arg_pats_and_type_annotations with
-      | [] -> body
-      | (pat, cto) :: rest -> Function (pat, cto, wrap_e1_in_functions body rest)
-    in
 
     return
       (BindRec
@@ -807,12 +810,6 @@ end = struct
     let* e2 = expr_parser () in
 
     (* wrap body in functions *)
-    let rec wrap_e1_in_functions body
-        (arg_pats_and_type_annotations : (pat * compound_type option) list) =
-      match arg_pats_and_type_annotations with
-      | [] -> body
-      | (pat, cto) :: rest -> Function (pat, cto, wrap_e1_in_functions body rest)
-    in
 
     return
       (Bind (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2))
@@ -972,12 +969,6 @@ end = struct
     let* e1 = ExprParser.expr_parser in
 
     (* wrap body in functions *)
-    let rec wrap_e1_in_functions body
-        (arg_pats_and_type_annotations : (pat * compound_type option) list) =
-      match arg_pats_and_type_annotations with
-      | [] -> body
-      | (pat, cto) :: rest -> Function (pat, cto, wrap_e1_in_functions body rest)
-    in
 
     return
       (Defn (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations))
@@ -994,12 +985,6 @@ end = struct
     let* e1 = ExprParser.expr_parser in
 
     (* wrap body in functions *)
-    let rec wrap_e1_in_functions body
-        (arg_pats_and_type_annotations : (pat * compound_type option) list) =
-      match arg_pats_and_type_annotations with
-      | [] -> body
-      | (pat, cto) :: rest -> Function (pat, cto, wrap_e1_in_functions body rest)
-    in
 
     return
       (DefnRec (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations))
