@@ -1,6 +1,6 @@
-type Integer<T> = T
+type Integer = int
 
-let a [int] = 1
+let a [Integer] = 1
 
 let rec map f arr =
 switch arr =>

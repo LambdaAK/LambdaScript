@@ -314,10 +314,12 @@ and generate_e_function (env : static_env) (type_env : type_env) (pat : c_pat)
   let input_type, new_env_bindings, constraints_from_pattern =
     type_of_pat pat
   in
-  let constraints_from_type_annotation : type_equations =
+  let- constraints_from_type_annotation =
     match cto with
-    | Some t -> [ (input_type, instantiate t) ]
-    | None -> []
+    | Some t ->
+        let- simplified_t = instantiate_and_simplify t type_env in
+        return [ (input_type, simplified_t) ]
+    | None -> return []
   in
   let- output_type, c_output, _ =
     generate (new_env_bindings @ env) type_env body
@@ -356,10 +358,12 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
     (mono_type * type_equations * type_env) type_check_result =
   let t_pat, pat_env, pat_constraints = type_of_pat pat in
   let- t1, c1, _ = generate env type_env e1 in
-  let annotation_constraints =
+  let- annotation_constraints =
     match cto with
-    | Some t -> [ (t_pat, instantiate t) ]
-    | None -> []
+    | Some t ->
+        let- simplified_t = instantiate_and_simplify t type_env in
+        return [ (t_pat, simplified_t) ]
+    | None -> return []
   in
   let new_constraint = (t_pat, t1) in
   (* Generalize the type of e1 before using it in e2 *)
@@ -741,6 +745,20 @@ and instantiate (t : c_type) : mono_type =
       (* call instantiate again on applied_once *)
       instantiate applied_once
 
+(** [instantiate_and_simplify t type_env] converts a polymorphic type to a
+    monomorphic type and simplifies any type names (aliases) in it.
+
+    This is useful when handling type annotations, as we want to resolve type
+    aliases like "Integer" to their underlying types like "int".
+
+    @param t The polymorphic type to instantiate and simplify
+    @param type_env The type environment containing type alias definitions
+    @return A simplified monomorphic type with type names resolved *)
+and instantiate_and_simplify (t : c_type) (type_env : type_env) :
+    mono_type type_check_result =
+  let instantiated = instantiate t in
+  simplify_mono_type instantiated type_env
+
 (** [generalize constraints env t] converts a monomorphic type to a polymorphic
     type.
 
@@ -882,10 +900,12 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       let pattern_body_constraint = (pattern_type, body_type) in
 
       (* Handle type annotation if present *)
-      let annotation_equations =
+      let- annotation_equations =
         match type_annotation with
-        | Some t -> [ (pattern_type, instantiate t) ]
-        | None -> []
+        | Some t ->
+            let- simplified_t = instantiate_and_simplify t type_env in
+            return [ (pattern_type, simplified_t) ]
+        | None -> return []
       in
 
       (* Combine all equations *)
@@ -928,10 +948,12 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       let pattern_body_constraint = (pattern_type, body_type) in
 
       (* Handle type annotation if present *)
-      let annotation_equations =
+      let- annotation_equations =
         match type_annotation with
-        | Some t -> [ (pattern_type, instantiate t) ]
-        | None -> []
+        | Some t ->
+            let- simplified_t = instantiate_and_simplify t type_env in
+            return [ (pattern_type, simplified_t) ]
+        | None -> return []
       in
 
       (* Combine all equations *)
