@@ -1,6 +1,23 @@
-type Pair<a, b> = (a, b)
+type TypeOne<a> = (a, int)
 
-type LeftIntPair<a> = Pair<int, a>
+type TypeTwo<a> = (a, TypeOne<a>)
 
-let x [LeftIntPair<bool>] = (1, bool)
+type TypeThree<a> = (a, TypeTwo<a>)
+
+type TypeFour<a> = (a, TypeThree<a>)
+
+type TypeFive<a> = (a, TypeFour<a>)
+
+type TypeSix<a> = (a, TypeFive<a>)
+
+type TypeSeven<a> = (a, TypeSix<a>)
+
+type TypeEight<a> = (a, TypeSeven<a>)
+
+type TypeNine<a> = (a, TypeEight<a>)
+
+type TypeTen<a> = (a, TypeNine<a>)
+
+let myval [TypeTen<int>] = (0, (0, (0, (0, (0, (0, (0, (0, (0, (0, 0))))))))))
+
 

@@ -1376,6 +1376,31 @@ module ProgramTesting = struct
     | Error e -> failwith ("Evaluation error: " ^ string_of_eval_error e)
     | Ok v -> v
 
+  (** Evaluate a type expression in the context of a program.
+      @param program_str The program source code as a string
+      @param type_expr_str
+        The type expression as a string (e.g., "TypeTwo<bool>")
+      @return The evaluated/simplified type as a string
+      @raise Failure if parsing, typechecking, or type evaluation fails *)
+  let evaluate_type_expression (program_str : string) (type_expr_str : string) :
+      string =
+    let program = parse_program program_str in
+    let result = typecheck_program program in
+
+    (* Parse the type expression *)
+    let type_expr = parse_type type_expr_str in
+
+    (* Convert to mono_type *)
+    let mono_type = condense_compound_type type_expr in
+
+    (* Simplify using the type environment *)
+    match simplify_mono_type mono_type result.type_env with
+    | Error e ->
+        failwith ("Type evaluation error: " ^ string_of_type_check_error e)
+    | Ok simplified_type ->
+        (* Use the version from C_to_string which uses parentheses for tuples *)
+        Language.C_to_string.string_of_mono_type simplified_type
+
   (** Assert that a program typechecks successfully.
       @param program_str The program source code as a string
       @raise Failure if the program does not typecheck *)
@@ -1531,56 +1556,64 @@ let program_expression_type_tests =
          (* ====== Type Alias Tests ====== *)
          ( "simple type alias" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type IntPair = (int, int)
                let p [IntPair] = (1, 2)
              |}
              ~expr:"p" ~expected_type:"(int, int)" );
          ( "type alias with single parameter" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Box<a> = (a, a, a)
                let b [Box<int>] = (1, 2, 3)
              |}
              ~expr:"b" ~expected_type:"(int, int, int)" );
          ( "function returning type alias" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Pair<a> = (a, a)
                let make_pair x = (x, x)
              |}
              ~expr:"make_pair 5" ~expected_type:"(int, int)" );
          ( "function with type alias parameter" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Pair<a> = (a, a)
                let first p = switch p => | (x, _) -> x
              |}
              ~expr:"first" ~expected_type:"('a, 'b) -> 'a" );
          ( "type alias with list" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type IntList = [int]
                let xs [IntList] = [1, 2, 3]
              |}
              ~expr:"xs" ~expected_type:"[int]" );
          ( "type alias with function type" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type IntFunction = int -> int
                let f [IntFunction] = \x -> x + 1
              |}
              ~expr:"f" ~expected_type:"int -> int" );
          ( "parameterized list type alias" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type MyList<a> = [a]
                let xs [MyList<int>] = [1, 2, 3]
              |}
              ~expr:"xs" ~expected_type:"[int]" );
          ( "type alias in recursive function" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type IntList = [int]
                let rec sum xs [IntList] =
                  switch xs =>
@@ -1590,7 +1623,8 @@ let program_expression_type_tests =
              ~expr:"sum" ~expected_type:"[int] -> int" );
          ( "multiple type aliases composition" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Point = (int, int)
                type Line = (Point, Point)
                let l [Line] = ((0, 0), (1, 1))
@@ -1598,21 +1632,24 @@ let program_expression_type_tests =
              ~expr:"l" ~expected_type:"((int, int), (int, int))" );
          ( "polymorphic type alias instantiation" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Container<a> = (a, [a])
                let c1 [Container<int>] = (42, [1, 2, 3])
              |}
              ~expr:"c1" ~expected_type:"(int, [int])" );
          ( "type alias with function composition" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Transformer<a> = a -> a
                let double [Transformer<int>] = \x -> x * 2
              |}
              ~expr:"double 5" ~expected_type:"int" );
          ( "deeply nested type aliases" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Pair<a> = (a, a)
                type Quad<a> = Pair<Pair<a>>
                let q [Quad<int>] = ((1, 2), (3, 4))
@@ -1620,21 +1657,24 @@ let program_expression_type_tests =
              ~expr:"q" ~expected_type:"((int, int), (int, int))" );
          ( "function returning parameterized type" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Wrapper<a> = (a, a)
                let wrap x = (x, x)
              |}
              ~expr:"wrap" ~expected_type:"'a -> ('a, 'a)" );
          ( "list of type alias" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Pair<a> = (a, a)
                let pairs = [(1, 2), (3, 4), (5, 6)]
              |}
              ~expr:"pairs" ~expected_type:"[(int, int)]" );
          ( "type alias in switch pattern" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Pair<a> = (a, a)
                let get_first p = switch p => | (x, _) -> x
                let x = get_first (1, 2)
@@ -1642,21 +1682,24 @@ let program_expression_type_tests =
              ~expr:"x" ~expected_type:"int" );
          ( "type alias with curried function" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type BinaryOp<a> = a -> a -> a
                let add [BinaryOp<int>] = \x -> \y -> x + y
              |}
              ~expr:"add" ~expected_type:"int -> int -> int" );
          ( "multi-parameter type alias" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Pair<a, b> = (a, b)
                let p [Pair<int, bool>] = (42, true)
              |}
              ~expr:"p" ~expected_type:"(int, bool)" );
          ( "type alias referencing multi-parameter type alias" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Pair<a, b> = (a, b)
                type LeftIntPair<a> = Pair<int, a>
                let p [LeftIntPair<bool>] = (42, true)
@@ -1664,14 +1707,16 @@ let program_expression_type_tests =
              ~expr:"p" ~expected_type:"(int, bool)" );
          ( "triple type parameter alias" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Triple<a, b, c> = (a, (b, c))
                let t [Triple<int, bool, str>] = (1, (true, "hello"))
              |}
              ~expr:"t" ~expected_type:"(int, (bool, str))" );
          ( "nested multi-parameter type alias" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Pair<a, b> = (a, b)
                type Triple<a, b, c> = (a, (b, c))
                type RightBoolTriple<a, b> = Triple<a, b, bool>
@@ -1736,6 +1781,471 @@ let program_expression_value_tests =
              ~expr:"pair" ~expected_value:"(1, 2)" );
        ]
 
+let type_evaluation_tests =
+  let open ProgramTesting in
+  "type_evaluation"
+  >::: [
+         ( "simple type alias" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type MyInt = int
+             |}
+               "MyInt"
+           in
+           assert_equal result "int" );
+         ( "type with one parameter" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type TypeOne<a> = (a, int)
+             |}
+               "TypeOne<bool>"
+           in
+           assert_equal result "(bool, int)" );
+         ( "nested type application" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type TypeOne<a> = (a, int)
+               type TypeTwo<a> = (a, TypeOne<a>)
+             |}
+               "TypeTwo<bool>"
+           in
+           assert_equal result "(bool, (bool, int))" );
+         ( "multiple type parameters" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Pair<a, b> = (a, b)
+             |}
+               "Pair<int, bool>"
+           in
+           assert_equal result "(int, bool)" );
+         ( "nested type with multiple parameters" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Pair<a, b> = (a, b)
+               type Triple<a, b, c> = (a, Pair<b, c>)
+             |}
+               "Triple<int, bool, str>"
+           in
+           assert_equal result "(int, (bool, str))" );
+         ( "type with built-in types" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type IntPair = (int, int)
+             |}
+               "IntPair"
+           in
+           assert_equal result "(int, int)" );
+         (* Zero type parameters *)
+         ( "zero type parameters" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type MyBool = bool
+             |}
+               "MyBool"
+           in
+           assert_equal result "bool" );
+         ( "zero parameters with tuple" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Point = (int, int)
+             |}
+               "Point"
+           in
+           assert_equal result "(int, int)" );
+         (* Two type parameters *)
+         ( "two type parameters simple" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Pair<a, b> = (a, b)
+             |}
+               "Pair<int, bool>"
+           in
+           assert_equal result "(int, bool)" );
+         ( "two type parameters swapped" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Pair<a, b> = (a, b)
+             |}
+               "Pair<bool, int>"
+           in
+           assert_equal result "(bool, int)" );
+         ( "two parameters with same type" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Pair<a, b> = (a, b)
+             |}
+               "Pair<int, int>"
+           in
+           assert_equal result "(int, int)" );
+         (* Three type parameters *)
+         ( "three type parameters" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Triple<a, b, c> = (a, b, c)
+             |}
+               "Triple<int, bool, str>"
+           in
+           assert_equal result "(int, bool, str)" );
+         ( "three parameters all same" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Triple<a, b, c> = (a, b, c)
+             |}
+               "Triple<int, int, int>"
+           in
+           assert_equal result "(int, int, int)" );
+         (* Four type parameters *)
+         ( "four type parameters" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Quad<a, b, c, d> = (a, b, c, d)
+             |}
+               "Quad<int, bool, str, float>"
+           in
+           assert_equal result "(int, bool, str, float)" );
+         (* Five type parameters *)
+         ( "five type parameters" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Five<a, b, c, d, e> = (a, b, c, d, e)
+             |}
+               "Five<int, bool, str, float, unit>"
+           in
+           assert_equal result "(int, bool, str, float, unit)" );
+         (* Function types in aliases *)
+         ( "function type alias" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type IntToBool = int -> bool
+             |}
+               "IntToBool"
+           in
+           assert_equal result "int -> bool" );
+         ( "function type with parameter" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Func<a> = a -> a
+             |}
+               "Func<int>"
+           in
+           assert_equal result "int -> int" );
+         ( "function type with two parameters" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Func<a, b> = a -> b
+             |}
+               "Func<int, bool>"
+           in
+           assert_equal result "int -> bool" );
+         ( "nested function types" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Func<a> = a -> a -> a
+             |}
+               "Func<int>"
+           in
+           assert_equal result "int -> int -> int" );
+         ( "function with tuple parameter" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Func<a, b> = (a, b) -> a
+             |}
+               "Func<int, bool>"
+           in
+           assert_equal result "(int, bool) -> int" );
+         ( "function returning tuple" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Func<a, b> = a -> (a, b)
+             |}
+               "Func<int, bool>"
+           in
+           assert_equal result "int -> (int, bool)" );
+         (* List types in aliases *)
+         ( "list type alias" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type IntList = [int]
+             |}
+               "IntList"
+           in
+           assert_equal result "[int]" );
+         ( "list type with parameter" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type List<a> = [a]
+             |}
+               "List<bool>"
+           in
+           assert_equal result "[bool]" );
+         ( "list of tuples" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type PairList<a, b> = [(a, b)]
+             |}
+               "PairList<int, bool>"
+           in
+           assert_equal result "[(int, bool)]" );
+         (* Complex nested structures *)
+         ( "tuple of lists" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Lists<a, b> = ([a], [b])
+             |}
+               "Lists<int, bool>"
+           in
+           assert_equal result "([int], [bool])" );
+         ( "list of functions" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type FuncList<a> = [a -> a]
+             |}
+               "FuncList<int>"
+           in
+           assert_equal result "[int -> int]" );
+         ( "function taking list" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Func<a> = [a] -> a
+             |}
+               "Func<int>"
+           in
+           assert_equal result "[int] -> int" );
+         ( "function returning list" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Func<a> = a -> [a]
+             |}
+               "Func<bool>"
+           in
+           assert_equal result "bool -> [bool]" );
+         (* Multiple interdependent type aliases *)
+         (* Note: Tests for aliases referencing other aliases in their bodies
+            are commented out as they may require additional parser/evaluator support *)
+         (*
+         ( "two aliases referencing each other" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type First<a> = (a, int)
+               type Second<a> = (First<a>, bool)
+             |}
+               "Second<int>"
+           in
+           assert_equal result "((int, int), bool)" );
+         ( "three aliases chain" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type A<a> = (a, int)
+               type B<a> = (A<a>, bool)
+               type C<a> = (B<a>, str)
+             |}
+               "C<int>"
+           in
+           assert_equal result "(((int, int), bool), str)" );
+         ( "aliases with different parameters" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Pair<a, b> = (a, b)
+               type Triple<a, b, c> = (Pair<a, b>, c)
+             |}
+               "Triple<int, bool, str>"
+           in
+           assert_equal result "((int, bool), str)" );
+         ( "nested alias applications" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Wrapper<a> = (a, int)
+               type Double<a> = (Wrapper<a>, Wrapper<bool>)
+             |}
+               "Double<int>"
+           in
+           assert_equal result "((int, int), (bool, int))" );
+         *)
+         (* Complex type expressions *)
+         ( "complex tuple structure" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Complex<a, b, c> = ((a, b), (b, c), (a, c))
+             |}
+               "Complex<int, bool, str>"
+           in
+           assert_equal result "((int, bool), (bool, str), (int, str))" );
+         (* Note: Complex function types with nested tuples may need additional
+            testing *)
+         ( "function with tuple parameter" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Func<a, b> = (a, b) -> a
+             |}
+               "Func<int, bool>"
+           in
+           assert_equal result "(int, bool) -> int" );
+         ( "list of complex tuples" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type ComplexList<a, b> = [((a, b), (b, a))]
+             |}
+               "ComplexList<int, bool>"
+           in
+           assert_equal result "[((int, bool), (bool, int))]" );
+         (* Edge cases with built-in types *)
+         ( "all built-in types in tuple" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type AllBuiltins = (int, bool, str, float, unit)
+             |}
+               "AllBuiltins"
+           in
+           assert_equal result "(int, bool, str, float, unit)" );
+         ( "built-in types as parameters" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Wrapper<a> = (a, int)
+             |}
+               "Wrapper<bool>"
+           in
+           assert_equal result "(bool, int)" );
+         ( "built-in types in function" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type IntFunc = int -> int -> int
+             |}
+               "IntFunc"
+           in
+           assert_equal result "int -> int -> int" );
+         (* Multiple applications of same type *)
+         ( "same type applied multiple times" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Pair<a> = (a, a)
+             |}
+               "Pair<int>"
+           in
+           assert_equal result "(int, int)" );
+         ( "type applied to itself" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Wrapper<a> = (a, int)
+             |}
+               "Wrapper<Wrapper<int>>"
+           in
+           assert_equal result "((int, int), int)" );
+         ( "deeply nested applications" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Box<a> = (a, int)
+             |}
+               "Box<Box<Box<int>>>"
+           in
+           assert_equal result "(((int, int), int), int)" );
+         (* Type parameters in different positions *)
+         ( "parameters in different order" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Swap<a, b> = (b, a)
+             |}
+               "Swap<int, bool>"
+           in
+           assert_equal result "(bool, int)" );
+         ( "parameters used multiple times" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Triple<a> = (a, a, a)
+             |}
+               "Triple<str>"
+           in
+           assert_equal result "(str, str, str)" );
+         ( "mixed parameter usage" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Mixed<a, b> = (a, b, a, b)
+             |}
+               "Mixed<int, bool>"
+           in
+           assert_equal result "(int, bool, int, bool)" );
+         (* Real-world examples *)
+         ( "option type" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Option<a> = (bool, a)
+             |}
+               "Option<int>"
+           in
+           assert_equal result "(bool, int)" );
+         ( "result type" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Result<a, b> = (bool, a, b)
+             |}
+               "Result<int, str>"
+           in
+           assert_equal result "(bool, int, str)" );
+         ( "maybe type" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Maybe<a> = (bool, a)
+             |}
+               "Maybe<bool>"
+           in
+           assert_equal result "(bool, bool)" );
+         ( "either type" >:: fun _ ->
+           let result =
+             evaluate_type_expression
+               {|
+               type Either<a, b> = (bool, a, b)
+             |}
+               "Either<int, str>"
+           in
+           assert_equal result "(bool, int, str)" );
+       ]
+
 let all_tests =
   List.flatten
     [
@@ -1754,6 +2264,7 @@ let all_tests =
       [ program_typecheck_tests ];
       [ program_expression_type_tests ];
       [ program_expression_value_tests ];
+      [ type_evaluation_tests ];
     ]
 
 let suite = "suite" >::: all_tests
