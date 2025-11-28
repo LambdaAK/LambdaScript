@@ -348,146 +348,122 @@ let rec lex_type_var (tokens_after_single_quote : char list) (acc : string) :
   | c :: t when is_lowercase c -> lex_type_var t (acc ^ string_of_char c)
   | _ -> ({ token_type = TypeVar acc; line = 0 }, tokens_after_single_quote)
 
+(* Helper functions for token creation and emission *)
+let make_token line_number token_type = { token_type; line = line_number }
+
+let emit_token line_number token_type remaining_chars lex_fn =
+  make_token line_number token_type :: lex_fn remaining_chars
+
+(* Multi-character sequences that need to be checked before single chars.
+   Order matters: longer sequences should come before shorter ones. *)
+let multi_char_sequences =
+  [
+    (['('; ')'], Unit);
+    (['.'; '.'; '.'], Enum);
+    ([':'; ':'], ConsToken);
+    (['|'; '|'], OR);
+    (['&'; '&'], AND);
+    (['~'; '-'], Opposite);
+  ]
+
+(* Single-character tokens *)
+let single_char_tokens =
+  [
+    (';', Semicolon);
+    (':', Colon);
+    (',', Comma);
+    ('|', Pipe);
+    ('[', LBracket);
+    (']', RBracket);
+    ('{', LBrace);
+    ('}', RBrace);
+    (')', RParen);
+    ('_', WildcardPattern);
+    ('\\', Fn);
+  ]
+
+(* Try to match a multi-character sequence *)
+let rec try_multi_char_sequence lst sequences =
+  match sequences with
+  | [] -> None
+  | (char_seq, token_type) :: rest ->
+      let rec matches chars tokens =
+        match (chars, tokens) with
+        | [], remaining -> Some (token_type, remaining)
+        | c :: cs, t :: ts when c = t -> matches cs ts
+        | _ -> None
+      in
+      (match matches char_seq lst with
+      | Some result -> Some result
+      | None -> try_multi_char_sequence lst rest)
+
+(* Try to match a single-character token *)
+let try_single_char_token lst tokens =
+  match lst with
+  | [] -> None
+  | h :: t ->
+      let rec find_token = function
+        | [] -> None
+        | (ch, token_type) :: rest ->
+            if ch = h then Some (token_type, t) else find_token rest
+      in
+      find_token tokens
+
 let lex (lst : char list) : token list =
   let line_number : int ref = ref 1 in
   let rec lex (lst : char list) : token list =
-    (* check for leading keyword *)
+    (* Check for keywords first *)
     match find_leading_keyword_if_it_exists lst keywords with
     | Some token_type, remainder ->
-        let new_token : token = { token_type; line = !line_number } in
-        new_token :: lex remainder
+        make_token !line_number token_type :: lex remainder
     | _ -> (
-        match lst with
-        | [] -> []
-        | ' ' :: t -> lex t (* ignore white space *)
-        | '\t' :: t -> lex t (* ignore tabs *)
-        | '\n' :: t ->
-            line_number := !line_number + 1;
-            lex t (* ignore new lines, increment the line number *)
-        | h :: _ when is_bop_prefix h ->
-            let bop, chars_after = lex_bop lst in
-            { token_type = bop; line = !line_number } :: lex chars_after
-        | '.' :: '.' :: '.' :: t ->
-            let new_token : token =
-              { token_type = Enum; line = !line_number }
-            in
-            new_token :: lex t
-        | ':' :: ':' :: t ->
-            let new_token : token =
-              { token_type = ConsToken; line = !line_number }
-            in
-            new_token :: lex t
-        | ';' :: t ->
-            let new_token : token =
-              { token_type = Semicolon; line = !line_number }
-            in
-            new_token :: lex t
-        | '\'' :: tokens_after_single_quote ->
-            let type_var_token, tokens_after_type_var =
-              lex_type_var tokens_after_single_quote ""
-            in
-            type_var_token :: lex tokens_after_type_var
-        | '_' :: t ->
-            let new_token : token =
-              { token_type = WildcardPattern; line = !line_number }
-            in
-            new_token :: lex t
-        | '\\' :: t ->
-            let new_token : token = { token_type = Fn; line = !line_number } in
-            new_token :: lex t
-        | '(' :: c :: t when c <> ')' ->
-            let new_token : token =
-              { token_type = LParen; line = !line_number }
-            in
-            new_token :: lex (c :: t)
-        | ')' :: t ->
-            let new_token : token =
-              { token_type = RParen; line = !line_number }
-            in
-            new_token :: lex t
-        | '-' :: '>' :: t ->
-            let new_token : token =
-              { token_type = Arrow; line = !line_number }
-            in
-
-            new_token :: lex t
-        | '<' :: '-' :: t ->
-            let new_token : token =
-              { token_type = BindArrow; line = !line_number }
-            in
-            new_token :: lex t
-        | ':' :: t ->
-            let new_token : token =
-              { token_type = Colon; line = !line_number }
-            in
-            new_token :: lex t
-        | '(' :: ')' :: t ->
-            let new_token : token =
-              { token_type = Unit; line = !line_number }
-            in
-            new_token :: lex t
-        | '~' :: '-' :: t ->
-            let new_token : token =
-              { token_type = Opposite; line = !line_number }
-            in
-            new_token :: lex t
-        | '-' :: t ->
-            let new_token : token =
-              { token_type = Minus; line = !line_number }
-            in
-            new_token :: lex t
-        | ',' :: t ->
-            let new_token : token =
-              { token_type = Comma; line = !line_number }
-            in
-            new_token :: lex t
-        | '|' :: '|' :: t ->
-            let new_token : token = { token_type = OR; line = !line_number } in
-            new_token :: lex t
-        | '|' :: t ->
-            let new_token : token =
-              { token_type = Pipe; line = !line_number }
-            in
-            new_token :: lex t
-        | '&' :: '&' :: t ->
-            let new_token : token = { token_type = AND; line = !line_number } in
-            new_token :: lex t
-        | '[' :: t ->
-            let new_token : token =
-              { token_type = LBracket; line = !line_number }
-            in
-            new_token :: lex t
-        | ']' :: t ->
-            let new_token : token =
-              { token_type = RBracket; line = !line_number }
-            in
-            new_token :: lex t
-        | '{' :: t ->
-            let new_token : token =
-              { token_type = LBrace; line = !line_number }
-            in
-            new_token :: lex t
-        | '}' :: t ->
-            let new_token : token =
-              { token_type = RBrace; line = !line_number }
-            in
-            new_token :: lex t
-        | n :: _ when is_num_or_dot n ->
-            let int_token, tail = lex_num lst "" in
-            int_token :: lex tail
-        | c :: _ when is_letter c ->
-            let id_token, tail = lex_id lst "" in
-            id_token :: lex tail
-        | '"' :: c :: t ->
-            if c = '"' then
-              let new_token : token =
-                { token_type = StringToken ""; line = !line_number }
-              in
-              new_token :: lex t
-            else
-              let new_token, remainder = lex_string (c :: t) "" in
-              new_token :: lex remainder
-        | _ -> failwith "no token matched")
+        (* Try multi-character sequences first *)
+        match try_multi_char_sequence lst multi_char_sequences with
+        | Some (token_type, remaining) ->
+            emit_token !line_number token_type remaining lex
+        | None -> (
+            match lst with
+            | [] -> []
+            (* Whitespace *)
+            | ' ' :: t -> lex t
+            | '\t' :: t -> lex t
+            | '\n' :: t ->
+                line_number := !line_number + 1;
+                lex t
+            (* Special case: LParen needs to check that next char is not ')' *)
+            | '(' :: c :: t when c <> ')' ->
+                emit_token !line_number LParen (c :: t) lex
+            (* Type variables starting with single quote *)
+            | '\'' :: tokens_after_single_quote ->
+                let type_var_token, tokens_after_type_var =
+                  lex_type_var tokens_after_single_quote ""
+                in
+                type_var_token :: lex tokens_after_type_var
+            (* String literals *)
+            | '"' :: c :: t ->
+                if c = '"' then
+                  emit_token !line_number (StringToken "") t lex
+                else
+                  let new_token, remainder = lex_string (c :: t) "" in
+                  new_token :: lex remainder
+            (* Operators (including binary operators) *)
+            | h :: _ when is_bop_prefix h ->
+                let bop, chars_after = lex_bop lst in
+                make_token !line_number bop :: lex chars_after
+            (* Numbers (including floats) *)
+            | n :: _ when is_num_or_dot n ->
+                let num_token, tail = lex_num lst "" in
+                num_token :: lex tail
+            (* Identifiers (also handles keywords, but those are checked earlier) *)
+            | c :: _ when is_letter c ->
+                let id_token, tail = lex_id lst "" in
+                id_token :: lex tail
+            (* Try single-character tokens *)
+            | _ -> (
+                match try_single_char_token lst single_char_tokens with
+                | Some (token_type, remaining) ->
+                    emit_token !line_number token_type remaining lex
+                | None -> failwith "no token matched")))
   in
 
   let tokens = lex lst in
