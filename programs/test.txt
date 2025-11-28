@@ -1,6 +1,14 @@
-type Integer = int
+type MyType<a, b> = [a -> b]
 
-let a [Integer] = 1
+let functions [MyType<int, int>] = [\x -> x + 1, \x -> x - 1]
+
+let f = switch functions =>
+  | _ :: h :: _ -> h
+  | _ -> \ x -> x
+
+let res = f 10
+
+let () = println (int_to_str res)
 
 let rec map f arr =
 switch arr =>

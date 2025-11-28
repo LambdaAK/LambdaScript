@@ -1025,20 +1025,10 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       return (CListType t_simplified)
   | TypeName v ->
       (* Look up and evaluate the type definition *)
-      let type_def =
-        List.find
-          (fun (n, _, _) ->
-            print_endline n;
-            n = v)
-          type_env
-      in
+      let type_def = List.find (fun (n, _, _) -> n = v) type_env in
       let _, _, t = type_def in
       simplify_mono_type t type_env
   | CTypeApp (name, args) ->
-      print_endline "simplifying app";
-      print_endline ("name: " ^ name);
-      print_endline ("type environment: " ^ string_of_type_env type_env);
-
       (* First evaluate all the argument types *)
       let rec eval_args acc = function
         | [] -> return (List.rev acc)
@@ -1067,6 +1057,11 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
               else v
             in
             match List.assoc_opt var_name subst with
+            | Some arg -> arg
+            | None -> t)
+        | TypeName v -> (
+            (* Check if this type name is actually a type parameter *)
+            match List.assoc_opt v subst with
             | Some arg -> arg
             | None -> t)
         | FunctionType (i, o) -> FunctionType (apply_subst i, apply_subst o)
