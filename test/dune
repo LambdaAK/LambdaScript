@@ -2,4 +2,4 @@
  (name test)
  (public_name Test)
  (modules test)
- (libraries Language ounit2))
+ (libraries Language ounit2 str))

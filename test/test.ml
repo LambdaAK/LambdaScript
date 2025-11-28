@@ -1232,6 +1232,360 @@ let block_type_tests : test list =
       ("{let f x = x + 1; let g x = x * 2; f (g 5)}", "int");
     ]
 
+(* ============================================================================
+   PROGRAM TESTING FRAMEWORK
+
+   This module provides utilities for testing entire programs (lists of
+   definitions) and verifying the types and values of expressions after running
+   those programs.
+
+   Key capabilities: - Test that a program typechecks successfully - Test that a
+   program fails to typecheck - Test that an expression has a specific type
+   after running a program - Test that an expression evaluates to a specific
+   value after running a program
+   ============================================================================ *)
+
+module ProgramTesting = struct
+  open Language.Parser.ProgramParser
+  open Language.Cexpr
+
+  type program_result = {
+    static_env : static_env;
+    dynamic_env : env;
+    type_env : type_env;
+  }
+  (** Result type for program execution containing both static and dynamic
+      environments *)
+
+  (** Parse a program string into a list of definitions.
+      @param program_str The program source code as a string
+      @return The parsed program (list of definitions)
+      @raise Failure if parsing fails *)
+  let parse_program (program_str : string) : Language.Expr.defn list =
+    let input = program_str |> String.to_seq |> List.of_seq in
+    let tokens = lex input |> List.map (fun t -> t.token_type) in
+    match program_parser tokens with
+    | None -> failwith ("Failed to parse program: " ^ program_str)
+    | Some (program, _) -> program
+
+  (** Parse an expression string into an expression AST.
+      @param expr_str The expression source code as a string
+      @return The parsed expression
+      @raise Failure if parsing fails *)
+  let parse_expression (expr_str : string) : Language.Expr.expr =
+    let input = expr_str |> String.to_seq |> List.of_seq in
+    let tokens = lex input |> List.map (fun t -> t.token_type) in
+    match expr_parser tokens with
+    | None -> failwith ("Failed to parse expression: " ^ expr_str)
+    | Some (expr, _) -> expr
+
+  (** Parse a type string into a type AST.
+      @param type_str The type as a string (e.g., "int", "int -> bool")
+      @return The parsed type
+      @raise Failure if parsing fails *)
+  let parse_type (type_str : string) : Language.Expr.compound_type =
+    let input = type_str |> String.to_seq |> List.of_seq in
+    let tokens = lex input |> List.map (fun t -> t.token_type) in
+    match Language.Parser.CompoundTypeParser.compound_type_parser tokens with
+    | None -> failwith ("Failed to parse type: " ^ type_str)
+    | Some (typ, _) -> typ
+
+  (** Typecheck a program and return the resulting type environment.
+      @param program The program (list of definitions) to typecheck
+      @return The resulting environments if typechecking succeeds
+      @raise Failure if typechecking fails *)
+  let typecheck_program (program : Language.Expr.defn list) : program_result =
+    (* Convert program to condensed form *)
+    let c_program = List.map condense_defn program in
+
+    (* Typecheck each definition and accumulate environments *)
+    let rec process_defns static_env type_env = function
+      | [] -> { static_env; dynamic_env = []; type_env }
+      | defn :: rest -> (
+          match generate_defn static_env type_env defn with
+          | Error e -> failwith ("Type error: " ^ string_of_type_check_error e)
+          | Ok (new_static_bindings, new_type_bindings) ->
+              process_defns
+                (new_static_bindings @ static_env)
+                (new_type_bindings @ type_env)
+                rest)
+    in
+    process_defns [] [] c_program
+
+  (** Evaluate a program and return both static and dynamic environments.
+      @param program The program (list of definitions) to evaluate
+      @return The resulting environments
+      @raise Failure if evaluation or typechecking fails *)
+  let evaluate_program (program : Language.Expr.defn list) : program_result =
+    (* First typecheck to get static environment *)
+    let type_result = typecheck_program program in
+
+    (* Convert program to condensed form *)
+    let c_program = List.map condense_defn program in
+
+    (* Evaluate each definition and accumulate dynamic environment *)
+    let rec process_defns dynamic_env = function
+      | [] -> dynamic_env
+      | defn :: rest -> (
+          match eval_defn defn dynamic_env with
+          | Error e -> failwith ("Evaluation error: " ^ string_of_eval_error e)
+          | Ok new_dynamic_bindings ->
+              process_defns (new_dynamic_bindings @ dynamic_env) rest)
+    in
+    let dynamic_env = process_defns [] c_program in
+    { type_result with dynamic_env }
+
+  (** Check if a program typechecks successfully.
+      @param program_str The program source code as a string
+      @return true if the program typechecks, false otherwise *)
+  let program_typechecks (program_str : string) : bool =
+    try
+      let program = parse_program program_str in
+      let _ = typecheck_program program in
+      true
+    with _ -> false
+
+  (** Get the type of an expression after running a program.
+      @param program_str The program source code as a string
+      @param expr_str The expression source code as a string
+      @return The inferred type as a c_type
+      @raise Failure if parsing, typechecking, or type inference fails *)
+  let get_expression_type (program_str : string) (expr_str : string) : c_type =
+    let program = parse_program program_str in
+    let expr = parse_expression expr_str in
+    let result = typecheck_program program in
+
+    let c_expr = condense_expr expr in
+    match type_of_c_expr result.static_env result.type_env c_expr with
+    | Error e ->
+        failwith ("Type inference error: " ^ string_of_type_check_error e)
+    | Ok t -> t
+
+  (** Evaluate an expression after running a program.
+      @param program_str The program source code as a string
+      @param expr_str The expression source code as a string
+      @return The evaluated value
+      @raise Failure if parsing, typechecking, or evaluation fails *)
+  let evaluate_expression (program_str : string) (expr_str : string) : value =
+    let program = parse_program program_str in
+    let expr = parse_expression expr_str in
+    let result = evaluate_program program in
+
+    let c_expr = condense_expr expr in
+    match eval_c_expr c_expr result.dynamic_env with
+    | Error e -> failwith ("Evaluation error: " ^ string_of_eval_error e)
+    | Ok v -> v
+
+  (** Assert that a program typechecks successfully.
+      @param program_str The program source code as a string
+      @raise Failure if the program does not typecheck *)
+  let assert_program_typechecks (program_str : string) : unit =
+    if not (program_typechecks program_str) then
+      failwith ("Expected program to typecheck: " ^ program_str)
+
+  (** Assert that a program fails to typecheck.
+      @param program_str The program source code as a string
+      @raise Failure if the program typechecks (when it shouldn't) *)
+  let assert_program_fails_typecheck (program_str : string) : unit =
+    if program_typechecks program_str then
+      failwith ("Expected program to fail typechecking: " ^ program_str)
+
+  (** Normalize type variable names by removing $written() wrapper. This allows
+      comparison between parsed types and inferred types. *)
+  let normalize_type_string (s : string) : string =
+    (* Replace '$written(x) with 'x *)
+    let re = Str.regexp "'\\$written(\\([^)]+\\))" in
+    Str.global_replace re "'\\1" s
+
+  (** Assert that an expression has a specific type after running a program.
+      @param program The program source code as a string
+      @param expr The expression source code as a string
+      @param expected_type The expected type as a string
+      @raise Failure if the actual type doesn't match the expected type *)
+  let assert_expression_has_type ~program ~expr ~expected_type : unit =
+    let actual_type = get_expression_type program expr in
+    let expected_c_type = parse_type expected_type |> condense_type in
+
+    (* Compare types by converting to strings and normalizing *)
+    let actual_str = string_of_c_type actual_type |> normalize_type_string in
+    let expected_str =
+      string_of_c_type expected_c_type |> normalize_type_string
+    in
+
+    if actual_str <> expected_str then
+      failwith
+        (Printf.sprintf
+           "Type mismatch for expression '%s' after program:\n\
+           \  Expected: %s\n\
+           \  Actual:   %s"
+           expr expected_str actual_str)
+
+  (** Assert that an expression evaluates to a specific value after running a
+      program.
+      @param program The program source code as a string
+      @param expr The expression source code as a string
+      @param expected_value The expected value as a string
+      @raise Failure if the actual value doesn't match the expected value *)
+  let assert_expression_has_value ~program ~expr ~expected_value : unit =
+    let actual_value = evaluate_expression program expr in
+    let actual_str = string_of_value actual_value in
+
+    if actual_str <> expected_value then
+      failwith
+        (Printf.sprintf
+           "Value mismatch for expression '%s' after program:\n\
+           \  Expected: %s\n\
+           \  Actual:   %s"
+           expr expected_value actual_str)
+end
+
+(* ============================================================================
+   PROGRAM TESTS
+
+   Tests using the program testing framework to verify type inference and
+   evaluation across entire programs.
+   ============================================================================ *)
+
+let program_typecheck_tests =
+  let open ProgramTesting in
+  "program_typecheck"
+  >::: [
+         ("empty program typechecks" >:: fun _ -> assert_program_typechecks "");
+         ( "simple definition typechecks" >:: fun _ ->
+           assert_program_typechecks "let x = 1" );
+         ( "multiple definitions typecheck" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             let x = 1
+             let y = 2
+             let z = x + y
+           |}
+         );
+         ( "type definition typechecks" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type Pair<a> = (a, a)
+             let p [Pair<int>] = (1, 2)
+           |}
+         );
+         ( "recursive function typechecks" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             let rec factorial n =
+               if n == 0 then 1 else n * factorial (n - 1)
+           |}
+         );
+         ( "type error detected" >:: fun _ ->
+           assert_program_fails_typecheck "let x = 1 + true" );
+         ( "type annotation mismatch detected" >:: fun _ ->
+           assert_program_fails_typecheck "let x [bool] = 42" );
+       ]
+
+let program_expression_type_tests =
+  let open ProgramTesting in
+  "program_expression_types"
+  >::: [
+         ( "expression type after empty program" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:"1 + 2"
+             ~expected_type:"int" );
+         ( "variable type after definition" >:: fun _ ->
+           assert_expression_has_type ~program:"let x = 42" ~expr:"x"
+             ~expected_type:"int" );
+         ( "function type after definition" >:: fun _ ->
+           assert_expression_has_type ~program:"let double = \\x -> x * 2"
+             ~expr:"double" ~expected_type:"int -> int" );
+         ( "polymorphic function type" >:: fun _ ->
+           assert_expression_has_type ~program:"let id = \\x -> x" ~expr:"id"
+             ~expected_type:"'a -> 'a" );
+         ( "type after multiple definitions" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               let x = 1
+               let y = 2
+               let z = x + y
+             |}
+             ~expr:"z" ~expected_type:"int" );
+         ( "expression using defined variables" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               let x = 5
+               let y = 10
+             |}
+             ~expr:"x + y" ~expected_type:"int" );
+         ( "function application type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let double = \x -> x * 2
+             |}
+             ~expr:"double 5" ~expected_type:"int" );
+         ( "nested custom type after type definition" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Pair<a> = (a, a)
+               let p [Pair<Pair<int>>] = ((1, 2), (3, 4))
+             |}
+             ~expr:"p" ~expected_type:"((int, int), (int, int))" );
+       ]
+
+let program_expression_value_tests =
+  let open ProgramTesting in
+  "program_expression_values"
+  >::: [
+         ( "expression value after empty program" >:: fun _ ->
+           assert_expression_has_value ~program:"" ~expr:"1 + 2"
+             ~expected_value:"3" );
+         ( "variable value after definition" >:: fun _ ->
+           assert_expression_has_value ~program:"let x = 42" ~expr:"x"
+             ~expected_value:"42" );
+         ( "computed value after definition" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let x = 1
+               let y = 2
+               let z = x + y
+             |}
+             ~expr:"z" ~expected_value:"3" );
+         ( "function application value" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let double = \x -> x * 2
+             |}
+             ~expr:"double 5" ~expected_value:"10" );
+         ( "recursive function value" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec factorial n =
+                 if n == 0 then 1 else n * factorial (n - 1)
+             |}
+             ~expr:"factorial 5" ~expected_value:"120" );
+         ( "expression using multiple definitions" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let x = 5
+               let y = 10
+               let add a b = a + b
+             |}
+             ~expr:"add x y" ~expected_value:"15" );
+         ( "list value" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let xs = [1, 2, 3]
+             |}
+             ~expr:"xs" ~expected_value:"[1, 2, 3]" );
+         ( "vector value" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let pair = (1, 2)
+             |}
+             ~expr:"pair" ~expected_value:"(1, 2)" );
+       ]
+
 let all_tests =
   List.flatten
     [
@@ -1247,6 +1601,9 @@ let all_tests =
       polymorphism_tests;
       List.map (fun (a, b) -> eval_test a b) block_tests;
       block_type_tests;
+      [ program_typecheck_tests ];
+      [ program_expression_type_tests ];
+      [ program_expression_value_tests ];
     ]
 
 let suite = "suite" >::: all_tests
