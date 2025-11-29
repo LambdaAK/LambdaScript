@@ -1117,10 +1117,10 @@ end = struct
       return (TypeDef (name, args, ct))
 
   let defn_parser : defn parser =
-    sum_type_defn_parser_with_args ()
-    <|> sum_type_defn_parser_no_args ()
-    <|> type_alias_defn_parser_with_args ()
+    type_alias_defn_parser_with_args ()
     <|> type_alias_defn_parser_no_args ()
+    <|> sum_type_defn_parser_with_args ()
+    <|> sum_type_defn_parser_no_args ()
     <|> let_rec_defn_parser () <|> let_defn_parser ()
 end
 
