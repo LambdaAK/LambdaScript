@@ -8,6 +8,8 @@ type c_pat =
   | CStringPat of string
   | CIdPat of string
   | CUnitPat
+  | CVariantPat of string * c_pat option
+(* Constructor name and optional payload pattern *)
 
 type c_bop =
   | CPlus
@@ -53,6 +55,7 @@ and c_defn =
   | CDefn of c_pat * c_type option * c_expr
   | CDefnRec of c_pat * c_type option * c_expr
   | CTypeAlias of string * string list * mono_type
+  | CSumType of string * string list * (string * c_type option) list
 
 and c_switch_branch = c_pat * c_expr
 
@@ -91,6 +94,8 @@ and value =
   | VectorValue of value list
   | ListValue of value list
   | BuiltInFunction of builtin_function
+  | VariantValue of string * value option
+(* Constructor name and optional payload value *)
 
 and builtin_function =
   | Println
@@ -137,6 +142,8 @@ and substitute_type (t : c_type) (var : type_var) (replacement : mono_type) :
       Mono
         (VectorType (List.map (fun t -> substitute_mono t var replacement) ts))
   | Mono (CListType t) -> Mono (CListType (substitute_mono t var replacement))
+  | Mono (CTypeApp (name, args)) ->
+      Mono (CTypeApp (name, List.map (fun arg -> substitute_mono arg var replacement) args))
   | Mono t -> Mono t
   | PolyType (v, body) ->
       if v = var then t else PolyType (v, substitute_type body var replacement)
@@ -151,6 +158,8 @@ and substitute_mono (t : mono_type) (var : type_var) (replacement : mono_type) :
   | VectorType ts ->
       VectorType (List.map (fun t -> substitute_mono t var replacement) ts)
   | CListType t -> CListType (substitute_mono t var replacement)
+  | CTypeApp (name, args) ->
+      CTypeApp (name, List.map (fun arg -> substitute_mono arg var replacement) args)
   | _ -> t
 
 let rec string_of_mono_type : mono_type -> string = function

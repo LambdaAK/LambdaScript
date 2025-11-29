@@ -39,6 +39,19 @@ let rec condense_defn : defn -> c_defn = function
       CDefnRec (a, b, c)
   | TypeDef (name, type_params, ct) ->
       CTypeAlias (name, type_params, condense_compound_type ct)
+  | SumTypeDef (name, type_params, constructors) ->
+      let condensed_constructors =
+        List.map
+          (fun (cons_name, payload_type_opt) ->
+            ( cons_name,
+              match payload_type_opt with
+              | None -> None
+              | Some ct ->
+                  let mono_t = condense_compound_type ct in
+                  Some (Mono mono_t) ))
+          constructors
+      in
+      CSumType (name, type_params, condensed_constructors)
 
 and condense_expr : expr -> c_expr = function
   | Function (pat, ct_opt, expr) ->

@@ -54,6 +54,7 @@ type defn =
   | Defn of pat * compound_type option * expr
   | DefnRec of pat * compound_type option * expr
   | TypeDef of string * string list * compound_type
+  | SumTypeDef of string * string list * (string * compound_type option) list
 
 and switch_branch = pat * expr
 

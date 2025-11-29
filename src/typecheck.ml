@@ -46,6 +46,9 @@ exception TypeFailure
 (* maps type names to their types *)
 type type_env = (string * string list * mono_type) list
 
+(* maps constructor names to (type_name, type_params, payload_type_option) *)
+type constructor_env = (string * string * string list * c_type option) list
+
 let string_of_type_env (env : type_env) : string =
   let rec aux acc = function
     | [] -> acc
@@ -153,7 +156,9 @@ and string_of_mono_type (t : mono_type) : string =
       "(" ^ String.concat ", " types_str ^ ")"
   | CListType et -> "[" ^ string_of_mono_type et ^ "]"
   | TypeName v -> v
-  | CTypeApp _ -> failwith "typeApp unimplemented in typecheck.ml"
+  | CTypeApp (name, args) ->
+      let args_str = List.map string_of_mono_type args in
+      name ^ "<" ^ String.concat ", " args_str ^ ">"
 
 (** [generate env e] performs type inference on the expression [e] in the static
     environment [env].
@@ -566,6 +571,21 @@ and type_of_pat (pat : c_pat) : mono_type * static_env * type_equations =
       let t2, env2, c2 = type_of_pat p2 in
       (* [t1] = t2 *)
       (CListType t1, env1 @ env2, (CListType t1, t2) :: (c1 @ c2))
+  | CVariantPat (_cons_name, payload_pat_opt) -> (
+      match payload_pat_opt with
+      | None ->
+          (* Nullary constructor - return a fresh type variable for the sum
+             type *)
+          let sum_type = fresh_type_var () in
+          (sum_type, [], [])
+      | Some payload_pat ->
+          (* Constructor with payload - return the payload type wrapped in sum
+             type *)
+          let _payload_type, payload_env, payload_constraints =
+            type_of_pat payload_pat
+          in
+          let sum_type = fresh_type_var () in
+          (sum_type, payload_env, payload_constraints))
 
 and reduce_eq (c : type_equations) (type_env : type_env) : type_equations =
   match c with
@@ -580,6 +600,13 @@ and reduce_eq (c : type_equations) (type_env : type_env) : type_equations =
         | FunctionType (i1, o1), FunctionType (i2, o2) ->
             reduce_eq ((i1, i2) :: (o1, o2) :: c') type_env
         | CListType et1, CListType et2 -> reduce_eq ((et1, et2) :: c') type_env
+        | CTypeApp (name1, args1), CTypeApp (name2, args2) ->
+            if name1 = name2 && List.length args1 = List.length args2 then
+              (* Unify corresponding type arguments *)
+              let arg_equations = List.combine args1 args2 in
+              reduce_eq (arg_equations @ c') type_env
+            else
+              raise TypeFailure
         | VectorType types1, VectorType types2 -> (
             match (types1, types2) with
             | type1 :: tail1, type2 :: tail2 ->
@@ -602,7 +629,7 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
     mono_type type_check_result =
   match var with
   | TypeVar v -> (
-      let- looked_up_type = get_type_of_type_var v subs in
+      let- looked_up_type = get_type_of_type_var v subs type_env in
       match looked_up_type with
       | FunctionType (i, o) ->
           let- i_type = get_type i subs type_env in
@@ -647,15 +674,23 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
       let- et_type = get_type et subs type_env in
       return (CListType et_type)
   | TypeName v -> return (TypeName v)
-  | CTypeApp _ -> failwith "unimplemented"
+  | CTypeApp (name, args) ->
+      (* Recursively apply substitution to all type arguments *)
+      let rec aux acc = function
+        | [] -> return (CTypeApp (name, List.rev acc))
+        | arg :: rest ->
+            let- arg_type = get_type arg subs type_env in
+            aux (arg_type :: acc) rest
+      in
+      aux [] args
 
-and get_type_of_type_var (var : string) (subs : type_equations) :
+and get_type_of_type_var (var : string) (subs : type_equations) (type_env : type_env) :
     mono_type type_check_result =
   match List.assoc_opt (TypeVar var) subs with
   | Some looked_up -> (
       match looked_up with
-      | TypeVar new_var -> get_type_of_type_var new_var subs
-      | _ -> return looked_up)
+      | TypeVar new_var -> get_type_of_type_var new_var subs type_env
+      | _ -> get_type looked_up subs type_env)  (* Recursively apply substitutions *)
   | None -> return (TypeVar var)
 
 (** [inside inside_type outside_type] checks if a type appears inside another
@@ -674,6 +709,7 @@ and inside (inside_type : mono_type) (outside_type : mono_type) : bool =
   | FunctionType (i, o) -> inside inside_type i || inside inside_type o
   | VectorType ts -> List.exists (inside inside_type) ts
   | CListType t -> inside inside_type t
+  | CTypeApp (_, args) -> List.exists (inside inside_type) args
   | _ -> false
 
 (** [is_basic_type t] checks if a type is a basic type (int, bool, string,
@@ -719,7 +755,7 @@ and substitute (var_id : string) (t : mono_type) (equations : type_equations) :
     | VectorType types -> VectorType (List.map substitute_in_type types)
     | CListType et -> CListType (substitute_in_type et)
     | TypeName v -> TypeName v
-    | CTypeApp _ -> failwith "unimplemented: substitute_in_type"
+    | CTypeApp (name, args) -> CTypeApp (name, List.map substitute_in_type args)
   in
   match equations with
   | [] -> []
@@ -826,6 +862,7 @@ and flatten_env_types (types : mono_type list) : mono_type list =
       | FunctionType (i, o) -> flatten_env_types (i :: o :: tail)
       | VectorType types -> flatten_env_types (types @ tail)
       | CListType et -> flatten_env_types (et :: tail)
+      | CTypeApp (_, args) -> flatten_env_types (args @ tail)
       | _ -> t :: flatten_env_types tail)
 
 (** [get_type_vars t] extracts all type variables from a type.
@@ -838,6 +875,7 @@ and get_type_vars (t : mono_type) : mono_type list =
   | FunctionType (i, o) -> get_type_vars i @ get_type_vars o
   | VectorType types -> List.flatten (List.map get_type_vars types)
   | CListType et -> get_type_vars et
+  | CTypeApp (_, args) -> List.flatten (List.map get_type_vars args)
   | _ -> []
 
 and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :
@@ -967,6 +1005,59 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
   | CTypeAlias (name, params, body) ->
       (* Add the type alias to the type environment *)
       return ([], [ (name, params, body) ])
+  | CSumType (type_name, type_params, constructors) ->
+      (* Add the sum type to the type environment *)
+      (* For now, we'll represent sum types in type_env, but we need a way to distinguish them *)
+      (* We'll use a dummy body type - this might need to be changed later *)
+      let dummy_body = TypeVar ("$sum_type_" ^ type_name) in
+      let type_env_entry = [ (type_name, type_params, dummy_body) ] in
+
+      (* Create constructor bindings in static_env *)
+      (* Each constructor is a function: payload_type -> SumType<params> *)
+      (* For nullary constructors, they're just values of type SumType<params> *)
+      let constructor_bindings =
+        List.map
+          (fun (cons_name, payload_type_opt) ->
+            let sum_type_app =
+              CTypeApp (type_name, List.map (fun p -> TypeVar p) type_params)
+            in
+            match payload_type_opt with
+            | None ->
+                (* Nullary constructor - just the sum type *)
+                (cons_name, Mono sum_type_app)
+            | Some payload_type ->
+                (* Constructor with payload - function type *)
+                let payload_mono =
+                  match payload_type with
+                  | Mono m -> m
+                  | PolyType _ ->
+                      failwith "Constructor payload cannot be polymorphic"
+                in
+                (* Convert TypeName references to type parameters into TypeVar *)
+                let rec convert_params_to_vars t =
+                  match t with
+                  | TypeName v when List.mem v type_params -> TypeVar v
+                  | FunctionType (t1, t2) ->
+                      FunctionType (convert_params_to_vars t1, convert_params_to_vars t2)
+                  | VectorType ts -> VectorType (List.map convert_params_to_vars ts)
+                  | CListType t -> CListType (convert_params_to_vars t)
+                  | CTypeApp (name, args) ->
+                      CTypeApp (name, List.map convert_params_to_vars args)
+                  | _ -> t
+                in
+                let payload_with_vars = convert_params_to_vars payload_mono in
+                (* Create polymorphic type: ∀params. payload ->
+                   SumType<params> *)
+                let rec make_poly_type params_left payload sum_type =
+                  match params_left with
+                  | [] -> Mono (FunctionType (payload, sum_type))
+                  | param :: rest ->
+                      PolyType (param, make_poly_type rest payload sum_type)
+                in
+                (cons_name, make_poly_type type_params payload_with_vars sum_type_app))
+          constructors
+      in
+      return (constructor_bindings, type_env_entry)
 
 (* Given a type with type names, simplify it by replacing the type names with
    the actual types
@@ -1016,7 +1107,9 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       | Some type_def ->
           let _, _, t = type_def in
           simplify_mono_type t type_env
-      | None -> Error (OtherError ("Type not found: " ^ v)))
+      | None ->
+          (* If not found, treat it as a type variable (could be a type parameter) *)
+          return (TypeVar v))
   | CTypeApp (name, args) -> (
       (* First evaluate all the argument types *)
       let rec eval_args acc = function
@@ -1032,38 +1125,48 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       | Some type_def ->
           let _, params, body = type_def in
 
-          (* Create substitution mapping type parameters to their evaluated
-             arguments *)
-          let subst = List.combine params simplified_args in
-
-          (* Apply the substitution to the body type *)
-          let rec apply_subst t =
-            match t with
-            | TypeVar v -> (
-                (* Extract the variable name from $written(v) format *)
-                let var_name =
-                  if String.length v > 9 && String.sub v 0 9 = "$written(" then
-                    String.sub v 9 (String.length v - 10)
-                  else v
-                in
-                match List.assoc_opt var_name subst with
-                | Some arg -> arg
-                | None -> t)
-            | TypeName v -> (
-                (* Check if this type name is actually a type parameter *)
-                match List.assoc_opt v subst with
-                | Some arg -> arg
-                | None -> t)
-            | FunctionType (i, o) -> FunctionType (apply_subst i, apply_subst o)
-            | VectorType types -> VectorType (List.map apply_subst types)
-            | CListType et -> CListType (apply_subst et)
-            | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
-            | _ -> t
+          (* Check if this is a sum type (has a dummy body starting with $sum_type_) *)
+          let is_sum_type = match body with
+            | TypeVar v -> String.length v > 10 && String.sub v 0 10 = "$sum_type_"
+            | _ -> false
           in
 
-          (* Apply substitution and recursively evaluate the result *)
-          let substituted = apply_subst body in
-          simplify_mono_type substituted type_env
+          (* For sum types, don't simplify - just return the CTypeApp with simplified args *)
+          if is_sum_type then
+            return (CTypeApp (name, simplified_args))
+          else
+            (* Create substitution mapping type parameters to their evaluated
+               arguments *)
+            let subst = List.combine params simplified_args in
+
+            (* Apply the substitution to the body type *)
+            let rec apply_subst t =
+              match t with
+              | TypeVar v -> (
+                  (* Extract the variable name from $written(v) format *)
+                  let var_name =
+                    if String.length v > 9 && String.sub v 0 9 = "$written(" then
+                      String.sub v 9 (String.length v - 10)
+                    else v
+                  in
+                  match List.assoc_opt var_name subst with
+                  | Some arg -> arg
+                  | None -> t)
+              | TypeName v -> (
+                  (* Check if this type name is actually a type parameter *)
+                  match List.assoc_opt v subst with
+                  | Some arg -> arg
+                  | None -> t)
+              | FunctionType (i, o) -> FunctionType (apply_subst i, apply_subst o)
+              | VectorType types -> VectorType (List.map apply_subst types)
+              | CListType et -> CListType (apply_subst et)
+              | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
+              | _ -> t
+            in
+
+            (* Apply substitution and recursively evaluate the result *)
+            let substituted = apply_subst body in
+            simplify_mono_type substituted type_env
       | None -> Error (OtherError ("Type not found: " ^ name)))
 
 let rec get_mono_type (t : c_type) : mono_type =

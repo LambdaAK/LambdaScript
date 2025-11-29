@@ -1000,17 +1000,6 @@ end = struct
     return
       (DefnRec (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations))
 
-  let type_alias_defn_parser_no_args () : defn parser =
-    let* () = expect_token Type in
-    let* name =
-      expect_token_get_data (function
-        | Id s -> Some s
-        | _ -> None)
-    in
-    let* () = expect_token Equals in
-    let* ct = CompoundTypeParser.compound_type_parser in
-    return (TypeDef (name, [], ct))
-
   let string_parser : string parser =
     let* s =
       expect_token_get_data (function
@@ -1019,6 +1008,83 @@ end = struct
         | _ -> None)
     in
     return s
+
+  let constructor_parser : (string * compound_type option) parser =
+    let* () = expect_token Pipe in
+    let* name =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    (* Check if constructor name starts with uppercase *)
+    let () =
+      if
+        name = ""
+        || not (Char.uppercase_ascii (String.get name 0) = String.get name 0)
+      then failwith ("Constructor name must start with uppercase: " ^ name)
+    in
+    (* Check for "of" keyword - if present, parse type, otherwise nullary *)
+    let* payload_type =
+      (let* () = expect_token Of in
+       let* ct = CompoundTypeParser.compound_type_parser in
+       return (Some ct))
+      <|> return None
+    in
+    return (name, payload_type)
+
+  let type_alias_defn_parser_no_args () : defn parser =
+    let* () = expect_token Type in
+    let* name =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* () = expect_token Equals in
+    (* Check if next token is Pipe - if so, it's a sum type, otherwise type
+       alias *)
+    let* is_sum_type = check_tokens Pipe in
+    if is_sum_type then
+      let* constructors = parse_several constructor_parser in
+      return (SumTypeDef (name, [], constructors))
+    else
+      let* ct = CompoundTypeParser.compound_type_parser in
+      return (TypeDef (name, [], ct))
+
+  let sum_type_defn_parser_with_args () : defn parser =
+    let* () = expect_token Type in
+    let* name =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* () =
+      expect_token_get_data (function
+        | Relop "<" -> Some ()
+        | _ -> None)
+    in
+    (* Parse a list of identifiers and store the strings *)
+    let* args : string list = parse_sep_delim string_parser Comma in
+    let* () =
+      expect_token_get_data (function
+        | Relop ">" -> Some ()
+        | _ -> None)
+    in
+    let* () = expect_token Equals in
+    (* Parse constructors *)
+    let* constructors = parse_several constructor_parser in
+    return (SumTypeDef (name, args, constructors))
+
+  let sum_type_defn_parser_no_args () : defn parser =
+    let* () = expect_token Type in
+    let* name =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* () = expect_token Equals in
+    (* Parse constructors *)
+    let* constructors = parse_several constructor_parser in
+    return (SumTypeDef (name, [], constructors))
 
   let type_alias_defn_parser_with_args () : defn parser =
     let* () = expect_token Type in
@@ -1040,11 +1106,20 @@ end = struct
         | _ -> None)
     in
     let* () = expect_token Equals in
-    let* ct = CompoundTypeParser.compound_type_parser in
-    return (TypeDef (name, args, ct))
+    (* Check if next token is Pipe - if so, it's a sum type, otherwise type
+       alias *)
+    let* is_sum_type = check_tokens Pipe in
+    if is_sum_type then
+      let* constructors = parse_several constructor_parser in
+      return (SumTypeDef (name, args, constructors))
+    else
+      let* ct = CompoundTypeParser.compound_type_parser in
+      return (TypeDef (name, args, ct))
 
   let defn_parser : defn parser =
-    type_alias_defn_parser_with_args ()
+    sum_type_defn_parser_with_args ()
+    <|> sum_type_defn_parser_no_args ()
+    <|> type_alias_defn_parser_with_args ()
     <|> type_alias_defn_parser_no_args ()
     <|> let_rec_defn_parser () <|> let_defn_parser ()
 end

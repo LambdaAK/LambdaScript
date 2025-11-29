@@ -95,6 +95,9 @@ and string_of_value = function
         values |> List.map string_of_value |> String.concat ", "
       in
       "[" ^ values_string ^ "]"
+  | VariantValue (cons_name, None) -> cons_name
+  | VariantValue (cons_name, Some payload) ->
+      cons_name ^ " " ^ string_of_value payload
 
 (** [bind_pat p v] attempts to match a pattern [p] against a value [v]. If
     successful, returns Some bindings where bindings is a list of (id, value)
@@ -129,6 +132,11 @@ and bind_pat (p : c_pat) (v : value) : env option =
               | None -> None
               | Some bindings' -> Some (bindings @ bindings')))
       | _ -> None)
+  | CVariantPat (cons_name, None), VariantValue (v_cons_name, None) ->
+      if cons_name = v_cons_name then Some [] else None
+  | ( CVariantPat (cons_name, Some payload_pat),
+      VariantValue (v_cons_name, Some payload_v) ) ->
+      if cons_name = v_cons_name then bind_pat payload_pat payload_v else None
   | _ -> None
 
 (** [bind_static p t] attempts to match the pattern [p] against the type [t] in
@@ -176,7 +184,17 @@ and bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
                   | Some bindings' -> Some (bindings @ bindings')))
           | _ -> None)
       | _ -> None)
-  | _ -> None
+  | CVariantPat (_cons_name, payload_pat_opt) -> (
+      (* For constructor patterns, we need to check if the type is a sum type *)
+      (* For now, we'll just bind the payload if present *)
+      match (payload_pat_opt, get_mono_type t) with
+      | None, Some (CTypeApp _) -> Some [] (* Nullary constructor *)
+      | Some payload_pat, Some (CTypeApp _) ->
+          (* Constructor with payload - we need to extract the payload type *)
+          (* For now, use a fresh type variable for the payload *)
+          bind_static payload_pat (Mono (TypeVar "$payload"))
+      | _ -> None)
+  | CIntPat _ | CBoolPat _ | CNilPat | CConsPat _ | CStringPat _ -> None
 
 (** [eval_c_expr ce env] evaluates a condensed expression [ce] in the context of
     environment [env].
@@ -191,7 +209,13 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
   | EBool b -> BooleanValue b |> return
   | ENil -> ListValue [] |> return
   | EUnit -> UnitValue |> return
-  | EId s -> List.assoc s env |> return
+  | EId s -> (
+      (* Check if this is a nullary constructor (VariantValue) *)
+      match List.assoc_opt s env with
+      | Some (VariantValue (cons_name, None)) ->
+          VariantValue (cons_name, None) |> return
+      | Some v -> v |> return
+      | None -> Error (UnboundVariable s))
   | EBop (op, e1, e2) -> eval_bop op e1 e2 env
   | EFunction (p, _, e) -> FunctionClosure (env, p, None, e) |> return
   | EListEnumeration (e1, e2) -> eval_list_enumeration e1 e2 env
@@ -261,9 +285,23 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       match v1 with
       | BuiltInFunction f -> eval_builtin f v2
       | FunctionClosure (env', p, _, e) -> (
-          match bind_pat p v2 with
-          | Some env'' -> eval_c_expr e (env'' @ env')
-          | None -> Error (OtherError "eval_c_expr: EApp"))
+          (* Check if this is a constructor function by checking the pattern *)
+          (* Constructor functions have a special pattern name starting with "__constructor_" *)
+          match p with
+          | CIdPat pattern_name
+            when String.length pattern_name > 14
+                 && String.sub pattern_name 0 14 = "__constructor_" ->
+              (* Extract the constructor name *)
+              let cons_name =
+                String.sub pattern_name 14 (String.length pattern_name - 14)
+              in
+              (* This is a constructor - create VariantValue *)
+              VariantValue (cons_name, Some v2) |> return
+          | _ -> (
+              (* Regular function application *)
+              match bind_pat p v2 with
+              | Some env'' -> eval_c_expr e (env'' @ env')
+              | None -> Error (OtherError "eval_c_expr: EApp")))
       (* recursive function *)
       | RecursiveFunctionClosure (env'_ref, p, _, e) -> (
           let env' : env = !env'_ref in
@@ -460,6 +498,10 @@ and create_generic_type : c_pat -> c_type = function
                       "Polymorphic types not supported in create_generic_type \
                        for vectors")
               patterns))
+  | CVariantPat (_cons_name, payload_pat_opt) -> (
+      match payload_pat_opt with
+      | None -> Mono (fresh_type_var ()) (* Nullary constructor *)
+      | Some payload_pat -> create_generic_type payload_pat)
 
 (** [expr_of_pat p] converts a pattern [p] of type [c_pat] into a corresponding
     expression of type [c_expr]. This is useful for cases where a pattern needs
@@ -480,6 +522,12 @@ and expr_of_pat : c_pat -> c_expr = function
   | CNilPat -> ENil
   | CConsPat (p1, p2) -> EBop (CCons, expr_of_pat p1, expr_of_pat p2)
   | CVectorPat patterns -> EVector (List.map expr_of_pat patterns)
+  | CVariantPat (cons_name, payload_pat_opt) -> (
+      (* Constructor patterns can't be directly converted to expressions *)
+      (* For now, we'll create an identifier expression for the constructor *)
+      match payload_pat_opt with
+      | None -> EId cons_name
+      | Some payload_pat -> EApp (EId cons_name, expr_of_pat payload_pat))
 
 (** [eval_defn d env] evaluates a definition [d] in the context of environment
     [env].
@@ -519,6 +567,35 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
   | CTypeAlias _ ->
       (* doesn't do anything *)
       return []
+  | CSumType (_type_name, _type_params, constructors) ->
+      (* Create constructor functions in the dynamic environment *)
+      (* Each constructor is a function that creates a VariantValue *)
+      (* For constructors with payload: function that takes payload and returns VariantValue *)
+      (* For nullary constructors: just the VariantValue itself *)
+      let constructor_bindings =
+        List.map
+          (fun (cons_name, payload_type_opt) ->
+            match payload_type_opt with
+            | None ->
+                (* Nullary constructor - it's just a value, not a function *)
+                (cons_name, VariantValue (cons_name, None))
+            | Some _ ->
+                (* Constructor with payload - create a function that wraps payload in VariantValue *)
+                (* We'll use a special pattern to mark this as a constructor function *)
+                (* The function takes the payload and we'll handle it specially in EApp *)
+                ( cons_name,
+                  FunctionClosure
+                    ( [],
+                      (* Use a special pattern that we can recognize as a
+                         constructor *)
+                      CIdPat ("__constructor_" ^ cons_name),
+                      None,
+                      (* The body doesn't matter - we'll handle constructor
+                         application specially *)
+                      EUnit ) ))
+          constructors
+      in
+      return constructor_bindings
 
 and string_of_bop = function
   | CPlus -> "+"
@@ -546,6 +623,9 @@ and string_of_pat = function
   | CNilPat -> "[]"
   | CConsPat (p1, p2) -> string_of_pat p1 ^ " :: " ^ string_of_pat p2
   | CVectorPat ps -> "(" ^ String.concat ", " (List.map string_of_pat ps) ^ ")"
+  | CVariantPat (cons_name, None) -> cons_name
+  | CVariantPat (cons_name, Some payload_pat) ->
+      cons_name ^ " " ^ string_of_pat payload_pat
 
 and string_of_eval_error = function
   | PatternMatchError (p, v) ->

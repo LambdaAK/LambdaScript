@@ -60,6 +60,7 @@ type token_type =
   | TypeVariable of string
   | LAngle
   | RAngle
+  | Of
 
 type token = {
   token_type : token_type;
@@ -134,6 +135,7 @@ let string_of_token_type : token_type -> string = function
   | TypeVariable s -> "<type variable: " ^ s ^ ">"
   | LAngle -> "<"
   | RAngle -> ">"
+  | Of -> "<of>"
 [@@coverage off]
 
 let string_of_token : token -> string =
@@ -213,9 +215,10 @@ let lex_bop (lst : char list) =
   let rec get_bop_chars (lst : char list) (acc : char list) :
       char list * char list =
     match lst with
-    | h :: t when is_special h ->
-        (* Don't combine '>' with another '>' to allow nested type applications like Pair<Pair<int>> *)
-        (match (acc, h) with
+    | h :: t when is_special h -> (
+        (* Don't combine '>' with another '>' to allow nested type applications
+           like Pair<Pair<int>> *)
+        match (acc, h) with
         | '>' :: _, '>' -> (List.rev acc, lst)
         | _ -> get_bop_chars t (h :: acc))
     | _ ->
@@ -247,6 +250,7 @@ let keywords =
     ("end", End);
     ("enum", Enum);
     ("float", FloatType);
+    ("of", Of);
     ("type", Type);
   ]
   |> List.map (fun (s, t) -> (list_of_string s, t))
@@ -358,16 +362,16 @@ let make_token line_number token_type = { token_type; line = line_number }
 let emit_token line_number token_type remaining_chars lex_fn =
   make_token line_number token_type :: lex_fn remaining_chars
 
-(* Multi-character sequences that need to be checked before single chars.
-   Order matters: longer sequences should come before shorter ones. *)
+(* Multi-character sequences that need to be checked before single chars. Order
+   matters: longer sequences should come before shorter ones. *)
 let multi_char_sequences =
   [
-    (['('; ')'], Unit);
-    (['.'; '.'; '.'], Enum);
-    ([':'; ':'], ConsToken);
-    (['|'; '|'], OR);
-    (['&'; '&'], AND);
-    (['~'; '-'], Opposite);
+    ([ '('; ')' ], Unit);
+    ([ '.'; '.'; '.' ], Enum);
+    ([ ':'; ':' ], ConsToken);
+    ([ '|'; '|' ], OR);
+    ([ '&'; '&' ], AND);
+    ([ '~'; '-' ], Opposite);
   ]
 
 (* Single-character tokens *)
@@ -390,14 +394,14 @@ let single_char_tokens =
 let rec try_multi_char_sequence lst sequences =
   match sequences with
   | [] -> None
-  | (char_seq, token_type) :: rest ->
+  | (char_seq, token_type) :: rest -> (
       let rec matches chars tokens =
         match (chars, tokens) with
         | [], remaining -> Some (token_type, remaining)
         | c :: cs, t :: ts when c = t -> matches cs ts
         | _ -> None
       in
-      (match matches char_seq lst with
+      match matches char_seq lst with
       | Some result -> Some result
       | None -> try_multi_char_sequence lst rest)
 
@@ -445,8 +449,7 @@ let lex (lst : char list) : token list =
                 type_var_token :: lex tokens_after_type_var
             (* String literals *)
             | '"' :: c :: t ->
-                if c = '"' then
-                  emit_token !line_number (StringToken "") t lex
+                if c = '"' then emit_token !line_number (StringToken "") t lex
                 else
                   let new_token, remainder = lex_string (c :: t) "" in
                   new_token :: lex remainder
@@ -458,7 +461,8 @@ let lex (lst : char list) : token list =
             | n :: _ when is_num_or_dot n ->
                 let num_token, tail = lex_num lst "" in
                 num_token :: lex tail
-            (* Identifiers (also handles keywords, but those are checked earlier) *)
+            (* Identifiers (also handles keywords, but those are checked
+               earlier) *)
             | c :: _ when is_letter c ->
                 let id_token, tail = lex_id lst "" in
                 id_token :: lex tail
