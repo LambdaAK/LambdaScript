@@ -218,8 +218,11 @@ let lex_bop (lst : char list) =
     | h :: t when is_special h -> (
         (* Don't combine '>' with another '>' to allow nested type applications
            like Pair<Pair<int>> *)
+        (* Also don't combine operators with standalone delimiters like , ; : | *)
         match (acc, h) with
         | '>' :: _, '>' -> (List.rev acc, lst)
+        | _ :: _, (',' | ';' | ':' | '|') -> (List.rev acc, lst)
+        | [], (',' | ';' | ':' | '|') -> (List.rev acc, lst)
         | _ -> get_bop_chars t (h :: acc))
     | _ ->
         (* no more chars are added to the bop *)

@@ -1,45 +1,19 @@
-type rec List<a> = | Nil | Cons of (a, List<a>)
+type rec Tree<a> =
+  | Leaf
+  | Node of (a, Tree<a>, Tree<a>)
 
-let empty = Nil
-let one = Cons(1, Nil)
-let two = Cons(1, Cons(2, Nil))
-let three = Cons(1, Cons(2, Cons (3, Nil)))
-
-let mapper x = x + 1
-
-let rec map f lst =
-    switch lst =>
-    | Nil -> Nil
-    | Cons (h, t) -> Cons (f h, map f t)
-
-let rec append lst1 lst2 =
-    switch lst1 =>
-    | Nil -> lst2
-    | Cons(h, t) -> Cons(h, append t lst2)
-
-let rec reverse lst =
-    let rec rev_helper lst acc =
-        switch lst =>
-        | Nil -> acc
-        | Cons(h, t) -> rev_helper t (Cons(h, acc))
-    in
-    rev_helper lst Nil
-
-let rec filter f lst =
-        switch lst =>
-        | Nil -> Nil
-        | Cons(h, t) ->
-            if f h then
-                Cons(h, filter f t)
-            else
-                filter f t
-
-let rec fold_left f acc lst =
-    switch lst =>
-    | Nil -> acc
-    | Cons(h, t) -> fold_left f (f acc h) t
-
-let sum lst = fold_left (\acc -> \x -> acc + x) 0 lst
+let rec fold_tree f leaf_case t =
+  switch t =>
+    | Leaf -> leaf_case
+    | Node (x, left, right) ->
+        f x (fold_tree f leaf_case left) (fold_tree f leaf_case right)
 
 
+let rec left_fold_tree f leaf_case t =
+          switch t =>
+          | Leaf -> leaf_case
+          | Node (x, left, right) ->
+              let left_acc = left_fold_tree f leaf_case left in
+              let curr_acc = f x left_acc in
+              left_fold_tree f curr_acc right
 

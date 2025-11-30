@@ -963,7 +963,7 @@ end = struct
   let factor_type_parser () : factor_type parser =
     integer_type_parser <|> string_type_parser <|> boolean_type_parser
     <|> unit_type_parser <|> float_type_parser <|> type_var_written_parser
-    <|> paren_factor_type_parser <|> vector_type_parser <|> list_type_parser
+    <|> vector_type_parser <|> paren_factor_type_parser <|> list_type_parser
     <|> type_app_parser <|> type_name_parser
 
   let factor_type_parser = factor_type_parser ()
