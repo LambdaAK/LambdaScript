@@ -1235,11 +1235,13 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
           let _, params, body = type_def in
 
           (* Check if this is a sum type (has a dummy body starting with
-             $sum_type_) *)
+             $sum_type_ or $rec_sum_type_) *)
           let is_sum_type =
             match body with
             | TypeVar v ->
-                String.length v > 10 && String.sub v 0 10 = "$sum_type_"
+                (String.length v > 10 && String.sub v 0 10 = "$sum_type_")
+                || (String.length v > 14
+                   && String.sub v 0 14 = "$rec_sum_type_")
             | _ -> false
           in
 
