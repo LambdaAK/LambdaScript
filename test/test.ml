@@ -1781,6 +1781,403 @@ let program_expression_value_tests =
              ~expr:"pair" ~expected_value:"(1, 2)" );
        ]
 
+let sum_type_evaluation_tests =
+  let open ProgramTesting in
+  "sum_type_evaluation"
+  >::: [
+         ( "nullary constructor True" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type BoolResult = | True | False
+             |}
+             ~expr:"True" ~expected_value:"True" );
+         ( "nullary constructor False" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type BoolResult = | True | False
+             |}
+             ~expr:"False" ~expected_value:"False" );
+         ( "constructor with payload" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Option<a> = | Some of a | None
+             |}
+             ~expr:"Some 5" ~expected_value:"Some 5" );
+         ( "nullary constructor None" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Option<a> = | Some of a | None
+             |}
+             ~expr:"None" ~expected_value:"None" );
+         ( "pattern match on True" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type BoolResult = | True | False
+             |}
+             ~expr:
+               {|
+               switch True =>
+               | True -> 1
+               | False -> 0
+             |}
+             ~expected_value:"1" );
+         ( "pattern match on False" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type BoolResult = | True | False
+             |}
+             ~expr:
+               {|
+               switch False =>
+               | True -> 1
+               | False -> 0
+             |}
+             ~expected_value:"0" );
+         ( "pattern match on Some" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Option<a> = | Some of a | None
+             |}
+             ~expr:
+               {|
+               switch Some 42 =>
+               | Some x -> x
+               | None -> 0
+             |}
+             ~expected_value:"42" );
+         ( "pattern match on None" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Option<a> = | Some of a | None
+             |}
+             ~expr:
+               {|
+               switch None =>
+               | Some x -> x
+               | None -> 0
+             |}
+             ~expected_value:"0" );
+         ( "sum type in let binding" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Option<a> = | Some of a | None
+               let x = Some 10
+             |}
+             ~expr:
+               {|
+               switch x =>
+               | Some n -> n * 2
+               | None -> 0
+             |}
+             ~expected_value:"20" );
+         ( "multiple constructors - Red" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Green | Blue
+             |}
+             ~expr:
+               {|
+               switch Red =>
+               | Red -> 1
+               | Green -> 2
+               | Blue -> 3
+             |}
+             ~expected_value:"1" );
+         ( "multiple constructors - Green" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Green | Blue
+             |}
+             ~expr:
+               {|
+               switch Green =>
+               | Red -> 1
+               | Green -> 2
+               | Blue -> 3
+             |}
+             ~expected_value:"2" );
+         ( "multiple constructors - Blue" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Green | Blue
+             |}
+             ~expr:
+               {|
+               switch Blue =>
+               | Red -> 1
+               | Green -> 2
+               | Blue -> 3
+             |}
+             ~expected_value:"3" );
+         ( "constructor with tuple payload" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Pair<a, b> = | Pair of (a, b)
+             |}
+             ~expr:"Pair (1, 2)" ~expected_value:"Pair (1, 2)" );
+         ( "pattern match tuple payload" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Pair<a, b> = | Pair of (a, b)
+             |}
+             ~expr:
+               {|
+               switch Pair (5, 10) =>
+               | Pair (x, y) -> x + y
+             |}
+             ~expected_value:"15" );
+         ( "nested pattern matching" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Option<a> = | Some of a | None
+               let x = Some (Some 42)
+             |}
+             ~expr:
+               {|
+               switch x =>
+               | Some opt ->
+                 switch opt =>
+                 | Some n -> n
+                 | None -> 0
+               | None -> 0
+             |}
+             ~expected_value:"42" );
+         ( "sum type with int payload - Ok" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Result = | Ok of int | Error of int
+             |}
+             ~expr:
+               {|
+               switch Ok 100 =>
+               | Ok n -> n
+               | Error e -> ~-e
+             |}
+             ~expected_value:"100" );
+         ( "sum type with int payload - Error" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Result = | Ok of int | Error of int
+             |}
+             ~expr:
+               {|
+               switch Error 50 =>
+               | Ok n -> n
+               | Error e -> ~-e
+             |}
+             ~expected_value:"-50" );
+         (* Recursive sum types *)
+         ( "recursive list - Nil" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec List<a> = | Nil | Cons of (a, List<a>)
+             |}
+             ~expr:"Nil" ~expected_value:"Nil" );
+         ( "recursive list - Cons with Nil" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec List<a> = | Nil | Cons of (a, List<a>)
+             |}
+             ~expr:"Cons (1, Nil)" ~expected_value:"Cons (1, Nil)" );
+         ( "recursive list - nested Cons" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec List<a> = | Nil | Cons of (a, List<a>)
+             |}
+             ~expr:"Cons (1, Cons (2, Nil))"
+             ~expected_value:"Cons (1, Cons (2, Nil))" );
+         ( "recursive list - pattern match Nil" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec List<a> = | Nil | Cons of (a, List<a>)
+             |}
+             ~expr:
+               {|
+               switch Nil =>
+               | Nil -> 0
+               | Cons (_, _) -> 1
+             |}
+             ~expected_value:"0" );
+         ( "recursive list - pattern match Cons" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec List<a> = | Nil | Cons of (a, List<a>)
+             |}
+             ~expr:
+               {|
+               switch Cons (42, Nil) =>
+               | Nil -> 0
+               | Cons (x, _) -> x
+             |}
+             ~expected_value:"42" );
+         ( "recursive list - length function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec List<a> = | Nil | Cons of (a, List<a>)
+               let rec length lst =
+                 switch lst =>
+                 | Nil -> 0
+                 | Cons (_, t) -> 1 + length t
+             |}
+             ~expr:"length (Cons (1, Cons (2, Cons (3, Nil))))"
+             ~expected_value:"3" );
+         ( "recursive list - sum function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec List<a> = | Nil | Cons of (a, List<a>)
+               let rec sum lst =
+                 switch lst =>
+                 | Nil -> 0
+                 | Cons (h, t) -> h + sum t
+             |}
+             ~expr:"sum (Cons (1, Cons (2, Cons (3, Nil))))" ~expected_value:"6"
+         );
+         ( "recursive binary tree - Leaf" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
+             |}
+             ~expr:"Leaf" ~expected_value:"Leaf" );
+         ( "recursive binary tree - single Node" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
+             |}
+             ~expr:"Node (5, Leaf, Leaf)" ~expected_value:"Node (5, Leaf, Leaf)"
+         );
+         ( "recursive binary tree - nested Node" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
+             |}
+             ~expr:"Node (1, Node (2, Leaf, Leaf), Node (3, Leaf, Leaf))"
+             ~expected_value:
+               "Node (1, Node (2, Leaf, Leaf), Node (3, Leaf, Leaf))" );
+         ( "recursive binary tree - pattern match Leaf" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
+             |}
+             ~expr:
+               {|
+               switch Leaf =>
+               | Leaf -> 0
+               | Node (_, _, _) -> 1
+             |}
+             ~expected_value:"0" );
+         ( "recursive binary tree - pattern match Node" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
+             |}
+             ~expr:
+               {|
+               switch Node (42, Leaf, Leaf) =>
+               | Leaf -> 0
+               | Node (x, _, _) -> x
+             |}
+             ~expected_value:"42" );
+         ( "recursive binary tree - size function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
+               let rec size t =
+                 switch t =>
+                 | Leaf -> 0
+                 | Node (_, left, right) -> 1 + size left + size right
+             |}
+             ~expr:"size (Node (1, Node (2, Leaf, Leaf), Node (3, Leaf, Leaf)))"
+             ~expected_value:"3" );
+         ( "recursive binary tree - sum values" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
+               let rec sum_tree t =
+                 switch t =>
+                 | Leaf -> 0
+                 | Node (x, left, right) -> x + sum_tree left + sum_tree right
+             |}
+             ~expr:
+               "sum_tree (Node (1, Node (2, Leaf, Leaf), Node (3, Leaf, Leaf)))"
+             ~expected_value:"6" );
+         ( "recursive type without parameters" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Nat = | Zero | Succ of Nat
+             |}
+             ~expr:"Zero" ~expected_value:"Zero" );
+         ( "recursive type - Succ constructor" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Nat = | Zero | Succ of Nat
+             |}
+             ~expr:"Succ Zero" ~expected_value:"Succ Zero" );
+         ( "recursive type - nested Succ" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Nat = | Zero | Succ of Nat
+             |}
+             ~expr:"Succ (Succ Zero)" ~expected_value:"Succ (Succ Zero)" );
+         ( "recursive type - pattern match Zero" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Nat = | Zero | Succ of Nat
+             |}
+             ~expr:
+               {|
+               switch Zero =>
+               | Zero -> 0
+               | Succ _ -> 1
+             |}
+             ~expected_value:"0" );
+         ( "recursive type - pattern match Succ" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Nat = | Zero | Succ of Nat
+               let rec to_int n =
+                 switch n =>
+                 | Zero -> 0
+                 | Succ m -> 1 + to_int m
+             |}
+             ~expr:"to_int (Succ (Succ (Succ Zero)))" ~expected_value:"3" );
+       ]
+
 let type_evaluation_tests =
   let open ProgramTesting in
   "type_evaluation"
@@ -2265,6 +2662,7 @@ let all_tests =
       [ program_expression_type_tests ];
       [ program_expression_value_tests ];
       [ type_evaluation_tests ];
+      [ sum_type_evaluation_tests ];
     ]
 
 let suite = "suite" >::: all_tests

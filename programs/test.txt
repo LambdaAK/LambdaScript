@@ -17,3 +17,32 @@ let rec left_fold_tree f leaf_case t =
               let curr_acc = f x left_acc in
               left_fold_tree f curr_acc right
 
+let sum_tree t =
+  fold_tree (\x -> \l -> \r -> x + l + r) 0 t
+
+let left_sum_tree t =
+  left_fold_tree (\x -> \acc -> x + acc) 0 t
+
+
+let tree1 = Leaf
+
+let tree2 [Tree<int>] = Node (1, Leaf, Leaf)
+
+let tree3 = Node (10, Node (5, Leaf, Leaf), Node (15, Leaf, Leaf))
+
+let tree4 = Node (2,
+                  Node (1, Leaf, Leaf),
+                  Node (3, Leaf, Leaf)
+                 )
+
+let tree5 =
+  Node (7,
+    Node (3,
+      Node (1, Leaf, Leaf),
+      Node (5, Leaf, Leaf)
+    ),
+    Node (9,
+      Leaf,
+      Node (11, Leaf, Leaf)
+    )
+  )
