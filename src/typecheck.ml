@@ -159,8 +159,7 @@ and string_of_mono_type (t : mono_type) : string =
   | CTypeApp (name, args) ->
       let args_str = List.map string_of_mono_type args in
       name ^ "<" ^ String.concat ", " args_str ^ ">"
-  | FixedPoint (name, body) ->
-      "μ" ^ name ^ ". " ^ string_of_mono_type body
+  | FixedPoint (name, body) -> "μ" ^ name ^ ". " ^ string_of_mono_type body
 
 (** [generate env e] performs type inference on the expression [e] in the static
     environment [env].
@@ -375,15 +374,39 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
     | None -> return []
   in
   let new_constraint = (t_pat, t1) in
-  (* Generalize the type of e1 before using it in e2 *)
-  let- generalized_type = generalize (new_constraint :: c1) env type_env t1 in
-  let- t2, c2, _ =
-    generate ((fst (List.hd pat_env), generalized_type) :: env) type_env e2
+  (* Check if we're inside a recursive function (indicated by a function with a
+     TypeVar in the environment, which means it's being defined) *)
+  let is_inside_rec_function =
+    List.exists
+      (fun (_, t) ->
+        match t with
+        | Mono (TypeVar _) -> true
+        | _ -> false)
+      env
   in
-  return
-    ( t2,
-      pat_constraints @ annotation_constraints @ (new_constraint :: c1) @ c2,
-      [] )
+  (* If inside a recursive function, don't generalize - just use the type
+     directly to preserve type variable unification *)
+  (* TODO: check if this logic is sound Make sure that we should be not
+     generalizing here in this case *)
+  if is_inside_rec_function then
+    (* Don't generalize - use the type directly *)
+    let- t2, c2, _ =
+      generate ((fst (List.hd pat_env), Mono t1) :: env) type_env e2
+    in
+    return
+      ( t2,
+        pat_constraints @ annotation_constraints @ (new_constraint :: c1) @ c2,
+        [] )
+  else
+    (* Generalize the type of e1 before using it in e2 *)
+    let- generalized_type = generalize (new_constraint :: c1) env type_env t1 in
+    let- t2, c2, _ =
+      generate ((fst (List.hd pat_env), generalized_type) :: env) type_env e2
+    in
+    return
+      ( t2,
+        pat_constraints @ annotation_constraints @ (new_constraint :: c1) @ c2,
+        [] )
 
 (** [generate_e_bind_rec env pat e1 e2] generates type constraints for recursive
     let bindings.
@@ -412,9 +435,8 @@ and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
   (* Add constraint that function_type must equal t1 *)
   let new_constraint = (function_type, t1) in
   (* Generalize the function type to make it polymorphic *)
-  let- generalized_type =
-    generalize (new_constraint :: c1) new_env type_env t1
-  in
+  (* Use env (not new_env) so that the function's type variable can be generalized *)
+  let- generalized_type = generalize (new_constraint :: c1) env type_env t1 in
   let- t2, c2, _ =
     generate ((function_id, generalized_type) :: env) type_env e2
   in
@@ -584,7 +606,8 @@ and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
       (* Look up the constructor in the static environment *)
       match List.assoc_opt cons_name env with
       | None ->
-          (* Constructor not found - this should be a type error but for now return fresh var *)
+          (* Constructor not found - this should be a type error but for now
+             return fresh var *)
           let sum_type = fresh_type_var () in
           (sum_type, [], [])
       | Some cons_type -> (
@@ -601,13 +624,14 @@ and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
                   let payload_pat_type, payload_env, payload_constraints =
                     type_of_pat env type_env payload_pat
                   in
-                  (* Add constraint that payload pattern type matches constructor payload type *)
+                  (* Add constraint that payload pattern type matches
+                     constructor payload type *)
                   ( sum_type,
                     payload_env,
                     (payload_pat_type, payload_type) :: payload_constraints ))
-          | sum_type ->
+          | sum_type -> (
               (* Nullary constructor *)
-              (match payload_pat_opt with
+              match payload_pat_opt with
               | None -> (sum_type, [], [])
               | Some _ ->
                   (* Pattern has payload but constructor is nullary - type error *)
@@ -1105,7 +1129,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       (* For type rec List<a> = | Nil | Cons of a * List<a> *)
       (* We represent this as: ∀a. μList. (Nil | Cons of (a, List<a>)) *)
 
-      (* Create a dummy body for the type environment that indicates this is a recursive sum type *)
+      (* Create a dummy body for the type environment that indicates this is a
+         recursive sum type *)
       let dummy_body = TypeVar ("$rec_sum_type_" ^ type_name) in
       let type_env_entry = [ (type_name, type_params, dummy_body) ] in
 
@@ -1136,7 +1161,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                   | PolyType _ ->
                       failwith "Constructor payload cannot be polymorphic"
                 in
-                (* Convert TypeName references to type parameters into TypeVar *)
+                (* Convert TypeName references to type parameters into
+                   TypeVar *)
                 let rec convert_params_to_vars t =
                   match t with
                   | TypeName v when List.mem v type_params -> TypeVar v
@@ -1151,10 +1177,10 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                   | FixedPoint (name, body) ->
                       FixedPoint (name, convert_params_to_vars body)
                   | _ -> t
-                  
                 in
                 let payload_with_vars = convert_params_to_vars payload_mono in
-                (* Create polymorphic type: ∀params. payload -> SumType<params> *)
+                (* Create polymorphic type: ∀params. payload ->
+                   SumType<params> *)
                 let rec make_poly_type params_left payload sum_type =
                   match params_left with
                   | [] -> Mono (FunctionType (payload, sum_type))
@@ -1240,8 +1266,7 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
             match body with
             | TypeVar v ->
                 (String.length v > 10 && String.sub v 0 10 = "$sum_type_")
-                || (String.length v > 14
-                   && String.sub v 0 14 = "$rec_sum_type_")
+                || (String.length v > 14 && String.sub v 0 14 = "$rec_sum_type_")
             | _ -> false
           in
 
