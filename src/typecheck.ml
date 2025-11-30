@@ -321,7 +321,7 @@ and generate_e_function (env : static_env) (type_env : type_env) (pat : c_pat)
     (cto : c_type option) (body : c_expr) :
     (mono_type * type_equations * type_env) type_check_result =
   let input_type, new_env_bindings, constraints_from_pattern =
-    type_of_pat pat
+    type_of_pat env type_env pat
   in
   let- constraints_from_type_annotation =
     match cto with
@@ -365,7 +365,7 @@ and generate_e_app (env : static_env) (type_env : type_env) (e1 : c_expr)
 and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
     (cto : c_type option) (e1 : c_expr) (e2 : c_expr) :
     (mono_type * type_equations * type_env) type_check_result =
-  let t_pat, pat_env, pat_constraints = type_of_pat pat in
+  let t_pat, pat_env, pat_constraints = type_of_pat env type_env pat in
   let- t1, c1, _ = generate env type_env e1 in
   let- annotation_constraints =
     match cto with
@@ -491,7 +491,9 @@ and generate_e_list_comprehension (env : static_env) (type_env : type_env)
     let rec aux acc_env acc_constraints = function
       | [] -> return (acc_env, acc_constraints)
       | (p, e) :: rest ->
-          let type_of_pattern, pattern_env, const = type_of_pat p in
+          let type_of_pattern, pattern_env, const =
+            type_of_pat acc_env type_env p
+          in
           let- type_of_expression, expression_constraints, _ =
             generate (pattern_env @ acc_env) type_env e
           in
@@ -533,7 +535,9 @@ and generate_e_switch (env : static_env) (type_env : type_env) (e1 : c_expr)
     let rec aux acc_constraints = function
       | [] -> return acc_constraints
       | (pat, expr) :: rest ->
-          let type_of_pattern, pattern_env, const = type_of_pat pat in
+          let type_of_pattern, pattern_env, const =
+            type_of_pat env type_env pat
+          in
           let- type_of_branch_expression, branch_expression_constraints, _ =
             generate (pattern_env @ env) type_env expr
           in
@@ -554,7 +558,8 @@ and generate_e_switch (env : static_env) (type_env : type_env) (e1 : c_expr)
       c1 @ List.flatten branch_constraints,
       [] )
 
-and type_of_pat (pat : c_pat) : mono_type * static_env * type_equations =
+and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
+    mono_type * static_env * type_equations =
   match pat with
   | CIdPat id ->
       let new_var = fresh_type_var () in
@@ -562,32 +567,52 @@ and type_of_pat (pat : c_pat) : mono_type * static_env * type_equations =
   | CUnitPat -> (UnitType, [], [])
   | CWildcardPat -> (fresh_type_var (), [], [])
   | CVectorPat patterns ->
-      let types, envs, eqs = split3 (List.map type_of_pat patterns) in
+      let types, envs, eqs =
+        split3 (List.map (type_of_pat env type_env) patterns)
+      in
       (VectorType types, List.flatten envs, List.flatten eqs)
   | CIntPat _ -> (IntType, [], [])
   | CBoolPat _ -> (BoolType, [], [])
   | CStringPat _ -> (StringType, [], [])
   | CNilPat -> (CListType (fresh_type_var ()), [], [])
   | CConsPat (p1, p2) ->
-      let t1, env1, c1 = type_of_pat p1 in
-      let t2, env2, c2 = type_of_pat p2 in
+      let t1, env1, c1 = type_of_pat env type_env p1 in
+      let t2, env2, c2 = type_of_pat env type_env p2 in
       (* [t1] = t2 *)
       (CListType t1, env1 @ env2, (CListType t1, t2) :: (c1 @ c2))
-  | CVariantPat (_cons_name, payload_pat_opt) -> (
-      match payload_pat_opt with
+  | CVariantPat (cons_name, payload_pat_opt) -> (
+      (* Look up the constructor in the static environment *)
+      match List.assoc_opt cons_name env with
       | None ->
-          (* Nullary constructor - return a fresh type variable for the sum
-             type *)
+          (* Constructor not found - this should be a type error but for now return fresh var *)
           let sum_type = fresh_type_var () in
           (sum_type, [], [])
-      | Some payload_pat ->
-          (* Constructor with payload - return the payload type wrapped in sum
-             type *)
-          let _payload_type, payload_env, payload_constraints =
-            type_of_pat payload_pat
-          in
-          let sum_type = fresh_type_var () in
-          (sum_type, payload_env, payload_constraints))
+      | Some cons_type -> (
+          (* Instantiate the constructor type *)
+          match instantiate cons_type with
+          | FunctionType (payload_type, sum_type) -> (
+              (* Constructor with payload *)
+              match payload_pat_opt with
+              | None ->
+                  (* Pattern has no payload but constructor expects one - type error *)
+                  (* For now, return the sum type *)
+                  (sum_type, [], [])
+              | Some payload_pat ->
+                  let payload_pat_type, payload_env, payload_constraints =
+                    type_of_pat env type_env payload_pat
+                  in
+                  (* Add constraint that payload pattern type matches constructor payload type *)
+                  ( sum_type,
+                    payload_env,
+                    (payload_pat_type, payload_type) :: payload_constraints ))
+          | sum_type ->
+              (* Nullary constructor *)
+              (match payload_pat_opt with
+              | None -> (sum_type, [], [])
+              | Some _ ->
+                  (* Pattern has payload but constructor is nullary - type error *)
+                  (* For now, just ignore the payload *)
+                  (sum_type, [], []))))
 
 and reduce_eq (c : type_equations) (type_env : type_env) : type_equations =
   match c with
@@ -928,7 +953,9 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       let- body_type, body_equations, _ = generate env type_env body in
 
       (* Get pattern type and bindings *)
-      let pattern_type, pattern_env, pattern_equations = type_of_pat pat in
+      let pattern_type, pattern_env, pattern_equations =
+        type_of_pat env type_env pat
+      in
 
       (* Constraint: pattern type must match body type *)
       let pattern_body_constraint = (pattern_type, body_type) in
@@ -966,7 +993,9 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
   | CDefnRec (pat, type_annotation, body) ->
       (* For recursive definitions, we need to add the binding to the
          environment before type checking the body *)
-      let pattern_type, pattern_env, pattern_equations = type_of_pat pat in
+      let pattern_type, pattern_env, pattern_equations =
+        type_of_pat env type_env pat
+      in
 
       (* Create a fresh type variable for the recursive binding *)
       let rec_type = fresh_type_var () in
