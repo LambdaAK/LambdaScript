@@ -97,7 +97,14 @@ and string_of_value = function
       "[" ^ values_string ^ "]"
   | VariantValue (cons_name, None) -> cons_name
   | VariantValue (cons_name, Some payload) ->
-      cons_name ^ " " ^ string_of_value payload
+      let payload_str = string_of_value payload in
+      let needs_parens =
+        match payload with
+        | VariantValue (_, Some _) -> true
+        | _ -> false
+      in
+      if needs_parens then cons_name ^ " (" ^ payload_str ^ ")"
+      else cons_name ^ " " ^ payload_str
 
 (** [bind_pat p v] attempts to match a pattern [p] against a value [v]. If
     successful, returns Some bindings where bindings is a list of (id, value)
@@ -598,9 +605,9 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       return constructor_bindings
   | CSumTypeRec (_type_name, _type_params, constructors) ->
       (* Recursive sum types work the same way at runtime as regular sum types.
-         The recursion is handled at the type level via FixedPoint.
-         Constructors implicitly perform the "fold" operation, and pattern matching
-         performs the "unfold" operation. *)
+         The recursion is handled at the type level via FixedPoint. Constructors
+         implicitly perform the "fold" operation, and pattern matching performs
+         the "unfold" operation. *)
       let constructor_bindings =
         List.map
           (fun (cons_name, payload_type_opt) ->
@@ -609,13 +616,11 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
                 (* Nullary constructor - it's just a value, not a function *)
                 (cons_name, VariantValue (cons_name, None))
             | Some _ ->
-                (* Constructor with payload - create a function that wraps payload in VariantValue *)
+                (* Constructor with payload - create a function that wraps
+                   payload in VariantValue *)
                 ( cons_name,
                   FunctionClosure
-                    ( [],
-                      CIdPat ("__constructor_" ^ cons_name),
-                      None,
-                      EUnit ) ))
+                    ([], CIdPat ("__constructor_" ^ cons_name), None, EUnit) ))
           constructors
       in
       return constructor_bindings
