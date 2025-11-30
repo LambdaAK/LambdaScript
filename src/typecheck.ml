@@ -664,6 +664,29 @@ and reduce_eq (c : type_equations) (type_env : type_env) : type_equations =
                   ((type1, type2) :: (VectorType tail1, VectorType tail2) :: c')
                   type_env
             | _ -> raise TypeFailure (* TOOD: replace these with Errors *))
+        | FixedPoint (name1, body1), FixedPoint (name2, body2) ->
+            if name1 = name2 then
+              (* Same recursive type - unify their bodies *)
+              reduce_eq ((body1, body2) :: c') type_env
+            else raise TypeFailure
+        | FixedPoint (name, body), CTypeApp (app_name, args) ->
+            (* Check if CTypeApp represents the same recursive type *)
+            if name = app_name then
+              (* Unify the body with the CTypeApp - for recursive types, the
+                 CTypeApp is the representation *)
+              reduce_eq ((body, CTypeApp (app_name, args)) :: c') type_env
+            else raise TypeFailure
+        | CTypeApp (app_name, args), FixedPoint (name, body) ->
+            (* Same as above, but reversed *)
+            if name = app_name then
+              reduce_eq ((CTypeApp (app_name, args), body) :: c') type_env
+            else raise TypeFailure
+        | TypeName name1, CTypeApp (name2, _) ->
+            (* TypeName can unify with CTypeApp if they have the same name *)
+            if name1 = name2 then reduce_eq c' type_env else raise TypeFailure
+        | CTypeApp (name1, _), TypeName name2 ->
+            (* Same as above, but reversed *)
+            if name1 = name2 then reduce_eq c' type_env else raise TypeFailure
         | _ -> raise TypeFailure)
 
 (** [get_type var subs] applies a substitution to a type variable.
@@ -766,6 +789,7 @@ and inside (inside_type : mono_type) (outside_type : mono_type) : bool =
   | VectorType ts -> List.exists (inside inside_type) ts
   | CListType t -> inside inside_type t
   | CTypeApp (_, args) -> List.exists (inside inside_type) args
+  | FixedPoint (_, body) -> inside inside_type body
   | _ -> false
 
 (** [is_basic_type t] checks if a type is a basic type (int, bool, string,
@@ -1129,10 +1153,13 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       (* For type rec List<a> = | Nil | Cons of a * List<a> *)
       (* We represent this as: ∀a. μList. (Nil | Cons of (a, List<a>)) *)
 
-      (* Create a dummy body for the type environment that indicates this is a
-         recursive sum type *)
-      let dummy_body = TypeVar ("$rec_sum_type_" ^ type_name) in
-      let type_env_entry = [ (type_name, type_params, dummy_body) ] in
+      (* Create a FixedPoint body for the type environment *)
+      (* For recursive types, we use μtype_name. CTypeApp(type_name, params) *)
+      let sum_type_app =
+        CTypeApp (type_name, List.map (fun p -> TypeVar p) type_params)
+      in
+      let fixedpoint_body = FixedPoint (type_name, sum_type_app) in
+      let type_env_entry = [ (type_name, type_params, fixedpoint_body) ] in
 
       (* Create constructor bindings *)
       (* For recursive types, the type is μtype_name.body *)
@@ -1261,18 +1288,42 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
           let _, params, body = type_def in
 
           (* Check if this is a sum type (has a dummy body starting with
-             $sum_type_ or $rec_sum_type_) *)
-          let is_sum_type =
+             $sum_type_) or a recursive sum type (FixedPoint) *)
+          let is_sum_type, is_fixedpoint =
             match body with
             | TypeVar v ->
-                (String.length v > 10 && String.sub v 0 10 = "$sum_type_")
-                || (String.length v > 14 && String.sub v 0 14 = "$rec_sum_type_")
-            | _ -> false
+                (String.length v > 10 && String.sub v 0 10 = "$sum_type_", false)
+            | FixedPoint _ -> (true, true)
+            | _ -> (false, false)
           in
 
           (* For sum types, don't simplify - just return the CTypeApp with
              simplified args *)
-          if is_sum_type then return (CTypeApp (name, simplified_args))
+          (* For recursive sum types (FixedPoint), return the FixedPoint with
+             simplified params substituted *)
+          if is_sum_type then
+            if is_fixedpoint then
+              (* Substitute the type parameters in the FixedPoint body *)
+              match body with
+              | FixedPoint (fp_name, fp_body) ->
+                  let subst = List.combine params simplified_args in
+                  let rec apply_subst t =
+                    match t with
+                    | TypeVar v -> (
+                        match List.assoc_opt v subst with
+                        | Some arg -> arg
+                        | None -> t)
+                    | FunctionType (i, o) ->
+                        FunctionType (apply_subst i, apply_subst o)
+                    | VectorType types -> VectorType (List.map apply_subst types)
+                    | CListType et -> CListType (apply_subst et)
+                    | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
+                    | FixedPoint (n, b) -> FixedPoint (n, apply_subst b)
+                    | _ -> t
+                  in
+                  return (FixedPoint (fp_name, apply_subst fp_body))
+              | _ -> return (CTypeApp (name, simplified_args))
+            else return (CTypeApp (name, simplified_args))
           else
             (* Create substitution mapping type parameters to their evaluated
                arguments *)
