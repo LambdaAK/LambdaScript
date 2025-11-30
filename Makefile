@@ -22,6 +22,10 @@ repl-with-file:
 	dune build bin/repl.exe
 	dune exec ./bin/repl.exe "$(FILE)"
 
+repl-test:
+	dune build bin/repl.exe
+	dune exec ./bin/repl.exe "./programs/test.txt"
+
 old_repl:
 	dune build bin/old_repl.exe
 	dune exec ./bin/old_repl.exe

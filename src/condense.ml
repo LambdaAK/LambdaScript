@@ -17,6 +17,13 @@ and condense_sub_pat : sub_pat -> c_pat = function
   | WildcardPat -> CWildcardPat
   | Pat pat -> condense_pat pat
   | InfixPat s -> CIdPat s
+  | VariantPat (name, payload_pat_opt) ->
+      let payload_c_pat_opt =
+        match payload_pat_opt with
+        | None -> None
+        | Some p -> Some (condense_pat p)
+      in
+      CVariantPat (name, payload_c_pat_opt)
 
 let rec condense_defn : defn -> c_defn = function
   | Defn (pattern, cto, body_expression) ->

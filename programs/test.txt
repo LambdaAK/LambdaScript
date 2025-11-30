@@ -1,7 +1,6 @@
-type rec List<a> =
-  | Nil
-  | Cons of (a, List<a>)
+type Option<a> = | None | Some of a
 
-let empty = Nil
-
-let one = Cons(1, Nil)
+let unpack o =
+    switch o =>
+    | None -> 0
+    | Some v -> v

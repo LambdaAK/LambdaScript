@@ -13,6 +13,7 @@ and sub_pat =
   | NilPat
   | Pat of pat
   | InfixPat of string
+  | VariantPat of string * pat option
 
 type rel_op =
   | EQ

@@ -296,7 +296,13 @@ end = struct
   module rec SubPatParser : sig
     val sub_pat_parser : sub_pat parser
   end = struct
-    let id_pat_parser : sub_pat parser =
+    let is_uppercase_first (s : string) : bool =
+      if String.length s = 0 then false
+      else
+        let c = String.get s 0 in
+        c >= 'A' && c <= 'Z'
+
+    let id_or_variant_pat_parser : sub_pat parser =
       (* next token should be id *)
       let* id =
         expect_token_get_data (function
@@ -304,7 +310,21 @@ end = struct
           | _ -> None)
       in
 
-      return (IdPat id)
+      (* Check if it starts with uppercase - if so, it's a constructor *)
+      if is_uppercase_first id then
+        (* Try to parse an optional payload pattern *)
+        let* payload_option =
+          (let* payload_sub_pat = SubPatParser.sub_pat_parser in
+           let payload_pat = SubPat payload_sub_pat in
+           return (Some payload_pat))
+          <|> return None
+        in
+        return (VariantPat (id, payload_option))
+      else
+        (* Lowercase - it's a variable pattern *)
+        return (IdPat id)
+
+    let id_pat_parser : sub_pat parser = id_or_variant_pat_parser
 
     let unit_pat_parser : sub_pat parser =
       let* () = expect_token Unit in

@@ -32,6 +32,10 @@ and string_of_sub_pat : sub_pat -> string = function
   | StringPat s -> "String Pattern (" ^ s ^ ")"
   | Pat p -> string_of_pat p
   | InfixPat s -> "Infix Pattern (" ^ s ^ ")"
+  | VariantPat (name, payload_opt) -> (
+      match payload_opt with
+      | None -> "Variant Pattern (" ^ name ^ ")"
+      | Some p -> "Variant Pattern (" ^ name ^ ", " ^ string_of_pat p ^ ")")
 
 let string_of_rel_op : rel_op -> string = function
   | EQ -> "EQ"
