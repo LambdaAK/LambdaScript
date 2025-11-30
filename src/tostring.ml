@@ -468,5 +468,18 @@ and string_of_defn (d : defn) (level : int) =
                    cons_name ^ " of " ^ string_of_compound_type ct (level + 1))
              constructors)
       ^ "])"
+  | SumTypeDefRec (name, args, constructors) ->
+      "SumTypeDefRec (" ^ name
+      ^ (if args = [] then "" else ", [" ^ String.concat ", " args ^ "]")
+      ^ ", ["
+      ^ String.concat ", "
+          (List.map
+             (fun (cons_name, payload_type_opt) ->
+               match payload_type_opt with
+               | None -> cons_name
+               | Some ct ->
+                   cons_name ^ " of " ^ string_of_compound_type ct (level + 1))
+             constructors)
+      ^ "])"
 
 let string_of_expr (e : expr) = string_of_expr e 0

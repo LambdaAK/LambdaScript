@@ -159,6 +159,8 @@ and string_of_mono_type (t : mono_type) : string =
   | CTypeApp (name, args) ->
       let args_str = List.map string_of_mono_type args in
       name ^ "<" ^ String.concat ", " args_str ^ ">"
+  | FixedPoint (name, body) ->
+      "μ" ^ name ^ ". " ^ string_of_mono_type body
 
 (** [generate env e] performs type inference on the expression [e] in the static
     environment [env].
@@ -682,6 +684,10 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
             aux (arg_type :: acc) rest
       in
       aux [] args
+  | FixedPoint (name, body) ->
+      (* Apply substitution to the body of the fixed point *)
+      let- body_type = get_type body subs type_env in
+      return (FixedPoint (name, body_type))
 
 and get_type_of_type_var (var : string) (subs : type_equations)
     (type_env : type_env) : mono_type type_check_result =
@@ -727,6 +733,7 @@ and is_basic_type (t : mono_type) : bool =
   | CListType et -> is_basic_type et
   | TypeName _ -> false
   | CTypeApp _ -> false
+  | FixedPoint (_, body) -> is_basic_type body
 
 (** [substitute var_id t equations] substitutes a type variable with a type
     throughout a list of type equations.
@@ -757,6 +764,7 @@ and substitute (var_id : string) (t : mono_type) (equations : type_equations) :
     | CListType et -> CListType (substitute_in_type et)
     | TypeName v -> TypeName v
     | CTypeApp (name, args) -> CTypeApp (name, List.map substitute_in_type args)
+    | FixedPoint (name, body) -> FixedPoint (name, substitute_in_type body)
   in
   match equations with
   | [] -> []
@@ -1063,6 +1071,72 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
           constructors
       in
       return (constructor_bindings, type_env_entry)
+  | CSumTypeRec (type_name, type_params, constructors) ->
+      (* Recursive sum types use FixedPoint (μ) to represent the recursion *)
+      (* For type rec List<a> = | Nil | Cons of a * List<a> *)
+      (* We represent this as: ∀a. μList. (Nil | Cons of (a, List<a>)) *)
+
+      (* Create a dummy body for the type environment that indicates this is a recursive sum type *)
+      let dummy_body = TypeVar ("$rec_sum_type_" ^ type_name) in
+      let type_env_entry = [ (type_name, type_params, dummy_body) ] in
+
+      (* Create constructor bindings *)
+      (* For recursive types, the type is μtype_name.body *)
+      let constructor_bindings =
+        List.map
+          (fun (cons_name, payload_type_opt) ->
+            (* The sum type application (e.g., List<a>) *)
+            let sum_type_app =
+              CTypeApp (type_name, List.map (fun p -> TypeVar p) type_params)
+            in
+            match payload_type_opt with
+            | None ->
+                (* Nullary constructor - just the sum type *)
+                (* Wrap in polymorphic type if there are parameters *)
+                let rec make_poly params_left =
+                  match params_left with
+                  | [] -> Mono sum_type_app
+                  | param :: rest -> PolyType (param, make_poly rest)
+                in
+                (cons_name, make_poly type_params)
+            | Some payload_type ->
+                (* Constructor with payload *)
+                let payload_mono =
+                  match payload_type with
+                  | Mono m -> m
+                  | PolyType _ ->
+                      failwith "Constructor payload cannot be polymorphic"
+                in
+                (* Convert TypeName references to type parameters into TypeVar *)
+                let rec convert_params_to_vars t =
+                  match t with
+                  | TypeName v when List.mem v type_params -> TypeVar v
+                  | FunctionType (t1, t2) ->
+                      FunctionType
+                        (convert_params_to_vars t1, convert_params_to_vars t2)
+                  | VectorType ts ->
+                      VectorType (List.map convert_params_to_vars ts)
+                  | CListType t -> CListType (convert_params_to_vars t)
+                  | CTypeApp (name, args) ->
+                      CTypeApp (name, List.map convert_params_to_vars args)
+                  | FixedPoint (name, body) ->
+                      FixedPoint (name, convert_params_to_vars body)
+                  | _ -> t
+                  
+                in
+                let payload_with_vars = convert_params_to_vars payload_mono in
+                (* Create polymorphic type: ∀params. payload -> SumType<params> *)
+                let rec make_poly_type params_left payload sum_type =
+                  match params_left with
+                  | [] -> Mono (FunctionType (payload, sum_type))
+                  | param :: rest ->
+                      PolyType (param, make_poly_type rest payload sum_type)
+                in
+                ( cons_name,
+                  make_poly_type type_params payload_with_vars sum_type_app ))
+          constructors
+      in
+      return (constructor_bindings, type_env_entry)
 
 (* Given a type with type names, simplify it by replacing the type names with
    the actual types
@@ -1171,6 +1245,7 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
               | VectorType types -> VectorType (List.map apply_subst types)
               | CListType et -> CListType (apply_subst et)
               | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
+              | FixedPoint (name, body) -> FixedPoint (name, apply_subst body)
               | _ -> t
             in
 
@@ -1178,6 +1253,10 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
             let substituted = apply_subst body in
             simplify_mono_type substituted type_env
       | None -> Error (OtherError ("Type not found: " ^ name)))
+  | FixedPoint (name, body) ->
+      (* Simplify the body of the fixed point *)
+      let- body_simplified = simplify_mono_type body type_env in
+      return (FixedPoint (name, body_simplified))
 
 let rec get_mono_type (t : c_type) : mono_type =
   match t with

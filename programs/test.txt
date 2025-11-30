@@ -1,23 +1,7 @@
-type TypeOne<a> = (a, int)
+type rec List<a> =
+  | Nil
+  | Cons of (a, List<a>)
 
-type TypeTwo<a> = (a, TypeOne<a>)
+let empty = Nil
 
-type TypeThree<a> = (a, TypeTwo<a>)
-
-type TypeFour<a> = (a, TypeThree<a>)
-
-type TypeFive<a> = (a, TypeFour<a>)
-
-type TypeSix<a> = (a, TypeFive<a>)
-
-type TypeSeven<a> = (a, TypeSix<a>)
-
-type TypeEight<a> = (a, TypeSeven<a>)
-
-type TypeNine<a> = (a, TypeEight<a>)
-
-type TypeTen<a> = (a, TypeNine<a>)
-
-let myval [TypeTen<int>] = (0, (0, (0, (0, (0, (0, (0, (0, (0, (0, 0))))))))))
-
-
+let one = Cons(1, Nil)

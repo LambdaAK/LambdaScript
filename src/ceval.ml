@@ -596,6 +596,29 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
           constructors
       in
       return constructor_bindings
+  | CSumTypeRec (_type_name, _type_params, constructors) ->
+      (* Recursive sum types work the same way at runtime as regular sum types.
+         The recursion is handled at the type level via FixedPoint.
+         Constructors implicitly perform the "fold" operation, and pattern matching
+         performs the "unfold" operation. *)
+      let constructor_bindings =
+        List.map
+          (fun (cons_name, payload_type_opt) ->
+            match payload_type_opt with
+            | None ->
+                (* Nullary constructor - it's just a value, not a function *)
+                (cons_name, VariantValue (cons_name, None))
+            | Some _ ->
+                (* Constructor with payload - create a function that wraps payload in VariantValue *)
+                ( cons_name,
+                  FunctionClosure
+                    ( [],
+                      CIdPat ("__constructor_" ^ cons_name),
+                      None,
+                      EUnit ) ))
+          constructors
+      in
+      return constructor_bindings
 
 and string_of_bop = function
   | CPlus -> "+"

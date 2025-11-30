@@ -48,6 +48,7 @@ let rec create_substitution (t : mono_type) (seen : string list) :
           (acc @ subs, seen @ List.map fst subs))
         ([], seen) args
       |> fst
+  | FixedPoint (_, body) -> create_substitution body seen
 
 (* There may be type variables in t. We need to replace them with variables 1,
    2, ....
@@ -73,6 +74,8 @@ let fix_type (t : mono_type) : mono_type =
     | TypeName v -> TypeName v
     | CTypeApp (name, args) ->
         CTypeApp (name, List.map (fun t -> apply_substitution t subs) args)
+    | FixedPoint (name, body) ->
+        FixedPoint (name, apply_substitution body subs)
   in
   let subs = create_substitution t [] in
   apply_substitution t subs

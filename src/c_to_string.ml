@@ -22,6 +22,8 @@ let rec string_of_mono_type : mono_type -> string = function
   | CTypeApp (name, args) ->
       let args_str = List.map string_of_mono_type args in
       name ^ "<" ^ String.concat ", " args_str ^ ">"
+  | FixedPoint (name, body) ->
+      "μ" ^ name ^ ". " ^ string_of_mono_type body
 
 let string_of_c_type (ct : c_type) : string =
   let rec collect_vars acc = function
@@ -178,6 +180,22 @@ and string_of_defn : c_defn -> string = function
           constructors
       in
       "type " ^ name ^ args_str ^ " = " ^ String.concat "\n  " constructors_str
+  | CSumTypeRec (name, args, constructors) ->
+      let args_str =
+        match args with
+        | [] -> ""
+        | _ -> "<" ^ String.concat ", " args ^ ">"
+      in
+      let constructors_str =
+        List.map
+          (fun (cons_name, payload_type_opt) ->
+            match payload_type_opt with
+            | None -> "| " ^ cons_name
+            | Some payload_type ->
+                "| " ^ cons_name ^ " of " ^ string_of_c_type payload_type)
+          constructors
+      in
+      "type rec " ^ name ^ args_str ^ " = " ^ String.concat "\n  " constructors_str
 
 let rec string_of_program : c_program -> string = function
   | [] -> ""

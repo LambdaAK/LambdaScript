@@ -301,7 +301,62 @@ let rec run_repl_loop static_env dynamic_env type_env history =
       print_colored_line (color_bold ^ color_cyan) "Goodbye! 👋";
       exit 0
 
-let run_repl () =
+let load_file_into_env filename static_env dynamic_env type_env =
+  try
+    let ic = open_in filename in
+    let content = really_input_string ic (in_channel_length ic) in
+    close_in ic;
+
+    let input = content |> String.to_seq |> List.of_seq in
+    let tokens = lex input |> List.map (fun t -> t.token_type) in
+
+    (* Try to parse as a program (multiple definitions) *)
+    match Language.Parser.ProgramParser.program_parser tokens with
+    | Some (program, []) ->
+        (* Successfully parsed entire file as a program *)
+        let condensed_program = List.map condense_defn program in
+
+        (* Process each definition sequentially *)
+        let rec process_defns static_env dynamic_env type_env = function
+          | [] -> (static_env, dynamic_env, type_env)
+          | defn :: rest ->
+              match generate_defn static_env type_env defn with
+              | Ok (new_static_bindings, new_type_env) ->
+                  let new_dynamic_bindings =
+                    unwrap_eval_result (eval_defn defn dynamic_env)
+                  in
+                  process_defns
+                    (new_static_bindings @ static_env)
+                    (new_dynamic_bindings @ dynamic_env)
+                    (new_type_env @ type_env)
+                    rest
+              | Error e ->
+                  print_error (string_of_type_check_error e);
+                  (static_env, dynamic_env, type_env)
+        in
+
+        let new_static_env, new_dynamic_env, new_type_env =
+          process_defns static_env dynamic_env type_env condensed_program
+        in
+
+        print_colored_line color_green ("Loaded " ^ filename);
+        (new_static_env, new_dynamic_env, new_type_env)
+    | Some (_, remaining) ->
+        print_error ("Warning: " ^ string_of_int (List.length remaining) ^
+                    " tokens remaining after parsing");
+        (static_env, dynamic_env, type_env)
+    | None ->
+        print_error "Failed to parse file";
+        (static_env, dynamic_env, type_env)
+  with
+  | Sys_error msg ->
+      print_error ("File error: " ^ msg);
+      (static_env, dynamic_env, type_env)
+  | e ->
+      print_error ("Error loading file: " ^ Printexc.to_string e);
+      (static_env, dynamic_env, type_env)
+
+let run_repl ?preload_file () =
   (* Print welcome message *)
   print_colored_line (color_bold ^ color_cyan) "💻 LambdaScript REPL";
   print_colored_line color_dim "Type :help for commands, :quit to exit";
@@ -312,7 +367,29 @@ let run_repl () =
     Language.Ceval.initial_env () |> Language.Ceval.unwrap_eval_result
   in
   let type_env = [] in
+
+  (* Load preload file if provided *)
+  let static_env, dynamic_env, type_env =
+    match preload_file with
+    | Some filename ->
+        print_colored_line color_dim ("Preloading " ^ filename ^ "...");
+        load_file_into_env filename static_env dynamic_env type_env
+    | None -> (static_env, dynamic_env, type_env)
+  in
+
   let history = [] in
   run_repl_loop static_env dynamic_env type_env history
 
-let () = run_repl ()
+let () =
+  match Array.length Sys.argv with
+  | 1 ->
+      (* No arguments - start REPL normally *)
+      run_repl ()
+  | 2 ->
+      (* One argument - preload the file *)
+      let filename = Sys.argv.(1) in
+      run_repl ~preload_file:filename ()
+  | _ ->
+      print_endline "Usage: repl [file_to_preload]";
+      print_endline "  Start the REPL, optionally preloading definitions from a file";
+      exit 1

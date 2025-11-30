@@ -1050,6 +1050,44 @@ end = struct
       let* ct = CompoundTypeParser.compound_type_parser in
       return (TypeDef (name, [], ct))
 
+  let rec_sum_type_defn_parser_with_args () : defn parser =
+    let* () = expect_token Type in
+    let* () = expect_token Rec in
+    let* name =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* () =
+      expect_token_get_data (function
+        | Relop "<" -> Some ()
+        | _ -> None)
+    in
+    (* Parse a list of identifiers and store the strings *)
+    let* args : string list = parse_sep_delim string_parser Comma in
+    let* () =
+      expect_token_get_data (function
+        | Relop ">" -> Some ()
+        | _ -> None)
+    in
+    let* () = expect_token Equals in
+    (* Parse constructors *)
+    let* constructors = parse_several constructor_parser in
+    return (SumTypeDefRec (name, args, constructors))
+
+  let rec_sum_type_defn_parser_no_args () : defn parser =
+    let* () = expect_token Type in
+    let* () = expect_token Rec in
+    let* name =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* () = expect_token Equals in
+    (* Parse constructors *)
+    let* constructors = parse_several constructor_parser in
+    return (SumTypeDefRec (name, [], constructors))
+
   let sum_type_defn_parser_with_args () : defn parser =
     let* () = expect_token Type in
     let* name =
@@ -1119,6 +1157,8 @@ end = struct
   let defn_parser : defn parser =
     type_alias_defn_parser_with_args ()
     <|> type_alias_defn_parser_no_args ()
+    <|> rec_sum_type_defn_parser_with_args ()
+    <|> rec_sum_type_defn_parser_no_args ()
     <|> sum_type_defn_parser_with_args ()
     <|> sum_type_defn_parser_no_args ()
     <|> let_rec_defn_parser () <|> let_defn_parser ()

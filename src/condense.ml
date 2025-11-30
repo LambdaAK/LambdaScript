@@ -52,6 +52,19 @@ let rec condense_defn : defn -> c_defn = function
           constructors
       in
       CSumType (name, type_params, condensed_constructors)
+  | SumTypeDefRec (name, type_params, constructors) ->
+      let condensed_constructors =
+        List.map
+          (fun (cons_name, payload_type_opt) ->
+            ( cons_name,
+              match payload_type_opt with
+              | None -> None
+              | Some ct ->
+                  let mono_t = condense_compound_type ct in
+                  Some (Mono mono_t) ))
+          constructors
+      in
+      CSumTypeRec (name, type_params, condensed_constructors)
 
 and condense_expr : expr -> c_expr = function
   | Function (pat, ct_opt, expr) ->
@@ -224,3 +237,4 @@ and all_type_vars_in_type : mono_type -> string list = function
   | CTypeApp (_, args) ->
       List.concat (List.map all_type_vars_in_type args)
       |> List.sort_uniq compare
+  | FixedPoint (_, body) -> all_type_vars_in_type body

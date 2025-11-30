@@ -18,6 +18,10 @@ repl:
 	dune build bin/repl.exe
 	dune exec ./bin/repl.exe
 
+repl-with-file:
+	dune build bin/repl.exe
+	dune exec ./bin/repl.exe "$(FILE)"
+
 old_repl:
 	dune build bin/old_repl.exe
 	dune exec ./bin/old_repl.exe
