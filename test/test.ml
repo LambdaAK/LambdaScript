@@ -2643,6 +2643,905 @@ let type_evaluation_tests =
            assert_equal result "(bool, int, str)" );
        ]
 
+let red_black_tree_tests =
+  let open ProgramTesting in
+  "red_black_tree"
+  >::: [
+         (* Basic type definitions *)
+         ( "rb tree type definition" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type Color = | Red | Black
+             type rec RBTree<a> =
+               | Leaf
+               | Node of (Color, a, RBTree<a>, RBTree<a>)
+           |} );
+         ( "create empty rb tree" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+             |}
+             ~expr:"Leaf"
+             ~expected_value:"Leaf" );
+         ( "create red node" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+             |}
+             ~expr:"Node (Red, 5, Leaf, Leaf)"
+             ~expected_value:"Node (Red, 5, Leaf, Leaf)" );
+         ( "create black node" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+             |}
+             ~expr:"Node (Black, 10, Leaf, Leaf)"
+             ~expected_value:"Node (Black, 10, Leaf, Leaf)" );
+         (* Basic tree operations *)
+         ( "rb tree contains function type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec contains x tree =
+                 switch tree =>
+                 | Leaf -> false
+                 | Node (_, y, left, right) ->
+                     if x == y then true
+                     else if x < y then contains x left
+                     else contains x right
+             |}
+             ~expr:"contains"
+             ~expected_type:"int -> RBTree<int> -> bool" );
+         ( "rb tree contains - empty tree" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec contains x tree =
+                 switch tree =>
+                 | Leaf -> false
+                 | Node (_, y, left, right) ->
+                     if x == y then true
+                     else if x < y then contains x left
+                     else contains x right
+             |}
+             ~expr:"contains 5 Leaf"
+             ~expected_value:"false" );
+         ( "rb tree contains - single node found" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec contains x tree =
+                 switch tree =>
+                 | Leaf -> false
+                 | Node (_, y, left, right) ->
+                     if x == y then true
+                     else if x < y then contains x left
+                     else contains x right
+             |}
+             ~expr:"contains 5 (Node (Black, 5, Leaf, Leaf))"
+             ~expected_value:"true" );
+         ( "rb tree contains - single node not found" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec contains x tree =
+                 switch tree =>
+                 | Leaf -> false
+                 | Node (_, y, left, right) ->
+                     if x == y then true
+                     else if x < y then contains x left
+                     else contains x right
+             |}
+             ~expr:"contains 10 (Node (Black, 5, Leaf, Leaf))"
+             ~expected_value:"false" );
+         (* Balance function *)
+         ( "rb tree balance function type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let balance tree =
+                 switch tree =>
+                 | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, z, Node (Red, y, b, c), d)) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, y, b, Node (Red, z, c, d))) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | _ -> tree
+             |}
+             ~expr:"balance"
+             ~expected_type:"RBTree<'a> -> RBTree<'a>" );
+         ( "rb tree balance - no rebalancing needed" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let balance tree =
+                 switch tree =>
+                 | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, z, Node (Red, y, b, c), d)) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, y, b, Node (Red, z, c, d))) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | _ -> tree
+             |}
+             ~expr:"balance (Node (Black, 5, Leaf, Leaf))"
+             ~expected_value:"Node (Black, 5, Leaf, Leaf)" );
+         (* Size function *)
+         ( "rb tree size function" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec size tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, _, left, right) -> 1 + size left + size right
+             |}
+             ~expr:"size"
+             ~expected_type:"RBTree<'a> -> int" );
+         ( "rb tree size - empty" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec size tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, _, left, right) -> 1 + size left + size right
+             |}
+             ~expr:"size Leaf"
+             ~expected_value:"0" );
+         ( "rb tree size - single node" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec size tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, _, left, right) -> 1 + size left + size right
+             |}
+             ~expr:"size (Node (Black, 5, Leaf, Leaf))"
+             ~expected_value:"1" );
+         ( "rb tree size - three nodes" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec size tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, _, left, right) -> 1 + size left + size right
+             |}
+             ~expr:"size (Node (Black, 5, Node (Red, 3, Leaf, Leaf), Node (Red, 7, Leaf, Leaf)))"
+             ~expected_value:"3" );
+         (* Height function *)
+         ( "rb tree height function" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec height tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, _, left, right) ->
+                     let left_h = height left in
+                     let right_h = height right in
+                     1 + (if left_h > right_h then left_h else right_h)
+             |}
+             ~expr:"height"
+             ~expected_type:"RBTree<'a> -> int" );
+         ( "rb tree height - empty" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec height tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, _, left, right) ->
+                     let left_h = height left in
+                     let right_h = height right in
+                     1 + (if left_h > right_h then left_h else right_h)
+             |}
+             ~expr:"height Leaf"
+             ~expected_value:"0" );
+         ( "rb tree height - single node" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec height tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, _, left, right) ->
+                     let left_h = height left in
+                     let right_h = height right in
+                     1 + (if left_h > right_h then left_h else right_h)
+             |}
+             ~expr:"height (Node (Black, 5, Leaf, Leaf))"
+             ~expected_value:"1" );
+         ( "rb tree height - balanced tree" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec height tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, _, left, right) ->
+                     let left_h = height left in
+                     let right_h = height right in
+                     1 + (if left_h > right_h then left_h else right_h)
+             |}
+             ~expr:"height (Node (Black, 5, Node (Red, 3, Leaf, Leaf), Node (Red, 7, Leaf, Leaf)))"
+             ~expected_value:"2" );
+         (* Min/Max functions *)
+         ( "rb tree minimum function" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec minimum tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, x, Leaf, _) -> x
+                 | Node (_, _, left, _) -> minimum left
+             |}
+             ~expr:"minimum"
+             ~expected_type:"RBTree<int> -> int" );
+         ( "rb tree minimum - single node" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec minimum tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, x, Leaf, _) -> x
+                 | Node (_, _, left, _) -> minimum left
+             |}
+             ~expr:"minimum (Node (Black, 5, Leaf, Leaf))"
+             ~expected_value:"5" );
+         ( "rb tree minimum - multiple nodes" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec minimum tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, x, Leaf, _) -> x
+                 | Node (_, _, left, _) -> minimum left
+             |}
+             ~expr:"minimum (Node (Black, 5, Node (Red, 3, Node (Black, 1, Leaf, Leaf), Leaf), Leaf))"
+             ~expected_value:"1" );
+         ( "rb tree maximum function" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec maximum tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, x, _, Leaf) -> x
+                 | Node (_, _, _, right) -> maximum right
+             |}
+             ~expr:"maximum"
+             ~expected_type:"RBTree<int> -> int" );
+         ( "rb tree maximum - single node" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec maximum tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, x, _, Leaf) -> x
+                 | Node (_, _, _, right) -> maximum right
+             |}
+             ~expr:"maximum (Node (Black, 5, Leaf, Leaf))"
+             ~expected_value:"5" );
+         ( "rb tree maximum - multiple nodes" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec maximum tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, x, _, Leaf) -> x
+                 | Node (_, _, _, right) -> maximum right
+             |}
+             ~expr:"maximum (Node (Black, 5, Leaf, Node (Red, 7, Leaf, Node (Black, 9, Leaf, Leaf))))"
+             ~expected_value:"9" );
+         (* Complex tree structure tests *)
+         ( "rb tree complex structure" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let tree = Node (Black, 5,
+                           Node (Red, 3,
+                             Node (Black, 1, Leaf, Leaf),
+                             Node (Black, 4, Leaf, Leaf)),
+                           Node (Red, 7,
+                             Node (Black, 6, Leaf, Leaf),
+                             Node (Black, 9, Leaf, Leaf)))
+             |}
+             ~expr:"tree"
+             ~expected_value:"Node (Black, 5, Node (Red, 3, Node (Black, 1, Leaf, Leaf), Node (Black, 4, Leaf, Leaf)), Node (Red, 7, Node (Black, 6, Leaf, Leaf), Node (Black, 9, Leaf, Leaf)))" );
+         ( "rb tree complex structure - size" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec size tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, _, left, right) -> 1 + size left + size right
+
+               let tree = Node (Black, 5,
+                           Node (Red, 3,
+                             Node (Black, 1, Leaf, Leaf),
+                             Node (Black, 4, Leaf, Leaf)),
+                           Node (Red, 7,
+                             Node (Black, 6, Leaf, Leaf),
+                             Node (Black, 9, Leaf, Leaf)))
+             |}
+             ~expr:"size tree"
+             ~expected_value:"7" );
+         ( "rb tree complex structure - contains existing" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec contains x tree =
+                 switch tree =>
+                 | Leaf -> false
+                 | Node (_, y, left, right) ->
+                     if x == y then true
+                     else if x < y then contains x left
+                     else contains x right
+
+               let tree = Node (Black, 5,
+                           Node (Red, 3,
+                             Node (Black, 1, Leaf, Leaf),
+                             Node (Black, 4, Leaf, Leaf)),
+                           Node (Red, 7,
+                             Node (Black, 6, Leaf, Leaf),
+                             Node (Black, 9, Leaf, Leaf)))
+             |}
+             ~expr:"contains 6 tree"
+             ~expected_value:"true" );
+         ( "rb tree complex structure - contains non-existing" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec contains x tree =
+                 switch tree =>
+                 | Leaf -> false
+                 | Node (_, y, left, right) ->
+                     if x == y then true
+                     else if x < y then contains x left
+                     else contains x right
+
+               let tree = Node (Black, 5,
+                           Node (Red, 3,
+                             Node (Black, 1, Leaf, Leaf),
+                             Node (Black, 4, Leaf, Leaf)),
+                           Node (Red, 7,
+                             Node (Black, 6, Leaf, Leaf),
+                             Node (Black, 9, Leaf, Leaf)))
+             |}
+             ~expr:"contains 10 tree"
+             ~expected_value:"false" );
+         (* Insert function tests *)
+         ( "rb tree make_black function type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let make_black tree =
+                 switch tree =>
+                 | Leaf -> Leaf
+                 | Node (_, x, left, right) -> Node (Black, x, left, right)
+             |}
+             ~expr:"make_black"
+             ~expected_type:"RBTree<'a> -> RBTree<'a>" );
+         ( "rb tree make_black - Leaf" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let make_black tree =
+                 switch tree =>
+                 | Leaf -> Leaf
+                 | Node (_, x, left, right) -> Node (Black, x, left, right)
+             |}
+             ~expr:"make_black Leaf"
+             ~expected_value:"Leaf" );
+         ( "rb tree make_black - Red node" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let make_black tree =
+                 switch tree =>
+                 | Leaf -> Leaf
+                 | Node (_, x, left, right) -> Node (Black, x, left, right)
+             |}
+             ~expr:"make_black (Node (Red, 5, Leaf, Leaf))"
+             ~expected_value:"Node (Black, 5, Leaf, Leaf)" );
+         ( "rb tree insert_aux function type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let balance tree =
+                 switch tree =>
+                 | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, z, Node (Red, y, b, c), d)) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, y, b, Node (Red, z, c, d))) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | _ -> tree
+
+               let rec insert_aux x tree =
+                 switch tree =>
+                 | Leaf -> Node (Red, x, Leaf, Leaf)
+                 | Node (color, y, left, right) ->
+                     if x < y then
+                       balance (Node (color, y, insert_aux x left, right))
+                     else if x > y then
+                       balance (Node (color, y, left, insert_aux x right))
+                     else
+                       tree
+             |}
+             ~expr:"insert_aux"
+             ~expected_type:"int -> RBTree<int> -> RBTree<int>" );
+         ( "rb tree insert function type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let balance tree =
+                 switch tree =>
+                 | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, z, Node (Red, y, b, c), d)) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, y, b, Node (Red, z, c, d))) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | _ -> tree
+
+               let rec insert_aux x tree =
+                 switch tree =>
+                 | Leaf -> Node (Red, x, Leaf, Leaf)
+                 | Node (color, y, left, right) ->
+                     if x < y then
+                       balance (Node (color, y, insert_aux x left, right))
+                     else if x > y then
+                       balance (Node (color, y, left, insert_aux x right))
+                     else
+                       tree
+
+               let make_black tree =
+                 switch tree =>
+                 | Leaf -> Leaf
+                 | Node (_, x, left, right) -> Node (Black, x, left, right)
+
+               let insert x tree =
+                 make_black (insert_aux x tree)
+             |}
+             ~expr:"insert"
+             ~expected_type:"int -> RBTree<int> -> RBTree<int>" );
+         ( "rb tree insert into empty tree" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let balance tree =
+                 switch tree =>
+                 | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, z, Node (Red, y, b, c), d)) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, y, b, Node (Red, z, c, d))) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | _ -> tree
+
+               let rec insert_aux x tree =
+                 switch tree =>
+                 | Leaf -> Node (Red, x, Leaf, Leaf)
+                 | Node (color, y, left, right) ->
+                     if x < y then
+                       balance (Node (color, y, insert_aux x left, right))
+                     else if x > y then
+                       balance (Node (color, y, left, insert_aux x right))
+                     else
+                       tree
+
+               let make_black tree =
+                 switch tree =>
+                 | Leaf -> Leaf
+                 | Node (_, x, left, right) -> Node (Black, x, left, right)
+
+               let insert x tree =
+                 make_black (insert_aux x tree)
+             |}
+             ~expr:"insert 5 Leaf"
+             ~expected_value:"Node (Black, 5, Leaf, Leaf)" );
+         ( "rb tree insert - size increases" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let balance tree =
+                 switch tree =>
+                 | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, z, Node (Red, y, b, c), d)) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, y, b, Node (Red, z, c, d))) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | _ -> tree
+
+               let rec insert_aux x tree =
+                 switch tree =>
+                 | Leaf -> Node (Red, x, Leaf, Leaf)
+                 | Node (color, y, left, right) ->
+                     if x < y then
+                       balance (Node (color, y, insert_aux x left, right))
+                     else if x > y then
+                       balance (Node (color, y, left, insert_aux x right))
+                     else
+                       tree
+
+               let make_black tree =
+                 switch tree =>
+                 | Leaf -> Leaf
+                 | Node (_, x, left, right) -> Node (Black, x, left, right)
+
+               let insert x tree =
+                 make_black (insert_aux x tree)
+
+               let rec size tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, _, left, right) -> 1 + size left + size right
+
+               let tree1 = insert 5 Leaf
+               let tree2 = insert 3 tree1
+               let tree3 = insert 7 tree2
+             |}
+             ~expr:"size tree3"
+             ~expected_value:"3" );
+         ( "rb tree insert multiple - contains all" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let balance tree =
+                 switch tree =>
+                 | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, z, Node (Red, y, b, c), d)) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, y, b, Node (Red, z, c, d))) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | _ -> tree
+
+               let rec insert_aux x tree =
+                 switch tree =>
+                 | Leaf -> Node (Red, x, Leaf, Leaf)
+                 | Node (color, y, left, right) ->
+                     if x < y then
+                       balance (Node (color, y, insert_aux x left, right))
+                     else if x > y then
+                       balance (Node (color, y, left, insert_aux x right))
+                     else
+                       tree
+
+               let make_black tree =
+                 switch tree =>
+                 | Leaf -> Leaf
+                 | Node (_, x, left, right) -> Node (Black, x, left, right)
+
+               let insert x tree =
+                 make_black (insert_aux x tree)
+
+               let rec contains x tree =
+                 switch tree =>
+                 | Leaf -> false
+                 | Node (_, y, left, right) ->
+                     if x == y then true
+                     else if x < y then contains x left
+                     else contains x right
+
+               let tree1 = insert 5 Leaf
+               let tree2 = insert 3 tree1
+               let tree3 = insert 7 tree2
+               let tree4 = insert 1 tree3
+               let tree5 = insert 9 tree4
+             |}
+             ~expr:"contains 5 tree5 && contains 3 tree5 && contains 7 tree5"
+             ~expected_value:"true" );
+         ( "rb tree insert - duplicate does not increase size" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let balance tree =
+                 switch tree =>
+                 | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, z, Node (Red, y, b, c), d)) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, y, b, Node (Red, z, c, d))) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | _ -> tree
+
+               let rec insert_aux x tree =
+                 switch tree =>
+                 | Leaf -> Node (Red, x, Leaf, Leaf)
+                 | Node (color, y, left, right) ->
+                     if x < y then
+                       balance (Node (color, y, insert_aux x left, right))
+                     else if x > y then
+                       balance (Node (color, y, left, insert_aux x right))
+                     else
+                       tree
+
+               let make_black tree =
+                 switch tree =>
+                 | Leaf -> Leaf
+                 | Node (_, x, left, right) -> Node (Black, x, left, right)
+
+               let insert x tree =
+                 make_black (insert_aux x tree)
+
+               let rec size tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, _, left, right) -> 1 + size left + size right
+
+               let tree1 = insert 5 Leaf
+               let tree2 = insert 5 tree1
+             |}
+             ~expr:"size tree2"
+             ~expected_value:"1" );
+         ( "rb tree insert - min and max after inserts" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let balance tree =
+                 switch tree =>
+                 | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, z, Node (Red, y, b, c), d)) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | Node (Black, x, a, Node (Red, y, b, Node (Red, z, c, d))) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | _ -> tree
+
+               let rec insert_aux x tree =
+                 switch tree =>
+                 | Leaf -> Node (Red, x, Leaf, Leaf)
+                 | Node (color, y, left, right) ->
+                     if x < y then
+                       balance (Node (color, y, insert_aux x left, right))
+                     else if x > y then
+                       balance (Node (color, y, left, insert_aux x right))
+                     else
+                       tree
+
+               let make_black tree =
+                 switch tree =>
+                 | Leaf -> Leaf
+                 | Node (_, x, left, right) -> Node (Black, x, left, right)
+
+               let insert x tree =
+                 make_black (insert_aux x tree)
+
+               let rec minimum tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, x, Leaf, _) -> x
+                 | Node (_, _, left, _) -> minimum left
+
+               let rec maximum tree =
+                 switch tree =>
+                 | Leaf -> 0
+                 | Node (_, x, _, Leaf) -> x
+                 | Node (_, _, _, right) -> maximum right
+
+               let tree1 = insert 5 Leaf
+               let tree2 = insert 3 tree1
+               let tree3 = insert 7 tree2
+               let tree4 = insert 1 tree3
+               let tree5 = insert 9 tree4
+             |}
+             ~expr:"minimum tree5 == 1 && maximum tree5 == 9"
+             ~expected_value:"true" );
+       ]
+
 let all_tests =
   List.flatten
     [
@@ -2663,6 +3562,7 @@ let all_tests =
       [ program_expression_value_tests ];
       [ type_evaluation_tests ];
       [ sum_type_evaluation_tests ];
+      [ red_black_tree_tests ];
     ]
 
 let suite = "suite" >::: all_tests
