@@ -187,10 +187,11 @@ let rec string_of_mono_type : mono_type -> string = function
   | CListType t -> "[" ^ string_of_mono_type t ^ "]"
   | TypeName v -> v
   | CTypeApp (name, args) ->
-      let args_str = List.map string_of_mono_type args in
-      name ^ "<" ^ String.concat ", " args_str ^ ">"
-  | FixedPoint (name, body) ->
-      "μ" ^ name ^ ". " ^ string_of_mono_type body
+      if args = [] then name
+      else
+        let args_str = List.map string_of_mono_type args in
+        name ^ "<" ^ String.concat ", " args_str ^ ">"
+  | FixedPoint (_, body) -> string_of_mono_type body
 
 let rec string_of_type : c_type -> string = function
   | Mono t -> string_of_mono_type t

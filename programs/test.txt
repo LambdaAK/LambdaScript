@@ -46,3 +46,17 @@ let tree5 =
       Node (11, Leaf, Leaf)
     )
   )
+
+type rec Nat =
+    | Zero
+    | Succ of Nat
+
+let rec nat_to_int n =
+  switch n =>
+    | Zero -> 0
+    | Succ m -> 1 + nat_to_int m
+
+let rec int_to_nat i =
+    if i <= 0 then Zero else Succ (int_to_nat (i - 1))
+
+type MyType = | A | B

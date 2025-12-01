@@ -20,10 +20,11 @@ let rec string_of_mono_type : mono_type -> string = function
   | TypeName t -> t
   | CListType t -> "[" ^ string_of_mono_type t ^ "]"
   | CTypeApp (name, args) ->
-      let args_str = List.map string_of_mono_type args in
-      name ^ "<" ^ String.concat ", " args_str ^ ">"
-  | FixedPoint (name, body) ->
-      "μ" ^ name ^ ". " ^ string_of_mono_type body
+      if args = [] then name
+      else
+        let args_str = List.map string_of_mono_type args in
+        name ^ "<" ^ String.concat ", " args_str ^ ">"
+  | FixedPoint (_, body) -> string_of_mono_type body
 
 let string_of_c_type (ct : c_type) : string =
   let rec collect_vars acc = function
