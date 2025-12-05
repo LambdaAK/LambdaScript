@@ -420,6 +420,22 @@ let try_single_char_token lst tokens =
       in
       find_token tokens
 
+(* Skip single-line comment (// comment until end of line) *)
+let rec skip_single_line_comment (lst : char list) : char list =
+  match lst with
+  | [] -> []
+  | '\n' :: t -> '\n' :: t  (* Keep the newline for line counting *)
+  | _ :: t -> skip_single_line_comment t
+
+(* Skip multi-line comment (/* comment */)
+   Returns (remaining_chars, newline_count) *)
+let rec skip_multi_line_comment (lst : char list) (newlines : int) : char list * int =
+  match lst with
+  | [] -> failwith "Unclosed multi-line comment"
+  | '*' :: '/' :: t -> (t, newlines)  (* End of multi-line comment *)
+  | '\n' :: t -> skip_multi_line_comment t (newlines + 1)
+  | _ :: t -> skip_multi_line_comment t newlines
+
 let lex (lst : char list) : token list =
   let line_number : int ref = ref 1 in
   let rec lex (lst : char list) : token list =
@@ -441,6 +457,14 @@ let lex (lst : char list) : token list =
             | '\n' :: t ->
                 line_number := !line_number + 1;
                 lex t
+            (* Single-line comment: // *)
+            | '/' :: '/' :: t ->
+                lex (skip_single_line_comment t)
+            (* Multi-line comment: /* */ *)
+            | '/' :: '*' :: t ->
+                let remaining, newlines = skip_multi_line_comment t 0 in
+                line_number := !line_number + newlines;
+                lex remaining
             (* Special case: LParen needs to check that next char is not ')' *)
             | '(' :: c :: t when c <> ')' ->
                 emit_token !line_number LParen (c :: t) lex
