@@ -1,62 +1,113 @@
-type rec Tree<a> =
+type Color = | Red | Black
+
+type rec RBTree<a> =
   | Leaf
-  | Node of (a, Tree<a>, Tree<a>)
+  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
-let rec fold_tree f leaf_case t =
-  switch t =>
-    | Leaf -> leaf_case
-    | Node (x, left, right) ->
-        f x (fold_tree f leaf_case left) (fold_tree f leaf_case right)
+let rec contains x tree =
+  switch tree =>
+  | Leaf -> false
+  | Node (_, y, left, right) ->
+      if x == y then true
+      else if x < y then contains x left
+      else contains x right
 
+let rec size tree =
+  switch tree =>
+  | Leaf -> 0
+  | Node (_, _, left, right) -> 1 + size left + size right
 
-let rec left_fold_tree f leaf_case t =
-          switch t =>
-          | Leaf -> leaf_case
-          | Node (x, left, right) ->
-              let left_acc = left_fold_tree f leaf_case left in
-              let curr_acc = f x left_acc in
-              left_fold_tree f curr_acc right
+let rec height tree =
+  switch tree =>
+  | Leaf -> 0
+  | Node (_, _, left, right) ->
+      let left_h = height left in
+      let right_h = height right in
+      1 + (if left_h > right_h then left_h else right_h)
 
-let sum_tree t =
-  fold_tree (\x -> \l -> \r -> x + l + r) 0 t
+let rec minimum tree =
+  switch tree =>
+  | Leaf -> 0
+  | Node (_, x, Leaf, _) -> x
+  | Node (_, _, left, _) -> minimum left
 
-let left_sum_tree t =
-  left_fold_tree (\x -> \acc -> x + acc) 0 t
+let rec maximum tree =
+  switch tree =>
+  | Leaf -> 0
+  | Node (_, x, _, Leaf) -> x
+  | Node (_, _, _, right) -> maximum right
 
+let balance tree =
+  switch tree =>
+  | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
+      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+  | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
+      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+  | Node (Black, x, a, Node (Red, z, Node (Red, y, b, c), d)) ->
+      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+  | Node (Black, x, a, Node (Red, y, b, Node (Red, z, c, d))) ->
+      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+  | _ -> tree
 
-let tree1 = Leaf
+let rec insert_aux x tree =
+  switch tree =>
+  | Leaf -> Node (Red, x, Leaf, Leaf)
+  | Node (color, y, left, right) ->
+      if x < y then
+        balance (Node (color, y, insert_aux x left, right))
+      else if x > y then
+        balance (Node (color, y, left, insert_aux x right))
+      else
+        tree
 
-let tree2 [Tree<int>] = Node (1, Leaf, Leaf)
+let make_black tree =
+  switch tree =>
+  | Leaf -> Leaf
+  | Node (_, x, left, right) -> Node (Black, x, left, right)
 
-let tree3 = Node (10, Node (5, Leaf, Leaf), Node (15, Leaf, Leaf))
+let insert x tree =
+  make_black (insert_aux x tree)
 
-let tree4 = Node (2,
-                  Node (1, Leaf, Leaf),
-                  Node (3, Leaf, Leaf)
-                 )
+let example_tree = Node (Black, 5,
+                     Node (Red, 3,
+                       Node (Black, 1, Leaf, Leaf),
+                       Node (Black, 4, Leaf, Leaf)),
+                     Node (Red, 7,
+                       Node (Black, 6, Leaf, Leaf),
+                       Node (Black, 9, Leaf, Leaf)))
 
-let tree5 =
-  Node (7,
-    Node (3,
-      Node (1, Leaf, Leaf),
-      Node (5, Leaf, Leaf)
-    ),
-    Node (9,
-      Leaf,
-      Node (11, Leaf, Leaf)
-    )
-  )
+let () = println (int_to_str (size example_tree))
+let () = println (int_to_str (height example_tree))
+let () = println (int_to_str (minimum example_tree))
+let () = println (int_to_str (maximum example_tree))
 
-type rec Nat =
-    | Zero
-    | Succ of Nat
+let found = contains 6 example_tree
+let () = if found then println "Found 6" else println "Not found"
 
-let rec nat_to_int n =
-  switch n =>
-    | Zero -> 0
-    | Succ m -> 1 + nat_to_int m
+let not_found = contains 10 example_tree
+let () = if not_found then println "Found 10" else println "Not found 10"
 
-let rec int_to_nat i =
-    if i <= 0 then Zero else Succ (int_to_nat (i - 1))
+let () = println ""
+let () = println "Testing insert function:"
 
-type MyType = | A | B
+let empty = Leaf
+let tree1 = insert 5 empty
+let () = println (int_to_str (size tree1))
+
+let tree2 = insert 3 tree1
+let tree3 = insert 7 tree2
+let tree4 = insert 1 tree3
+let tree5 = insert 9 tree4
+
+let () = println (int_to_str (size tree5))
+let () = println (int_to_str (minimum tree5))
+let () = println (int_to_str (maximum tree5))
+
+let contains_5 = contains 5 tree5
+let () = if contains_5 then println "Contains 5" else println "Does not contain 5"
+
+let contains_3 = contains 3 tree5
+let () = if contains_3 then println "Contains 3" else println "Does not contain 3"
+
+let contains_10 = contains 10 tree5
+let () = if contains_10 then println "Contains 10" else println "Does not contain 10"

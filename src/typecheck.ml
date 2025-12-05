@@ -1093,10 +1093,11 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       return ([], [ (name, params, body) ])
   | CSumType (type_name, type_params, constructors) ->
       (* Add the sum type to the type environment *)
-      (* For now, we'll represent sum types in type_env, but we need a way to distinguish them *)
-      (* We'll use a dummy body type - this might need to be changed later *)
-      let dummy_body = TypeVar ("$sum_type_" ^ type_name) in
-      let type_env_entry = [ (type_name, type_params, dummy_body) ] in
+      (* Represent sum types as CTypeApp with their type parameters *)
+      let sum_type_body =
+        CTypeApp (type_name, List.map (fun p -> TypeVar p) type_params)
+      in
+      let type_env_entry = [ (type_name, type_params, sum_type_body) ] in
 
       (* Create constructor bindings in static_env *)
       (* Each constructor is a function: payload_type -> SumType<params> *)
@@ -1287,12 +1288,11 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       | Some type_def ->
           let _, params, body = type_def in
 
-          (* Check if this is a sum type (has a dummy body starting with
-             $sum_type_) or a recursive sum type (FixedPoint) *)
+          (* Check if this is a sum type (body is CTypeApp with same name)
+             or a recursive sum type (FixedPoint) *)
           let is_sum_type, is_fixedpoint =
             match body with
-            | TypeVar v ->
-                (String.length v > 10 && String.sub v 0 10 = "$sum_type_", false)
+            | CTypeApp (body_name, _) when body_name = name -> (true, false)
             | FixedPoint _ -> (true, true)
             | _ -> (false, false)
           in
