@@ -3542,6 +3542,670 @@ let red_black_tree_tests =
              ~expected_value:"true" );
        ]
 
+(* ============================================================================
+   SUM TYPE CONSTRUCTOR TYPE INFERENCE TESTS
+
+   These tests specifically verify that sum type constructors have correct
+   type inference, especially when:
+   1. Constructors reference other sum types (not type parameters)
+   2. Multiple sum types are defined and used together
+   3. Concrete types should not become polymorphic type variables
+
+   These tests would catch the bug where sum types were represented with
+   TypeVar dummy bodies, causing constructor types to incorrectly generalize
+   concrete type references.
+   ============================================================================ *)
+
+let sum_type_constructor_inference_tests =
+  let open ProgramTesting in
+  "sum_type_constructor_inference"
+  >::: [
+         (* Test that a simple sum type constructor has the correct type *)
+         ( "Color constructor type - Red" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Color = | Red | Black
+             |}
+             ~expr:"Red"
+             ~expected_type:"Color" );
+
+         ( "Color constructor type - Black" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Color = | Red | Black
+             |}
+             ~expr:"Black"
+             ~expected_type:"Color" );
+
+         (* Test that a constructor with payload referencing another sum type
+            has the correct type - this is the key test for the bug! *)
+         ( "Node constructor type with Color parameter" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+             |}
+             ~expr:"Node"
+             ~expected_type:"(Color, 'a, RBTree<'a>, RBTree<'a>) -> RBTree<'a>" );
+
+         (* Verify that Color is NOT a type variable when used *)
+         ( "Node constructor applied to Red" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+             |}
+             ~expr:"Node (Red, 5, Leaf, Leaf)"
+             ~expected_type:"RBTree<int>" );
+
+         (* Test multiple sum types referencing each other *)
+         ( "constructor with multiple sum type parameters" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Status = | Active | Inactive
+               type Priority = | High | Low
+               type rec Task<a> =
+                 | Task of (Status, Priority, a)
+             |}
+             ~expr:"Task"
+             ~expected_type:"(Status, Priority, 'a) -> Task<'a>" );
+
+         (* Verify concrete evaluation *)
+         ( "Node with Red evaluates correctly" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+             |}
+             ~expr:"Node (Red, 5, Leaf, Leaf)"
+             ~expected_value:"Node (Red, 5, Leaf, Leaf)" );
+
+         (* Test that we can pattern match on the concrete Color type *)
+         ( "pattern match on Color in Node" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+             |}
+             ~expr:{|
+               switch Node (Red, 5, Leaf, Leaf) =>
+               | Leaf -> 0
+               | Node (Red, x, _, _) -> x
+               | Node (Black, x, _, _) -> ~-x
+             |}
+             ~expected_value:"5" );
+
+         ( "pattern match on Black in Node" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+             |}
+             ~expr:{|
+               switch Node (Black, 5, Leaf, Leaf) =>
+               | Leaf -> 0
+               | Node (Red, x, _, _) -> x
+               | Node (Black, x, _, _) -> ~-x
+             |}
+             ~expected_value:"-5" );
+
+         (* Test constructor with multiple concrete sum types *)
+         ( "constructor with two concrete sum types" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Color = | Red | Black
+               type Shape = | Circle | Square
+               type Decoration = | Decor of (Color, Shape)
+             |}
+             ~expr:"Decor"
+             ~expected_type:"(Color, Shape) -> Decoration" );
+
+         (* Test that we can use the constructor correctly *)
+         ( "apply constructor with concrete sum types" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type Color = | Red | Black
+               type Shape = | Circle | Square
+               type Decoration = | Decor of (Color, Shape)
+             |}
+             ~expr:"Decor (Red, Circle)"
+             ~expected_value:"Decor (Red, Circle)" );
+
+         (* Test nested sum types with concrete references *)
+         ( "nested sum type constructors" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Size = | Small | Large
+               type Color = | Red | Black
+               type Colored<a> = | Colored of (Color, a)
+             |}
+             ~expr:"Colored"
+             ~expected_type:"(Color, 'a) -> Colored<'a>" );
+
+         (* Test that concrete types in tuple payloads work *)
+         ( "tuple payload with multiple concrete types" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type A = | A1 | A2
+               type B = | B1 | B2
+               type C = | C1 | C2
+               type Combined = | Combo of (A, B, C, int)
+             |}
+             ~expr:"Combo"
+             ~expected_type:"(A, B, C, int) -> Combined" );
+
+         (* Test function taking constructor as argument *)
+         ( "function with constructor parameter" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let make_red_node x = Node (Red, x, Leaf, Leaf)
+             |}
+             ~expr:"make_red_node"
+             ~expected_type:"'a -> RBTree<'a>" );
+
+         (* Test that type checking rejects wrong concrete types *)
+         ( "type error when using wrong sum type" >:: fun _ ->
+           assert_program_fails_typecheck
+             {|
+               type Color = | Red | Black
+               type Size = | Big | Small
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let bad_node = Node (Big, 5, Leaf, Leaf)
+             |} );
+
+         (* Test with parameterized sum types *)
+         ( "parameterized sum type with concrete type reference" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Tag = | Important | Normal
+               type Wrapper<a> = | Wrap of (Tag, a)
+             |}
+             ~expr:"Wrap"
+             ~expected_type:"(Tag, 'a) -> Wrapper<'a>" );
+
+         (* Test complex nested structure *)
+         ( "complex nested sum types" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Status = | Active | Inactive
+               type Priority = | High | Low | Medium
+               type rec TaskList<a> =
+                 | Empty
+                 | Task of (Status, Priority, a, TaskList<a>)
+             |}
+             ~expr:"Task"
+             ~expected_type:"(Status, Priority, 'a, TaskList<'a>) -> TaskList<'a>" );
+
+         (* Test that pattern matching works with concrete types *)
+         ( "pattern match extracts concrete sum type" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type Status = | Active | Inactive
+               type Priority = | High | Low
+               type Task = | Task of (Status, Priority, int)
+
+               let get_priority t =
+                 switch t =>
+                 | Task (_, High, _) -> 1
+                 | Task (_, Low, _) -> 0
+             |}
+             ~expr:"get_priority (Task (Active, High, 42))"
+             ~expected_value:"1" );
+
+         (* Test sum type in higher-order function *)
+         ( "sum type constructor in map" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Color = | Red | Black
+               type Colored<a> = | Colored of (Color, a)
+             |}
+             ~expr:{|
+               let colorize c x = Colored (c, x) in
+               colorize Red
+             |}
+             ~expected_type:"'a -> Colored<'a>" );
+
+         (* Ensure Red-Black tree functions work correctly *)
+         ( "rb tree contains function type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let rec contains x tree =
+                 switch tree =>
+                 | Leaf -> false
+                 | Node (_, y, left, right) ->
+                     if x == y then true
+                     else if x < y then contains x left
+                     else contains x right
+             |}
+             ~expr:"contains"
+             ~expected_type:"int -> RBTree<int> -> bool" );
+
+         (* Test balance function type *)
+         ( "rb tree balance function type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Leaf
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+
+               let balance tree =
+                 switch tree =>
+                 | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
+                     Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
+                 | _ -> tree
+             |}
+             ~expr:"balance"
+             ~expected_type:"RBTree<'a> -> RBTree<'a>" );
+       ]
+
+(* ============================================================================
+   CUSTOM INFIX OPERATOR TESTS
+
+   Tests for custom binary operators defined with parenthesized syntax like:
+     let (+++) x y = x + y + y
+
+   Covers:
+   - Type inference for custom operators
+   - Evaluation of custom operators
+   - Different precedence levels (additive, multiplicative, relational)
+   - Partial application
+   - Custom operators with various types
+   ============================================================================ *)
+
+let custom_operator_type_tests =
+  let open ProgramTesting in
+  "custom_operator_types"
+  >::: [
+         (* Additive operators (start with + or -) *)
+         ( "custom additive operator type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (+++) x y = x + y + y
+             |}
+             ~expr:"+++"
+             ~expected_type:"int -> int -> int" );
+
+         ( "custom additive operator with different implementation" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (+-+) a b = a + b + 1
+             |}
+             ~expr:"+-+"
+             ~expected_type:"int -> int -> int" );
+
+         (* Multiplicative operators (start with * / %) *)
+         ( "custom multiplicative operator type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (***) x y = x * x * y
+             |}
+             ~expr:"***"
+             ~expected_type:"int -> int -> int" );
+
+         ( "custom division-based operator type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (///) x y = x / y + x % y
+             |}
+             ~expr:"///"
+             ~expected_type:"int -> int -> int" );
+
+         (* Relational operators (start with < > =) *)
+         ( "custom relational operator type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (===) x y = x == y
+             |}
+             ~expr:"==="
+             ~expected_type:"int -> int -> bool" );
+
+         ( "custom less-than operator type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (<<) x y = x < y - 1
+             |}
+             ~expr:"<<"
+             ~expected_type:"int -> int -> bool" );
+
+         (* Polymorphic custom operators *)
+         ( "polymorphic custom operator" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (<=>) x y = if x == y then 1 else 0
+             |}
+             ~expr:"<=>"
+             ~expected_type:"int -> int -> int" );
+
+         (* Custom operator with type annotations *)
+         ( "custom operator with type annotation" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (+*+) [int -> int -> int] = \x [int] -> \y [int] -> x + y * 2
+             |}
+             ~expr:"+*+"
+             ~expected_type:"int -> int -> int" );
+
+         (* Custom operator usage in expressions *)
+         ( "expression using custom additive operator" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (+++) x y = x + y + y
+             |}
+             ~expr:"5 +++ 3"
+             ~expected_type:"int" );
+
+         ( "expression using custom multiplicative operator" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (***) x y = x * x * y
+             |}
+             ~expr:"3 *** 2"
+             ~expected_type:"int" );
+
+         ( "expression using custom relational operator" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (===) x y = x == y
+             |}
+             ~expr:"5 === 5"
+             ~expected_type:"bool" );
+
+         (* Partial application *)
+         ( "partial application of custom operator" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (+++) x y = x + y + y
+               let add_six = (+++) 2
+             |}
+             ~expr:"add_six"
+             ~expected_type:"int -> int" );
+
+         ( "partial application result" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (+++) x y = x + y + y
+               let add_six = (+++) 2
+             |}
+             ~expr:"add_six 3"
+             ~expected_type:"int" );
+
+         (* Multiple custom operators *)
+         ( "multiple custom operators in program" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (+++) x y = x + y + y
+               let (***) x y = x * x * y
+               let (===) x y = x == y
+             |}
+             ~expr:"+++"
+             ~expected_type:"int -> int -> int" );
+
+         ( "expression with multiple custom operators" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (+++) x y = x + y + y
+               let (***) x y = x * x * y
+             |}
+             ~expr:"2 *** 3 +++ 4"
+             ~expected_type:"int" );
+
+         (* Recursive custom operators *)
+         ( "recursive custom operator type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let rec (***>) x y =
+                 if x == 0 then 0
+                 else if x == 1 then y
+                 else y + (x - 1) ***> y
+             |}
+             ~expr:"***>"
+             ~expected_type:"int -> int -> int" );
+
+         (* Custom operator with bool return *)
+         ( "custom operator returning bool" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (>><) x y = x > y && y > 0
+             |}
+             ~expr:">><"
+             ~expected_type:"int -> int -> bool" );
+
+         (* Mixed precedence operators *)
+         ( "mixed precedence custom operators" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               let (</>) x y = x / y + 1
+               let (<+>) x y = x + y * 2
+             |}
+             ~expr:"10 </> 3 <+> 2"
+             ~expected_type:"int" );
+       ]
+
+let custom_operator_evaluation_tests =
+  let open ProgramTesting in
+  "custom_operator_evaluation"
+  >::: [
+         (* Basic evaluation *)
+         ( "evaluate custom additive operator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (+++) x y = x + y + y
+             |}
+             ~expr:"5 +++ 3"
+             ~expected_value:"11" );
+
+         ( "evaluate custom multiplicative operator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (***) x y = x * x * y
+             |}
+             ~expr:"3 *** 2"
+             ~expected_value:"18" );
+
+         ( "evaluate custom division operator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (///) x y = x / y + x % y
+             |}
+             ~expr:"17 /// 5"
+             ~expected_value:"5" );
+
+         ( "evaluate custom relational operator - true" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (===) x y = x == y
+             |}
+             ~expr:"5 === 5"
+             ~expected_value:"true" );
+
+         ( "evaluate custom relational operator - false" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (===) x y = x == y
+             |}
+             ~expr:"5 === 3"
+             ~expected_value:"false" );
+
+         (* Complex expressions *)
+         ( "custom operator in complex expression" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (+++) x y = x + y + y
+             |}
+             ~expr:"1 + 2 +++ 3"
+             ~expected_value:"9" );
+
+         ( "multiple custom operators" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (+++) x y = x + y + y
+               let (***) x y = x * x * y
+             |}
+             ~expr:"2 *** 3 +++ 4"
+             ~expected_value:"16" );
+
+         (* Partial application evaluation *)
+         ( "partial application evaluation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (+++) x y = x + y + y
+               let add_double = (+++) 2
+             |}
+             ~expr:"add_double 3"
+             ~expected_value:"7" );
+
+         (* Recursive custom operators *)
+         ( "recursive custom operator - base case" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec (***>) x y =
+                 if x == 0 then 0
+                 else if x == 1 then y
+                 else y + (x - 1) ***> y
+             |}
+             ~expr:"0 ***> 5"
+             ~expected_value:"0" );
+
+         ( "recursive custom operator - recursive case" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec (***>) x y =
+                 if x == 0 then 0
+                 else if x == 1 then y
+                 else y + (x - 1) ***> y
+             |}
+             ~expr:"4 ***> 3"
+             ~expected_value:"12" );
+
+         (* Custom operators with conditionals *)
+         ( "custom operator with conditional logic" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (***) x y =
+                 if x == 0 then y
+                 else x * y
+             |}
+             ~expr:"0 *** 100"
+             ~expected_value:"100" );
+
+         ( "custom operator with conditional - non-zero" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (***) x y =
+                 if x == 0 then y
+                 else x * y
+             |}
+             ~expr:"5 *** 3"
+             ~expected_value:"15" );
+
+         (* Precedence testing *)
+         ( "multiplicative custom operator precedence" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (***) x y = x * x * y
+             |}
+             ~expr:"2 *** 3 + 4"
+             ~expected_value:"16" );
+
+         ( "additive custom operator precedence" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (+++) x y = x + y + y
+             |}
+             ~expr:"2 * 3 +++ 4"
+             ~expected_value:"14" );
+
+         (* Custom operators in let expressions *)
+         ( "custom operator in let binding" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (+++) x y = x + y + y
+               let result = 5 +++ 3
+             |}
+             ~expr:"result"
+             ~expected_value:"11" );
+
+         (* Custom operators with function application *)
+         ( "custom operator with function application" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (+++) x y = x + y + y
+               let double n = n * 2
+             |}
+             ~expr:"double 2 +++ 3"
+             ~expected_value:"10" );
+
+         (* Chaining custom operators *)
+         ( "chaining same custom operator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (+++) x y = x + y + 1
+             |}
+             ~expr:"1 +++ 2 +++ 3"
+             ~expected_value:"8" );
+
+         (* Mixed precedence *)
+         ( "mixed precedence evaluation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (</>) x y = x / y + 1
+               let (<+>) x y = x + y * 2
+             |}
+             ~expr:"10 </> 3 <+> 2"
+             ~expected_value:"8" );
+
+         (* Boolean custom operators *)
+         ( "custom boolean operator - and variant" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (==>) x y = x == y || y > 10
+             |}
+             ~expr:"5 ==> 15"
+             ~expected_value:"true" );
+
+         ( "custom boolean operator - complex" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (<<>>) x y = x < y && y < x + 10
+             |}
+             ~expr:"5 <<>> 7"
+             ~expected_value:"true" );
+
+         (* Using custom operators in higher-order functions *)
+         ( "custom operator in lambda" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let (+++) x y = x + y + y
+               let apply_op f a b = f a b
+             |}
+             ~expr:"apply_op (+++) 2 3"
+             ~expected_value:"7" );
+       ]
+
 let all_tests =
   List.flatten
     [
@@ -3562,7 +4226,10 @@ let all_tests =
       [ program_expression_value_tests ];
       [ type_evaluation_tests ];
       [ sum_type_evaluation_tests ];
+      [ sum_type_constructor_inference_tests ];
       [ red_black_tree_tests ];
+      [ custom_operator_type_tests ];
+      [ custom_operator_evaluation_tests ];
     ]
 
 let suite = "suite" >::: all_tests

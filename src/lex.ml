@@ -195,6 +195,24 @@ let is_relop_prefix = function
   | '<' | '>' | '=' -> true
   | _ -> false
 
+(* Try to parse a parenthesized operator like (++) or (+++)
+   Returns Some (operator_string, remaining_chars) if successful, None otherwise *)
+let try_parse_parenthesized_operator (lst : char list) : (string * char list) option =
+  let rec collect_operator_chars (lst : char list) (acc : char list) : (char list * char list) option =
+    match lst with
+    | ')' :: t when acc <> [] -> Some (List.rev acc, t)  (* Found closing paren with operator chars *)
+    | h :: t when is_bop_prefix h -> collect_operator_chars t (h :: acc)  (* Keep collecting operator chars *)
+    | _ -> None  (* Not an operator or invalid *)
+  in
+  match lst with
+  | h :: _ when is_bop_prefix h ->
+      (match collect_operator_chars lst [] with
+       | Some (op_chars, remaining) ->
+           let op_string = List.fold_left (fun acc c -> acc ^ String.make 1 c) "" op_chars in
+           Some (op_string, remaining)
+       | None -> None)
+  | _ -> None
+
 (* whenever there's a special character, parse an operator *)
 
 let bop_from_char_list (lst : char list) =
@@ -457,17 +475,17 @@ let lex (lst : char list) : token list =
             | '\n' :: t ->
                 line_number := !line_number + 1;
                 lex t
-            (* Single-line comment: // *)
-            | '/' :: '/' :: t ->
-                lex (skip_single_line_comment t)
-            (* Multi-line comment: /* */ *)
-            | '/' :: '*' :: t ->
-                let remaining, newlines = skip_multi_line_comment t 0 in
-                line_number := !line_number + newlines;
-                lex remaining
-            (* Special case: LParen needs to check that next char is not ')' *)
-            | '(' :: c :: t when c <> ')' ->
-                emit_token !line_number LParen (c :: t) lex
+            (* Special case: Check for parenthesized operators like (++) *)
+            | '(' :: rest -> (
+                match try_parse_parenthesized_operator rest with
+                | Some (op_string, remaining) ->
+                    (* Found a parenthesized operator, emit it as an Id *)
+                    make_token !line_number (Id op_string) :: lex remaining
+                | None ->
+                    (* Not a parenthesized operator, check for regular LParen *)
+                    match rest with
+                    | ')' :: _ -> emit_token !line_number LParen rest lex
+                    | _ -> emit_token !line_number LParen rest lex)
             (* Type variables starting with single quote *)
             | '\'' :: tokens_after_single_quote ->
                 let type_var_token, tokens_after_type_var =
@@ -480,6 +498,20 @@ let lex (lst : char list) : token list =
                 else
                   let new_token, remainder = lex_string (c :: t) "" in
                   new_token :: lex remainder
+            (* Comments and operators starting with / need special handling *)
+            (* Check for // comment, but only if not followed by more operator chars *)
+            | '/' :: '/' :: c :: _ when is_bop_prefix c ->
+                (* This is an operator like ///, not a comment *)
+                let bop, chars_after = lex_bop lst in
+                make_token !line_number bop :: lex chars_after
+            | '/' :: '/' :: t ->
+                (* This is a comment *)
+                lex (skip_single_line_comment t)
+            (* Multi-line comment: /* */ *)
+            | '/' :: '*' :: t ->
+                let remaining, newlines = skip_multi_line_comment t 0 in
+                line_number := !line_number + newlines;
+                lex remaining
             (* Operators (including binary operators) *)
             | h :: _ when is_bop_prefix h ->
                 let bop, chars_after = lex_bop lst in
