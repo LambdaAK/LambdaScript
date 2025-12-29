@@ -4732,6 +4732,71 @@ let bind_operator_lexing_regression_tests =
         ~expected_value:"Some 11" );
   ]
 
+let record_type_tests =
+  List.map
+    (fun (a, b) -> type_test a b)
+    [
+      (* Basic record literal types *)
+      ("{x: 1}", "{x: int}");
+      ("{x: 1, y: 2}", "{x: int, y: int}");
+      ("{x: 1, y: true}", "{x: int, y: bool}");
+      ("{x: 1, y: true, z: \"hello\"}", "{x: int, y: bool, z: string}");
+      (* Field access types *)
+      ("{x: 1}.x", "int");
+      ("{x: 1, y: 2}.x", "int");
+      ("{x: 1, y: 2}.y", "int");
+      ("{x: true, y: 42}.x", "bool");
+      ("{x: true, y: 42}.y", "int");
+      (* Nested records *)
+      ("{x: {y: 1}}", "{x: {y: int}}");
+      ("{x: {y: 1}}.x", "{y: int}");
+      ("{x: {y: 1}}.x.y", "int");
+      (* Records with functions *)
+      ("{f: fn x -> x}", "{f: (tv1 -> tv1)}");
+      ("{f: fn x -> x + 1}", "{f: (int -> int)}");
+      (* Functions creating records *)
+      ("fn x -> {x: x}", "(tv1 -> {x: tv1})");
+      ("fn x -> {x: x, y: x}", "(tv1 -> {x: tv1, y: tv1})");
+      (* Functions accessing fields *)
+      ("fn r -> r.x", "({x: tv1} -> tv1)");
+      ("fn r -> r.x + r.y", "({x: int, y: int} -> int)");
+      (* Subtyping in let bindings *)
+      ("let r = {x: 1, y: 2} in r.x", "int");
+      ("let f = fn r -> r.x in f {x: 1, y: 2}", "int");
+      ("let f = fn r -> r.x in f {x: true}", "bool");
+    ]
+
+let record_eval_tests =
+  List.map
+    (fun (a, b) -> eval_test a b)
+    [
+      (* Basic record creation *)
+      ("{x: 1}", "{x: 1}");
+      ("{x: 1, y: 2}", "{x: 1, y: 2}");
+      ("{x: true, y: false}", "{x: true, y: false}");
+      (* Field access *)
+      ("{x: 1}.x", "1");
+      ("{x: 1, y: 2}.x", "1");
+      ("{x: 1, y: 2}.y", "2");
+      ("{x: true, y: 42}.x", "true");
+      ("{x: true, y: 42}.y", "42");
+      (* Nested records *)
+      ("{x: {y: 1}}.x", "{y: 1}");
+      ("{x: {y: 1}}.x.y", "1");
+      ("{x: {y: {z: 5}}}.x.y.z", "5");
+      (* Records with computed values *)
+      ("{x: 1 + 2, y: 3 + 4}", "{x: 3, y: 7}");
+      ("{x: 5 + 5}.x", "10");
+      (* Functions with records *)
+      ("(fn r -> r.x) {x: 42}", "42");
+      ("(fn r -> r.x + r.y) {x: 1, y: 2}", "3");
+      ("let f = fn r -> r.x in f {x: 100}", "100");
+      (* Subtyping: extra fields should work *)
+      ("(fn r -> r.x) {x: 1, y: 2}", "1");
+      ("(fn r -> r.x) {x: 1, y: 2, z: 3}", "1");
+      ("let f = fn r -> r.x + 1 in f {x: 5, y: 10}", "6");
+    ]
+
 let all_tests =
   List.flatten
     [
@@ -4762,6 +4827,8 @@ let all_tests =
       [ option_map_type_test ];
       [ polymorphic_nullary_constructor_regression_tests ];
       [ bind_operator_lexing_regression_tests ];
+      record_type_tests;
+      record_eval_tests;
     ]
 
 let suite = "suite" >::: all_tests

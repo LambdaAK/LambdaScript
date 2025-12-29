@@ -755,6 +755,19 @@ and reduce_eq (c : type_equations) (type_env : type_env) : type_equations =
         | CTypeApp (name1, _), TypeName name2 ->
             (* Same as above, but reversed *)
             if name1 = name2 then reduce_eq c' type_env else raise TypeFailure
+        | RecordType fields1, RecordType fields2 ->
+            (* Width subtyping for records: fields1 (actual) can unify with fields2 (expected)
+               if fields1 has at least all the fields of fields2 *)
+            (* We iterate over the expected type (fields2) and check each field exists in actual (fields1) *)
+            let rec unify_record_fields acc = function
+              | [] -> List.rev acc
+              | (name2, type2) :: rest ->
+                  (match List.assoc_opt name2 fields1 with
+                   | Some type1 -> unify_record_fields ((type1, type2) :: acc) rest
+                   | None -> raise TypeFailure)  (* field not found in actual type *)
+            in
+            let field_equations = unify_record_fields [] fields2 in
+            reduce_eq (field_equations @ c') type_env
         | _ -> raise TypeFailure)
 
 (** [get_type var subs] applies a substitution to a type variable.
