@@ -27,7 +27,7 @@ and condense_sub_pat : sub_pat -> c_pat = function
       CVariantPat (name, payload_c_pat_opt)
 
 let rec condense_defn : defn -> c_defn = function
-  | Defn (pattern, cto, body_expression, return_type) ->
+  | Defn (pattern, cto, body_expression, return_type, num_explicit_params) ->
       let a : c_pat = condense_pat pattern in
       let b : c_type option =
         match cto with
@@ -40,8 +40,8 @@ let rec condense_defn : defn -> c_defn = function
         | None -> None
         | Some t -> Some (condense_type t)
       in
-      CDefn (a, b, c, d)
-  | DefnRec (pattern, cto, body_expression, return_type) ->
+      CDefn (a, b, c, d, num_explicit_params)
+  | DefnRec (pattern, cto, body_expression, return_type, num_explicit_params) ->
       let a : c_pat = condense_pat pattern in
       let b : c_type option =
         match cto with
@@ -54,7 +54,7 @@ let rec condense_defn : defn -> c_defn = function
         | None -> None
         | Some t -> Some (condense_type t)
       in
-      CDefnRec (a, b, c, d)
+      CDefnRec (a, b, c, d, num_explicit_params)
   | TypeDef (name, type_params, ct) ->
       CTypeAlias (name, type_params, condense_compound_type ct)
   | SumTypeDef (name, type_params, constructors) ->

@@ -59,8 +59,8 @@ type c_type =
   | PolyType of type_var * c_type (* Represents ∀x.τ *)
 
 and c_defn =
-  | CDefn of c_pat * c_type option * c_expr * c_type option (* pat, type_annotation, body, return_type *)
-  | CDefnRec of c_pat * c_type option * c_expr * c_type option (* pat, type_annotation, body, return_type *)
+  | CDefn of c_pat * c_type option * c_expr * c_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
+  | CDefnRec of c_pat * c_type option * c_expr * c_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
   | CTypeAlias of string * string list * mono_type
   | CSumType of string * string list * (string * c_type option) list
   | CSumTypeRec of string * string list * (string * c_type option) list

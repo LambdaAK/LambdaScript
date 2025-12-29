@@ -1050,7 +1050,7 @@ and swap_all_variables_in_type (t : mono_type) : mono_type type_check_result =
 and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
     (static_env * type_env) type_check_result =
   match defn with
-  | CDefn (pat, type_annotation, body, return_type) ->
+  | CDefn (pat, type_annotation, body, return_type, num_explicit_params) ->
       (* Generate type and equations for the body *)
       let- body_type, body_equations, _ = generate env type_env body in
 
@@ -1076,13 +1076,14 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
         match return_type with
         | Some t ->
             let- simplified_t = instantiate_and_simplify t type_env in
-            (* Extract the return type from body_type if it's a function *)
-            let rec extract_return_type ty =
-              match ty with
-              | FunctionType (_, ret) -> extract_return_type ret
-              | other -> other
+            (* Extract the return type by skipping the explicit parameter layers *)
+            let rec extract_return_type n ty =
+              match (n, ty) with
+              | 0, _ -> ty
+              | n, FunctionType (_, ret) when n > 0 -> extract_return_type (n - 1) ret
+              | _ -> ty
             in
-            let actual_return_type = extract_return_type body_type in
+            let actual_return_type = extract_return_type num_explicit_params body_type in
             return [ (actual_return_type, simplified_t) ]
         | None -> return []
       in
@@ -1108,7 +1109,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
 
       (* Return value bindings in static env and empty type env *)
       return (new_bindings, [])
-  | CDefnRec (pat, type_annotation, body, return_type) ->
+  | CDefnRec (pat, type_annotation, body, return_type, num_explicit_params) ->
       (* For recursive definitions, we need to add the binding to the
          environment before type checking the body *)
       let pattern_type, pattern_env, pattern_equations =
@@ -1142,13 +1143,14 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
         match return_type with
         | Some t ->
             let- simplified_t = instantiate_and_simplify t type_env in
-            (* Extract the return type from body_type if it's a function *)
-            let rec extract_return_type ty =
-              match ty with
-              | FunctionType (_, ret) -> extract_return_type ret
-              | other -> other
+            (* Extract the return type by skipping the explicit parameter layers *)
+            let rec extract_return_type n ty =
+              match (n, ty) with
+              | 0, _ -> ty
+              | n, FunctionType (_, ret) when n > 0 -> extract_return_type (n - 1) ret
+              | _ -> ty
             in
-            let actual_return_type = extract_return_type body_type in
+            let actual_return_type = extract_return_type num_explicit_params body_type in
             return [ (actual_return_type, simplified_t) ]
         | None -> return []
       in

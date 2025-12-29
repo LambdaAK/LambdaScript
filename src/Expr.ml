@@ -54,8 +54,8 @@ and factor_type =
   | TypeApp of string * compound_type list
 
 type defn =
-  | Defn of pat * compound_type option * expr * compound_type option (* pat, type_annotation, body, return_type *)
-  | DefnRec of pat * compound_type option * expr * compound_type option (* pat, type_annotation, body, return_type *)
+  | Defn of pat * compound_type option * expr * compound_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
+  | DefnRec of pat * compound_type option * expr * compound_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
   | TypeDef of string * string list * compound_type
   | SumTypeDef of string * string list * (string * compound_type option) list
   | SumTypeDefRec of string * string list * (string * compound_type option) list

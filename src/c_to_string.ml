@@ -150,7 +150,7 @@ let rec string_of_expr : c_expr -> string = function
       ^ "]"
 
 and string_of_defn : c_defn -> string = function
-  | CDefn (pat, t_opt, e, return_type_opt) ->
+  | CDefn (pat, t_opt, e, return_type_opt, _) ->
       let type_annot =
         match t_opt with
         | Some t -> " : " ^ string_of_type t
@@ -162,7 +162,7 @@ and string_of_defn : c_defn -> string = function
         | None -> ""
       in
       "let " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = " ^ string_of_expr e
-  | CDefnRec (pat, t_opt, e, return_type_opt) ->
+  | CDefnRec (pat, t_opt, e, return_type_opt, _) ->
       let type_annot =
         match t_opt with
         | Some t -> " : " ^ string_of_type t

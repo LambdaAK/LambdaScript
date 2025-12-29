@@ -1051,8 +1051,9 @@ end = struct
     in
 
     (* wrap body in functions *)
+    let num_explicit_params = List.length arg_pats_and_type_annotations in
     return
-      (Defn (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option))
+      (Defn (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option, num_explicit_params))
 
   let let_rec_defn_parser () : defn parser =
     let* () = expect_token Let in
@@ -1087,8 +1088,9 @@ end = struct
     in
 
     (* wrap body in functions *)
+    let num_explicit_params = List.length arg_pats_and_type_annotations in
     return
-      (DefnRec (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option))
+      (DefnRec (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option, num_explicit_params))
 
   let string_parser : string parser =
     let* s =
