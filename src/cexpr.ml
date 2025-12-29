@@ -113,6 +113,7 @@ and builtin_function =
   | StringToInt
   | IntToFloat
   | FloatToInt
+  | StringToList
   | Map
   | Filter
   | ReduceLeft

@@ -371,6 +371,9 @@ and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   | IntToString, IntegerValue i -> StringValue (string_of_int i) |> return
   | IntToFloat, IntegerValue i -> FloatValue (float_of_int i) |> return
   | FloatToInt, FloatValue f -> IntegerValue (int_of_float f) |> return
+  | StringToList, StringValue s ->
+      let char_list = s |> String.to_seq |> List.of_seq |> List.map (fun c -> CharValue c) in
+      ListValue char_list |> return
   | _ -> Error (OtherError "eval_builtin: unimplemented")
 
 and generate_envs_from_generators generators env : env list eval_result =
