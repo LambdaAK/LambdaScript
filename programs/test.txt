@@ -35,7 +35,6 @@ let (>>=) (parser : Parser<a>) (f : a -> Parser<b>) =
     | Some (result, rest) -> f result rest
     | None -> None
 
-
 let rec (++) l1 l2 =
   switch l1 =>
   | [] -> l2
@@ -55,3 +54,7 @@ let parse_several (parser : Parser<a>) =
     | None -> Some (rev acc, tokens)
     in
     helper []
+
+
+
+let fail = \ _ -> None
