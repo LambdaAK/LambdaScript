@@ -96,6 +96,11 @@ and string_of_value = function
         values |> List.map string_of_value |> String.concat ", "
       in
       "[" ^ values_string ^ "]"
+  | RecordValue fields ->
+      let field_strs = List.map (fun (name, v) ->
+        name ^ ": " ^ string_of_value v
+      ) fields in
+      "{" ^ String.concat ", " field_strs ^ "}"
   | VariantValue (cons_name, None) -> cons_name
   | VariantValue (cons_name, Some payload) ->
       let payload_str = string_of_value payload in
@@ -359,6 +364,24 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
           match new_bindings_option with
           | None -> Error (OtherError "no pattern matched in let rec")
           | Some new_bindings -> eval_c_expr e2 (new_bindings @ env)))
+  | ERecordLit fields ->
+      (* Evaluate each field expression and create a record value *)
+      let rec eval_fields acc = function
+        | [] -> return (RecordValue (List.rev acc))
+        | (name, expr) :: rest ->
+            let* value = eval_c_expr expr env in
+            eval_fields ((name, value) :: acc) rest
+      in
+      eval_fields [] fields
+  | EFieldAccess (record_expr, field_name) -> (
+      (* Evaluate the record expression and extract the field *)
+      let* record_value = eval_c_expr record_expr env in
+      match record_value with
+      | RecordValue fields -> (
+          match List.assoc_opt field_name fields with
+          | Some v -> return v
+          | None -> Error (OtherError ("Field " ^ field_name ^ " not found in record")))
+      | _ -> Error (OtherError "Field access on non-record value"))
 
 and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   match (f, v) with

@@ -213,6 +213,10 @@ and condense_factor : factor -> c_expr = function
   | ListComprehension (e, generators) ->
       EListComprehension
         (condense_expr e, List.map condense_generator generators)
+  | RecordLit fields ->
+      ERecordLit (List.map (fun (name, expr) -> (name, condense_expr expr)) fields)
+  | FieldAccess (factor, field_name) ->
+      EFieldAccess (condense_factor factor, field_name)
 
 (* Condense types *)
 
@@ -267,3 +271,6 @@ and all_type_vars_in_type : mono_type -> string list = function
       List.concat (List.map all_type_vars_in_type args)
       |> List.sort_uniq compare
   | FixedPoint (_, body) -> all_type_vars_in_type body
+  | RecordType fields ->
+      List.concat (List.map (fun (_, t) -> all_type_vars_in_type t) fields)
+      |> List.sort_uniq compare

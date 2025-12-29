@@ -598,6 +598,22 @@ end = struct
     let* () = expect_token RBracket in
     return (ListComprehension (expr, branches))
 
+  and record_lit_parser () : factor parser =
+    (* {field1: expr1, field2: expr2, ...} *)
+    let* () = expect_token LBrace in
+    (* Parse comma-separated field:value pairs *)
+    let parse_fields () =
+      let* field_name = expect_token_get_data (function
+        | Id id -> Some id
+        | _ -> None) in
+      let* () = expect_token Colon in
+      let* field_expr = expr_parser in
+      return (field_name, field_expr)
+    in
+    let* fields = parse_sep_delim (parse_fields ()) Comma in
+    let* () = expect_token RBrace in
+    return (RecordLit fields)
+
   and factor_parser () =
     dispatch_parser
       [
@@ -611,6 +627,10 @@ end = struct
           | LParen :: _ -> true
           | _ -> false),
           infix_id_parser () <|> paren_factor_parser <|> vector_parser () );
+        ( (function
+          | LBrace :: _ -> true
+          | _ -> false),
+          record_lit_parser () );
       ]
       [
         boolean_parser;
@@ -625,7 +645,22 @@ end = struct
         opposite_parser ();
       ]
 
-  let factor_parser = factor_parser ()
+  (* Parse field access: factor.field.field... *)
+  and field_access_parser () : factor parser =
+    let rec parse_field_accesses base_factor =
+      let* () = expect_token Dot in
+      let* field_name = expect_token_get_data (function
+        | Id id -> Some id
+        | _ -> None) in
+      let new_factor = FieldAccess (base_factor, field_name) in
+      (* Try to parse more field accesses *)
+      (parse_field_accesses new_factor) <|> return new_factor
+    in
+    let* base = factor_parser () in
+    (parse_field_accesses base) <|> return base
+
+  let factor_with_field_access_parser = field_access_parser ()
+  let factor_parser = factor_with_field_access_parser
 end
 
 and AppFactorParser : sig

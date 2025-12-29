@@ -444,6 +444,17 @@ and string_of_factor (factor : factor) (level : int) =
           (",\n" ^ indentations_with_newline (level + 1))
           (List.map (fun e -> string_of_expr e (level + 1)) es)
       ^ ")"
+  | RecordLit fields ->
+      "RecordLit ("
+      ^ String.concat
+          (",\n" ^ indentations_with_newline (level + 1))
+          (List.map (fun (name, e) ->
+            name ^ ": " ^ string_of_expr e (level + 1)) fields)
+      ^ ")"
+  | FieldAccess (f, field_name) ->
+      "FieldAccess ("
+      ^ string_of_factor f (level + 1)
+      ^ ", " ^ field_name ^ ")"
 
 and string_of_defn (d : defn) (level : int) =
   let cto_string cto =

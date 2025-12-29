@@ -26,6 +26,11 @@ let rec string_of_mono_type : mono_type -> string = function
         let args_str = List.map string_of_mono_type args in
         name ^ "<" ^ String.concat ", " args_str ^ ">"
   | FixedPoint (_, body) -> string_of_mono_type body
+  | RecordType fields ->
+      let field_strs = List.map (fun (name, t) ->
+        name ^ ": " ^ string_of_mono_type t
+      ) fields in
+      "{" ^ String.concat ", " field_strs ^ "}"
 
 let string_of_c_type (ct : c_type) : string =
   let rec collect_vars acc = function
@@ -148,6 +153,13 @@ let rec string_of_expr : c_expr -> string = function
              (fun (p, e) -> string_of_pat p ^ " <- " ^ string_of_expr e)
              generators)
       ^ "]"
+  | ERecordLit fields ->
+      let field_strs = List.map (fun (name, e) ->
+        name ^ ": " ^ string_of_expr e
+      ) fields in
+      "{" ^ String.concat ", " field_strs ^ "}"
+  | EFieldAccess (e, field) ->
+      string_of_expr e ^ "." ^ field
 
 and string_of_defn : c_defn -> string = function
   | CDefn (pat, t_opt, e, return_type_opt, _) ->

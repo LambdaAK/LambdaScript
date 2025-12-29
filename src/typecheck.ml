@@ -161,6 +161,11 @@ and string_of_mono_type (t : mono_type) : string =
       let args_str = List.map string_of_mono_type args in
       name ^ "<" ^ String.concat ", " args_str ^ ">"
   | FixedPoint (name, body) -> "μ" ^ name ^ ". " ^ string_of_mono_type body
+  | RecordType fields ->
+      let field_strs = List.map (fun (name, t) ->
+        name ^ ": " ^ string_of_mono_type t
+      ) fields in
+      "{" ^ String.concat ", " field_strs ^ "}"
 
 (** [generate env e] performs type inference on the expression [e] in the static
     environment [env].
@@ -200,6 +205,29 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
   | EListComprehension (e, generators) ->
       generate_e_list_comprehension env type_env e generators
   | ESwitch (e1, branches) -> generate_e_switch env type_env e1 branches
+  | ERecordLit fields ->
+      (* Generate constraints for each field expression *)
+      let rec process_fields acc_types acc_equations = function
+        | [] -> return (List.rev acc_types, acc_equations)
+        | (field_name, field_expr) :: rest ->
+            let- field_type, field_equations, _ = generate env type_env field_expr in
+            process_fields ((field_name, field_type) :: acc_types) (acc_equations @ field_equations) rest
+      in
+      let- field_types, equations = process_fields [] [] fields in
+      return (RecordType field_types, equations, [])
+  | EFieldAccess (record_expr, field_name) ->
+      (* Generate type for the record expression *)
+      let- record_type, record_equations, _ = generate env type_env record_expr in
+      (* Create fresh type variable for the field *)
+      let field_type = fresh_type_var () in
+      (* Create constraint: record_type must be a record with at least this field *)
+      (* For now, we'll use a simpler approach - just return the field type *)
+      (* and add an equation that record_type = RecordType with this field *)
+      (* This is simplified - full row polymorphism would be more complex *)
+      let minimal_record = RecordType [(field_name, field_type)] in
+      (* Add equation: record_type = minimal_record (simplified, should handle subtyping) *)
+      let equation = (record_type, minimal_record) in
+      return (field_type, equation :: record_equations, [])
   | EBlock [] -> return (UnitType, [], [])
   | EBlock parts -> (
       (* if the last part is a definition, then the entire thing evaluates to
@@ -801,6 +829,15 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
       (* Apply substitution to the body of the fixed point *)
       let- body_type = get_type body subs type_env in
       return (FixedPoint (name, body_type))
+  | RecordType fields ->
+      (* Apply substitution to each field type *)
+      let rec aux acc = function
+        | [] -> return (RecordType (List.rev acc))
+        | (field_name, field_type) :: rest ->
+            let- new_field_type = get_type field_type subs type_env in
+            aux ((field_name, new_field_type) :: acc) rest
+      in
+      aux [] fields
 
 and get_type_of_type_var (var : string) (subs : type_equations)
     (type_env : type_env) : mono_type type_check_result =
@@ -831,6 +868,7 @@ and inside (inside_type : mono_type) (outside_type : mono_type) : bool =
   | CListType t -> inside inside_type t
   | CTypeApp (_, args) -> List.exists (inside inside_type) args
   | FixedPoint (_, body) -> inside inside_type body
+  | RecordType fields -> List.exists (fun (_, t) -> inside inside_type t) fields
   | _ -> false
 
 (** [is_basic_type t] checks if a type is a basic type (int, bool, string,
@@ -848,6 +886,7 @@ and is_basic_type (t : mono_type) : bool =
   | TypeName _ -> false
   | CTypeApp _ -> false
   | FixedPoint (_, body) -> is_basic_type body
+  | RecordType fields -> List.for_all (fun (_, t) -> is_basic_type t) fields
 
 (** [substitute var_id t equations] substitutes a type variable with a type
     throughout a list of type equations.
@@ -880,6 +919,7 @@ and substitute (var_id : string) (t : mono_type) (equations : type_equations) :
     | TypeName v -> TypeName v
     | CTypeApp (name, args) -> CTypeApp (name, List.map substitute_in_type args)
     | FixedPoint (name, body) -> FixedPoint (name, substitute_in_type body)
+    | RecordType fields -> RecordType (List.map (fun (name, t) -> (name, substitute_in_type t)) fields)
   in
   match equations with
   | [] -> []
@@ -1299,6 +1339,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                       CTypeApp (name, List.map convert_params_to_vars args)
                   | FixedPoint (name, body) ->
                       FixedPoint (name, convert_params_to_vars body)
+                  | RecordType fields ->
+                      RecordType (List.map (fun (n, t) -> (n, convert_params_to_vars t)) fields)
                   | _ -> t
                 in
                 let payload_with_vars = convert_params_to_vars payload_mono in
@@ -1415,6 +1457,7 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
                     | CListType et -> CListType (apply_subst et)
                     | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
                     | FixedPoint (n, b) -> FixedPoint (n, apply_subst b)
+                    | RecordType fields -> RecordType (List.map (fun (name, t) -> (name, apply_subst t)) fields)
                     | _ -> t
                   in
                   return (FixedPoint (fp_name, apply_subst fp_body))
@@ -1449,6 +1492,7 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
               | CListType et -> CListType (apply_subst et)
               | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
               | FixedPoint (name, body) -> FixedPoint (name, apply_subst body)
+              | RecordType fields -> RecordType (List.map (fun (name, t) -> (name, apply_subst t)) fields)
               | _ -> t
             in
 
@@ -1460,6 +1504,15 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       (* Simplify the body of the fixed point *)
       let- body_simplified = simplify_mono_type body type_env in
       return (FixedPoint (name, body_simplified))
+  | RecordType fields ->
+      (* Simplify each field type *)
+      let rec aux acc = function
+        | [] -> return (RecordType (List.rev acc))
+        | (field_name, field_type) :: rest ->
+            let- simplified_field_type = simplify_mono_type field_type type_env in
+            aux ((field_name, simplified_field_type) :: acc) rest
+      in
+      aux [] fields
 
 let rec get_mono_type (t : c_type) : mono_type =
   match t with
