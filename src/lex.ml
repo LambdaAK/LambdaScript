@@ -520,17 +520,8 @@ let lex (lst : char list) : token list =
             | '\n' :: t ->
                 line_number := !line_number + 1;
                 lex t
-            (* Special case: Check for parenthesized operators like (++) *)
-            | '(' :: rest -> (
-                match try_parse_parenthesized_operator rest with
-                | Some (op_string, remaining) ->
-                    (* Found a parenthesized operator, emit it as an Id *)
-                    make_token !line_number (Id op_string) :: lex remaining
-                | None ->
-                    (* Not a parenthesized operator, check for regular LParen *)
-                    match rest with
-                    | ')' :: _ -> emit_token !line_number LParen rest lex
-                    | _ -> emit_token !line_number LParen rest lex)
+            (* Left parenthesis *)
+            | '(' :: rest -> emit_token !line_number LParen rest lex
             (* Type variables or char literals starting with single quote *)
             | '\'' :: tokens_after_single_quote -> (
                 match tokens_after_single_quote with

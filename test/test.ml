@@ -1328,7 +1328,7 @@ module ProgramTesting = struct
                 (new_type_bindings @ type_env)
                 rest)
     in
-    process_defns [] [] c_program
+    process_defns built_ins_types [] c_program
 
   (** Evaluate a program and return both static and dynamic environments.
       @param program The program (list of definitions) to evaluate
@@ -1350,7 +1350,8 @@ module ProgramTesting = struct
           | Ok new_dynamic_bindings ->
               process_defns (new_dynamic_bindings @ dynamic_env) rest)
     in
-    let dynamic_env = process_defns [] c_program in
+    let initial_dynamic_env = initial_env () |> unwrap_eval_result in
+    let dynamic_env = process_defns initial_dynamic_env c_program in
     { type_result with dynamic_env }
 
   (** Check if a program typechecks successfully.
@@ -4273,6 +4274,144 @@ let option_map_type_test =
         ~expr:"(map)"
         ~expected_type:"('a -> 'b) -> Option<'a> -> Option<'b>" );
   ]
+(* ============================================================================
+   Parenthesized Built-in Operator Tests
+
+   These tests verify that built-in infix operators can be used in
+   parenthesized form like (+), (-), etc. as first-class values.
+   ============================================================================ *)
+let parenthesized_builtin_operator_tests =
+  let open ProgramTesting in
+  "parenthesized_builtin_operators"
+  >::: [
+    (* Type tests *)
+    ( "parenthesized + has correct type" >:: fun _ ->
+      assert_expression_has_type
+        ~program:""
+        ~expr:"(+)"
+        ~expected_type:"int -> int -> int" );
+
+    ( "parenthesized - has correct type" >:: fun _ ->
+      assert_expression_has_type
+        ~program:""
+        ~expr:"(-)"
+        ~expected_type:"int -> int -> int" );
+
+    ( "parenthesized times has correct type" >:: fun _ ->
+      assert_expression_has_type
+        ~program:""
+        ~expr:{|(*)|}
+        ~expected_type:"int -> int -> int" );
+
+    ( "parenthesized / has correct type" >:: fun _ ->
+      assert_expression_has_type
+        ~program:""
+        ~expr:"(/)"
+        ~expected_type:"int -> int -> int" );
+
+    ( "parenthesized < has correct type" >:: fun _ ->
+      assert_expression_has_type
+        ~program:""
+        ~expr:"(<)"
+        ~expected_type:"int -> int -> bool" );
+
+    ( "parenthesized && has correct type" >:: fun _ ->
+      assert_expression_has_type
+        ~program:""
+        ~expr:"(&&)"
+        ~expected_type:"bool -> bool -> bool" );
+
+    (* Evaluation tests *)
+    ( "use (+) as a value" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          let add = (+)
+        |}
+        ~expr:"add 5 3"
+        ~expected_value:"8" );
+
+    ( "use (-) as a value" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          let sub = (-)
+        |}
+        ~expr:"sub 10 3"
+        ~expected_value:"7" );
+
+    ( "use times as a value" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          let mul = (*)
+        |}
+        ~expr:"mul 4 5"
+        ~expected_value:"20" );
+
+    ( "use (<) as a value" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          let lt = (<)
+        |}
+        ~expr:"lt 3 5"
+        ~expected_value:"true" );
+
+    ( "use (&&) as a value" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          let and_op = (&&)
+        |}
+        ~expr:"and_op true false"
+        ~expected_value:"false" );
+
+    (* Partial application tests *)
+    ( "partial application of (+)" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          let add5 = (+) 5
+        |}
+        ~expr:"add5 10"
+        ~expected_value:"15" );
+
+    ( "partial application of times" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          let double = (*) 2
+        |}
+        ~expr:"double 7"
+        ~expected_value:"14" );
+
+    (* Higher-order function tests *)
+    ( "pass (+) to a function" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          let apply_op op a b = op a b
+        |}
+        ~expr:"apply_op (+) 3 4"
+        ~expected_value:"7" );
+
+    ( "pass times to a function" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          let apply_op op a b = op a b
+          let result = apply_op (*) 3 4
+        |}
+        ~expr:"result"
+        ~expected_value:"12" );
+
+    (* Using in expressions directly *)
+    ( "use (+) directly in application" >:: fun _ ->
+      assert_expression_has_value
+        ~program:""
+        ~expr:"(+) 10 20"
+        ~expected_value:"30" );
+
+    ( "use times directly" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          let result = (*) 6 7
+        |}
+        ~expr:"result"
+        ~expected_value:"42" );
+  ]
 
 (* ============================================================================
    REGRESSION TESTS FOR POLYMORPHIC NULLARY CONSTRUCTORS
@@ -4619,6 +4758,7 @@ let all_tests =
       [ red_black_tree_tests ];
       [ custom_operator_type_tests ];
       [ custom_operator_evaluation_tests ];
+      [ parenthesized_builtin_operator_tests ];
       [ option_map_type_test ];
       [ polymorphic_nullary_constructor_regression_tests ];
       [ bind_operator_lexing_regression_tests ];

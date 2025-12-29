@@ -379,6 +379,19 @@ end = struct
 
       return (InfixPat s)
 
+    let paren_infix_pat_parser : sub_pat parser =
+      (* ( op ) *)
+      let* () = expect_token LParen in
+      let* s =
+        expect_token_get_data (function
+          | Relop s | Addop s | Mulop s | Logop s -> Some s
+          | AND -> Some "&&"
+          | OR -> Some "||"
+          | _ -> None)
+      in
+      let* () = expect_token RParen in
+      return (InfixPat s)
+
     let wildcard_pat_parser : sub_pat parser =
       let* () = expect_token WildcardPattern in
       return WildcardPat
@@ -400,6 +413,7 @@ end = struct
           id_pat_parser;
           nil_pat_parser;
           infix_pat_parser;
+          paren_infix_pat_parser;
           wildcard_pat_parser;
           vector_pat_parser;
         ]
@@ -497,12 +511,14 @@ end = struct
     in
     return (Id id)
 
-  and infix_id_parser : factor parser =
+  and infix_id_parser () : factor parser =
     (* ( op ) *)
     let* () = expect_token LParen in
     let* id =
       expect_token_get_data (function
         | Relop s | Addop s | Mulop s | Logop s -> Some s
+        | AND -> Some "&&"
+        | OR -> Some "||"
         | _ -> None)
     in
 
@@ -594,7 +610,7 @@ end = struct
         ( (function
           | LParen :: _ -> true
           | _ -> false),
-          infix_id_parser <|> paren_factor_parser <|> vector_parser () );
+          infix_id_parser () <|> paren_factor_parser <|> vector_parser () );
       ]
       [
         boolean_parser;
