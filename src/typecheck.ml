@@ -192,8 +192,8 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
   | EBop (op, e1, e2) -> generate_e_bop env type_env op e1 e2
   | EFunction (pat, cto, body) -> generate_e_function env type_env pat cto body
   | EApp (e1, e2) -> generate_e_app env type_env e1 e2
-  | EBind (pat, cto, e1, e2) -> generate_e_bind env type_env pat cto e1 e2
-  | EBindRec (pat, _, e1, e2) -> generate_e_bind_rec env type_env pat e1 e2
+  | EBind (pat, cto, e1, e2, return_type) -> generate_e_bind env type_env pat cto e1 e2 return_type
+  | EBindRec (pat, _, e1, e2, return_type) -> generate_e_bind_rec env type_env pat e1 e2 return_type
   | ETernary (e1, e2, e3) -> generate_e_ternary env type_env e1 e2 e3
   | EVector expressions -> generate_e_vector env type_env expressions
   | EListEnumeration (e1, e2) -> generate_e_list_enumeration env type_env e1 e2
@@ -371,7 +371,7 @@ and generate_e_app (env : static_env) (type_env : type_env) (e1 : c_expr)
     @param e2 The expression in the scope of the binding
     @return A pair containing the type of e2 and constraints for the binding *)
 and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
-    (cto : c_type option) (e1 : c_expr) (e2 : c_expr) :
+    (cto : c_type option) (e1 : c_expr) (e2 : c_expr) (return_type : c_type option) :
     (mono_type * type_equations * type_env) type_check_result =
   let t_pat, pat_env, pat_constraints = type_of_pat env type_env pat in
   let- t1, c1, _ = generate env type_env e1 in
@@ -380,6 +380,20 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
     | Some t ->
         let- simplified_t = instantiate_and_simplify t type_env in
         return [ (t_pat, simplified_t) ]
+    | None -> return []
+  in
+  let- return_type_constraints =
+    match return_type with
+    | Some t ->
+        let- simplified_t = instantiate_and_simplify t type_env in
+        (* Extract the return type from t1 if it's a function *)
+        let rec extract_return_type ty =
+          match ty with
+          | FunctionType (_, ret) -> extract_return_type ret
+          | other -> other
+        in
+        let actual_return_type = extract_return_type t1 in
+        return [ (actual_return_type, simplified_t) ]
     | None -> return []
   in
   let new_constraint = (t_pat, t1) in
@@ -404,17 +418,18 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
     in
     return
       ( t2,
-        pat_constraints @ annotation_constraints @ (new_constraint :: c1) @ c2,
+        pat_constraints @ annotation_constraints @ return_type_constraints @ (new_constraint :: c1) @ c2,
         [] )
   else
     (* Generalize the type of e1 before using it in e2 *)
-    let- generalized_type = generalize (new_constraint :: c1) env type_env t1 in
+    let- generalized_type =
+      generalize (return_type_constraints @ new_constraint :: c1) env type_env t1 in
     let- t2, c2, _ =
       generate ((fst (List.hd pat_env), generalized_type) :: env) type_env e2
     in
     return
       ( t2,
-        pat_constraints @ annotation_constraints @ (new_constraint :: c1) @ c2,
+        pat_constraints @ annotation_constraints @ return_type_constraints @ (new_constraint :: c1) @ c2,
         [] )
 
 (** [generate_e_bind_rec env pat e1 e2] generates type constraints for recursive
@@ -427,7 +442,7 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
       A pair containing the type of e2 and constraints for the recursive binding
 *)
 and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
-    (e1 : c_expr) (e2 : c_expr) :
+    (e1 : c_expr) (e2 : c_expr) (return_type : c_type option) :
     (mono_type * type_equations * type_env) type_check_result =
   let- function_id =
     match pat with
@@ -443,13 +458,28 @@ and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
   let- t1, c1, _ = generate new_env type_env e1 in
   (* Add constraint that function_type must equal t1 *)
   let new_constraint = (function_type, t1) in
+  let- return_type_constraints =
+    match return_type with
+    | Some t ->
+        let- simplified_t = instantiate_and_simplify t type_env in
+        (* Extract the return type from t1 if it's a function *)
+        let rec extract_return_type ty =
+          match ty with
+          | FunctionType (_, ret) -> extract_return_type ret
+          | other -> other
+        in
+        let actual_return_type = extract_return_type t1 in
+        return [ (actual_return_type, simplified_t) ]
+    | None -> return []
+  in
   (* Generalize the function type to make it polymorphic *)
   (* Use env (not new_env) so that the function's type variable can be generalized *)
-  let- generalized_type = generalize (new_constraint :: c1) env type_env t1 in
+  let- generalized_type =
+    generalize (return_type_constraints @ new_constraint :: c1) env type_env t1 in
   let- t2, c2, _ =
     generate ((function_id, generalized_type) :: env) type_env e2
   in
-  return (t2, (new_constraint :: c1) @ c2, [])
+  return (t2, return_type_constraints @ (new_constraint :: c1) @ c2, [])
 
 (** [generate_e_ternary env e1 e2 e3] generates type constraints for ternary
     expressions.
@@ -1020,7 +1050,7 @@ and swap_all_variables_in_type (t : mono_type) : mono_type type_check_result =
 and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
     (static_env * type_env) type_check_result =
   match defn with
-  | CDefn (pat, type_annotation, body) ->
+  | CDefn (pat, type_annotation, body, return_type) ->
       (* Generate type and equations for the body *)
       let- body_type, body_equations, _ = generate env type_env body in
 
@@ -1041,10 +1071,26 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
         | None -> return []
       in
 
+      (* Handle return type annotation if present *)
+      let- return_type_equations =
+        match return_type with
+        | Some t ->
+            let- simplified_t = instantiate_and_simplify t type_env in
+            (* Extract the return type from body_type if it's a function *)
+            let rec extract_return_type ty =
+              match ty with
+              | FunctionType (_, ret) -> extract_return_type ret
+              | other -> other
+            in
+            let actual_return_type = extract_return_type body_type in
+            return [ (actual_return_type, simplified_t) ]
+        | None -> return []
+      in
+
       (* Combine all equations *)
       let all_equations =
         body_equations @ pattern_equations @ annotation_equations
-        @ [ pattern_body_constraint ]
+        @ return_type_equations @ [ pattern_body_constraint ]
       in
 
       (* Generalize the body type *)
@@ -1062,7 +1108,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
 
       (* Return value bindings in static env and empty type env *)
       return (new_bindings, [])
-  | CDefnRec (pat, type_annotation, body) ->
+  | CDefnRec (pat, type_annotation, body, return_type) ->
       (* For recursive definitions, we need to add the binding to the
          environment before type checking the body *)
       let pattern_type, pattern_env, pattern_equations =
@@ -1091,10 +1137,26 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
         | None -> return []
       in
 
+      (* Handle return type annotation if present *)
+      let- return_type_equations =
+        match return_type with
+        | Some t ->
+            let- simplified_t = instantiate_and_simplify t type_env in
+            (* Extract the return type from body_type if it's a function *)
+            let rec extract_return_type ty =
+              match ty with
+              | FunctionType (_, ret) -> extract_return_type ret
+              | other -> other
+            in
+            let actual_return_type = extract_return_type body_type in
+            return [ (actual_return_type, simplified_t) ]
+        | None -> return []
+      in
+
       (* Combine all equations *)
       let all_equations =
         body_equations @ pattern_equations @ annotation_equations
-        @ [ rec_constraint; pattern_body_constraint ]
+        @ return_type_equations @ [ rec_constraint; pattern_body_constraint ]
       in
 
       (* Generalize the body type *)

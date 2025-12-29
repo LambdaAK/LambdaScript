@@ -54,8 +54,8 @@ and factor_type =
   | TypeApp of string * compound_type list
 
 type defn =
-  | Defn of pat * compound_type option * expr
-  | DefnRec of pat * compound_type option * expr
+  | Defn of pat * compound_type option * expr * compound_type option (* pat, type_annotation, body, return_type *)
+  | DefnRec of pat * compound_type option * expr * compound_type option (* pat, type_annotation, body, return_type *)
   | TypeDef of string * string list * compound_type
   | SumTypeDef of string * string list * (string * compound_type option) list
   | SumTypeDefRec of string * string list * (string * compound_type option) list
@@ -70,8 +70,8 @@ and expr =
   | Function of pat * compound_type option * expr
   | Ternary of expr * expr * expr
   | ConsExpr of cons_expr
-  | Bind of pat * compound_type option * expr * expr
-  | BindRec of pat * compound_type option * expr * expr
+  | Bind of pat * compound_type option * expr * expr * compound_type option (* pat, type_annotation, e1, e2, return_type *)
+  | BindRec of pat * compound_type option * expr * expr * compound_type option (* pat, type_annotation, e1, e2, return_type *)
   | Switch of expr * switch_branch list
   | Block of expr_or_defn list
 

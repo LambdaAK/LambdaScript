@@ -98,13 +98,15 @@ let rec string_of_expr : c_expr -> string = function
       "fn " ^ string_of_pat pat
       ^ format_type_annotation t_opt
       ^ " -> " ^ string_of_expr body
-  | EBind (pat, t_opt, e1, e2) ->
+  | EBind (pat, t_opt, e1, e2, return_type_opt) ->
       "let " ^ string_of_pat pat
       ^ format_type_annotation t_opt
+      ^ format_type_annotation return_type_opt
       ^ " = " ^ string_of_expr e1 ^ " in " ^ string_of_expr e2
-  | EBindRec (pat, t_opt, e1, e2) ->
+  | EBindRec (pat, t_opt, e1, e2, return_type_opt) ->
       "let rec " ^ string_of_pat pat
       ^ format_type_annotation t_opt
+      ^ format_type_annotation return_type_opt
       ^ " = " ^ string_of_expr e1 ^ " in " ^ string_of_expr e2
   | ETernary (cond, t_branch, f_branch) ->
       "if " ^ string_of_expr cond ^ " then " ^ string_of_expr t_branch
@@ -148,20 +150,30 @@ let rec string_of_expr : c_expr -> string = function
       ^ "]"
 
 and string_of_defn : c_defn -> string = function
-  | CDefn (pat, t_opt, e) ->
+  | CDefn (pat, t_opt, e, return_type_opt) ->
       let type_annot =
         match t_opt with
         | Some t -> " : " ^ string_of_type t
         | None -> ""
       in
-      "let " ^ string_of_pat pat ^ type_annot ^ " = " ^ string_of_expr e
-  | CDefnRec (pat, t_opt, e) ->
+      let return_annot =
+        match return_type_opt with
+        | Some t -> " : " ^ string_of_type t
+        | None -> ""
+      in
+      "let " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = " ^ string_of_expr e
+  | CDefnRec (pat, t_opt, e, return_type_opt) ->
       let type_annot =
         match t_opt with
         | Some t -> " : " ^ string_of_type t
         | None -> ""
       in
-      "let rec " ^ string_of_pat pat ^ type_annot ^ " = " ^ string_of_expr e
+      let return_annot =
+        match return_type_opt with
+        | Some t -> " : " ^ string_of_type t
+        | None -> ""
+      in
+      "let rec " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = " ^ string_of_expr e
   | CTypeAlias (name, args, body) ->
       let args_str =
         match args with

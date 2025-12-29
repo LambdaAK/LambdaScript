@@ -27,7 +27,7 @@ and condense_sub_pat : sub_pat -> c_pat = function
       CVariantPat (name, payload_c_pat_opt)
 
 let rec condense_defn : defn -> c_defn = function
-  | Defn (pattern, cto, body_expression) ->
+  | Defn (pattern, cto, body_expression, return_type) ->
       let a : c_pat = condense_pat pattern in
       let b : c_type option =
         match cto with
@@ -35,8 +35,13 @@ let rec condense_defn : defn -> c_defn = function
         | Some t -> Some (condense_type t)
       in
       let c : c_expr = condense_expr body_expression in
-      CDefn (a, b, c)
-  | DefnRec (pattern, cto, body_expression) ->
+      let d : c_type option =
+        match return_type with
+        | None -> None
+        | Some t -> Some (condense_type t)
+      in
+      CDefn (a, b, c, d)
+  | DefnRec (pattern, cto, body_expression, return_type) ->
       let a : c_pat = condense_pat pattern in
       let b : c_type option =
         match cto with
@@ -44,7 +49,12 @@ let rec condense_defn : defn -> c_defn = function
         | Some t -> Some (condense_type t)
       in
       let c : c_expr = condense_expr body_expression in
-      CDefnRec (a, b, c)
+      let d : c_type option =
+        match return_type with
+        | None -> None
+        | Some t -> Some (condense_type t)
+      in
+      CDefnRec (a, b, c, d)
   | TypeDef (name, type_params, ct) ->
       CTypeAlias (name, type_params, condense_compound_type ct)
   | SumTypeDef (name, type_params, constructors) ->
@@ -85,7 +95,7 @@ and condense_expr : expr -> c_expr = function
   | Ternary (e1, e2, e3) ->
       ETernary (condense_expr e1, condense_expr e2, condense_expr e3)
   | ConsExpr ce -> condense_cons_expr ce
-  | Bind (pat, cto, e1, e2) ->
+  | Bind (pat, cto, e1, e2, return_type) ->
       (* TODO: fix this later *)
       EBind
         ( condense_pat pat,
@@ -93,15 +103,21 @@ and condense_expr : expr -> c_expr = function
           | None -> None
           | Some ct -> Some (condense_type ct)),
           condense_expr e1,
-          condense_expr e2 )
-  | BindRec (pat, cto, e1, e2) ->
+          condense_expr e2,
+          (match return_type with
+          | None -> None
+          | Some ct -> Some (condense_type ct)) )
+  | BindRec (pat, cto, e1, e2, return_type) ->
       EBindRec
         ( condense_pat pat,
           (match cto with
           | None -> None
           | Some ct -> Some (condense_type ct)),
           condense_expr e1,
-          condense_expr e2 )
+          condense_expr e2,
+          (match return_type with
+          | None -> None
+          | Some ct -> Some (condense_type ct)) )
   | Switch (e, branches) ->
       ESwitch
         ( condense_expr e,

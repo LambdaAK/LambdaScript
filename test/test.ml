@@ -487,6 +487,10 @@ let function_type_tests =
     ("\\ (f : 'e -> 'f) -> \\ (x : 'f) -> f x", "('a -> 'a) -> 'a -> 'a");
     (* this is an interesting example because it turns out that a = b here *)
     ("\\ (f : 'e -> 'f) -> \\ (x : 'e) -> f x", "('a -> 'b) -> 'a -> 'b");
+    (* return type annotations *)
+    ("let f x : int = x in f", "int -> int");
+    ("let f x y : int = x + y in f", "int -> int -> int");
+    ("let f (x : bool) : int = if x then 1 else 0 in f", "bool -> int");
     (* on the other hand, there is no constraint generated in this expression
        saying that a = b, so they are different *)
     ("let f a (b : int) (c : int) (d : int) = a in f", "'a -> int -> int -> int -> 'a");

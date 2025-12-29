@@ -323,7 +323,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
           | Some env'' -> eval_c_expr e (env'' @ env')
           | None -> Error (OtherError "eval_c_expr: EApp"))
       | _ -> Error (OtherError "eval_c_expr: EApp"))
-  | EBind (pattern, _, e1, e2) ->
+  | EBind (pattern, _, e1, e2, _) ->
       (* We have let p = e1 in e2. We can convert this to (fun p -> e2) e1 and
          evaluate that instead. As far as dynamic semantics go, they are the
          same thing! *)
@@ -332,7 +332,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       let modified_expr = EApp (EFunction (pattern, None, e2), e1) in
       (* evaluate the modified expression *)
       eval_c_expr modified_expr env
-  | EBindRec (pattern, _, e1, e2) -> (
+  | EBindRec (pattern, _, e1, e2, _) -> (
       let* v1 : value = eval_c_expr e1 env in
       let v1_rec =
         match v1 with
@@ -559,14 +559,14 @@ and expr_of_pat : c_pat -> c_expr = function
     @return The new bindings introduced by the definition *)
 and eval_defn (d : c_defn) (env : env) : env eval_result =
   match d with
-  | CDefn (pat, _, body) -> (
+  | CDefn (pat, _, body, _) -> (
       (* Evaluate the body in the current environment *)
       let* value = eval_c_expr body env in
       (* Try to bind the pattern to the value *)
       match bind_pat pat value with
       | None -> Error (OtherError "eval_defn: pattern match failed")
       | Some new_bindings -> new_bindings |> return)
-  | CDefnRec (pat, _, body) -> (
+  | CDefnRec (pat, _, body, _) -> (
       (* For recursive definitions, we need to create a recursive closure *)
       let* value = eval_c_expr body env in
       let value_rec =

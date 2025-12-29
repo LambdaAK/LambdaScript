@@ -171,7 +171,7 @@ let rec string_of_expr (e : expr) (level : int) : string =
       ^ string_of_cons_expr e (level + 1)
       ^ indentations_with_newline level
       ^ ")"
-  | Bind (p, cto, e1, e2) ->
+  | Bind (p, cto, e1, e2, return_type) ->
       let p_string : string = string_of_pat p in
       let e1_string : string = string_of_expr e1 (level + 1) in
       let e2_string : string = string_of_expr e2 (level + 1) in
@@ -190,10 +190,17 @@ let rec string_of_expr (e : expr) (level : int) : string =
       ^ indentations_with_newline (level + 1)
       ^ e1_string ^ ","
       ^ indentations_with_newline (level + 1)
-      ^ e2_string
+      ^ e2_string ^ ","
+      ^ (match return_type with
+        | None -> ""
+        | Some ct ->
+            let string_of_ct : string =
+              string_of_compound_type ct (level + 1)
+            in
+            indentations_with_newline (level + 1) ^ string_of_ct)
       ^ indentations_with_newline level
       ^ ")"
-  | BindRec (p, cto, e1, e2) ->
+  | BindRec (p, cto, e1, e2, return_type) ->
       let p_string : string = string_of_pat p in
       let e1_string : string = string_of_expr e1 (level + 1) in
       let e2_string : string = string_of_expr e2 (level + 1) in
@@ -212,7 +219,14 @@ let rec string_of_expr (e : expr) (level : int) : string =
       ^ indentations_with_newline (level + 1)
       ^ e1_string ^ ","
       ^ indentations_with_newline (level + 1)
-      ^ e2_string
+      ^ e2_string ^ ","
+      ^ (match return_type with
+        | None -> ""
+        | Some ct ->
+            let string_of_ct : string =
+              string_of_compound_type ct (level + 1)
+            in
+            indentations_with_newline (level + 1) ^ string_of_ct)
       ^ indentations_with_newline level
       ^ ")"
 
@@ -441,19 +455,21 @@ and string_of_defn (d : defn) (level : int) =
         ^ ","
   in
   match d with
-  | Defn (p, cto, e) ->
+  | Defn (p, cto, e, return_type) ->
       "Defn ("
       ^ indentations_with_newline (level + 1)
       ^ string_of_pat p ^ "," ^ cto_string cto
       ^ indentations_with_newline (level + 1)
       ^ string_of_expr e (level + 1)
+      ^ "," ^ cto_string return_type
       ^ ")"
-  | DefnRec (p, cto, e) ->
+  | DefnRec (p, cto, e, return_type) ->
       "DefnRec ("
       ^ indentations_with_newline (level + 1)
       ^ string_of_pat p ^ "," ^ cto_string cto
       ^ indentations_with_newline (level + 1)
       ^ string_of_expr e (level + 1)
+      ^ "," ^ cto_string return_type
       ^ ")"
   | TypeDef (name, args, ct) ->
       "TypeDef (" ^ name
