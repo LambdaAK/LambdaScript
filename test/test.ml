@@ -4206,6 +4206,26 @@ let custom_operator_evaluation_tests =
              ~expected_value:"7" );
        ]
 
+let option_map_type_test =
+  let open ProgramTesting in
+  "option_map_type_test"
+  >::: [
+    ( "map should have polymorphic type" >:: fun _ ->
+      assert_expression_has_type
+        ~program:{|
+          type Option<a> =
+            | None
+            | Some of a
+
+          let map f o =
+            switch o =>
+            | None -> None
+            | Some v -> Some (f v)
+        |}
+        ~expr:"(map)"
+        ~expected_type:"('a -> 'b) -> Option<'a> -> Option<'b>" );
+  ]
+
 let all_tests =
   List.flatten
     [
@@ -4230,6 +4250,7 @@ let all_tests =
       [ red_black_tree_tests ];
       [ custom_operator_type_tests ];
       [ custom_operator_evaluation_tests ];
+      [ option_map_type_test ];
     ]
 
 let suite = "suite" >::: all_tests

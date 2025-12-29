@@ -1108,10 +1108,17 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
             let sum_type_app =
               CTypeApp (type_name, List.map (fun p -> TypeVar p) type_params)
             in
+            (* Helper function to wrap a type in PolyType quantifiers for each type parameter *)
+            let rec make_poly_type_nullary params_left sum_type =
+              match params_left with
+              | [] -> Mono sum_type
+              | param :: rest ->
+                  PolyType (param, make_poly_type_nullary rest sum_type)
+            in
             match payload_type_opt with
             | None ->
-                (* Nullary constructor - just the sum type *)
-                (cons_name, Mono sum_type_app)
+                (* Nullary constructor - wrap in PolyType if there are type parameters *)
+                (cons_name, make_poly_type_nullary type_params sum_type_app)
             | Some payload_type ->
                 (* Constructor with payload - function type *)
                 let payload_mono =
