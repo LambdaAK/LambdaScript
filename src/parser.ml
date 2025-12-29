@@ -1026,8 +1026,8 @@ end = struct
     let* arg_pats_and_type_annotations : (pat * compound_type option) list =
       parse_several ExprParser.pat_and_type_annotation_parser
     in
-    (* parse optional return type annotation : Type *)
-    let* return_type_option : compound_type option =
+    (* parse optional type annotation : Type *)
+    let* type_annot_option : compound_type option =
       (let* () = expect_token Colon in
        let* ct = CompoundTypeParser.compound_type_parser in
        return (Some ct))
@@ -1036,9 +1036,23 @@ end = struct
     let* () = expect_token Equals in
     let* e1 = ExprParser.expr_parser in
 
+    (* Determine if this is a value type annotation or return type annotation *)
+    let final_cto, return_type_option =
+      match (arg_pats_and_type_annotations, cto, type_annot_option) with
+      | [], None, Some t ->
+          (* No arguments and no prior type annotation: this is a value type annotation *)
+          (Some t, None)
+      | _, _, Some t ->
+          (* Has arguments or prior type annotation: this is a return type annotation *)
+          (cto, Some t)
+      | _, _, None ->
+          (* No type annotation after arguments *)
+          (cto, None)
+    in
+
     (* wrap body in functions *)
     return
-      (Defn (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option))
+      (Defn (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option))
 
   let let_rec_defn_parser () : defn parser =
     let* () = expect_token Let in
@@ -1048,8 +1062,8 @@ end = struct
     let* arg_pats_and_type_annotations : (pat * compound_type option) list =
       parse_several ExprParser.pat_and_type_annotation_parser
     in
-    (* parse optional return type annotation : Type *)
-    let* return_type_option : compound_type option =
+    (* parse optional type annotation : Type *)
+    let* type_annot_option : compound_type option =
       (let* () = expect_token Colon in
        let* ct = CompoundTypeParser.compound_type_parser in
        return (Some ct))
@@ -1058,9 +1072,23 @@ end = struct
     let* () = expect_token Equals in
     let* e1 = ExprParser.expr_parser in
 
+    (* Determine if this is a value type annotation or return type annotation *)
+    let final_cto, return_type_option =
+      match (arg_pats_and_type_annotations, cto, type_annot_option) with
+      | [], None, Some t ->
+          (* No arguments and no prior type annotation: this is a value type annotation *)
+          (Some t, None)
+      | _, _, Some t ->
+          (* Has arguments or prior type annotation: this is a return type annotation *)
+          (cto, Some t)
+      | _, _, None ->
+          (* No type annotation after arguments *)
+          (cto, None)
+    in
+
     (* wrap body in functions *)
     return
-      (DefnRec (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option))
+      (DefnRec (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option))
 
   let string_parser : string parser =
     let* s =
