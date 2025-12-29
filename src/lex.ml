@@ -236,9 +236,19 @@ let lex_bop (lst : char list) =
     | h :: t when is_special h -> (
         (* Don't combine '>' with another '>' to allow nested type applications
            like Pair<Pair<int>> *)
+        (* But DO combine if there's another operator char after, like >>= *)
         (* Also don't combine operators with standalone delimiters like , ; : | *)
         match (acc, h) with
-        | '>' :: _, '>' -> (List.rev acc, lst)
+        | '>' :: _, '>' -> (
+            (* Check if there's another operator character after the second > *)
+            (* We want to allow >>= but not >>> (for nested types like Box<Box<Box<int>>>) *)
+            match t with
+            | next :: _ when is_special next && next <> '>' && next <> ',' && next <> ';' && next <> ':' && next <> '|' ->
+                (* There's another operator char (not >), so keep building (e.g., >>= ) *)
+                get_bop_chars t (h :: acc)
+            | _ ->
+                (* No continuation or next is >, stop here to allow Pair<Pair<int>> *)
+                (List.rev acc, lst))
         | _ :: _, (',' | ';' | ':' | '|') -> (List.rev acc, lst)
         | [], (',' | ';' | ':' | '|') -> (List.rev acc, lst)
         | _ -> get_bop_chars t (h :: acc))
