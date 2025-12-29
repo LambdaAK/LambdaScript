@@ -3846,7 +3846,7 @@ let custom_operator_type_tests =
              ~program:{|
                let (+++) x y = x + y + y
              |}
-             ~expr:"+++"
+             ~expr:"(+++)"
              ~expected_type:"int -> int -> int" );
 
          ( "custom additive operator with different implementation" >:: fun _ ->
@@ -3854,7 +3854,7 @@ let custom_operator_type_tests =
              ~program:{|
                let (+-+) a b = a + b + 1
              |}
-             ~expr:"+-+"
+             ~expr:"(+-+)"
              ~expected_type:"int -> int -> int" );
 
          (* Multiplicative operators (start with * / %) *)
@@ -3863,7 +3863,7 @@ let custom_operator_type_tests =
              ~program:{|
                let (***) x y = x * x * y
              |}
-             ~expr:"***"
+             ~expr:"(***)"
              ~expected_type:"int -> int -> int" );
 
          ( "custom division-based operator type" >:: fun _ ->
@@ -3871,7 +3871,7 @@ let custom_operator_type_tests =
              ~program:{|
                let (///) x y = x / y + x % y
              |}
-             ~expr:"///"
+             ~expr:"(///)"
              ~expected_type:"int -> int -> int" );
 
          (* Relational operators (start with < > =) *)
@@ -3880,15 +3880,15 @@ let custom_operator_type_tests =
              ~program:{|
                let (===) x y = x == y
              |}
-             ~expr:"==="
-             ~expected_type:"int -> int -> bool" );
+             ~expr:"(===)"
+             ~expected_type:"'a -> 'a -> bool" );
 
          ( "custom less-than operator type" >:: fun _ ->
            assert_expression_has_type
              ~program:{|
                let (<<) x y = x < y - 1
              |}
-             ~expr:"<<"
+             ~expr:"(<<)"
              ~expected_type:"int -> int -> bool" );
 
          (* Polymorphic custom operators *)
@@ -3897,8 +3897,8 @@ let custom_operator_type_tests =
              ~program:{|
                let (<=>) x y = if x == y then 1 else 0
              |}
-             ~expr:"<=>"
-             ~expected_type:"int -> int -> int" );
+             ~expr:"(<=>)"
+             ~expected_type:"'a -> 'a -> int" );
 
          (* Custom operator with type annotations *)
          ( "custom operator with type annotation" >:: fun _ ->
@@ -3906,7 +3906,7 @@ let custom_operator_type_tests =
              ~program:{|
                let (+*+) [int -> int -> int] = \x [int] -> \y [int] -> x + y * 2
              |}
-             ~expr:"+*+"
+             ~expr:"(+*+)"
              ~expected_type:"int -> int -> int" );
 
          (* Custom operator usage in expressions *)
@@ -3961,7 +3961,7 @@ let custom_operator_type_tests =
                let (***) x y = x * x * y
                let (===) x y = x == y
              |}
-             ~expr:"+++"
+             ~expr:"(+++)"
              ~expected_type:"int -> int -> int" );
 
          ( "expression with multiple custom operators" >:: fun _ ->
@@ -3982,7 +3982,7 @@ let custom_operator_type_tests =
                  else if x == 1 then y
                  else y + (x - 1) ***> y
              |}
-             ~expr:"***>"
+             ~expr:"(***>)"
              ~expected_type:"int -> int -> int" );
 
          (* Custom operator with bool return *)
@@ -3991,7 +3991,7 @@ let custom_operator_type_tests =
              ~program:{|
                let (>><) x y = x > y && y > 0
              |}
-             ~expr:">><"
+             ~expr:"(>><)"
              ~expected_type:"int -> int -> bool" );
 
          (* Mixed precedence operators *)
@@ -4062,8 +4062,8 @@ let custom_operator_evaluation_tests =
          ( "multiple custom operators" >:: fun _ ->
            assert_expression_has_value
              ~program:{|
-               let (+++) x y = x + y + y
-               let (***) x y = x * x * y
+               let (+++) x y = x + x + y
+               let (***) x y = x * y
              |}
              ~expr:"2 *** 3 +++ 4"
              ~expected_value:"16" );
@@ -4072,7 +4072,7 @@ let custom_operator_evaluation_tests =
          ( "partial application evaluation" >:: fun _ ->
            assert_expression_has_value
              ~program:{|
-               let (+++) x y = x + y + y
+               let (+++) x y = x + x + y
                let add_double = (+++) 2
              |}
              ~expr:"add_double 3"
@@ -4190,16 +4190,16 @@ let custom_operator_evaluation_tests =
          ( "custom boolean operator - complex" >:: fun _ ->
            assert_expression_has_value
              ~program:{|
-               let (<<>>) x y = x < y && y < x + 10
+               let (<<=) x y = x < y && y < x + 10
              |}
-             ~expr:"5 <<>> 7"
+             ~expr:"5 <<= 7"
              ~expected_value:"true" );
 
          (* Using custom operators in higher-order functions *)
          ( "custom operator in lambda" >:: fun _ ->
            assert_expression_has_value
              ~program:{|
-               let (+++) x y = x + y + y
+               let (+++) x y = x + x + y
                let apply_op f a b = f a b
              |}
              ~expr:"apply_op (+++) 2 3"
