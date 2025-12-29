@@ -294,6 +294,7 @@ let keywords =
     ("let", Let);
     ("rec", Rec);
     ("bind", Bind);
+    ("fn", Fn);
     ("switch", Switch);
     ("case", Case);
     ("do", Do);
@@ -453,7 +454,6 @@ let single_char_tokens =
     ('}', RBrace);
     (')', RParen);
     ('_', WildcardPattern);
-    ('\\', Fn);
   ]
 
 (* Try to match a multi-character sequence *)

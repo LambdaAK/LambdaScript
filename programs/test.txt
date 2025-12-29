@@ -21,38 +21,38 @@ type expr =
 type Parser<a> = [token_type] -> Option<(a, [token_type])>
 
 let (<|>) (p1 : Parser<a>) (p2 : Parser<a>) =
-  \tokens ->
+  fn tokens ->
     case p1 tokens do
     | Some result -> Some result
     | None -> p2 tokens
 
 let (<*) (p1 : Parser<a>) (p2 : Parser<b>) =
-  \tokens ->
+  fn tokens ->
     case p1 tokens do
     | Some (_, rest) -> p2 rest
     | None -> None
 
 let (*>) p1 p2 =
-  \tokens ->
+  fn tokens ->
     case p1 tokens do
     | Some (_, rest) -> p2 rest
     | None -> None
 
 let (>>=) (parser : Parser<a>) (f : a -> Parser<b>) =
-  \tokens ->
+  fn tokens ->
     case parser tokens do
     | Some (result, rest) -> f result rest
     | None -> None
 
 let expect_token (expected : token_type) : Parser<unit> =
-  \tokens ->
+  fn tokens ->
     case tokens do
     | [] -> None
     | token :: remaining_tokens ->
       if token == expected then Some ((), remaining_tokens) else None
 
 let expect_token_get_data (pred : token_type -> Option<a>) : Parser<a> =
-  \ tokens ->
+  fn tokens ->
     case tokens do
     | [] -> None
     | token :: remaining_tokens -> (
@@ -83,14 +83,14 @@ let parse_several (parser : Parser<a>) =
     helper []
 
 
-let fail : Parser<a> = \ _ -> None
+let fail : Parser<a> = fn _ -> None
 
 let return (result : a) : Parser<a> =
-  \ tokens ->
+  fn tokens ->
     Some (result, tokens)
 
 let num_parser : Parser<expr> =
-  \tokens ->
+  fn tokens ->
     case tokens do
     | [] -> None
     | token :: remaining_tokens ->

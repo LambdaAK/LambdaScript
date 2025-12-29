@@ -34,7 +34,7 @@ let built_ins_types : (string * c_type) list =
 let code_mapping : (string * string) list =
   [
     ("not", {|
-\a -> if a then false else true
+fn a -> if a then false else true
 |});
     ( "map",
       {|let rec map f arr =
@@ -67,12 +67,12 @@ filter|}
       | h :: t -> f h (fold f t acc)
       in fold|}
     );
-    ("+", {|\a -> \b -> a + b|});
-    ("-", {|\a -> \b -> a - b|});
-    ("*", {|\a -> \b -> a * b|});
-    ("/", {|\a -> \b -> a / b|});
-    ("%", {|\a -> \b -> a % b|});
-    ("<>", {|\a -> \b -> if a == b then false else true|});
+    ("+", {|fn a -> fn b -> a + b|});
+    ("-", {|fn a -> fn b -> a - b|});
+    ("*", {|fn a -> fn b -> a * b|});
+    ("/", {|fn a -> fn b -> a / b|});
+    ("%", {|fn a -> fn b -> a % b|});
+    ("<>", {|fn a -> fn b -> if a == b then false else true|});
   ]
 
 (* definitions of the REPL *)

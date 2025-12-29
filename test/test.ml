@@ -82,12 +82,12 @@ module IntTestModifierInput :
         ( x ^ " + 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10",
           y |> int_of_string |> ( + ) 55 |> string_of_int ));
       (* tests involving functions *)
-      (fun (x, y) -> ("(\\ n -> n) (" ^ x ^ " )", y));
+      (fun (x, y) -> ("(fn  n -> n) (" ^ x ^ " )", y));
       (fun (x, y) ->
-        ( "(\\ n -> n + 1) (" ^ x ^ " )",
+        ( "(fn  n -> n + 1) (" ^ x ^ " )",
           y |> int_of_string |> ( + ) 1 |> string_of_int ));
       (fun (x, y) ->
-        ( "(\\ a -> \\ b -> a + b) (" ^ x ^ " )" ^ " ( " ^ x ^ " )",
+        ( "(fn  a -> fn  b -> a + b) (" ^ x ^ " )" ^ " ( " ^ x ^ " )",
           y |> int_of_string |> ( * ) 2 |> string_of_int ));
       (* tests involving let expressions *)
       (fun (x, y) -> ("let a = " ^ x ^ " in a", y));
@@ -108,7 +108,7 @@ module EvalTestModifierInput :
       (* let expression *)
       (fun (x, y) -> ("let a = " ^ x ^ " in a", y));
       (fun (x, y) -> ("let rec a = " ^ x ^ " in a", y));
-      (fun (x, y) -> ("( \\ a -> a ) ( " ^ x ^ " )", y));
+      (fun (x, y) -> ("( fn  a -> a ) ( " ^ x ^ " )", y));
     ]
 end
 
@@ -123,7 +123,7 @@ struct
       (* let expression *)
       (fun x -> "let q = " ^ x ^ " in q");
       (fun x -> "let rec q = " ^ x ^ " in q");
-      (fun x -> "( \\ a -> a ) ( " ^ x ^ " )");
+      (fun x -> "( fn  a -> a ) ( " ^ x ^ " )");
     ]
 end
 
@@ -167,9 +167,9 @@ module IntTypeTestModifierInput :
       (fun x -> "if true then " ^ x ^ " else 0");
       (fun x -> "if false then 0 else " ^ x);
       (* tests that involve functions that will evaluate to integers *)
-      (fun x -> "(\\ n -> n) (" ^ x ^ " )");
-      (fun x -> "(\\ n -> n + 1) (" ^ x ^ " )");
-      (fun x -> "(\\ a -> \\ b -> a + b) (" ^ x ^ " )" ^ " ( " ^ x ^ " )");
+      (fun x -> "(fn  n -> n) (" ^ x ^ " )");
+      (fun x -> "(fn  n -> n + 1) (" ^ x ^ " )");
+      (fun x -> "(fn  a -> fn  b -> a + b) (" ^ x ^ " )" ^ " ( " ^ x ^ " )");
     ]
 end
 
@@ -199,7 +199,7 @@ module FunctionTypeTestModifierInput :
   type test_type = string * string
 
   let modifiers =
-    [ (fun x -> x); (fun (x, y) -> ("(\\ m -> m) ( " ^ x ^ " )", y)) ]
+    [ (fun x -> x); (fun (x, y) -> ("(fn  m -> m) ( " ^ x ^ " )", y)) ]
 end
 
 module PairTypeTestModiferInput :
@@ -429,32 +429,32 @@ let char_types = [ "'a'"; "'b'" ]
 
 let function_type_tests =
   [
-    ("\\ n -> n", "'a -> 'a");
-    ("\\ n -> n + 1", "int -> int");
-    ("\\ a -> \\ b -> a + b", "int -> int -> int");
-    ("\\ (n : int) -> n", "int -> int");
-    ("\\ (n : int) -> n + 1", "int -> int");
-    ("\\ (a : int) -> \\ (b : int) -> a + b", "int -> int -> int");
-    ("\\ a -> \\ b -> a", "'a -> 'b -> 'a");
-    ("\\ a -> \\ b -> b", "'a -> 'b -> 'b");
-    ("\\ (a : int) -> \\ b -> b", "int -> 'a -> 'a");
-    ("\\ a -> \\ (b : int) -> b", "'a -> int -> int");
-    ("\\ (a : int) -> \\ (b : int) -> b", "int -> int -> int");
-    ("\\ (a : int) -> \\ (b : int) -> a", "int -> int -> int");
-    ("\\ (a : int) -> \\ (b : int) -> a + b", "int -> int -> int");
-    ("\\ (a : int) -> \\ (b : int) -> a + b + 1", "int -> int -> int");
-    ("\\ (a : int) -> \\ (b : int) -> a + b + 1 + 2", "int -> int -> int");
-    ("\\ ((a, b) : (int, int)) -> a + b", "(int, int) -> int");
-    ("\\ (a, _) -> \\ (_, b) -> a + b", "(int, 'a) -> ('b, int) -> int");
-    ("\\ (a, _) -> \\ (_, b) -> a || b", "(bool, 'a) -> ('b, bool) -> bool");
-    ( {|\ (a, b) ->
-    \ (c, d) ->
+    ("fn  n -> n", "'a -> 'a");
+    ("fn  n -> n + 1", "int -> int");
+    ("fn  a -> fn  b -> a + b", "int -> int -> int");
+    ("fn  (n : int) -> n", "int -> int");
+    ("fn  (n : int) -> n + 1", "int -> int");
+    ("fn  (a : int) -> fn  (b : int) -> a + b", "int -> int -> int");
+    ("fn  a -> fn  b -> a", "'a -> 'b -> 'a");
+    ("fn  a -> fn  b -> b", "'a -> 'b -> 'b");
+    ("fn  (a : int) -> fn  b -> b", "int -> 'a -> 'a");
+    ("fn  a -> fn  (b : int) -> b", "'a -> int -> int");
+    ("fn  (a : int) -> fn  (b : int) -> b", "int -> int -> int");
+    ("fn  (a : int) -> fn  (b : int) -> a", "int -> int -> int");
+    ("fn  (a : int) -> fn  (b : int) -> a + b", "int -> int -> int");
+    ("fn  (a : int) -> fn  (b : int) -> a + b + 1", "int -> int -> int");
+    ("fn  (a : int) -> fn  (b : int) -> a + b + 1 + 2", "int -> int -> int");
+    ("fn  ((a, b) : (int, int)) -> a + b", "(int, int) -> int");
+    ("fn  (a, _) -> fn  (_, b) -> a + b", "(int, 'a) -> ('b, int) -> int");
+    ("fn  (a, _) -> fn  (_, b) -> a || b", "(bool, 'a) -> ('b, bool) -> bool");
+    ( {|fn (a, b) ->
+    fn (c, d) ->
     if a then b
     else if c then d
     else 1|},
       "(bool, int) -> (bool, int) -> int" );
     (* more complicated function type tests *)
-    ( "\\ a -> \\ b -> \\ c -> a ( b ( c ) )",
+    ( "fn  a -> fn  b -> fn  c -> a ( b ( c ) )",
       "('a -> 'b) -> ('c -> 'a) -> 'c -> 'b" );
     (* tests with syntax sugar let expressions *)
     ("let f x = x in f", "'a -> 'a");
@@ -477,16 +477,16 @@ let function_type_tests =
     ("let f (a : int) (b : int) (c : int) (d : int) = a in f 1 2 3", "int -> int");
     ("let f (a : int) (b : int) (c : int) (d : int) = a in f 1 2 3 4", "int");
     (* with type variables *)
-    ("\\ (a : 'a) -> a", "'a -> 'a");
-    ("\\ (a : 'a) -> a + 1", "int -> int");
-    ("\\ (a : 'a) -> \\ (b : 'a) -> a", "'a -> 'a -> 'a");
-    ("\\ (a : 'a) -> \\ (b : 'a) -> b", "'a -> 'a -> 'a");
-    ("\\ (a : 'a) -> \\ (b : 'b) -> a", "'a -> 'b -> 'a");
-    ("\\ (a : 'a) -> \\ (b : 'a) -> a + b", "int -> int -> int");
-    ("\\ (a : 'a) -> \\ (b : 'a) -> a + b + 1", "int -> int -> int");
-    ("\\ (f : 'e -> 'f) -> \\ (x : 'f) -> f x", "('a -> 'a) -> 'a -> 'a");
+    ("fn  (a : 'a) -> a", "'a -> 'a");
+    ("fn  (a : 'a) -> a + 1", "int -> int");
+    ("fn  (a : 'a) -> fn  (b : 'a) -> a", "'a -> 'a -> 'a");
+    ("fn  (a : 'a) -> fn  (b : 'a) -> b", "'a -> 'a -> 'a");
+    ("fn  (a : 'a) -> fn  (b : 'b) -> a", "'a -> 'b -> 'a");
+    ("fn  (a : 'a) -> fn  (b : 'a) -> a + b", "int -> int -> int");
+    ("fn  (a : 'a) -> fn  (b : 'a) -> a + b + 1", "int -> int -> int");
+    ("fn  (f : 'e -> 'f) -> fn  (x : 'f) -> f x", "('a -> 'a) -> 'a -> 'a");
     (* this is an interesting example because it turns out that a = b here *)
-    ("\\ (f : 'e -> 'f) -> \\ (x : 'e) -> f x", "('a -> 'b) -> 'a -> 'b");
+    ("fn  (f : 'e -> 'f) -> fn  (x : 'e) -> f x", "('a -> 'b) -> 'a -> 'b");
     (* return type annotations *)
     ("let f x : int = x in f", "int -> int");
     ("let f x y : int = x + y in f", "int -> int -> int");
@@ -502,26 +502,26 @@ let function_type_tests =
     ("let f a b c (d : str) = c in f", "'a -> 'b -> 'c -> str -> 'c");
     ("let f a b c d = c in f", "'a -> 'b -> 'c -> 'd -> 'c");
     ("let f a b c (d : str) = d in f", "'a -> 'b -> 'c -> str -> str");
-    ("\\ (a, _) -> a", "('a, 'b) -> 'a");
-    ("\\ (a, _) -> a + 1", "(int, 'a) -> int");
-    ("\\ f -> \\ x -> f x", "('a -> 'b) -> 'a -> 'b");
-    ( {|\ (f : 'e -> 'f -> 'g) ->
-    \ (a : 'e) ->
-    \ (b : 'f) ->
+    ("fn  (a, _) -> a", "('a, 'b) -> 'a");
+    ("fn  (a, _) -> a + 1", "(int, 'a) -> int");
+    ("fn  f -> fn  x -> f x", "('a -> 'b) -> 'a -> 'b");
+    ( {|fn (f : 'e -> 'f -> 'g) ->
+    fn (a : 'e) ->
+    fn (b : 'f) ->
     f a b|},
       "('a -> 'b -> 'c) -> 'a -> 'b -> 'c" );
-    ("\\ (a : ('a, 'b)) -> a", "('a, 'b) -> ('a, 'b)");
-    ("\\ ((a, _) : ('a, 'b)) -> a", "('a, 'b) -> 'a");
-    ("\\ ((_, a) : ('a, 'b)) -> a", "('a, 'b) -> 'b");
-    ("\\ ((a, b, c) : ('a, 'b, 'c)) -> a", "('a, 'b, 'c) -> 'a");
+    ("fn  (a : ('a, 'b)) -> a", "('a, 'b) -> ('a, 'b)");
+    ("fn  ((a, _) : ('a, 'b)) -> a", "('a, 'b) -> 'a");
+    ("fn  ((_, a) : ('a, 'b)) -> a", "('a, 'b) -> 'b");
+    ("fn  ((a, b, c) : ('a, 'b, 'c)) -> a", "('a, 'b, 'c) -> 'a");
     (* higher order function *)
-    ( {|\ (f : ('e, 'f) -> 'g) ->
-    \ (a : 'e) ->
-    \ (b : 'f) ->
+    ( {|fn (f : ('e, 'f) -> 'g) ->
+    fn (a : 'e) ->
+    fn (b : 'f) ->
     f (a, b)|},
       "(('a, 'b) -> 'c) -> 'a -> 'b -> 'c" );
-    ( {|\ (f : 'e -> 'f -> 'g) ->
-    \ (a, b) ->
+    ( {|fn (f : 'e -> 'f -> 'g) ->
+    fn (a, b) ->
     f a b|},
       "('a -> 'b -> 'c) -> ('a, 'b) -> 'c" );
     (* long function with 10 arguments and return the first *)
@@ -544,7 +544,7 @@ let function_type_tests =
     ("let rec f x = x in f", "'a -> 'a");
     ("let rec f (x : unit) = x in f", "unit -> unit");
     ("let rec f (x : int -> int) = x in f", "(int -> int) -> int -> int");
-    ("\\ (a : [int]) -> a", "[int] -> [int]");
+    ("fn  (a : [int]) -> a", "[int] -> [int]");
     ("let rec f x = if x == 0 then 0 else f (x - 1) in f", "int -> int");
     (* factorial *)
     ("let rec f x = if x == 0 then 1 else x * f (x - 1) in f", "int -> int");
@@ -602,7 +602,7 @@ let function_type_tests =
       \  in\n\
       \  \n\
       \  let rec map f lst =\n\
-      \    fold (\\ x -> \\ acc -> f x :: acc) lst []\n\
+      \    fold (fn  x -> fn  acc -> f x :: acc) lst []\n\
       \  \n\
       \  in\n\
       \  \n\
@@ -616,7 +616,7 @@ let function_type_tests =
     
   in
   
-  let filter pred = fold (\ x -> \ acc -> if pred x then x :: acc else acc) []
+  let filter pred = fold (fn x -> fn acc -> if pred x then x :: acc else acc) []
   
   in filter|},
       "('a -> bool) -> ['a] -> ['a]" );
@@ -628,7 +628,7 @@ let function_type_tests =
     
   in
   
-  let filter pred = fold (\ x -> \ acc -> if pred x then x :: acc else acc) []
+  let filter pred = fold (fn x -> fn acc -> if pred x then x :: acc else acc) []
   
   in filter|},
       "('a -> bool) -> ['a] -> ['a]" );
@@ -648,10 +648,10 @@ let pair_type_tests =
 
 let function_to_string_tests =
   [
-    ("\\ a -> a", "function");
-    ("\\ () -> ()", "function");
-    ("\\(() : unit) -> ()", "function");
-    ("let (a : (int -> int) -> int) = \\ f -> f 1 in a", "function");
+    ("fn  a -> a", "function");
+    ("fn  () -> ()", "function");
+    ("fn (() : unit) -> ()", "function");
+    ("let (a : (int -> int) -> int) = fn  f -> f 1 in a", "function");
   ]
 
 let vector_type_tests =
@@ -920,7 +920,7 @@ let list_tests =
   
 in
 
-fold_right (\x -> \y -> x + y) [1,2,3,4,5,6,7,8,9,10] 0
+fold_right (fn x -> fn y -> x + y) [1,2,3,4,5,6,7,8,9,10] 0
   |},
       "55" );
     ({|
@@ -941,7 +941,7 @@ fold_right (\x -> \y -> x + y) [1,2,3,4,5,6,7,8,9,10] 0
       | h :: t -> op h (fold_right op t acc)
     in
 
-    fold_right (\x -> \y -> x + y) [1,2,3,4,5,6,7,8,9,10] 0
+    fold_right (fn x -> fn y -> x + y) [1,2,3,4,5,6,7,8,9,10] 0
   |},
       "55" );
   ]
@@ -974,12 +974,12 @@ let complex_tests =
   [
     ( {|
     let (succ : int -> int) =
-      \ (n : int) -> n + 1
+      fn (n : int) -> n + 1
     in
     
     let (sum : int -> int -> int) =
-      \ (a : int) ->
-      \ (b : int) ->
+      fn (a : int) ->
+      fn (b : int) ->
       a + b
     in
     
@@ -988,7 +988,7 @@ let complex_tests =
       "8" );
     ( {|
     let (succ : int-> int) =
-      \ (n : int) -> n + 1
+      fn (n : int) -> n + 1
     in
 
     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
@@ -1001,13 +1001,13 @@ let complex_tests =
     |}, "1");
     ({|
     let f =
-      \ (a : str) -> a
+      fn (a : str) -> a
     in
     f ""
     |}, {|""|});
     ({|
     let f =
-      \ () -> ()
+      fn () -> ()
     in
     f ()
     |}, {|()|});
@@ -1036,7 +1036,7 @@ let complex_tests =
     (* function that takes a function and applies it to 1 *)
     ({|
     let apply_one f = f 1 in
-    apply_one (\ n -> n + 1)
+    apply_one (fn n -> n + 1)
     |}, "2");
     ( {|
     let f a b c d e f g h i j k l m n o p q r s t = a in
@@ -1535,10 +1535,10 @@ let program_expression_type_tests =
            assert_expression_has_type ~program:"let x = 42" ~expr:"x"
              ~expected_type:"int" );
          ( "function type after definition" >:: fun _ ->
-           assert_expression_has_type ~program:"let double = \\x -> x * 2"
+           assert_expression_has_type ~program:"let double = fn x -> x * 2"
              ~expr:"double" ~expected_type:"int -> int" );
          ( "polymorphic function type" >:: fun _ ->
-           assert_expression_has_type ~program:"let id = \\x -> x" ~expr:"id"
+           assert_expression_has_type ~program:"let id = fn x -> x" ~expr:"id"
              ~expected_type:"'a -> 'a" );
          ( "type after multiple definitions" >:: fun _ ->
            assert_expression_has_type
@@ -1560,7 +1560,7 @@ let program_expression_type_tests =
          ( "function application type" >:: fun _ ->
            assert_expression_has_type
              ~program:{|
-               let double = \x -> x * 2
+               let double = fn x -> x * 2
              |}
              ~expr:"double 5" ~expected_type:"int" );
          ( "nested custom type after type definition" >:: fun _ ->
@@ -1617,7 +1617,7 @@ let program_expression_type_tests =
              ~program:
                {|
                type IntFunction = int -> int
-               let (f : IntFunction) = \x -> x + 1
+               let (f : IntFunction) = fn x -> x + 1
              |}
              ~expr:"f" ~expected_type:"int -> int" );
          ( "parameterized list type alias" >:: fun _ ->
@@ -1661,7 +1661,7 @@ let program_expression_type_tests =
              ~program:
                {|
                type Transformer<a> = a -> a
-               let (double : Transformer<int>) = \x -> x * 2
+               let (double : Transformer<int>) = fn x -> x * 2
              |}
              ~expr:"double 5" ~expected_type:"int" );
          ( "deeply nested type aliases" >:: fun _ ->
@@ -1703,7 +1703,7 @@ let program_expression_type_tests =
              ~program:
                {|
                type BinaryOp<a> = a -> a -> a
-               let (add : BinaryOp<int>) = \x -> \y -> x + y
+               let (add : BinaryOp<int>) = fn x -> fn y -> x + y
              |}
              ~expr:"add" ~expected_type:"int -> int -> int" );
          ( "multi-parameter type alias" >:: fun _ ->
@@ -1770,7 +1770,7 @@ let string_concat_tests =
     ( "string concat eval empty" >:: fun _ ->
       assert_expression_has_value ~program:"" ~expr:{|"" ^ "test" ^ ""|} ~expected_value:{|"test"|} );
     ( "string concat in function" >:: fun _ ->
-      assert_expression_has_value ~program:"" ~expr:{|(\x -> \y -> x ^ y) "foo" "bar"|} ~expected_value:{|"foobar"|} );
+      assert_expression_has_value ~program:"" ~expr:{|(fn x -> fn y -> x ^ y) "foo" "bar"|} ~expected_value:{|"foobar"|} );
   ]
 
 let program_expression_value_tests =
@@ -1795,7 +1795,7 @@ let program_expression_value_tests =
          ( "function application value" >:: fun _ ->
            assert_expression_has_value
              ~program:{|
-               let double = \x -> x * 2
+               let double = fn x -> x * 2
              |}
              ~expr:"double 5" ~expected_value:"10" );
          ( "recursive function value" >:: fun _ ->
@@ -4483,8 +4483,8 @@ let bind_operator_lexing_regression_tests =
 
           let result =
             Some 5
-            >>= (\x -> Some (x + 1))
-            >>= (\y -> Some (y * 2))
+            >>= (fn x -> Some (x + 1))
+            >>= (fn y -> Some (y * 2))
         |}
         ~expr:"result"
         ~expected_value:"Some 12" );
@@ -4502,7 +4502,7 @@ let bind_operator_lexing_regression_tests =
             | None -> None
             | Some v -> f v
 
-          let result = None >>= (\x -> Some (x + 1))
+          let result = None >>= (fn x -> Some (x + 1))
         |}
         ~expr:"result"
         ~expected_value:"None" );
