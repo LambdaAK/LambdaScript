@@ -473,8 +473,10 @@ let function_type_tests =
       "int -> int -> int -> int -> int" );
     ( "let f (a : int) (b : int) (c : int) (d : int) = a in f 1",
       "int -> int -> int -> int" );
-    ("let f (a : int) (b : int) (c : int) (d : int) = a in f 1 2", "int -> int -> int");
-    ("let f (a : int) (b : int) (c : int) (d : int) = a in f 1 2 3", "int -> int");
+    ( "let f (a : int) (b : int) (c : int) (d : int) = a in f 1 2",
+      "int -> int -> int" );
+    ( "let f (a : int) (b : int) (c : int) (d : int) = a in f 1 2 3",
+      "int -> int" );
     ("let f (a : int) (b : int) (c : int) (d : int) = a in f 1 2 3 4", "int");
     (* with type variables *)
     ("fn  (a : 'a) -> a", "'a -> 'a");
@@ -493,7 +495,8 @@ let function_type_tests =
     ("let f (x : bool) : int = if x then 1 else 0 in f", "bool -> int");
     (* on the other hand, there is no constraint generated in this expression
        saying that a = b, so they are different *)
-    ("let f a (b : int) (c : int) (d : int) = a in f", "'a -> int -> int -> int -> 'a");
+    ( "let f a (b : int) (c : int) (d : int) = a in f",
+      "'a -> int -> int -> int -> 'a" );
     ("let f a (b : int) (c : int) d = a in f", "'a -> int -> int -> 'b -> 'a");
     ("let f a (b : int) c (d : int) = a in f", "'a -> int -> 'b -> int -> 'a");
     ("let f a (b : int) c d = a in f", "'a -> int -> 'b -> 'c -> 'a");
@@ -834,11 +837,7 @@ let boolean_tests =
   ]
 
 let char_eval_tests =
-  [
-    ("'a'", "'a'");
-    ("'a' == 'a'", "true");
-    ("'a' == 'b'", "false");
-  ]
+  [ ("'a'", "'a'"); ("'a' == 'a'", "true"); ("'a' == 'b'", "false") ]
 
 let ternary_tests =
   [
@@ -1560,7 +1559,8 @@ let program_expression_type_tests =
              ~expr:"x + y" ~expected_type:"int" );
          ( "function application type" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let double = fn x -> x * 2
              |}
              ~expr:"double 5" ~expected_type:"int" );
@@ -1748,31 +1748,41 @@ let string_concat_tests =
   let open ProgramTesting in
   "string_concatenation"
   >::: [
-    ( "string concat basic" >:: fun _ ->
-      assert_expression_has_type ~program:"" ~expr:{|"hello" ^ "world"|} ~expected_type:"str" );
-    ( "string concat multiple" >:: fun _ ->
-      assert_expression_has_type ~program:"" ~expr:{|"a" ^ "b" ^ "c"|} ~expected_type:"str" );
-    ( "string concat with variables" >:: fun _ ->
-      assert_expression_has_type
-        ~program:{|
+         ( "string concat basic" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:{|"hello" ^ "world"|}
+             ~expected_type:"str" );
+         ( "string concat multiple" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:{|"a" ^ "b" ^ "c"|}
+             ~expected_type:"str" );
+         ( "string concat with variables" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
           let x = "hello"
           let y = "world"
         |}
-        ~expr:{|x ^ y|}
-        ~expected_type:"str" );
-    ( "string concat empty strings" >:: fun _ ->
-      assert_expression_has_type ~program:"" ~expr:{|"" ^ ""|} ~expected_type:"str" );
-    ( "string concat eval basic" >:: fun _ ->
-      assert_expression_has_value ~program:"" ~expr:{|"hello" ^ "world"|} ~expected_value:{|"helloworld"|} );
-    ( "string concat eval multiple" >:: fun _ ->
-      assert_expression_has_value ~program:"" ~expr:{|"a" ^ "b" ^ "c" ^ "d"|} ~expected_value:{|"abcd"|} );
-    ( "string concat eval with spaces" >:: fun _ ->
-      assert_expression_has_value ~program:"" ~expr:{|"hello" ^ " " ^ "world"|} ~expected_value:{|"hello world"|} );
-    ( "string concat eval empty" >:: fun _ ->
-      assert_expression_has_value ~program:"" ~expr:{|"" ^ "test" ^ ""|} ~expected_value:{|"test"|} );
-    ( "string concat in function" >:: fun _ ->
-      assert_expression_has_value ~program:"" ~expr:{|(fn x -> fn y -> x ^ y) "foo" "bar"|} ~expected_value:{|"foobar"|} );
-  ]
+             ~expr:{|x ^ y|} ~expected_type:"str" );
+         ( "string concat empty strings" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:{|"" ^ ""|}
+             ~expected_type:"str" );
+         ( "string concat eval basic" >:: fun _ ->
+           assert_expression_has_value ~program:"" ~expr:{|"hello" ^ "world"|}
+             ~expected_value:{|"helloworld"|} );
+         ( "string concat eval multiple" >:: fun _ ->
+           assert_expression_has_value ~program:""
+             ~expr:{|"a" ^ "b" ^ "c" ^ "d"|} ~expected_value:{|"abcd"|} );
+         ( "string concat eval with spaces" >:: fun _ ->
+           assert_expression_has_value ~program:""
+             ~expr:{|"hello" ^ " " ^ "world"|} ~expected_value:{|"hello world"|}
+         );
+         ( "string concat eval empty" >:: fun _ ->
+           assert_expression_has_value ~program:"" ~expr:{|"" ^ "test" ^ ""|}
+             ~expected_value:{|"test"|} );
+         ( "string concat in function" >:: fun _ ->
+           assert_expression_has_value ~program:""
+             ~expr:{|(fn x -> fn y -> x ^ y) "foo" "bar"|}
+             ~expected_value:{|"foobar"|} );
+       ]
 
 let program_expression_value_tests =
   let open ProgramTesting in
@@ -1795,7 +1805,8 @@ let program_expression_value_tests =
              ~expr:"z" ~expected_value:"3" );
          ( "function application value" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let double = fn x -> x * 2
              |}
              ~expr:"double 5" ~expected_value:"10" );
@@ -2704,7 +2715,8 @@ let red_black_tree_tests =
              type rec RBTree<a> =
                | Leaf
                | Node of (Color, a, RBTree<a>, RBTree<a>)
-           |} );
+           |}
+         );
          ( "create empty rb tree" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -2714,8 +2726,7 @@ let red_black_tree_tests =
                  | Leaf
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
-             ~expr:"Leaf"
-             ~expected_value:"Leaf" );
+             ~expr:"Leaf" ~expected_value:"Leaf" );
          ( "create red node" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -2756,8 +2767,7 @@ let red_black_tree_tests =
                      else if x < y then contains x left
                      else contains x right
              |}
-             ~expr:"contains"
-             ~expected_type:"int -> RBTree<int> -> bool" );
+             ~expr:"contains" ~expected_type:"int -> RBTree<int> -> bool" );
          ( "rb tree contains - empty tree" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -2775,8 +2785,7 @@ let red_black_tree_tests =
                      else if x < y then contains x left
                      else contains x right
              |}
-             ~expr:"contains 5 Leaf"
-             ~expected_value:"false" );
+             ~expr:"contains 5 Leaf" ~expected_value:"false" );
          ( "rb tree contains - single node found" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -2837,8 +2846,7 @@ let red_black_tree_tests =
                      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
                  | _ -> tree
              |}
-             ~expr:"balance"
-             ~expected_type:"RBTree<'a> -> RBTree<'a>" );
+             ~expr:"balance" ~expected_type:"RBTree<'a> -> RBTree<'a>" );
          ( "rb tree balance - no rebalancing needed" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -2877,8 +2885,7 @@ let red_black_tree_tests =
                  | Leaf -> 0
                  | Node (_, _, left, right) -> 1 + size left + size right
              |}
-             ~expr:"size"
-             ~expected_type:"RBTree<'a> -> int" );
+             ~expr:"size" ~expected_type:"RBTree<'a> -> int" );
          ( "rb tree size - empty" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -2893,8 +2900,7 @@ let red_black_tree_tests =
                  | Leaf -> 0
                  | Node (_, _, left, right) -> 1 + size left + size right
              |}
-             ~expr:"size Leaf"
-             ~expected_value:"0" );
+             ~expr:"size Leaf" ~expected_value:"0" );
          ( "rb tree size - single node" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -2909,8 +2915,7 @@ let red_black_tree_tests =
                  | Leaf -> 0
                  | Node (_, _, left, right) -> 1 + size left + size right
              |}
-             ~expr:"size (Node (Black, 5, Leaf, Leaf))"
-             ~expected_value:"1" );
+             ~expr:"size (Node (Black, 5, Leaf, Leaf))" ~expected_value:"1" );
          ( "rb tree size - three nodes" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -2925,7 +2930,9 @@ let red_black_tree_tests =
                  | Leaf -> 0
                  | Node (_, _, left, right) -> 1 + size left + size right
              |}
-             ~expr:"size (Node (Black, 5, Node (Red, 3, Leaf, Leaf), Node (Red, 7, Leaf, Leaf)))"
+             ~expr:
+               "size (Node (Black, 5, Node (Red, 3, Leaf, Leaf), Node (Red, 7, \
+                Leaf, Leaf)))"
              ~expected_value:"3" );
          (* Height function *)
          ( "rb tree height function" >:: fun _ ->
@@ -2945,8 +2952,7 @@ let red_black_tree_tests =
                      let right_h = height right in
                      1 + (if left_h > right_h then left_h else right_h)
              |}
-             ~expr:"height"
-             ~expected_type:"RBTree<'a> -> int" );
+             ~expr:"height" ~expected_type:"RBTree<'a> -> int" );
          ( "rb tree height - empty" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -2964,8 +2970,7 @@ let red_black_tree_tests =
                      let right_h = height right in
                      1 + (if left_h > right_h then left_h else right_h)
              |}
-             ~expr:"height Leaf"
-             ~expected_value:"0" );
+             ~expr:"height Leaf" ~expected_value:"0" );
          ( "rb tree height - single node" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -2983,8 +2988,7 @@ let red_black_tree_tests =
                      let right_h = height right in
                      1 + (if left_h > right_h then left_h else right_h)
              |}
-             ~expr:"height (Node (Black, 5, Leaf, Leaf))"
-             ~expected_value:"1" );
+             ~expr:"height (Node (Black, 5, Leaf, Leaf))" ~expected_value:"1" );
          ( "rb tree height - balanced tree" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3002,7 +3006,9 @@ let red_black_tree_tests =
                      let right_h = height right in
                      1 + (if left_h > right_h then left_h else right_h)
              |}
-             ~expr:"height (Node (Black, 5, Node (Red, 3, Leaf, Leaf), Node (Red, 7, Leaf, Leaf)))"
+             ~expr:
+               "height (Node (Black, 5, Node (Red, 3, Leaf, Leaf), Node (Red, \
+                7, Leaf, Leaf)))"
              ~expected_value:"2" );
          (* Min/Max functions *)
          ( "rb tree minimum function" >:: fun _ ->
@@ -3020,8 +3026,7 @@ let red_black_tree_tests =
                  | Node (_, x, Leaf, _) -> x
                  | Node (_, _, left, _) -> minimum left
              |}
-             ~expr:"minimum"
-             ~expected_type:"RBTree<int> -> int" );
+             ~expr:"minimum" ~expected_type:"RBTree<int> -> int" );
          ( "rb tree minimum - single node" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3037,8 +3042,8 @@ let red_black_tree_tests =
                  | Node (_, x, Leaf, _) -> x
                  | Node (_, _, left, _) -> minimum left
              |}
-             ~expr:"minimum (Node (Black, 5, Leaf, Leaf))"
-             ~expected_value:"5" );
+             ~expr:"minimum (Node (Black, 5, Leaf, Leaf))" ~expected_value:"5"
+         );
          ( "rb tree minimum - multiple nodes" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3054,7 +3059,9 @@ let red_black_tree_tests =
                  | Node (_, x, Leaf, _) -> x
                  | Node (_, _, left, _) -> minimum left
              |}
-             ~expr:"minimum (Node (Black, 5, Node (Red, 3, Node (Black, 1, Leaf, Leaf), Leaf), Leaf))"
+             ~expr:
+               "minimum (Node (Black, 5, Node (Red, 3, Node (Black, 1, Leaf, \
+                Leaf), Leaf), Leaf))"
              ~expected_value:"1" );
          ( "rb tree maximum function" >:: fun _ ->
            assert_expression_has_type
@@ -3071,8 +3078,7 @@ let red_black_tree_tests =
                  | Node (_, x, _, Leaf) -> x
                  | Node (_, _, _, right) -> maximum right
              |}
-             ~expr:"maximum"
-             ~expected_type:"RBTree<int> -> int" );
+             ~expr:"maximum" ~expected_type:"RBTree<int> -> int" );
          ( "rb tree maximum - single node" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3088,8 +3094,8 @@ let red_black_tree_tests =
                  | Node (_, x, _, Leaf) -> x
                  | Node (_, _, _, right) -> maximum right
              |}
-             ~expr:"maximum (Node (Black, 5, Leaf, Leaf))"
-             ~expected_value:"5" );
+             ~expr:"maximum (Node (Black, 5, Leaf, Leaf))" ~expected_value:"5"
+         );
          ( "rb tree maximum - multiple nodes" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3105,7 +3111,9 @@ let red_black_tree_tests =
                  | Node (_, x, _, Leaf) -> x
                  | Node (_, _, _, right) -> maximum right
              |}
-             ~expr:"maximum (Node (Black, 5, Leaf, Node (Red, 7, Leaf, Node (Black, 9, Leaf, Leaf))))"
+             ~expr:
+               "maximum (Node (Black, 5, Leaf, Node (Red, 7, Leaf, Node \
+                (Black, 9, Leaf, Leaf))))"
              ~expected_value:"9" );
          (* Complex tree structure tests *)
          ( "rb tree complex structure" >:: fun _ ->
@@ -3126,7 +3134,10 @@ let red_black_tree_tests =
                              Node (Black, 9, Leaf, Leaf)))
              |}
              ~expr:"tree"
-             ~expected_value:"Node (Black, 5, Node (Red, 3, Node (Black, 1, Leaf, Leaf), Node (Black, 4, Leaf, Leaf)), Node (Red, 7, Node (Black, 6, Leaf, Leaf), Node (Black, 9, Leaf, Leaf)))" );
+             ~expected_value:
+               "Node (Black, 5, Node (Red, 3, Node (Black, 1, Leaf, Leaf), \
+                Node (Black, 4, Leaf, Leaf)), Node (Red, 7, Node (Black, 6, \
+                Leaf, Leaf), Node (Black, 9, Leaf, Leaf)))" );
          ( "rb tree complex structure - size" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3149,8 +3160,7 @@ let red_black_tree_tests =
                              Node (Black, 6, Leaf, Leaf),
                              Node (Black, 9, Leaf, Leaf)))
              |}
-             ~expr:"size tree"
-             ~expected_value:"7" );
+             ~expr:"size tree" ~expected_value:"7" );
          ( "rb tree complex structure - contains existing" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3176,8 +3186,7 @@ let red_black_tree_tests =
                              Node (Black, 6, Leaf, Leaf),
                              Node (Black, 9, Leaf, Leaf)))
              |}
-             ~expr:"contains 6 tree"
-             ~expected_value:"true" );
+             ~expr:"contains 6 tree" ~expected_value:"true" );
          ( "rb tree complex structure - contains non-existing" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3203,8 +3212,7 @@ let red_black_tree_tests =
                              Node (Black, 6, Leaf, Leaf),
                              Node (Black, 9, Leaf, Leaf)))
              |}
-             ~expr:"contains 10 tree"
-             ~expected_value:"false" );
+             ~expr:"contains 10 tree" ~expected_value:"false" );
          (* Insert function tests *)
          ( "rb tree make_black function type" >:: fun _ ->
            assert_expression_has_type
@@ -3220,8 +3228,7 @@ let red_black_tree_tests =
                  | Leaf -> Leaf
                  | Node (_, x, left, right) -> Node (Black, x, left, right)
              |}
-             ~expr:"make_black"
-             ~expected_type:"RBTree<'a> -> RBTree<'a>" );
+             ~expr:"make_black" ~expected_type:"RBTree<'a> -> RBTree<'a>" );
          ( "rb tree make_black - Leaf" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3236,8 +3243,7 @@ let red_black_tree_tests =
                  | Leaf -> Leaf
                  | Node (_, x, left, right) -> Node (Black, x, left, right)
              |}
-             ~expr:"make_black Leaf"
-             ~expected_value:"Leaf" );
+             ~expr:"make_black Leaf" ~expected_value:"Leaf" );
          ( "rb tree make_black - Red node" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3328,8 +3334,8 @@ let red_black_tree_tests =
                let insert x tree =
                  make_black (insert_aux x tree)
              |}
-             ~expr:"insert"
-             ~expected_type:"int -> RBTree<int> -> RBTree<int>" );
+             ~expr:"insert" ~expected_type:"int -> RBTree<int> -> RBTree<int>"
+         );
          ( "rb tree insert into empty tree" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3370,8 +3376,8 @@ let red_black_tree_tests =
                let insert x tree =
                  make_black (insert_aux x tree)
              |}
-             ~expr:"insert 5 Leaf"
-             ~expected_value:"Node (Black, 5, Leaf, Leaf)" );
+             ~expr:"insert 5 Leaf" ~expected_value:"Node (Black, 5, Leaf, Leaf)"
+         );
          ( "rb tree insert - size increases" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3421,8 +3427,7 @@ let red_black_tree_tests =
                let tree2 = insert 3 tree1
                let tree3 = insert 7 tree2
              |}
-             ~expr:"size tree3"
-             ~expected_value:"3" );
+             ~expr:"size tree3" ~expected_value:"3" );
          ( "rb tree insert multiple - contains all" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3527,8 +3532,7 @@ let red_black_tree_tests =
                let tree1 = insert 5 Leaf
                let tree2 = insert 5 tree1
              |}
-             ~expr:"size tree2"
-             ~expected_value:"1" );
+             ~expr:"size tree2" ~expected_value:"1" );
          ( "rb tree insert - min and max after inserts" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3594,15 +3598,14 @@ let red_black_tree_tests =
 (* ============================================================================
    SUM TYPE CONSTRUCTOR TYPE INFERENCE TESTS
 
-   These tests specifically verify that sum type constructors have correct
-   type inference, especially when:
-   1. Constructors reference other sum types (not type parameters)
-   2. Multiple sum types are defined and used together
-   3. Concrete types should not become polymorphic type variables
+   These tests specifically verify that sum type constructors have correct type
+   inference, especially when: 1. Constructors reference other sum types (not
+   type parameters) 2. Multiple sum types are defined and used together 3.
+   Concrete types should not become polymorphic type variables
 
-   These tests would catch the bug where sum types were represented with
-   TypeVar dummy bodies, causing constructor types to incorrectly generalize
-   concrete type references.
+   These tests would catch the bug where sum types were represented with TypeVar
+   dummy bodies, causing constructor types to incorrectly generalize concrete
+   type references.
    ============================================================================ *)
 
 let sum_type_constructor_inference_tests =
@@ -3612,61 +3615,59 @@ let sum_type_constructor_inference_tests =
          (* Test that a simple sum type constructor has the correct type *)
          ( "Color constructor type - Red" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Color = | Red | Black
              |}
-             ~expr:"Red"
-             ~expected_type:"Color" );
-
+             ~expr:"Red" ~expected_type:"Color" );
          ( "Color constructor type - Black" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Color = | Red | Black
              |}
-             ~expr:"Black"
-             ~expected_type:"Color" );
-
+             ~expr:"Black" ~expected_type:"Color" );
          (* Test that a constructor with payload referencing another sum type
             has the correct type - this is the key test for the bug! *)
          ( "Node constructor type with Color parameter" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Color = | Red | Black
                type rec RBTree<a> =
                  | Leaf
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
              ~expr:"Node"
-             ~expected_type:"(Color, 'a, RBTree<'a>, RBTree<'a>) -> RBTree<'a>" );
-
+             ~expected_type:"(Color, 'a, RBTree<'a>, RBTree<'a>) -> RBTree<'a>"
+         );
          (* Verify that Color is NOT a type variable when used *)
          ( "Node constructor applied to Red" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Color = | Red | Black
                type rec RBTree<a> =
                  | Leaf
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
-             ~expr:"Node (Red, 5, Leaf, Leaf)"
-             ~expected_type:"RBTree<int>" );
-
+             ~expr:"Node (Red, 5, Leaf, Leaf)" ~expected_type:"RBTree<int>" );
          (* Test multiple sum types referencing each other *)
          ( "constructor with multiple sum type parameters" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Status = | Active | Inactive
                type Priority = | High | Low
                type rec Task<a> =
                  | Task of (Status, Priority, a)
              |}
-             ~expr:"Task"
-             ~expected_type:"(Status, Priority, 'a) -> Task<'a>" );
-
+             ~expr:"Task" ~expected_type:"(Status, Priority, 'a) -> Task<'a>" );
          (* Verify concrete evaluation *)
          ( "Node with Red evaluates correctly" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type Color = | Red | Black
                type rec RBTree<a> =
                  | Leaf
@@ -3674,89 +3675,88 @@ let sum_type_constructor_inference_tests =
              |}
              ~expr:"Node (Red, 5, Leaf, Leaf)"
              ~expected_value:"Node (Red, 5, Leaf, Leaf)" );
-
          (* Test that we can pattern match on the concrete Color type *)
          ( "pattern match on Color in Node" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type Color = | Red | Black
                type rec RBTree<a> =
                  | Leaf
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
-             ~expr:{|
+             ~expr:
+               {|
                case Node (Red, 5, Leaf, Leaf) do
                | Leaf -> 0
                | Node (Red, x, _, _) -> x
                | Node (Black, x, _, _) -> ~-x
              |}
              ~expected_value:"5" );
-
          ( "pattern match on Black in Node" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type Color = | Red | Black
                type rec RBTree<a> =
                  | Leaf
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
-             ~expr:{|
+             ~expr:
+               {|
                case Node (Black, 5, Leaf, Leaf) do
                | Leaf -> 0
                | Node (Red, x, _, _) -> x
                | Node (Black, x, _, _) -> ~-x
              |}
              ~expected_value:"-5" );
-
          (* Test constructor with multiple concrete sum types *)
          ( "constructor with two concrete sum types" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Color = | Red | Black
                type Shape = | Circle | Square
                type Decoration = | Decor of (Color, Shape)
              |}
-             ~expr:"Decor"
-             ~expected_type:"(Color, Shape) -> Decoration" );
-
+             ~expr:"Decor" ~expected_type:"(Color, Shape) -> Decoration" );
          (* Test that we can use the constructor correctly *)
          ( "apply constructor with concrete sum types" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type Color = | Red | Black
                type Shape = | Circle | Square
                type Decoration = | Decor of (Color, Shape)
              |}
-             ~expr:"Decor (Red, Circle)"
-             ~expected_value:"Decor (Red, Circle)" );
-
+             ~expr:"Decor (Red, Circle)" ~expected_value:"Decor (Red, Circle)"
+         );
          (* Test nested sum types with concrete references *)
          ( "nested sum type constructors" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Size = | Small | Large
                type Color = | Red | Black
                type Colored<a> = | Colored of (Color, a)
              |}
-             ~expr:"Colored"
-             ~expected_type:"(Color, 'a) -> Colored<'a>" );
-
+             ~expr:"Colored" ~expected_type:"(Color, 'a) -> Colored<'a>" );
          (* Test that concrete types in tuple payloads work *)
          ( "tuple payload with multiple concrete types" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type A = | A1 | A2
                type B = | B1 | B2
                type C = | C1 | C2
                type Combined = | Combo of (A, B, C, int)
              |}
-             ~expr:"Combo"
-             ~expected_type:"(A, B, C, int) -> Combined" );
-
+             ~expr:"Combo" ~expected_type:"(A, B, C, int) -> Combined" );
          (* Test function taking constructor as argument *)
          ( "function with constructor parameter" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Color = | Red | Black
                type rec RBTree<a> =
                  | Leaf
@@ -3764,9 +3764,7 @@ let sum_type_constructor_inference_tests =
 
                let make_red_node x = Node (Red, x, Leaf, Leaf)
              |}
-             ~expr:"make_red_node"
-             ~expected_type:"'a -> RBTree<'a>" );
-
+             ~expr:"make_red_node" ~expected_type:"'a -> RBTree<'a>" );
          (* Test that type checking rejects wrong concrete types *)
          ( "type error when using wrong sum type" >:: fun _ ->
            assert_program_fails_typecheck
@@ -3778,22 +3776,22 @@ let sum_type_constructor_inference_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let bad_node = Node (Big, 5, Leaf, Leaf)
-             |} );
-
+             |}
+         );
          (* Test with parameterized sum types *)
          ( "parameterized sum type with concrete type reference" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Tag = | Important | Normal
                type Wrapper<a> = | Wrap of (Tag, a)
              |}
-             ~expr:"Wrap"
-             ~expected_type:"(Tag, 'a) -> Wrapper<'a>" );
-
+             ~expr:"Wrap" ~expected_type:"(Tag, 'a) -> Wrapper<'a>" );
          (* Test complex nested structure *)
          ( "complex nested sum types" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Status = | Active | Inactive
                type Priority = | High | Low | Medium
                type rec TaskList<a> =
@@ -3801,12 +3799,13 @@ let sum_type_constructor_inference_tests =
                  | Task of (Status, Priority, a, TaskList<a>)
              |}
              ~expr:"Task"
-             ~expected_type:"(Status, Priority, 'a, TaskList<'a>) -> TaskList<'a>" );
-
+             ~expected_type:
+               "(Status, Priority, 'a, TaskList<'a>) -> TaskList<'a>" );
          (* Test that pattern matching works with concrete types *)
          ( "pattern match extracts concrete sum type" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type Status = | Active | Inactive
                type Priority = | High | Low
                type Task = | Task of (Status, Priority, int)
@@ -3816,26 +3815,27 @@ let sum_type_constructor_inference_tests =
                  | Task (_, High, _) -> 1
                  | Task (_, Low, _) -> 0
              |}
-             ~expr:"get_priority (Task (Active, High, 42))"
-             ~expected_value:"1" );
-
+             ~expr:"get_priority (Task (Active, High, 42))" ~expected_value:"1"
+         );
          (* Test sum type in higher-order function *)
          ( "sum type constructor in map" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Color = | Red | Black
                type Colored<a> = | Colored of (Color, a)
              |}
-             ~expr:{|
+             ~expr:
+               {|
                let colorize c x = Colored (c, x) in
                colorize Red
              |}
              ~expected_type:"'a -> Colored<'a>" );
-
          (* Ensure Red-Black tree functions work correctly *)
          ( "rb tree contains function type" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Color = | Red | Black
                type rec RBTree<a> =
                  | Leaf
@@ -3849,13 +3849,12 @@ let sum_type_constructor_inference_tests =
                      else if x < y then contains x left
                      else contains x right
              |}
-             ~expr:"contains"
-             ~expected_type:"int -> RBTree<int> -> bool" );
-
+             ~expr:"contains" ~expected_type:"int -> RBTree<int> -> bool" );
          (* Test balance function type *)
          ( "rb tree balance function type" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Color = | Red | Black
                type rec RBTree<a> =
                  | Leaf
@@ -3867,22 +3866,18 @@ let sum_type_constructor_inference_tests =
                      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
                  | _ -> tree
              |}
-             ~expr:"balance"
-             ~expected_type:"RBTree<'a> -> RBTree<'a>" );
+             ~expr:"balance" ~expected_type:"RBTree<'a> -> RBTree<'a>" );
        ]
 
 (* ============================================================================
    CUSTOM INFIX OPERATOR TESTS
 
-   Tests for custom binary operators defined with parenthesized syntax like:
-     let (+++) x y = x + y + y
+   Tests for custom binary operators defined with parenthesized syntax like: let
+   (+++) x y = x + y + y
 
-   Covers:
-   - Type inference for custom operators
-   - Evaluation of custom operators
-   - Different precedence levels (additive, multiplicative, relational)
-   - Partial application
-   - Custom operators with various types
+   Covers: - Type inference for custom operators - Evaluation of custom
+   operators - Different precedence levels (additive, multiplicative,
+   relational) - Partial application - Custom operators with various types
    ============================================================================ *)
 
 let custom_operator_type_tests =
@@ -3892,166 +3887,146 @@ let custom_operator_type_tests =
          (* Additive operators (start with + or -) *)
          ( "custom additive operator type" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + y + y
              |}
-             ~expr:"(+++)"
-             ~expected_type:"int -> int -> int" );
-
+             ~expr:"(+++)" ~expected_type:"int -> int -> int" );
          ( "custom additive operator with different implementation" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let (+-+) a b = a + b + 1
              |}
-             ~expr:"(+-+)"
-             ~expected_type:"int -> int -> int" );
-
+             ~expr:"(+-+)" ~expected_type:"int -> int -> int" );
          (* Multiplicative operators (start with * / %) *)
          ( "custom multiplicative operator type" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let (***) x y = x * x * y
              |}
-             ~expr:"(***)"
-             ~expected_type:"int -> int -> int" );
-
+             ~expr:"(***)" ~expected_type:"int -> int -> int" );
          ( "custom division-based operator type" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let (///) x y = x / y + x % y
              |}
-             ~expr:"(///)"
-             ~expected_type:"int -> int -> int" );
-
+             ~expr:"(///)" ~expected_type:"int -> int -> int" );
          (* Relational operators (start with < > =) *)
          ( "custom relational operator type" >:: fun _ ->
            assert_expression_has_type
              ~program:{|
                let (===) x y = x == y
              |}
-             ~expr:"(===)"
-             ~expected_type:"'a -> 'a -> bool" );
-
+             ~expr:"(===)" ~expected_type:"'a -> 'a -> bool" );
          ( "custom less-than operator type" >:: fun _ ->
            assert_expression_has_type
              ~program:{|
                let (<<) x y = x < y - 1
              |}
-             ~expr:"(<<)"
-             ~expected_type:"int -> int -> bool" );
-
+             ~expr:"(<<)" ~expected_type:"int -> int -> bool" );
          (* Polymorphic custom operators *)
          ( "polymorphic custom operator" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let (<=>) x y = if x == y then 1 else 0
              |}
-             ~expr:"(<=>)"
-             ~expected_type:"'a -> 'a -> int" );
-
+             ~expr:"(<=>)" ~expected_type:"'a -> 'a -> int" );
          (* Custom operator with type annotations *)
          ( "custom operator with type annotation" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let (+*+) (x : int) (y : int) : int = x + y * 2
              |}
-             ~expr:"(+*+)"
-             ~expected_type:"int -> int -> int" );
-
+             ~expr:"(+*+)" ~expected_type:"int -> int -> int" );
          (* Custom operator usage in expressions *)
          ( "expression using custom additive operator" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + y + y
              |}
-             ~expr:"5 +++ 3"
-             ~expected_type:"int" );
-
+             ~expr:"5 +++ 3" ~expected_type:"int" );
          ( "expression using custom multiplicative operator" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let (***) x y = x * x * y
              |}
-             ~expr:"3 *** 2"
-             ~expected_type:"int" );
-
+             ~expr:"3 *** 2" ~expected_type:"int" );
          ( "expression using custom relational operator" >:: fun _ ->
            assert_expression_has_type
              ~program:{|
                let (===) x y = x == y
              |}
-             ~expr:"5 === 5"
-             ~expected_type:"bool" );
-
+             ~expr:"5 === 5" ~expected_type:"bool" );
          (* Partial application *)
          ( "partial application of custom operator" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + y + y
                let add_six = (+++) 2
              |}
-             ~expr:"add_six"
-             ~expected_type:"int -> int" );
-
+             ~expr:"add_six" ~expected_type:"int -> int" );
          ( "partial application result" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + y + y
                let add_six = (+++) 2
              |}
-             ~expr:"add_six 3"
-             ~expected_type:"int" );
-
+             ~expr:"add_six 3" ~expected_type:"int" );
          (* Multiple custom operators *)
          ( "multiple custom operators in program" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + y + y
                let (***) x y = x * x * y
                let (===) x y = x == y
              |}
-             ~expr:"(+++)"
-             ~expected_type:"int -> int -> int" );
-
+             ~expr:"(+++)" ~expected_type:"int -> int -> int" );
          ( "expression with multiple custom operators" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + y + y
                let (***) x y = x * x * y
              |}
-             ~expr:"2 *** 3 +++ 4"
-             ~expected_type:"int" );
-
+             ~expr:"2 *** 3 +++ 4" ~expected_type:"int" );
          (* Recursive custom operators *)
          ( "recursive custom operator type" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let rec (***>) x y =
                  if x == 0 then 0
                  else if x == 1 then y
                  else y + (x - 1) ***> y
              |}
-             ~expr:"(***>)"
-             ~expected_type:"int -> int -> int" );
-
+             ~expr:"(***>)" ~expected_type:"int -> int -> int" );
          (* Custom operator with bool return *)
          ( "custom operator returning bool" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let (>><) x y = x > y && y > 0
              |}
-             ~expr:"(>><)"
-             ~expected_type:"int -> int -> bool" );
-
+             ~expr:"(>><)" ~expected_type:"int -> int -> bool" );
          (* Mixed precedence operators *)
          ( "mixed precedence custom operators" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                let (</>) x y = x / y + 1
                let (<+>) x y = x + y * 2
              |}
-             ~expr:"10 </> 3 <+> 2"
-             ~expected_type:"int" );
+             ~expr:"10 </> 3 <+> 2" ~expected_type:"int" );
        ]
 
 let custom_operator_evaluation_tests =
@@ -4061,207 +4036,186 @@ let custom_operator_evaluation_tests =
          (* Basic evaluation *)
          ( "evaluate custom additive operator" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + y + y
              |}
-             ~expr:"5 +++ 3"
-             ~expected_value:"11" );
-
+             ~expr:"5 +++ 3" ~expected_value:"11" );
          ( "evaluate custom multiplicative operator" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (***) x y = x * x * y
              |}
-             ~expr:"3 *** 2"
-             ~expected_value:"18" );
-
+             ~expr:"3 *** 2" ~expected_value:"18" );
          ( "evaluate custom division operator" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (///) x y = x / y + x % y
              |}
-             ~expr:"17 /// 5"
-             ~expected_value:"5" );
-
+             ~expr:"17 /// 5" ~expected_value:"5" );
          ( "evaluate custom relational operator - true" >:: fun _ ->
            assert_expression_has_value
              ~program:{|
                let (===) x y = x == y
              |}
-             ~expr:"5 === 5"
-             ~expected_value:"true" );
-
+             ~expr:"5 === 5" ~expected_value:"true" );
          ( "evaluate custom relational operator - false" >:: fun _ ->
            assert_expression_has_value
              ~program:{|
                let (===) x y = x == y
              |}
-             ~expr:"5 === 3"
-             ~expected_value:"false" );
-
+             ~expr:"5 === 3" ~expected_value:"false" );
          (* Complex expressions *)
          ( "custom operator in complex expression" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + y + y
              |}
-             ~expr:"1 + 2 +++ 3"
-             ~expected_value:"9" );
-
+             ~expr:"1 + 2 +++ 3" ~expected_value:"9" );
          ( "multiple custom operators" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + x + y
                let (***) x y = x * y
              |}
-             ~expr:"2 *** 3 +++ 4"
-             ~expected_value:"16" );
-
+             ~expr:"2 *** 3 +++ 4" ~expected_value:"16" );
          (* Partial application evaluation *)
          ( "partial application evaluation" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + x + y
                let add_double = (+++) 2
              |}
-             ~expr:"add_double 3"
-             ~expected_value:"7" );
-
+             ~expr:"add_double 3" ~expected_value:"7" );
          (* Recursive custom operators *)
          ( "recursive custom operator - base case" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec (***>) x y =
                  if x == 0 then 0
                  else if x == 1 then y
                  else y + (x - 1) ***> y
              |}
-             ~expr:"0 ***> 5"
-             ~expected_value:"0" );
-
+             ~expr:"0 ***> 5" ~expected_value:"0" );
          ( "recursive custom operator - recursive case" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec (***>) x y =
                  if x == 0 then 0
                  else if x == 1 then y
                  else y + (x - 1) ***> y
              |}
-             ~expr:"4 ***> 3"
-             ~expected_value:"12" );
-
+             ~expr:"4 ***> 3" ~expected_value:"12" );
          (* Custom operators with conditionals *)
          ( "custom operator with conditional logic" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (***) x y =
                  if x == 0 then y
                  else x * y
              |}
-             ~expr:"0 *** 100"
-             ~expected_value:"100" );
-
+             ~expr:"0 *** 100" ~expected_value:"100" );
          ( "custom operator with conditional - non-zero" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (***) x y =
                  if x == 0 then y
                  else x * y
              |}
-             ~expr:"5 *** 3"
-             ~expected_value:"15" );
-
+             ~expr:"5 *** 3" ~expected_value:"15" );
          (* Precedence testing *)
          ( "multiplicative custom operator precedence" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (***) x y = x * x * y
              |}
-             ~expr:"2 *** 3 + 4"
-             ~expected_value:"16" );
-
+             ~expr:"2 *** 3 + 4" ~expected_value:"16" );
          ( "additive custom operator precedence" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + y + y
              |}
-             ~expr:"2 * 3 +++ 4"
-             ~expected_value:"14" );
-
+             ~expr:"2 * 3 +++ 4" ~expected_value:"14" );
          (* Custom operators in let expressions *)
          ( "custom operator in let binding" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + y + y
                let result = 5 +++ 3
              |}
-             ~expr:"result"
-             ~expected_value:"11" );
-
+             ~expr:"result" ~expected_value:"11" );
          (* Custom operators with function application *)
          ( "custom operator with function application" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + y + y
                let double n = n * 2
              |}
-             ~expr:"double 2 +++ 3"
-             ~expected_value:"10" );
-
+             ~expr:"double 2 +++ 3" ~expected_value:"10" );
          (* Chaining custom operators *)
          ( "chaining same custom operator" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + y + 1
              |}
-             ~expr:"1 +++ 2 +++ 3"
-             ~expected_value:"8" );
-
+             ~expr:"1 +++ 2 +++ 3" ~expected_value:"8" );
          (* Mixed precedence *)
          ( "mixed precedence evaluation" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (</>) x y = x / y + 1
                let (<+>) x y = x + y * 2
              |}
-             ~expr:"10 </> 3 <+> 2"
-             ~expected_value:"8" );
-
+             ~expr:"10 </> 3 <+> 2" ~expected_value:"8" );
          (* Boolean custom operators *)
          ( "custom boolean operator - and variant" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (==>) x y = x == y || y > 10
              |}
-             ~expr:"5 ==> 15"
-             ~expected_value:"true" );
-
+             ~expr:"5 ==> 15" ~expected_value:"true" );
          ( "custom boolean operator - complex" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (<<=) x y = x < y && y < x + 10
              |}
-             ~expr:"5 <<= 7"
-             ~expected_value:"true" );
-
+             ~expr:"5 <<= 7" ~expected_value:"true" );
          (* Using custom operators in higher-order functions *)
          ( "custom operator in lambda" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let (+++) x y = x + x + y
                let apply_op f a b = f a b
              |}
-             ~expr:"apply_op (+++) 2 3"
-             ~expected_value:"7" );
+             ~expr:"apply_op (+++) 2 3" ~expected_value:"7" );
        ]
 
 let option_map_type_test =
   let open ProgramTesting in
   "option_map_type_test"
   >::: [
-    ( "map should have polymorphic type" >:: fun _ ->
-      assert_expression_has_type
-        ~program:{|
+         ( "map should have polymorphic type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
           type Option<a> =
             | None
             | Some of a
@@ -4271,164 +4225,127 @@ let option_map_type_test =
             | None -> None
             | Some v -> Some (f v)
         |}
-        ~expr:"(map)"
-        ~expected_type:"('a -> 'b) -> Option<'a> -> Option<'b>" );
-  ]
+             ~expr:"(map)"
+             ~expected_type:"('a -> 'b) -> Option<'a> -> Option<'b>" );
+       ]
+
 (* ============================================================================
    Parenthesized Built-in Operator Tests
 
-   These tests verify that built-in infix operators can be used in
-   parenthesized form like (+), (-), etc. as first-class values.
+   These tests verify that built-in infix operators can be used in parenthesized
+   form like (+), (-), etc. as first-class values.
    ============================================================================ *)
 let parenthesized_builtin_operator_tests =
   let open ProgramTesting in
   "parenthesized_builtin_operators"
   >::: [
-    (* Type tests *)
-    ( "parenthesized + has correct type" >:: fun _ ->
-      assert_expression_has_type
-        ~program:""
-        ~expr:"(+)"
-        ~expected_type:"int -> int -> int" );
-
-    ( "parenthesized - has correct type" >:: fun _ ->
-      assert_expression_has_type
-        ~program:""
-        ~expr:"(-)"
-        ~expected_type:"int -> int -> int" );
-
-    ( "parenthesized times has correct type" >:: fun _ ->
-      assert_expression_has_type
-        ~program:""
-        ~expr:{|(*)|}
-        ~expected_type:"int -> int -> int" );
-
-    ( "parenthesized / has correct type" >:: fun _ ->
-      assert_expression_has_type
-        ~program:""
-        ~expr:"(/)"
-        ~expected_type:"int -> int -> int" );
-
-    ( "parenthesized < has correct type" >:: fun _ ->
-      assert_expression_has_type
-        ~program:""
-        ~expr:"(<)"
-        ~expected_type:"int -> int -> bool" );
-
-    ( "parenthesized && has correct type" >:: fun _ ->
-      assert_expression_has_type
-        ~program:""
-        ~expr:"(&&)"
-        ~expected_type:"bool -> bool -> bool" );
-
-    (* Evaluation tests *)
-    ( "use (+) as a value" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+         (* Type tests *)
+         ( "parenthesized + has correct type" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:"(+)"
+             ~expected_type:"int -> int -> int" );
+         ( "parenthesized - has correct type" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:"(-)"
+             ~expected_type:"int -> int -> int" );
+         ( "parenthesized times has correct type" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:{|(*)|}
+             ~expected_type:"int -> int -> int" );
+         ( "parenthesized / has correct type" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:"(/)"
+             ~expected_type:"int -> int -> int" );
+         ( "parenthesized < has correct type" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:"(<)"
+             ~expected_type:"int -> int -> bool" );
+         ( "parenthesized && has correct type" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:"(&&)"
+             ~expected_type:"bool -> bool -> bool" );
+         (* Evaluation tests *)
+         ( "use (+) as a value" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
           let add = (+)
         |}
-        ~expr:"add 5 3"
-        ~expected_value:"8" );
-
-    ( "use (-) as a value" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"add 5 3" ~expected_value:"8" );
+         ( "use (-) as a value" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
           let sub = (-)
         |}
-        ~expr:"sub 10 3"
-        ~expected_value:"7" );
-
-    ( "use times as a value" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"sub 10 3" ~expected_value:"7" );
+         ( "use times as a value" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
           let mul = (*)
         |}
-        ~expr:"mul 4 5"
-        ~expected_value:"20" );
-
-    ( "use (<) as a value" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"mul 4 5" ~expected_value:"20" );
+         ( "use (<) as a value" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
           let lt = (<)
         |}
-        ~expr:"lt 3 5"
-        ~expected_value:"true" );
-
-    ( "use (&&) as a value" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"lt 3 5" ~expected_value:"true" );
+         ( "use (&&) as a value" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
           let and_op = (&&)
         |}
-        ~expr:"and_op true false"
-        ~expected_value:"false" );
-
-    (* Partial application tests *)
-    ( "partial application of (+)" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"and_op true false" ~expected_value:"false" );
+         (* Partial application tests *)
+         ( "partial application of (+)" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
           let add5 = (+) 5
         |}
-        ~expr:"add5 10"
-        ~expected_value:"15" );
-
-    ( "partial application of times" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"add5 10" ~expected_value:"15" );
+         ( "partial application of times" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
           let double = (*) 2
         |}
-        ~expr:"double 7"
-        ~expected_value:"14" );
-
-    (* Higher-order function tests *)
-    ( "pass (+) to a function" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"double 7" ~expected_value:"14" );
+         (* Higher-order function tests *)
+         ( "pass (+) to a function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
           let apply_op op a b = op a b
         |}
-        ~expr:"apply_op (+) 3 4"
-        ~expected_value:"7" );
-
-    ( "pass times to a function" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"apply_op (+) 3 4" ~expected_value:"7" );
+         ( "pass times to a function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
           let apply_op op a b = op a b
           let result = apply_op (*) 3 4
         |}
-        ~expr:"result"
-        ~expected_value:"12" );
-
-    (* Using in expressions directly *)
-    ( "use (+) directly in application" >:: fun _ ->
-      assert_expression_has_value
-        ~program:""
-        ~expr:"(+) 10 20"
-        ~expected_value:"30" );
-
-    ( "use times directly" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"result" ~expected_value:"12" );
+         (* Using in expressions directly *)
+         ( "use (+) directly in application" >:: fun _ ->
+           assert_expression_has_value ~program:"" ~expr:"(+) 10 20"
+             ~expected_value:"30" );
+         ( "use times directly" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
           let result = (*) 6 7
         |}
-        ~expr:"result"
-        ~expected_value:"42" );
-  ]
+             ~expr:"result" ~expected_value:"42" );
+       ]
 
 (* ============================================================================
    REGRESSION TESTS FOR POLYMORPHIC NULLARY CONSTRUCTORS
 
-   These tests verify that nullary constructors (like None) in sum types
-   with type parameters are properly polymorphic. Without the fix, None
-   would have type Option<a> with a free variable 'a', causing all uses
-   to share the same type variable.
+   These tests verify that nullary constructors (like None) in sum types with
+   type parameters are properly polymorphic. Without the fix, None would have
+   type Option<a> with a free variable 'a', causing all uses to share the same
+   type variable.
    ============================================================================ *)
 let polymorphic_nullary_constructor_regression_tests =
   let open ProgramTesting in
   "polymorphic_nullary_constructor_regression"
   >::: [
-    (* Test that map has correct polymorphic type *)
-    ( "Option map type is fully polymorphic" >:: fun _ ->
-      assert_expression_has_type
-        ~program:{|
+         (* Test that map has correct polymorphic type *)
+         ( "Option map type is fully polymorphic" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
           type Option<a> =
             | None
             | Some of a
@@ -4438,13 +4355,13 @@ let polymorphic_nullary_constructor_regression_tests =
             | None -> None
             | Some v -> Some (f v)
         |}
-        ~expr:"(map)"
-        ~expected_type:"('a -> 'b) -> Option<'a> -> Option<'b>" );
-
-    (* Test that None can be used with different types *)
-    ( "None can be used polymorphically" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"(map)"
+             ~expected_type:"('a -> 'b) -> Option<'a> -> Option<'b>" );
+         (* Test that None can be used with different types *)
+         ( "None can be used polymorphically" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
           type Option<a> =
             | None
             | Some of a
@@ -4453,13 +4370,12 @@ let polymorphic_nullary_constructor_regression_tests =
           let y = None
           let z = if true then Some 5 else x
         |}
-        ~expr:"z"
-        ~expected_value:"Some 5" );
-
-    (* Test filter function which also uses None polymorphically *)
-    ( "filter has correct polymorphic type" >:: fun _ ->
-      assert_expression_has_type
-        ~program:{|
+             ~expr:"z" ~expected_value:"Some 5" );
+         (* Test filter function which also uses None polymorphically *)
+         ( "filter has correct polymorphic type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
           type Option<a> =
             | None
             | Some of a
@@ -4469,13 +4385,13 @@ let polymorphic_nullary_constructor_regression_tests =
             | None -> None
             | Some v -> if pred v then Some v else None
         |}
-        ~expr:"(filter)"
-        ~expected_type:"('a -> bool) -> Option<'a> -> Option<'a>" );
-
-    (* Test that Result type with nullary constructors also works *)
-    ( "Result Error constructor is polymorphic" >:: fun _ ->
-      assert_expression_has_type
-        ~program:{|
+             ~expr:"(filter)"
+             ~expected_type:"('a -> bool) -> Option<'a> -> Option<'a>" );
+         (* Test that Result type with nullary constructors also works *)
+         ( "Result Error constructor is polymorphic" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
           type Result<a, e> =
             | Ok of a
             | Error of e
@@ -4485,13 +4401,13 @@ let polymorphic_nullary_constructor_regression_tests =
             | Error e -> Error e
             | Ok v -> Ok (f v)
         |}
-        ~expr:"(map_result)"
-        ~expected_type:"('a -> 'b) -> Result<'a, 'c> -> Result<'b, 'c>" );
-
-    (* Test Either type with two nullary constructors *)
-    ( "Either with nullary constructors" >:: fun _ ->
-      assert_expression_has_type
-        ~program:{|
+             ~expr:"(map_result)"
+             ~expected_type:"('a -> 'b) -> Result<'a, 'c> -> Result<'b, 'c>" );
+         (* Test Either type with two nullary constructors *)
+         ( "Either with nullary constructors" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
           type Either<a, b> =
             | Left of a
             | Right of b
@@ -4505,13 +4421,12 @@ let polymorphic_nullary_constructor_regression_tests =
             | Left _ -> Nothing
             | Right v -> Just v
         |}
-        ~expr:"(to_maybe)"
-        ~expected_type:"Either<'a, 'b> -> Maybe<'b>" );
-
-    (* Test bind/flatMap which requires proper polymorphism *)
-    ( "bind/flatMap has correct type" >:: fun _ ->
-      assert_expression_has_type
-        ~program:{|
+             ~expr:"(to_maybe)" ~expected_type:"Either<'a, 'b> -> Maybe<'b>" );
+         (* Test bind/flatMap which requires proper polymorphism *)
+         ( "bind/flatMap has correct type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
           type Option<a> =
             | None
             | Some of a
@@ -4521,13 +4436,13 @@ let polymorphic_nullary_constructor_regression_tests =
             | None -> None
             | Some v -> f v
         |}
-        ~expr:"(flatMap)"
-        ~expected_type:"Option<'a> -> ('a -> Option<'b>) -> Option<'b>" );
-
-    (* Test chaining operations that require different type variables *)
-    ( "chained map operations work" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"(flatMap)"
+             ~expected_type:"Option<'a> -> ('a -> Option<'b>) -> Option<'b>" );
+         (* Test chaining operations that require different type variables *)
+         ( "chained map operations work" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
           type Option<a> =
             | None
             | Some of a
@@ -4542,13 +4457,12 @@ let polymorphic_nullary_constructor_regression_tests =
 
           let result = map length (map to_string (Some 42))
         |}
-        ~expr:"result"
-        ~expected_value:"Some 5" );
-
-    (* Test with multiple type parameters *)
-    ( "pair with nullary constructor" >:: fun _ ->
-      assert_expression_has_type
-        ~program:{|
+             ~expr:"result" ~expected_value:"Some 5" );
+         (* Test with multiple type parameters *)
+         ( "pair with nullary constructor" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
           type PairOrEmpty<a, b> =
             | Empty
             | Pair of (a, b)
@@ -4558,9 +4472,9 @@ let polymorphic_nullary_constructor_regression_tests =
             | Empty -> Empty
             | Pair (x, y) -> Pair (y, x)
         |}
-        ~expr:"(swap)"
-        ~expected_type:"PairOrEmpty<'a, 'b> -> PairOrEmpty<'b, 'a>" );
-  ]
+             ~expr:"(swap)"
+             ~expected_type:"PairOrEmpty<'a, 'b> -> PairOrEmpty<'b, 'a>" );
+       ]
 
 (* ============================================================================
    REGRESSION TESTS FOR >>= OPERATOR LEXING
@@ -4572,10 +4486,11 @@ let bind_operator_lexing_regression_tests =
   let open ProgramTesting in
   "bind_operator_lexing_regression"
   >::: [
-    (* Test that >>= operator can be defined and used *)
-    ( ">>= operator definition and type" >:: fun _ ->
-      assert_expression_has_type
-        ~program:{|
+         (* Test that >>= operator can be defined and used *)
+         ( ">>= operator definition and type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
           type Option<a> =
             | None
             | Some of a
@@ -4585,13 +4500,13 @@ let bind_operator_lexing_regression_tests =
             | None -> None
             | Some v -> f v
         |}
-        ~expr:"(>>=)"
-        ~expected_type:"Option<'a> -> ('a -> Option<'b>) -> Option<'b>" );
-
-    (* Test using >>= as infix operator *)
-    ( ">>= used as infix operator" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"(>>=)"
+             ~expected_type:"Option<'a> -> ('a -> Option<'b>) -> Option<'b>" );
+         (* Test using >>= as infix operator *)
+         ( ">>= used as infix operator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
           type Option<a> =
             | None
             | Some of a
@@ -4604,13 +4519,12 @@ let bind_operator_lexing_regression_tests =
           let increment x = Some (x + 1)
           let result = Some 10 >>= increment
         |}
-        ~expr:"result"
-        ~expected_value:"Some 11" );
-
-    (* Test chaining >>= operators *)
-    ( "chained >>= operations" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"result" ~expected_value:"Some 11" );
+         (* Test chaining >>= operators *)
+         ( "chained >>= operations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
           type Option<a> =
             | None
             | Some of a
@@ -4625,13 +4539,12 @@ let bind_operator_lexing_regression_tests =
             >>= (fn x -> Some (x + 1))
             >>= (fn y -> Some (y * 2))
         |}
-        ~expr:"result"
-        ~expected_value:"Some 12" );
-
-    (* Test >>= with None *)
-    ( ">>= with None propagates" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"result" ~expected_value:"Some 12" );
+         (* Test >>= with None *)
+         ( ">>= with None propagates" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
           type Option<a> =
             | None
             | Some of a
@@ -4643,24 +4556,23 @@ let bind_operator_lexing_regression_tests =
 
           let result = None >>= (fn x -> Some (x + 1))
         |}
-        ~expr:"result"
-        ~expected_value:"None" );
-
-    (* Test that nested types still work (>>= didn't break them) *)
-    ( "nested type applications still work" >:: fun _ ->
-      assert_expression_has_type
-        ~program:{|
+             ~expr:"result" ~expected_value:"None" );
+         (* Test that nested types still work (>>= didn't break them) *)
+         ( "nested type applications still work" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
           type Box<a> = (a, int)
 
           let unbox x = x
         |}
-        ~expr:"unbox (((5, 3), 4), 6)"
-        ~expected_type:"(((int, int), int), int)" );
-
-    (* Test other >> variants *)
-    ( ">>- operator" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"unbox (((5, 3), 4), 6)"
+             ~expected_type:"(((int, int), int), int)" );
+         (* Test other >> variants *)
+         ( ">>- operator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
           type Option<a> =
             | None
             | Some of a
@@ -4672,13 +4584,12 @@ let bind_operator_lexing_regression_tests =
 
           let result = None >>- 42
         |}
-        ~expr:"result"
-        ~expected_value:"42" );
-
-    (* Test << operator (not just >>) *)
-    ( "<<= operator" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"result" ~expected_value:"42" );
+         (* Test << operator (not just >>) *)
+         ( "<<= operator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
           type Option<a> =
             | None
             | Some of a
@@ -4691,24 +4602,23 @@ let bind_operator_lexing_regression_tests =
           let increment x = Some (x + 1)
           let result = increment <<= Some 10
         |}
-        ~expr:"result"
-        ~expected_value:"Some 11" );
-
-    (* Test that >> by itself still works in type contexts *)
-    ( ">> as separate tokens in types" >:: fun _ ->
-      assert_expression_has_type
-        ~program:{|
+             ~expr:"result" ~expected_value:"Some 11" );
+         (* Test that >> by itself still works in type contexts *)
+         ( ">> as separate tokens in types" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
           type Nested<a> = (a, a)
 
           let identity x = x
         |}
-        ~expr:"identity ((5, 6), (7, 8))"
-        ~expected_type:"((int, int), (int, int))" );
-
-    (* Test combining >>= with other operations *)
-    ( ">>= combined with application" >:: fun _ ->
-      assert_expression_has_value
-        ~program:{|
+             ~expr:"identity ((5, 6), (7, 8))"
+             ~expected_type:"((int, int), (int, int))" );
+         (* Test combining >>= with other operations *)
+         ( ">>= combined with application" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
           type Option<a> =
             | None
             | Some of a
@@ -4728,9 +4638,8 @@ let bind_operator_lexing_regression_tests =
 
           let result = map double (Some 5) >>= increment
         |}
-        ~expr:"result"
-        ~expected_value:"Some 11" );
-  ]
+             ~expr:"result" ~expected_value:"Some 11" );
+       ]
 
 let record_type_tests =
   List.map
@@ -4740,7 +4649,7 @@ let record_type_tests =
       ("{x: 1}", "{x: int}");
       ("{x: 1, y: 2}", "{x: int, y: int}");
       ("{x: 1, y: true}", "{x: int, y: bool}");
-      ("{x: 1, y: true, z: \"hello\"}", "{x: int, y: bool, z: string}");
+      ("{x: 1, y: true, z: \"hello\"}", "{x: int, y: bool, z: str}");
       (* Field access types *)
       ("{x: 1}.x", "int");
       ("{x: 1, y: 2}.x", "int");
@@ -4752,13 +4661,13 @@ let record_type_tests =
       ("{x: {y: 1}}.x", "{y: int}");
       ("{x: {y: 1}}.x.y", "int");
       (* Records with functions *)
-      ("{f: fn x -> x}", "{f: (tv1 -> tv1)}");
-      ("{f: fn x -> x + 1}", "{f: (int -> int)}");
+      ("{f: fn x -> x}", "{f: 'a -> 'a}");
+      ("{f: fn x -> x + 1}", "{f: int -> int}");
       (* Functions creating records *)
-      ("fn x -> {x: x}", "(tv1 -> {x: tv1})");
-      ("fn x -> {x: x, y: x}", "(tv1 -> {x: tv1, y: tv1})");
+      ("fn x -> {x: x}", "'a -> {x: 'a}");
+      ("fn x -> {x: x, y: x}", "'a -> {x: 'a, y: 'a}");
       (* Functions accessing fields *)
-      ("fn r -> r.x", "({x: tv1} -> tv1)");
+      ("fn r -> r.x", "{x: 'a} -> 'a");
       ("fn r -> r.x + r.y", "({x: int, y: int} -> int)");
       (* Subtyping in let bindings *)
       ("let r = {x: 1, y: 2} in r.x", "int");
