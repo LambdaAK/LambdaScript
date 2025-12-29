@@ -595,7 +595,7 @@ let function_type_tests =
       "int -> int" );
     (* map implemented using fold_right *)
     ( "let rec fold op lst acc =\n\
-      \    switch lst =>\n\
+      \    case lst do\n\
       \    | [] -> acc\n\
       \    | h :: t -> op h (fold op t acc)\n\
       \    \n\
@@ -610,7 +610,7 @@ let function_type_tests =
       "('a -> 'b) -> ['a] -> ['b]" );
     (* filter implemented using fold_right *)
     ( {|let rec fold op lst acc =
-    switch lst =>
+    case lst do
     | [] -> acc
     | h :: t -> op h (fold op t acc)
     
@@ -622,7 +622,7 @@ let function_type_tests =
       "('a -> bool) -> ['a] -> ['a]" );
     (* filter implemented using fold_left *)
     ( {|let rec fold op acc lst =
-    switch lst =>
+    case lst do
     | [] -> acc
     | h :: t -> fold op t (op h acc)
     
@@ -732,15 +732,15 @@ let polymorphism_tests =
 
 let switch_type_tests =
   [
-    ("switch () => | () -> 1", "int");
-    ("switch () => | () -> true", "bool");
-    ("switch () => | () -> ()", "unit");
-    ("switch () => | () -> (1, 2)", "(int, int)");
-    ("switch () => | () -> (1, 2, 3)", "(int, int, int)");
-    ("switch 1 => | 1 -> 1", "int");
-    ("switch 1 => | 1 -> true", "bool");
-    ("switch 1 => | 1 -> ()", "unit");
-    ("switch 5 => | 1 -> 1 | 2 -> 2 | 3 -> 3 | 4 -> 4 | 5 -> 5", "int");
+    ("case () do | () -> 1", "int");
+    ("case () do | () -> true", "bool");
+    ("case () do | () -> ()", "unit");
+    ("case () do | () -> (1, 2)", "(int, int)");
+    ("case () do | () -> (1, 2, 3)", "(int, int, int)");
+    ("case 1 do | 1 -> 1", "int");
+    ("case 1 do | 1 -> true", "bool");
+    ("case 1 do | 1 -> ()", "unit");
+    ("case 5 do | 1 -> 1 | 2 -> 2 | 3 -> 3 | 4 -> 4 | 5 -> 5", "int");
   ]
 
 let arithmetic_tests =
@@ -853,13 +853,13 @@ let ternary_tests =
 
 let switch_tests =
   [
-    ("switch () => | () -> 1", "1");
-    ("switch () => | () -> true", "true");
-    ("switch () => | () -> ()", "()");
-    ("switch () => | () -> (1, 2)", "(1, 2)");
-    ("switch () => | () -> (1, 2, 3)", "(1, 2, 3)");
-    ("switch 1 => | 1 -> 1", "1");
-    ("switch 1 => | 1 -> true", "true");
+    ("case () do | () -> 1", "1");
+    ("case () do | () -> true", "true");
+    ("case () do | () -> ()", "()");
+    ("case () do | () -> (1, 2)", "(1, 2)");
+    ("case () do | () -> (1, 2, 3)", "(1, 2, 3)");
+    ("case 1 do | 1 -> 1", "1");
+    ("case 1 do | 1 -> true", "true");
   ]
 
 let minus_tests =
@@ -914,7 +914,7 @@ let list_tests =
     ({|let x = 1 in let y = 2 in [x,y]|}, "[1, 2]");
     ( {|
   let rec fold_right op lst acc =
-    switch lst =>
+    case lst do
     | [] -> acc
     | h :: t -> op h (fold_right op t acc)
   
@@ -936,7 +936,7 @@ fold_right (\x -> \y -> x + y) [1,2,3,4,5,6,7,8,9,10] 0
     ({|[x + y | x <- [1, 2, 3], y <- [4, 5, 6]]|}, "[5, 6, 7, 6, 7, 8, 7, 8, 9]");
     ( {|
     let rec fold_right op lst acc =
-      switch lst =>
+      case lst do
       | [] -> acc
       | h :: t -> op h (fold_right op t acc)
     in
@@ -950,7 +950,7 @@ let fold_type_tests =
   [
     ( {|
     let rec fold op arr acc =
-      switch arr =>
+      case arr do
       | [] -> acc
       | h :: t -> fold op t (op acc h)
       
@@ -960,7 +960,7 @@ let fold_type_tests =
       "('a -> 'b -> 'a) -> ['b] -> 'a -> 'a" );
     ( {|
   let rec fold op arr acc =
-    switch arr =>
+    case arr do
     | [] -> acc
     | h :: t -> op h (fold op t acc)
     
@@ -1601,7 +1601,7 @@ let program_expression_type_tests =
              ~program:
                {|
                type Pair<a> = (a, a)
-               let first p = switch p => | (x, _) -> x
+               let first p = case p do | (x, _) -> x
              |}
              ~expr:"first" ~expected_type:"('a, 'b) -> 'a" );
          ( "type alias with list" >:: fun _ ->
@@ -1634,7 +1634,7 @@ let program_expression_type_tests =
                {|
                type IntList = [int]
                let rec sum (xs : IntList) =
-                 switch xs =>
+                 case xs do
                  | [] -> 0
                  | h :: t -> h + sum t
              |}
@@ -1694,7 +1694,7 @@ let program_expression_type_tests =
              ~program:
                {|
                type Pair<a> = (a, a)
-               let get_first p = switch p => | (x, _) -> x
+               let get_first p = case p do | (x, _) -> x
                let x = get_first (1, 2)
              |}
              ~expr:"x" ~expected_type:"int" );
@@ -1869,7 +1869,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch True =>
+               case True do
                | True -> 1
                | False -> 0
              |}
@@ -1882,7 +1882,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch False =>
+               case False do
                | True -> 1
                | False -> 0
              |}
@@ -1895,7 +1895,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch Some 42 =>
+               case Some 42 do
                | Some x -> x
                | None -> 0
              |}
@@ -1908,7 +1908,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch None =>
+               case None do
                | Some x -> x
                | None -> 0
              |}
@@ -1922,7 +1922,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch x =>
+               case x do
                | Some n -> n * 2
                | None -> 0
              |}
@@ -1935,7 +1935,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch Red =>
+               case Red do
                | Red -> 1
                | Green -> 2
                | Blue -> 3
@@ -1949,7 +1949,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch Green =>
+               case Green do
                | Red -> 1
                | Green -> 2
                | Blue -> 3
@@ -1963,7 +1963,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch Blue =>
+               case Blue do
                | Red -> 1
                | Green -> 2
                | Blue -> 3
@@ -1984,7 +1984,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch Pair (5, 10) =>
+               case Pair (5, 10) do
                | Pair (x, y) -> x + y
              |}
              ~expected_value:"15" );
@@ -1997,9 +1997,9 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch x =>
+               case x do
                | Some opt ->
-                 switch opt =>
+                 case opt do
                  | Some n -> n
                  | None -> 0
                | None -> 0
@@ -2013,7 +2013,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch Ok 100 =>
+               case Ok 100 do
                | Ok n -> n
                | Error e -> ~-e
              |}
@@ -2026,7 +2026,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch Error 50 =>
+               case Error 50 do
                | Ok n -> n
                | Error e -> ~-e
              |}
@@ -2062,7 +2062,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch Nil =>
+               case Nil do
                | Nil -> 0
                | Cons (_, _) -> 1
              |}
@@ -2075,7 +2075,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch Cons (42, Nil) =>
+               case Cons (42, Nil) do
                | Nil -> 0
                | Cons (x, _) -> x
              |}
@@ -2086,7 +2086,7 @@ let sum_type_evaluation_tests =
                {|
                type rec List<a> = | Nil | Cons of (a, List<a>)
                let rec length lst =
-                 switch lst =>
+                 case lst do
                  | Nil -> 0
                  | Cons (_, t) -> 1 + length t
              |}
@@ -2098,7 +2098,7 @@ let sum_type_evaluation_tests =
                {|
                type rec List<a> = | Nil | Cons of (a, List<a>)
                let rec sum lst =
-                 switch lst =>
+                 case lst do
                  | Nil -> 0
                  | Cons (h, t) -> h + sum t
              |}
@@ -2136,7 +2136,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch Leaf =>
+               case Leaf do
                | Leaf -> 0
                | Node (_, _, _) -> 1
              |}
@@ -2149,7 +2149,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch Node (42, Leaf, Leaf) =>
+               case Node (42, Leaf, Leaf) do
                | Leaf -> 0
                | Node (x, _, _) -> x
              |}
@@ -2160,7 +2160,7 @@ let sum_type_evaluation_tests =
                {|
                type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
                let rec size t =
-                 switch t =>
+                 case t do
                  | Leaf -> 0
                  | Node (_, left, right) -> 1 + size left + size right
              |}
@@ -2172,7 +2172,7 @@ let sum_type_evaluation_tests =
                {|
                type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
                let rec sum_tree t =
-                 switch t =>
+                 case t do
                  | Leaf -> 0
                  | Node (x, left, right) -> x + sum_tree left + sum_tree right
              |}
@@ -2208,7 +2208,7 @@ let sum_type_evaluation_tests =
              |}
              ~expr:
                {|
-               switch Zero =>
+               case Zero do
                | Zero -> 0
                | Succ _ -> 1
              |}
@@ -2219,7 +2219,7 @@ let sum_type_evaluation_tests =
                {|
                type rec Nat = | Zero | Succ of Nat
                let rec to_int n =
-                 switch n =>
+                 case n do
                  | Zero -> 0
                  | Succ m -> 1 + to_int m
              |}
@@ -2748,7 +2748,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec contains x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> false
                  | Node (_, y, left, right) ->
                      if x == y then true
@@ -2767,7 +2767,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec contains x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> false
                  | Node (_, y, left, right) ->
                      if x == y then true
@@ -2786,7 +2786,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec contains x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> false
                  | Node (_, y, left, right) ->
                      if x == y then true
@@ -2805,7 +2805,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec contains x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> false
                  | Node (_, y, left, right) ->
                      if x == y then true
@@ -2825,7 +2825,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
-                 switch tree =>
+                 case tree do
                  | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
                      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
                  | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
@@ -2848,7 +2848,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
-                 switch tree =>
+                 case tree do
                  | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
                      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
                  | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
@@ -2872,7 +2872,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec size tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, _, left, right) -> 1 + size left + size right
              |}
@@ -2888,7 +2888,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec size tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, _, left, right) -> 1 + size left + size right
              |}
@@ -2904,7 +2904,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec size tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, _, left, right) -> 1 + size left + size right
              |}
@@ -2920,7 +2920,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec size tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, _, left, right) -> 1 + size left + size right
              |}
@@ -2937,7 +2937,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec height tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, _, left, right) ->
                      let left_h = height left in
@@ -2956,7 +2956,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec height tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, _, left, right) ->
                      let left_h = height left in
@@ -2975,7 +2975,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec height tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, _, left, right) ->
                      let left_h = height left in
@@ -2994,7 +2994,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec height tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, _, left, right) ->
                      let left_h = height left in
@@ -3014,7 +3014,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec minimum tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, x, Leaf, _) -> x
                  | Node (_, _, left, _) -> minimum left
@@ -3031,7 +3031,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec minimum tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, x, Leaf, _) -> x
                  | Node (_, _, left, _) -> minimum left
@@ -3048,7 +3048,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec minimum tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, x, Leaf, _) -> x
                  | Node (_, _, left, _) -> minimum left
@@ -3065,7 +3065,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec maximum tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, x, _, Leaf) -> x
                  | Node (_, _, _, right) -> maximum right
@@ -3082,7 +3082,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec maximum tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, x, _, Leaf) -> x
                  | Node (_, _, _, right) -> maximum right
@@ -3099,7 +3099,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec maximum tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, x, _, Leaf) -> x
                  | Node (_, _, _, right) -> maximum right
@@ -3136,7 +3136,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec size tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, _, left, right) -> 1 + size left + size right
 
@@ -3160,7 +3160,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec contains x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> false
                  | Node (_, y, left, right) ->
                      if x == y then true
@@ -3187,7 +3187,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec contains x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> false
                  | Node (_, y, left, right) ->
                      if x == y then true
@@ -3215,7 +3215,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let make_black tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Leaf
                  | Node (_, x, left, right) -> Node (Black, x, left, right)
              |}
@@ -3231,7 +3231,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let make_black tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Leaf
                  | Node (_, x, left, right) -> Node (Black, x, left, right)
              |}
@@ -3247,7 +3247,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let make_black tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Leaf
                  | Node (_, x, left, right) -> Node (Black, x, left, right)
              |}
@@ -3263,7 +3263,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
-                 switch tree =>
+                 case tree do
                  | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
                      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
                  | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
@@ -3275,7 +3275,7 @@ let red_black_tree_tests =
                  | _ -> tree
 
                let rec insert_aux x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Node (Red, x, Leaf, Leaf)
                  | Node (color, y, left, right) ->
                      if x < y then
@@ -3297,7 +3297,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
-                 switch tree =>
+                 case tree do
                  | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
                      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
                  | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
@@ -3309,7 +3309,7 @@ let red_black_tree_tests =
                  | _ -> tree
 
                let rec insert_aux x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Node (Red, x, Leaf, Leaf)
                  | Node (color, y, left, right) ->
                      if x < y then
@@ -3320,7 +3320,7 @@ let red_black_tree_tests =
                        tree
 
                let make_black tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Leaf
                  | Node (_, x, left, right) -> Node (Black, x, left, right)
 
@@ -3339,7 +3339,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
-                 switch tree =>
+                 case tree do
                  | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
                      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
                  | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
@@ -3351,7 +3351,7 @@ let red_black_tree_tests =
                  | _ -> tree
 
                let rec insert_aux x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Node (Red, x, Leaf, Leaf)
                  | Node (color, y, left, right) ->
                      if x < y then
@@ -3362,7 +3362,7 @@ let red_black_tree_tests =
                        tree
 
                let make_black tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Leaf
                  | Node (_, x, left, right) -> Node (Black, x, left, right)
 
@@ -3381,7 +3381,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
-                 switch tree =>
+                 case tree do
                  | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
                      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
                  | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
@@ -3393,7 +3393,7 @@ let red_black_tree_tests =
                  | _ -> tree
 
                let rec insert_aux x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Node (Red, x, Leaf, Leaf)
                  | Node (color, y, left, right) ->
                      if x < y then
@@ -3404,7 +3404,7 @@ let red_black_tree_tests =
                        tree
 
                let make_black tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Leaf
                  | Node (_, x, left, right) -> Node (Black, x, left, right)
 
@@ -3412,7 +3412,7 @@ let red_black_tree_tests =
                  make_black (insert_aux x tree)
 
                let rec size tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, _, left, right) -> 1 + size left + size right
 
@@ -3432,7 +3432,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
-                 switch tree =>
+                 case tree do
                  | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
                      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
                  | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
@@ -3444,7 +3444,7 @@ let red_black_tree_tests =
                  | _ -> tree
 
                let rec insert_aux x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Node (Red, x, Leaf, Leaf)
                  | Node (color, y, left, right) ->
                      if x < y then
@@ -3455,7 +3455,7 @@ let red_black_tree_tests =
                        tree
 
                let make_black tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Leaf
                  | Node (_, x, left, right) -> Node (Black, x, left, right)
 
@@ -3463,7 +3463,7 @@ let red_black_tree_tests =
                  make_black (insert_aux x tree)
 
                let rec contains x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> false
                  | Node (_, y, left, right) ->
                      if x == y then true
@@ -3488,7 +3488,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
-                 switch tree =>
+                 case tree do
                  | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
                      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
                  | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
@@ -3500,7 +3500,7 @@ let red_black_tree_tests =
                  | _ -> tree
 
                let rec insert_aux x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Node (Red, x, Leaf, Leaf)
                  | Node (color, y, left, right) ->
                      if x < y then
@@ -3511,7 +3511,7 @@ let red_black_tree_tests =
                        tree
 
                let make_black tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Leaf
                  | Node (_, x, left, right) -> Node (Black, x, left, right)
 
@@ -3519,7 +3519,7 @@ let red_black_tree_tests =
                  make_black (insert_aux x tree)
 
                let rec size tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, _, left, right) -> 1 + size left + size right
 
@@ -3538,7 +3538,7 @@ let red_black_tree_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
-                 switch tree =>
+                 case tree do
                  | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
                      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
                  | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
@@ -3550,7 +3550,7 @@ let red_black_tree_tests =
                  | _ -> tree
 
                let rec insert_aux x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Node (Red, x, Leaf, Leaf)
                  | Node (color, y, left, right) ->
                      if x < y then
@@ -3561,7 +3561,7 @@ let red_black_tree_tests =
                        tree
 
                let make_black tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> Leaf
                  | Node (_, x, left, right) -> Node (Black, x, left, right)
 
@@ -3569,13 +3569,13 @@ let red_black_tree_tests =
                  make_black (insert_aux x tree)
 
                let rec minimum tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, x, Leaf, _) -> x
                  | Node (_, _, left, _) -> minimum left
 
                let rec maximum tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> 0
                  | Node (_, x, _, Leaf) -> x
                  | Node (_, _, _, right) -> maximum right
@@ -3684,7 +3684,7 @@ let sum_type_constructor_inference_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
              ~expr:{|
-               switch Node (Red, 5, Leaf, Leaf) =>
+               case Node (Red, 5, Leaf, Leaf) do
                | Leaf -> 0
                | Node (Red, x, _, _) -> x
                | Node (Black, x, _, _) -> ~-x
@@ -3700,7 +3700,7 @@ let sum_type_constructor_inference_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
              ~expr:{|
-               switch Node (Black, 5, Leaf, Leaf) =>
+               case Node (Black, 5, Leaf, Leaf) do
                | Leaf -> 0
                | Node (Red, x, _, _) -> x
                | Node (Black, x, _, _) -> ~-x
@@ -3811,7 +3811,7 @@ let sum_type_constructor_inference_tests =
                type Task = | Task of (Status, Priority, int)
 
                let get_priority t =
-                 switch t =>
+                 case t do
                  | Task (_, High, _) -> 1
                  | Task (_, Low, _) -> 0
              |}
@@ -3841,7 +3841,7 @@ let sum_type_constructor_inference_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec contains x tree =
-                 switch tree =>
+                 case tree do
                  | Leaf -> false
                  | Node (_, y, left, right) ->
                      if x == y then true
@@ -3861,7 +3861,7 @@ let sum_type_constructor_inference_tests =
                  | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
-                 switch tree =>
+                 case tree do
                  | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
                      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
                  | _ -> tree
@@ -4266,7 +4266,7 @@ let option_map_type_test =
             | Some of a
 
           let map f o =
-            switch o =>
+            case o do
             | None -> None
             | Some v -> Some (f v)
         |}
@@ -4295,7 +4295,7 @@ let polymorphic_nullary_constructor_regression_tests =
             | Some of a
 
           let map f o =
-            switch o =>
+            case o do
             | None -> None
             | Some v -> Some (f v)
         |}
@@ -4326,7 +4326,7 @@ let polymorphic_nullary_constructor_regression_tests =
             | Some of a
 
           let filter pred o =
-            switch o =>
+            case o do
             | None -> None
             | Some v -> if pred v then Some v else None
         |}
@@ -4342,7 +4342,7 @@ let polymorphic_nullary_constructor_regression_tests =
             | Error of e
 
           let map_result f r =
-            switch r =>
+            case r do
             | Error e -> Error e
             | Ok v -> Ok (f v)
         |}
@@ -4362,7 +4362,7 @@ let polymorphic_nullary_constructor_regression_tests =
             | Just of a
 
           let to_maybe e =
-            switch e =>
+            case e do
             | Left _ -> Nothing
             | Right v -> Just v
         |}
@@ -4378,7 +4378,7 @@ let polymorphic_nullary_constructor_regression_tests =
             | Some of a
 
           let flatMap o f =
-            switch o =>
+            case o do
             | None -> None
             | Some v -> f v
         |}
@@ -4394,7 +4394,7 @@ let polymorphic_nullary_constructor_regression_tests =
             | Some of a
 
           let map f o =
-            switch o =>
+            case o do
             | None -> None
             | Some v -> Some (f v)
 
@@ -4415,7 +4415,7 @@ let polymorphic_nullary_constructor_regression_tests =
             | Pair of (a, b)
 
           let swap p =
-            switch p =>
+            case p do
             | Empty -> Empty
             | Pair (x, y) -> Pair (y, x)
         |}
@@ -4442,7 +4442,7 @@ let bind_operator_lexing_regression_tests =
             | Some of a
 
           let (>>=) o f =
-            switch o =>
+            case o do
             | None -> None
             | Some v -> f v
         |}
@@ -4458,7 +4458,7 @@ let bind_operator_lexing_regression_tests =
             | Some of a
 
           let (>>=) o f =
-            switch o =>
+            case o do
             | None -> None
             | Some v -> f v
 
@@ -4477,7 +4477,7 @@ let bind_operator_lexing_regression_tests =
             | Some of a
 
           let (>>=) o f =
-            switch o =>
+            case o do
             | None -> None
             | Some v -> f v
 
@@ -4498,7 +4498,7 @@ let bind_operator_lexing_regression_tests =
             | Some of a
 
           let (>>=) o f =
-            switch o =>
+            case o do
             | None -> None
             | Some v -> f v
 
@@ -4527,7 +4527,7 @@ let bind_operator_lexing_regression_tests =
             | Some of a
 
           let (>>-) o default =
-            switch o =>
+            case o do
             | None -> default
             | Some v -> v
 
@@ -4545,7 +4545,7 @@ let bind_operator_lexing_regression_tests =
             | Some of a
 
           let (<<=) f o =
-            switch o =>
+            case o do
             | None -> None
             | Some v -> f v
 
@@ -4575,12 +4575,12 @@ let bind_operator_lexing_regression_tests =
             | Some of a
 
           let (>>=) o f =
-            switch o =>
+            case o do
             | None -> None
             | Some v -> f v
 
           let map f o =
-            switch o =>
+            case o do
             | None -> None
             | Some v -> Some (f v)
 

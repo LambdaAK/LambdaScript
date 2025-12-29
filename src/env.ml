@@ -38,7 +38,7 @@ let code_mapping : (string * string) list =
 |});
     ( "map",
       {|let rec map f arr =
-switch arr =>
+case arr do
   | [] -> []
   | h :: t -> f h :: map f t
 in
@@ -46,7 +46,7 @@ map|}
     );
     ( "filter",
       {|let rec filter f arr =
-switch arr =>
+case arr do
   | [] -> []
   | h :: t -> if f h then h :: filter f t else filter f t
 in
@@ -54,7 +54,7 @@ filter|}
     );
     ( "reduce_left",
       {|let rec fold f acc lst =
-      switch lst =>
+      case lst do
       | [] -> acc
       | h :: t -> fold f (f acc h) t
       in fold
@@ -62,7 +62,7 @@ filter|}
     );
     ( "reduce_right",
       {|let rec fold f lst acc =
-      switch lst =>
+      case lst do
       | [] -> acc
       | h :: t -> f h (fold f t acc)
       in fold|}

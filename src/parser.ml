@@ -879,14 +879,14 @@ end = struct
     return (pat, expr)
 
   and switch_parser () : expr parser =
-    (* switch e => branches *)
+    (* case e do branches *)
     (*
       Branches have the form
       | pat -> expr
     *)
-    let* () = expect_token Switch in
+    let* () = expect_token Case in
     let* e = expr_parser () in
-    let* () = expect_token SwitchArrow in
+    let* () = expect_token Do in
     (* parse the branches *)
     let* branches = parse_several (branch_parser ()) in
     return (Switch (e, branches))

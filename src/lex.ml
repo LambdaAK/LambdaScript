@@ -19,6 +19,8 @@ type token_type =
   | SwitchArrow
   | Pipe
   | Switch
+  | Case
+  | Do
   | End
   | Plus
   | Minus
@@ -129,6 +131,8 @@ let string_of_token_type : token_type -> string = function
   | ConsToken -> "<cons token>"
   | Pipe -> "<pipe>"
   | Switch -> "<switch>"
+  | Case -> "<case>"
+  | Do -> "<do>"
   | End -> "<end>"
   | Semicolon -> "<semicolon>"
   | Enum -> "<enum>"
@@ -291,6 +295,8 @@ let keywords =
     ("rec", Rec);
     ("bind", Bind);
     ("switch", Switch);
+    ("case", Case);
+    ("do", Do);
     ("end", End);
     ("enum", Enum);
     ("float", FloatType);
