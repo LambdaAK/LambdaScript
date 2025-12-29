@@ -786,16 +786,7 @@ end = struct
 
   and function_parser () : expr parser =
     let* () = expect_token Fn in
-    let* pat = PatParser.pat_parser in
-
-    (* Parse [ compound_type ] if possible, store it in an option*)
-    let* type_annotation_option : compound_type option =
-      (let* () = expect_token LBracket in
-       let* ct = CompoundTypeParser.compound_type_parser in
-       let* () = expect_token RBracket in
-       return (Some ct))
-      <|> return None
-    in
+    let* pat, type_annotation_option = pat_and_type_annotation_parser in
 
     let* () = expect_token Arrow in
     let* body = expr_parser () in
@@ -817,18 +808,17 @@ end = struct
     return (Ternary (condition, then_branch, else_branch))
 
   and pat_and_type_annotation_parser =
-    (* parse a pattern *)
-    let* pat = PatParser.pat_parser in
-    (* parse [ compound_type ] if possible, store it in an option *)
-    let* type_annotation_option : compound_type option =
-      (let* () = expect_token LBracket in
-       let* ct = CompoundTypeParser.compound_type_parser in
-       let* () = expect_token RBracket in
-       return (Some ct))
-      <|> return None
-    in
-
-    return (pat, type_annotation_option)
+    (* Try to parse (pat : type) first *)
+    (let* () = expect_token LParen in
+     let* pat = PatParser.pat_parser in
+     let* () = expect_token Colon in
+     let* ct = CompoundTypeParser.compound_type_parser in
+     let* () = expect_token RParen in
+     return (pat, Some ct))
+    <|>
+    (* Otherwise parse just pat without annotation *)
+    (let* pat = PatParser.pat_parser in
+     return (pat, None))
 
   and bind_rec_parser () : expr parser =
     let* () = expect_token Let in
@@ -837,6 +827,47 @@ end = struct
     (* parse argument patterns *)
     let* arg_pats_and_type_annotations : (pat * compound_type option) list =
       parse_several pat_and_type_annotation_parser
+    in
+    (* parse optional return type annotation : Type *)
+    let* return_type_option : compound_type option =
+      (let* () = expect_token Colon in
+       let* ct = CompoundTypeParser.compound_type_parser in
+       return (Some ct))
+      <|> return None
+    in
+    (* Construct the final type annotation for the pattern *)
+    let final_cto =
+      match return_type_option with
+      | Some return_type -> (
+          match arg_pats_and_type_annotations with
+          | [] ->
+              (* No arguments, just use return type *)
+              Some return_type
+          | args ->
+              (* Construct function type from argument types and return type *)
+              (* All arguments must have type annotations if return type is specified *)
+              let arg_types = List.map snd args in
+              if List.for_all (fun x -> match x with Some _ -> true | None -> false) arg_types then
+                let rec build_function_type types ret =
+                  match types with
+                  | [] -> ret
+                  | Some t :: rest ->
+                      let factor =
+                        match t with
+                        | BasicType ft -> ft
+                        | FunctionType _ -> ParenFactorType t
+                      in
+                      FunctionType (factor, build_function_type rest ret)
+                  | None :: _ -> failwith "Unreachable: all types are Some"
+                in
+                Some (build_function_type arg_types return_type)
+              else
+                (* If some arguments don't have types, ignore return type annotation *)
+                cto
+        )
+      | None ->
+          (* No return type, use pattern's type annotation *)
+          cto
     in
     let* () = expect_token Equals in
     let* e1 = expr_parser () in
@@ -847,7 +878,7 @@ end = struct
     (* wrap body in functions *)
     return
       (BindRec
-         (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2))
+         (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2))
 
   and bind_parser () : expr parser =
     let* () = expect_token Let in
@@ -855,6 +886,47 @@ end = struct
     (* parse argument patterns *)
     let* arg_pats_and_type_annotations : (pat * compound_type option) list =
       parse_several pat_and_type_annotation_parser
+    in
+    (* parse optional return type annotation : Type *)
+    let* return_type_option : compound_type option =
+      (let* () = expect_token Colon in
+       let* ct = CompoundTypeParser.compound_type_parser in
+       return (Some ct))
+      <|> return None
+    in
+    (* Construct the final type annotation for the pattern *)
+    let final_cto =
+      match return_type_option with
+      | Some return_type -> (
+          match arg_pats_and_type_annotations with
+          | [] ->
+              (* No arguments, just use return type *)
+              Some return_type
+          | args ->
+              (* Construct function type from argument types and return type *)
+              (* All arguments must have type annotations if return type is specified *)
+              let arg_types = List.map snd args in
+              if List.for_all (fun x -> match x with Some _ -> true | None -> false) arg_types then
+                let rec build_function_type types ret =
+                  match types with
+                  | [] -> ret
+                  | Some t :: rest ->
+                      let factor =
+                        match t with
+                        | BasicType ft -> ft
+                        | FunctionType _ -> ParenFactorType t
+                      in
+                      FunctionType (factor, build_function_type rest ret)
+                  | None :: _ -> failwith "Unreachable: all types are Some"
+                in
+                Some (build_function_type arg_types return_type)
+              else
+                (* If some arguments don't have types, ignore return type annotation *)
+                cto
+        )
+      | None ->
+          (* No return type, use pattern's type annotation *)
+          cto
     in
     let* () = expect_token Equals in
     let* e1 = expr_parser () in
@@ -864,7 +936,7 @@ end = struct
 
     (* wrap body in functions *)
     return
-      (Bind (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2))
+      (Bind (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2))
 
   and branch_parser () : switch_branch parser =
     (* | pat -> expr *)
@@ -1022,12 +1094,53 @@ end = struct
     let* arg_pats_and_type_annotations : (pat * compound_type option) list =
       parse_several ExprParser.pat_and_type_annotation_parser
     in
+    (* parse optional return type annotation : Type *)
+    let* return_type_option : compound_type option =
+      (let* () = expect_token Colon in
+       let* ct = CompoundTypeParser.compound_type_parser in
+       return (Some ct))
+      <|> return None
+    in
+    (* Construct the final type annotation for the pattern *)
+    let final_cto =
+      match return_type_option with
+      | Some return_type -> (
+          match arg_pats_and_type_annotations with
+          | [] ->
+              (* No arguments, just use return type *)
+              Some return_type
+          | args ->
+              (* Construct function type from argument types and return type *)
+              (* All arguments must have type annotations if return type is specified *)
+              let arg_types = List.map snd args in
+              if List.for_all (fun x -> match x with Some _ -> true | None -> false) arg_types then
+                let rec build_function_type types ret =
+                  match types with
+                  | [] -> ret
+                  | Some t :: rest ->
+                      let factor =
+                        match t with
+                        | BasicType ft -> ft
+                        | FunctionType _ -> ParenFactorType t
+                      in
+                      FunctionType (factor, build_function_type rest ret)
+                  | None :: _ -> failwith "Unreachable: all types are Some"
+                in
+                Some (build_function_type arg_types return_type)
+              else
+                (* If some arguments don't have types, ignore return type annotation *)
+                cto
+        )
+      | None ->
+          (* No return type, use pattern's type annotation *)
+          cto
+    in
     let* () = expect_token Equals in
     let* e1 = ExprParser.expr_parser in
 
     (* wrap body in functions *)
     return
-      (Defn (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations))
+      (Defn (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations))
 
   let let_rec_defn_parser () : defn parser =
     let* () = expect_token Let in
@@ -1037,12 +1150,53 @@ end = struct
     let* arg_pats_and_type_annotations : (pat * compound_type option) list =
       parse_several ExprParser.pat_and_type_annotation_parser
     in
+    (* parse optional return type annotation : Type *)
+    let* return_type_option : compound_type option =
+      (let* () = expect_token Colon in
+       let* ct = CompoundTypeParser.compound_type_parser in
+       return (Some ct))
+      <|> return None
+    in
+    (* Construct the final type annotation for the pattern *)
+    let final_cto =
+      match return_type_option with
+      | Some return_type -> (
+          match arg_pats_and_type_annotations with
+          | [] ->
+              (* No arguments, just use return type *)
+              Some return_type
+          | args ->
+              (* Construct function type from argument types and return type *)
+              (* All arguments must have type annotations if return type is specified *)
+              let arg_types = List.map snd args in
+              if List.for_all (fun x -> match x with Some _ -> true | None -> false) arg_types then
+                let rec build_function_type types ret =
+                  match types with
+                  | [] -> ret
+                  | Some t :: rest ->
+                      let factor =
+                        match t with
+                        | BasicType ft -> ft
+                        | FunctionType _ -> ParenFactorType t
+                      in
+                      FunctionType (factor, build_function_type rest ret)
+                  | None :: _ -> failwith "Unreachable: all types are Some"
+                in
+                Some (build_function_type arg_types return_type)
+              else
+                (* If some arguments don't have types, ignore return type annotation *)
+                cto
+        )
+      | None ->
+          (* No return type, use pattern's type annotation *)
+          cto
+    in
     let* () = expect_token Equals in
     let* e1 = ExprParser.expr_parser in
 
     (* wrap body in functions *)
     return
-      (DefnRec (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations))
+      (DefnRec (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations))
 
   let string_parser : string parser =
     let* s =
