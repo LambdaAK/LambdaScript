@@ -11,9 +11,47 @@ type Option<a> =
 
 type Parser<a> = [token_type] -> Option<(a, [token_type])>
 
-let (<|>) p1 p2 =
+let (<|>) p1 [Parser<a>] p2 [Parser<a>] =
   \tokens ->
     switch p1 tokens =>
     | Some result -> Some result
     | None -> p2 tokens
 
+let (<*) p1 [Parser<a>] p2 [Parser<b>]  =
+  \tokens ->
+    switch p1 tokens =>
+    | Some (_, rest) -> p2 rest
+    | None -> None
+
+let (*>) p1 p2 =
+  \tokens ->
+    switch p1 tokens =>
+    | Some (_, rest) -> p2 rest
+    | None -> None
+
+let (>>=) parser f =
+  \tokens ->
+    switch parser tokens =>
+    | Some (result, rest) -> f result rest
+    | None -> None
+
+
+let rec (++) l1 l2 =
+  switch l1 =>
+  | [] -> l2
+  | h :: t -> h :: (t ++ l2)
+
+let rec rev lst =
+  switch lst =>
+  | [] -> []
+  | h :: t -> (rev t) ++ [h]
+
+let parse_several parser [Parser<a>] =
+  let rec helper acc tokens =
+    switch parser tokens =>
+    | Some (result, remaining_tokens) ->
+      helper (result :: acc) remaining_tokens
+
+    | None -> Some (rev acc, tokens)
+    in
+    helper []

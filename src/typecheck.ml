@@ -919,7 +919,19 @@ and generalize (constraints : type_equations) (env : static_env)
   (* Get all types from the environment *)
   let env_types = List.map snd env in
   let env_types = List.map instantiate env_types in
-  let env_types = flatten_env_types env_types in
+
+  (* Apply the solution to environment types so we can see constrained type variables *)
+  let- env_types_with_solution =
+    let rec apply_solution_to_list acc = function
+      | [] -> return (List.rev acc)
+      | t :: rest ->
+          let- t' = get_type t solution type_env in
+          apply_solution_to_list (t' :: acc) rest
+    in
+    apply_solution_to_list [] env_types
+  in
+
+  let env_types = flatten_env_types env_types_with_solution in
 
   (* Get all type variables in the environment *)
   let env_vars = List.flatten (List.map get_type_vars env_types) in
