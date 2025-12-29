@@ -4226,6 +4226,325 @@ let option_map_type_test =
         ~expected_type:"('a -> 'b) -> Option<'a> -> Option<'b>" );
   ]
 
+(* ============================================================================
+   REGRESSION TESTS FOR POLYMORPHIC NULLARY CONSTRUCTORS
+
+   These tests verify that nullary constructors (like None) in sum types
+   with type parameters are properly polymorphic. Without the fix, None
+   would have type Option<a> with a free variable 'a', causing all uses
+   to share the same type variable.
+   ============================================================================ *)
+let polymorphic_nullary_constructor_regression_tests =
+  let open ProgramTesting in
+  "polymorphic_nullary_constructor_regression"
+  >::: [
+    (* Test that map has correct polymorphic type *)
+    ( "Option map type is fully polymorphic" >:: fun _ ->
+      assert_expression_has_type
+        ~program:{|
+          type Option<a> =
+            | None
+            | Some of a
+
+          let map f o =
+            switch o =>
+            | None -> None
+            | Some v -> Some (f v)
+        |}
+        ~expr:"(map)"
+        ~expected_type:"('a -> 'b) -> Option<'a> -> Option<'b>" );
+
+    (* Test that None can be used with different types *)
+    ( "None can be used polymorphically" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          type Option<a> =
+            | None
+            | Some of a
+
+          let x = None
+          let y = None
+          let z = if true then Some 5 else x
+        |}
+        ~expr:"z"
+        ~expected_value:"Some 5" );
+
+    (* Test filter function which also uses None polymorphically *)
+    ( "filter has correct polymorphic type" >:: fun _ ->
+      assert_expression_has_type
+        ~program:{|
+          type Option<a> =
+            | None
+            | Some of a
+
+          let filter pred o =
+            switch o =>
+            | None -> None
+            | Some v -> if pred v then Some v else None
+        |}
+        ~expr:"(filter)"
+        ~expected_type:"('a -> bool) -> Option<'a> -> Option<'a>" );
+
+    (* Test that Result type with nullary constructors also works *)
+    ( "Result Error constructor is polymorphic" >:: fun _ ->
+      assert_expression_has_type
+        ~program:{|
+          type Result<a, e> =
+            | Ok of a
+            | Error of e
+
+          let map_result f r =
+            switch r =>
+            | Error e -> Error e
+            | Ok v -> Ok (f v)
+        |}
+        ~expr:"(map_result)"
+        ~expected_type:"('a -> 'b) -> Result<'a, 'c> -> Result<'b, 'c>" );
+
+    (* Test Either type with two nullary constructors *)
+    ( "Either with nullary constructors" >:: fun _ ->
+      assert_expression_has_type
+        ~program:{|
+          type Either<a, b> =
+            | Left of a
+            | Right of b
+
+          type Maybe<a> =
+            | Nothing
+            | Just of a
+
+          let to_maybe e =
+            switch e =>
+            | Left _ -> Nothing
+            | Right v -> Just v
+        |}
+        ~expr:"(to_maybe)"
+        ~expected_type:"Either<'a, 'b> -> Maybe<'b>" );
+
+    (* Test bind/flatMap which requires proper polymorphism *)
+    ( "bind/flatMap has correct type" >:: fun _ ->
+      assert_expression_has_type
+        ~program:{|
+          type Option<a> =
+            | None
+            | Some of a
+
+          let flatMap o f =
+            switch o =>
+            | None -> None
+            | Some v -> f v
+        |}
+        ~expr:"(flatMap)"
+        ~expected_type:"Option<'a> -> ('a -> Option<'b>) -> Option<'b>" );
+
+    (* Test chaining operations that require different type variables *)
+    ( "chained map operations work" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          type Option<a> =
+            | None
+            | Some of a
+
+          let map f o =
+            switch o =>
+            | None -> None
+            | Some v -> Some (f v)
+
+          let to_string x = "value"
+          let length s = 5
+
+          let result = map length (map to_string (Some 42))
+        |}
+        ~expr:"result"
+        ~expected_value:"Some 5" );
+
+    (* Test with multiple type parameters *)
+    ( "pair with nullary constructor" >:: fun _ ->
+      assert_expression_has_type
+        ~program:{|
+          type PairOrEmpty<a, b> =
+            | Empty
+            | Pair of (a, b)
+
+          let swap p =
+            switch p =>
+            | Empty -> Empty
+            | Pair (x, y) -> Pair (y, x)
+        |}
+        ~expr:"(swap)"
+        ~expected_type:"PairOrEmpty<'a, 'b> -> PairOrEmpty<'b, 'a>" );
+  ]
+
+(* ============================================================================
+   REGRESSION TESTS FOR >>= OPERATOR LEXING
+
+   These tests verify that operators like >>= are correctly lexed as single
+   tokens, while still allowing nested type applications like Box<Box<int>>.
+   ============================================================================ *)
+let bind_operator_lexing_regression_tests =
+  let open ProgramTesting in
+  "bind_operator_lexing_regression"
+  >::: [
+    (* Test that >>= operator can be defined and used *)
+    ( ">>= operator definition and type" >:: fun _ ->
+      assert_expression_has_type
+        ~program:{|
+          type Option<a> =
+            | None
+            | Some of a
+
+          let (>>=) o f =
+            switch o =>
+            | None -> None
+            | Some v -> f v
+        |}
+        ~expr:"(>>=)"
+        ~expected_type:"Option<'a> -> ('a -> Option<'b>) -> Option<'b>" );
+
+    (* Test using >>= as infix operator *)
+    ( ">>= used as infix operator" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          type Option<a> =
+            | None
+            | Some of a
+
+          let (>>=) o f =
+            switch o =>
+            | None -> None
+            | Some v -> f v
+
+          let increment x = Some (x + 1)
+          let result = Some 10 >>= increment
+        |}
+        ~expr:"result"
+        ~expected_value:"Some 11" );
+
+    (* Test chaining >>= operators *)
+    ( "chained >>= operations" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          type Option<a> =
+            | None
+            | Some of a
+
+          let (>>=) o f =
+            switch o =>
+            | None -> None
+            | Some v -> f v
+
+          let result =
+            Some 5
+            >>= (\x -> Some (x + 1))
+            >>= (\y -> Some (y * 2))
+        |}
+        ~expr:"result"
+        ~expected_value:"Some 12" );
+
+    (* Test >>= with None *)
+    ( ">>= with None propagates" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          type Option<a> =
+            | None
+            | Some of a
+
+          let (>>=) o f =
+            switch o =>
+            | None -> None
+            | Some v -> f v
+
+          let result = None >>= (\x -> Some (x + 1))
+        |}
+        ~expr:"result"
+        ~expected_value:"None" );
+
+    (* Test that nested types still work (>>= didn't break them) *)
+    ( "nested type applications still work" >:: fun _ ->
+      assert_expression_has_type
+        ~program:{|
+          type Box<a> = (a, int)
+
+          let unbox x = x
+        |}
+        ~expr:"unbox (((5, 3), 4), 6)"
+        ~expected_type:"(((int, int), int), int)" );
+
+    (* Test other >> variants *)
+    ( ">>- operator" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          type Option<a> =
+            | None
+            | Some of a
+
+          let (>>-) o default =
+            switch o =>
+            | None -> default
+            | Some v -> v
+
+          let result = None >>- 42
+        |}
+        ~expr:"result"
+        ~expected_value:"42" );
+
+    (* Test << operator (not just >>) *)
+    ( "<<= operator" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          type Option<a> =
+            | None
+            | Some of a
+
+          let (<<=) f o =
+            switch o =>
+            | None -> None
+            | Some v -> f v
+
+          let increment x = Some (x + 1)
+          let result = increment <<= Some 10
+        |}
+        ~expr:"result"
+        ~expected_value:"Some 11" );
+
+    (* Test that >> by itself still works in type contexts *)
+    ( ">> as separate tokens in types" >:: fun _ ->
+      assert_expression_has_type
+        ~program:{|
+          type Nested<a> = (a, a)
+
+          let identity x = x
+        |}
+        ~expr:"identity ((5, 6), (7, 8))"
+        ~expected_type:"((int, int), (int, int))" );
+
+    (* Test combining >>= with other operations *)
+    ( ">>= combined with application" >:: fun _ ->
+      assert_expression_has_value
+        ~program:{|
+          type Option<a> =
+            | None
+            | Some of a
+
+          let (>>=) o f =
+            switch o =>
+            | None -> None
+            | Some v -> f v
+
+          let map f o =
+            switch o =>
+            | None -> None
+            | Some v -> Some (f v)
+
+          let double x = x * 2
+          let increment x = Some (x + 1)
+
+          let result = map double (Some 5) >>= increment
+        |}
+        ~expr:"result"
+        ~expected_value:"Some 11" );
+  ]
+
 let all_tests =
   List.flatten
     [
@@ -4251,6 +4570,8 @@ let all_tests =
       [ custom_operator_type_tests ];
       [ custom_operator_evaluation_tests ];
       [ option_map_type_test ];
+      [ polymorphic_nullary_constructor_regression_tests ];
+      [ bind_operator_lexing_regression_tests ];
     ]
 
 let suite = "suite" >::: all_tests
