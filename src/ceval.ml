@@ -372,7 +372,9 @@ and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   | IntToFloat, IntegerValue i -> FloatValue (float_of_int i) |> return
   | FloatToInt, FloatValue f -> IntegerValue (int_of_float f) |> return
   | StringToList, StringValue s ->
-      let char_list = s |> String.to_seq |> List.of_seq |> List.map (fun c -> CharValue c) in
+      let char_list =
+        s |> String.to_seq |> List.of_seq |> List.map (fun c -> CharValue c)
+      in
       ListValue char_list |> return
   | _ -> Error (OtherError "eval_builtin: unimplemented")
 
@@ -422,7 +424,8 @@ and eval_bop (op : c_bop) (e1 : c_expr) (e2 : c_expr) (env : env) :
       | CMul, IntegerValue a, IntegerValue b -> IntegerValue (a * b) |> return
       | CDiv, IntegerValue a, IntegerValue b -> IntegerValue (a / b) |> return
       | CMod, IntegerValue a, IntegerValue b -> IntegerValue (a mod b) |> return
-      | CConcat, StringValue s1, StringValue s2 -> StringValue (s1 ^ s2) |> return
+      | CConcat, StringValue s1, StringValue s2 ->
+          StringValue (s1 ^ s2) |> return
       | CEQ, a, b -> BooleanValue (a = b) |> return
       | CNE, a, b -> BooleanValue (a <> b) |> return
       | CLT, IntegerValue a, IntegerValue b -> BooleanValue (a < b) |> return

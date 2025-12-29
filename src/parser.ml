@@ -373,7 +373,7 @@ end = struct
     let infix_pat_parser : sub_pat parser =
       let* s =
         expect_token_get_data (function
-          | Relop s | Addop s | Mulop s -> Some s
+          | Relop s | Addop s | Mulop s | Logop s -> Some s
           | _ -> None)
       in
 
@@ -502,7 +502,7 @@ end = struct
     let* () = expect_token LParen in
     let* id =
       expect_token_get_data (function
-        | Relop s | Addop s | Mulop s -> Some s
+        | Relop s | Addop s | Mulop s | Logop s -> Some s
         | _ -> None)
     in
 

@@ -9,8 +9,12 @@ let built_ins : (string * value * c_type) list =
     ("int_to_str", BuiltInFunction IntToString, Mono (IntType => StringType));
     ("int_to_float", BuiltInFunction IntToFloat, Mono (IntType => FloatType));
     ("float_to_int", BuiltInFunction FloatToInt, Mono (FloatType => IntType));
-    ("string_to_list", BuiltInFunction StringToList, Mono (StringType => CListType CharType));
-    ("list_of_string", BuiltInFunction StringToList, Mono (StringType => CListType CharType));
+    ( "string_to_list",
+      BuiltInFunction StringToList,
+      Mono (StringType => CListType CharType) );
+    ( "list_of_string",
+      BuiltInFunction StringToList,
+      Mono (StringType => CListType CharType) );
     (* Built-in type constructors - these represent the types themselves when used as values *)
     (* Using a fresh type variable that will be unified during type checking *)
     ("bool", UnitValue, Mono BoolType);

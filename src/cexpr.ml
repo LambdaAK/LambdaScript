@@ -47,6 +47,7 @@ type mono_type =
   | CListType of mono_type
   | CTypeApp of string * mono_type list
   | FixedPoint of string * mono_type
+
 (* the string is the name of the type constructor, and mono_type list is the
    list of arguments*)
 (* FixedPoint(type_name, body) represents μtype_name.body, where body contains
@@ -153,7 +154,9 @@ and substitute_type (t : c_type) (var : type_var) (replacement : mono_type) :
         (VectorType (List.map (fun t -> substitute_mono t var replacement) ts))
   | Mono (CListType t) -> Mono (CListType (substitute_mono t var replacement))
   | Mono (CTypeApp (name, args)) ->
-      Mono (CTypeApp (name, List.map (fun arg -> substitute_mono arg var replacement) args))
+      Mono
+        (CTypeApp
+           (name, List.map (fun arg -> substitute_mono arg var replacement) args))
   | Mono (FixedPoint (name, body)) ->
       Mono (FixedPoint (name, substitute_mono body var replacement))
   | Mono t -> Mono t
@@ -171,7 +174,8 @@ and substitute_mono (t : mono_type) (var : type_var) (replacement : mono_type) :
       VectorType (List.map (fun t -> substitute_mono t var replacement) ts)
   | CListType t -> CListType (substitute_mono t var replacement)
   | CTypeApp (name, args) ->
-      CTypeApp (name, List.map (fun arg -> substitute_mono arg var replacement) args)
+      CTypeApp
+        (name, List.map (fun arg -> substitute_mono arg var replacement) args)
   | FixedPoint (name, body) ->
       FixedPoint (name, substitute_mono body var replacement)
   | _ -> t

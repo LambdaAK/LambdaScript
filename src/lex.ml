@@ -58,6 +58,7 @@ type token_type =
   | Relop of string (* start with = < or >, and are not = *)
   | Addop of string (* start with + or - *)
   | Mulop of string (* start with * / or % *)
+  | Logop of string (* start with | or & *)
   | Type
   | TypeVariable of string
   | LAngle
@@ -134,6 +135,7 @@ let string_of_token_type : token_type -> string = function
   | Relop s -> "<relop: " ^ s ^ ">"
   | Addop s -> "<addop: " ^ s ^ ">"
   | Mulop s -> "<mulop: " ^ s ^ ">"
+  | Logop s -> "<logop: " ^ s ^ ">"
   | Equals -> "<equals>"
   | Type -> "<type>"
   | TypeVariable s -> "<type variable: " ^ s ^ ">"
@@ -177,7 +179,7 @@ let is_letter : char -> bool =
 let is_alpha_num (c : char) = is_letter c || is_num c
 
 let is_bop_prefix : char -> bool = function
-  | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' | '^' -> true
+  | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' | '^' | '|' -> true
   | _ -> false
 
 let is_special =
@@ -197,6 +199,10 @@ let is_mulop_prefix = function
 
 let is_relop_prefix = function
   | '<' | '>' | '=' -> true
+  | _ -> false
+
+let is_logop_prefix = function
+  | '|' | '&' -> true
   | _ -> false
 
 (* Try to parse a parenthesized operator like (++) or (+++)
@@ -226,11 +232,13 @@ let bop_from_char_list (lst : char list) =
   else if s = "<-" then BindArrow
   else if s = "=>" then SwitchArrow
   else if s = "=" then Equals
+  else if s = "|" then Pipe  (* Single | should be Pipe, not an operator *)
   else
     match lst with
     | h :: _ when is_addop_prefix h -> Addop s
     | h :: _ when is_mulop_prefix h -> Mulop s
     | h :: _ when is_relop_prefix h -> Relop s
+    | h :: _ when is_logop_prefix h -> Logop s
     | _ -> failwith "invalid bop passed to bop_from_char_list"
 
 let lex_bop (lst : char list) =
@@ -241,20 +249,20 @@ let lex_bop (lst : char list) =
         (* Don't combine '>' with another '>' to allow nested type applications
            like Pair<Pair<int>> *)
         (* But DO combine if there's another operator char after, like >>= *)
-        (* Also don't combine operators with standalone delimiters like , ; : | *)
+        (* Also don't combine operators with standalone delimiters like , ; : *)
         match (acc, h) with
         | '>' :: _, '>' -> (
             (* Check if there's another operator character after the second > *)
             (* We want to allow >>= but not >>> (for nested types like Box<Box<Box<int>>>) *)
             match t with
-            | next :: _ when is_special next && next <> '>' && next <> ',' && next <> ';' && next <> ':' && next <> '|' ->
+            | next :: _ when is_special next && next <> '>' && next <> ',' && next <> ';' && next <> ':' ->
                 (* There's another operator char (not >), so keep building (e.g., >>= ) *)
                 get_bop_chars t (h :: acc)
             | _ ->
                 (* No continuation or next is >, stop here to allow Pair<Pair<int>> *)
                 (List.rev acc, lst))
-        | _ :: _, (',' | ';' | ':' | '|') -> (List.rev acc, lst)
-        | [], (',' | ';' | ':' | '|') -> (List.rev acc, lst)
+        | _ :: _, (',' | ';' | ':') -> (List.rev acc, lst)
+        | [], (',' | ';' | ':') -> (List.rev acc, lst)
         | _ -> get_bop_chars t (h :: acc))
     | _ ->
         (* no more chars are added to the bop *)

@@ -1,74 +1,19 @@
-type Token =
+type token_type =
   | TNum of int
   | TPlus
   | TMinus
-  | TStar
-  | TLParen
-  | TRParen
+  | TTimes
+  | TDiv
 
-type Expr =
-  | ENum of int
-  | EAdd of (Expr, Expr)
-  | ESub of (Expr, Expr)
-  | EMul of (Expr, Expr)
+type Option<a> =
+  | None
+  | Some of a
 
-type rec ParseResult<a> =
-  | Success of (a, [Token])
-  | Failure
+type Parser<a> = [token_type] -> Option<(a, [token_type])>
 
-let preturn x = (\tokens -> Success (x, tokens))
-
-let (>>=) p f =
-  (\tokens ->
-    switch p tokens =>
-    | Failure -> Failure
-    | Success (v, rest) -> f v rest)
-
-let alt p1 p2 =
-  (\tokens ->
+let (<|>) p1 p2 =
+  \tokens ->
     switch p1 tokens =>
-    | Success r -> Success r
-    | Failure -> p2 tokens)
+    | Some result -> Some result
+    | None -> p2 tokens
 
-let satisfies pred =
-  (\tokens ->
-    switch tokens =>
-    | tok :: rest ->
-        if pred tok then Success (tok, rest) else Failure
-    | [] -> Failure)
-
-let parseNum =
-  satisfies (\t -> switch t => | TNum _ -> true | _ -> false)
-  >>= (\tok -> switch tok => | TNum n -> preturn (ENum n) | _ -> (\_ -> Failure))
-
-let parsePlus = satisfies (\t -> switch t => | TPlus -> true | _ -> false)
-let parseMinus = satisfies (\t -> switch t => | TMinus -> true | _ -> false)
-let parseStar = satisfies (\t -> switch t => | TStar -> true | _ -> false)
-let parseLParen = satisfies (\t -> switch t => | TLParen -> true | _ -> false)
-let parseRParen = satisfies (\t -> switch t => | TRParen -> true | _ -> false)
-
-let rec parseExpr tokens =
-  (alt parseNum
-    (parseLParen >>= (\_ -> parseExpr >>= (\e -> parseRParen >>= (\_ -> preturn e))))
-   >>= (\left ->
-     alt (parsePlus >>= (\_ -> parseExpr >>= (\right -> preturn (EAdd (left, right)))))
-       (alt (parseMinus >>= (\_ -> parseExpr >>= (\right -> preturn (ESub (left, right)))))
-         (alt (parseStar >>= (\_ -> parseExpr >>= (\right -> preturn (EMul (left, right)))))
-           (preturn left))))) tokens
-
-let rec eval expr =
-  switch expr =>
-  | ENum n -> n
-  | EAdd (e1, e2) -> eval e1 + eval e2
-  | ESub (e1, e2) -> eval e1 - eval e2
-  | EMul (e1, e2) -> eval e1 * eval e2
-
-let evalParse res =
-  switch res =>
-  | Success (ast, _) -> eval ast
-  | Failure -> ~-999
-
-let test1 = evalParse (parseExpr [TNum 2, TPlus, TNum 3])
-let test2 = evalParse (parseExpr [TLParen, TNum 5, TPlus, TNum 3, TRParen, TStar, TNum 2])
-let test3 = evalParse (parseExpr [TNum 10, TMinus, TNum 4])
-let test4 = evalParse (parseExpr [TNum 6, TStar, TNum 7])
