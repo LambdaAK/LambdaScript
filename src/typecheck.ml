@@ -756,18 +756,29 @@ and reduce_eq (c : type_equations) (type_env : type_env) : type_equations =
             (* Same as above, but reversed *)
             if name1 = name2 then reduce_eq c' type_env else raise TypeFailure
         | RecordType fields1, RecordType fields2 ->
-            (* Width subtyping for records: fields1 (actual) can unify with fields2 (expected)
-               if fields1 has at least all the fields of fields2 *)
-            (* We iterate over the expected type (fields2) and check each field exists in actual (fields1) *)
-            let rec unify_record_fields acc = function
-              | [] -> List.rev acc
-              | (name2, type2) :: rest ->
-                  (match List.assoc_opt name2 fields1 with
-                   | Some type1 -> unify_record_fields ((type1, type2) :: acc) rest
-                   | None -> raise TypeFailure)  (* field not found in actual type *)
+            (* Record unification with width subtyping:
+               Case 1: If both have the same fields, unify field types
+               Case 2: If one is a subset of the other, use subtyping
+               We unify all common fields and accept if one side has all fields of the other *)
+            let rec unify_common_fields acc remaining1 remaining2 =
+              match remaining1 with
+              | [] -> (List.rev acc, [], remaining2)
+              | (name1, type1) :: rest1 ->
+                  match List.assoc_opt name1 remaining2 with
+                  | Some type2 ->
+                      (* Found common field - add equation and remove from both sides *)
+                      let remaining2' = List.filter (fun (n, _) -> n <> name1) remaining2 in
+                      unify_common_fields ((type1, type2) :: acc) rest1 remaining2'
+                  | None ->
+                      (* Field only in fields1 - continue *)
+                      let (eqs, extra1, extra2) = unify_common_fields acc rest1 remaining2 in
+                      (eqs, (name1, type1) :: extra1, extra2)
             in
-            let field_equations = unify_record_fields [] fields2 in
-            reduce_eq (field_equations @ c') type_env
+            let (common_eqs, _, _) = unify_common_fields [] fields1 fields2 in
+            (* Record unification: unify all common fields and accept disjoint fields.
+               This handles both subtyping (one record has more fields than expected)
+               and merging (multiple field accesses on same variable create disjoint constraints). *)
+            reduce_eq (common_eqs @ c') type_env
         | _ -> raise TypeFailure)
 
 (** [get_type var subs] applies a substitution to a type variable.
