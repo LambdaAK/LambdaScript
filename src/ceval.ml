@@ -81,6 +81,7 @@ and string_of_value = function
   | IntegerValue i -> string_of_int i
   | FloatValue f -> string_of_float f
   | StringValue s -> "\"" ^ s ^ "\""
+  | CharValue c -> "'" ^ String.make 1 c ^ "'"
   | BooleanValue b -> string_of_bool b
   | UnitValue -> "()"
   | FunctionClosure _ | RecursiveFunctionClosure _ | BuiltInFunction _ ->
@@ -119,6 +120,7 @@ and bind_pat (p : c_pat) (v : value) : env option =
   | CIdPat s, _ -> Some [ (s, v) ]
   | CIntPat i, IntegerValue j -> if i = j then Some [] else None
   | CStringPat s, StringValue t -> if s = t then Some [] else None
+  | CCharPat c, CharValue v -> if c = v then Some [] else None
   | CBoolPat b, BooleanValue c -> if b = c then Some [] else None
   | CNilPat, ListValue [] -> Some []
   | CConsPat (p1, p2), ListValue (v1 :: v2) -> (
@@ -175,6 +177,10 @@ and bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
       match get_mono_type t with
       | Some UnitType -> Some []
       | _ -> None)
+  | CCharPat _ -> (
+      match get_mono_type t with
+      | Some CharType -> Some []
+      | _ -> None)
   | CWildcardPat -> Some []
   | CIdPat s -> Some [ (s, t) ]
   | CVectorPat patterns -> (
@@ -213,6 +219,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
   | EInt i -> IntegerValue i |> return
   | EFloat f -> FloatValue f |> return
   | EString s -> StringValue s |> return
+  | EChar c -> CharValue c |> return
   | EBool b -> BooleanValue b |> return
   | ENil -> ListValue [] |> return
   | EUnit -> UnitValue |> return
@@ -490,6 +497,7 @@ and create_generic_type : c_pat -> c_type = function
   | CWildcardPat -> Mono (fresh_type_var ())
   | CIdPat _ -> Mono (fresh_type_var ())
   | CIntPat _ -> Mono IntType
+  | CCharPat _ -> Mono CharType
   | CStringPat _ -> Mono StringType
   | CBoolPat _ -> Mono BoolType
   | CNilPat -> Mono (CListType (fresh_type_var ()))
@@ -525,6 +533,7 @@ and expr_of_pat : c_pat -> c_expr = function
   | CWildcardPat -> failwith "expr_of_pat: wildcard pattern not allowed"
   | CIdPat s -> EId s
   | CIntPat i -> EInt i
+  | CCharPat c -> EChar c
   | CStringPat s -> EString s
   | CBoolPat b -> EBool b
   | CNilPat -> ENil
@@ -648,6 +657,7 @@ and string_of_pat = function
   | CWildcardPat -> "_"
   | CIdPat s -> s
   | CIntPat i -> string_of_int i
+  | CCharPat c -> "'" ^ String.make 1 c ^ "'"
   | CStringPat s -> "\"" ^ s ^ "\""
   | CBoolPat b -> string_of_bool b
   | CNilPat -> "[]"

@@ -145,6 +145,7 @@ and string_of_mono_type (t : mono_type) : string =
   | FloatType -> "float"
   | BoolType -> "bool"
   | StringType -> "string"
+  | CharType -> "char"
   | UnitType -> "unit"
   | TypeVar v -> v
   | FunctionType (t1, t2) ->
@@ -184,6 +185,7 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
   | EFloat _ -> generate_e_float
   | EBool _ -> generate_e_bool
   | EString _ -> generate_e_string
+  | EChar _ -> generate_e_char
   | EUnit -> generate_e_unit
   | ENil -> generate_e_nil ()
   | EId x -> generate_e_id env x
@@ -249,6 +251,10 @@ and generate_e_float = return (FloatType, [], [])
 (** [generate_e_bool] generates type constraints for boolean literals.
     @return A pair containing BoolType and an empty list of constraints *)
 and generate_e_bool = return (BoolType, [], [])
+
+(** [generate_e_char] generates type constraints for char literals.
+    @return A pair containing CharType and an empty list of constraints *)
+and generate_e_char = return (CharType, [], [])
 
 (** [generate_e_string] generates type constraints for string literals.
     @return A pair containing StringType and an empty list of constraints *)
@@ -598,6 +604,7 @@ and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
       (VectorType types, List.flatten envs, List.flatten eqs)
   | CIntPat _ -> (IntType, [], [])
   | CBoolPat _ -> (BoolType, [], [])
+  | CCharPat _ -> (CharType, [], [])
   | CStringPat _ -> (StringType, [], [])
   | CNilPat -> (CListType (fresh_type_var ()), [], [])
   | CConsPat (p1, p2) ->
@@ -745,6 +752,7 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
   | FloatType -> return FloatType
   | BoolType -> return BoolType
   | StringType -> return StringType
+  | CharType -> return CharType
   | UnitType -> return UnitType
   | CListType et ->
       let- et_type = get_type et subs type_env in
@@ -802,7 +810,7 @@ and inside (inside_type : mono_type) (outside_type : mono_type) : bool =
     @return true if t is a basic type, false otherwise *)
 and is_basic_type (t : mono_type) : bool =
   match t with
-  | IntType | FloatType | BoolType | StringType | UnitType -> true
+  | IntType | FloatType | BoolType | StringType | CharType | UnitType -> true
   | TypeVar _ -> false
   | FunctionType (i, o) -> is_basic_type i && is_basic_type o
   | VectorType types -> List.for_all is_basic_type types
@@ -832,6 +840,7 @@ and substitute (var_id : string) (t : mono_type) (equations : type_equations) :
     | FloatType -> FloatType
     | BoolType -> BoolType
     | StringType -> StringType
+    | CharType -> CharType
     | UnitType -> UnitType
     | TypeVar id -> if id = var_id then t else TypeVar id
     | FunctionType (t1, t2) ->
@@ -1253,6 +1262,7 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
   | FloatType -> return FloatType
   | BoolType -> return BoolType
   | StringType -> return StringType
+  | CharType -> return CharType
   | UnitType -> return UnitType
   | TypeVar v -> return (TypeVar v)
   | FunctionType (t1, t2) ->

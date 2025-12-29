@@ -8,6 +8,7 @@ and sub_pat =
   | VectorPat of pat list
   | WildcardPat
   | IntPat of int
+  | CharPat of char
   | StringPat of string
   | BoolPat of bool
   | NilPat
@@ -42,6 +43,7 @@ and factor_type =
   | IntegerType
   | StringType
   | BooleanType
+  | CharType
   | UnitType
   | FloatType
   | TypeVarWritten of string (* 'a, 'b, etc. *)
@@ -118,6 +120,7 @@ and factor =
   | String of string
   | Unit
   | Integer of int
+  | Char of char
   | FloatFactor of float
   | Id of string
   | ParenFactor of expr

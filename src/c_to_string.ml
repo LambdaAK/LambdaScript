@@ -5,6 +5,7 @@ let rec string_of_mono_type : mono_type -> string = function
   | FloatType -> "float"
   | BoolType -> "bool"
   | StringType -> "str"
+  | CharType -> "char"
   | UnitType -> "unit"
   | TypeVar v -> "'" ^ v
   | FunctionType (t1, t2) ->
@@ -52,6 +53,7 @@ let rec string_of_pat : c_pat -> string = function
   | CWildcardPat -> "_"
   | CVectorPat ps -> "(" ^ String.concat ", " (List.map string_of_pat ps) ^ ")"
   | CStringPat s -> "\"" ^ s ^ "\""
+  | CCharPat c -> "'" ^ String.make 1 c ^ "'"
   | CIdPat id -> id
   | CUnitPat -> "()"
   | CVariantPat (cons_name, None) -> cons_name
@@ -63,6 +65,7 @@ let rec string_of_expr : c_expr -> string = function
   | EFloat f -> string_of_float f
   | EBool b -> string_of_bool b
   | EString s -> "\"" ^ s ^ "\""
+  | EChar c -> "'" ^ String.make 1 c ^ "'"
   | EUnit -> "()"
   | EId id -> id
   | ENil -> "[]"

@@ -5,6 +5,7 @@ type c_pat =
   | CConsPat of c_pat * c_pat
   | CWildcardPat
   | CVectorPat of c_pat list
+  | CCharPat of char
   | CStringPat of string
   | CIdPat of string
   | CUnitPat
@@ -37,6 +38,7 @@ type mono_type =
   | FloatType
   | BoolType
   | StringType
+  | CharType
   | UnitType
   | TypeVar of type_var
   | TypeName of string
@@ -79,6 +81,7 @@ and c_expr =
   | EString of string
   | EUnit
   | EInt of int
+  | EChar of char
   | EFloat of float
   | EId of string
   | EApp of c_expr * c_expr
@@ -93,6 +96,7 @@ and value =
   | FloatValue of float
   | StringValue of string
   | BooleanValue of bool
+  | CharValue of char
   | UnitValue
   | FunctionClosure of env * c_pat * c_type option * c_expr
   | RecursiveFunctionClosure of env ref * c_pat * c_type option * c_expr
@@ -176,6 +180,7 @@ let rec string_of_mono_type : mono_type -> string = function
   | FloatType -> "float"
   | BoolType -> "bool"
   | StringType -> "string"
+  | CharType -> "char"
   | UnitType -> "unit"
   | TypeVar v -> v
   | FunctionType (t1, t2) ->
@@ -212,7 +217,7 @@ let rec string_of_type : c_type -> string = function
 let get_mono_type_vars (t : mono_type) : string list =
   let rec aux t acc =
     match t with
-    | IntType | FloatType | BoolType | StringType | UnitType -> acc
+    | IntType | FloatType | BoolType | StringType | CharType | UnitType -> acc
     | TypeVar v -> if List.mem v acc then acc else v :: acc
     | FunctionType (t1, t2) -> aux t1 (aux t2 acc)
     | VectorType ts -> List.fold_left (fun a t -> aux t a) acc ts

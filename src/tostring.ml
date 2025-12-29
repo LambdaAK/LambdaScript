@@ -29,6 +29,7 @@ and string_of_sub_pat : sub_pat -> string = function
       ^ ")"
   | IntPat n -> "Int Pattern (" ^ string_of_int n ^ ")"
   | BoolPat b -> "Bool Pattern (" ^ string_of_bool b ^ ")"
+  | CharPat c -> "Char Pattern (" ^ String.make 1 c ^ ")"
   | StringPat s -> "String Pattern (" ^ s ^ ")"
   | Pat p -> string_of_pat p
   | InfixPat s -> "Infix Pattern (" ^ s ^ ")"
@@ -50,6 +51,7 @@ let rec string_of_basic_type (ft : factor_type) (level : int) : string =
   | IntegerType -> "IntegerType"
   | BooleanType -> "BooleanType"
   | StringType -> "StringType"
+  | CharType -> "CharType"
   | UnitType -> "UnitType"
   | ParenFactorType c -> string_of_compound_type c level
   | VectorType types ->
@@ -372,6 +374,7 @@ and string_of_factor (factor : factor) (level : int) =
   | Boolean b -> "Boolean (" ^ string_of_bool b ^ ")"
   | Integer n -> "Integer (" ^ string_of_int n ^ ")"
   | String s -> "String (" ^ s ^ ")"
+  | Char c -> "Char (" ^ String.make 1 c ^ ")"
   | Unit -> "Unit"
   | Vector es ->
       "Vector ("

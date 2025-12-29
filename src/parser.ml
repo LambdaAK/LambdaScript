@@ -357,6 +357,14 @@ end = struct
 
       return (StringPat s)
 
+    let char_pat_parser : sub_pat parser =
+      let* c =
+        expect_token_get_data (function
+          | CharToken c -> Some c
+          | _ -> None)
+      in
+      return (CharPat c)
+
     let nil_pat_parser : sub_pat parser =
       let* () = expect_token LBracket in
       let* () = expect_token RBracket in
@@ -388,6 +396,7 @@ end = struct
           bool_pat_parser;
           int_pat_parser;
           string_pat_parser;
+          char_pat_parser;
           id_pat_parser;
           nil_pat_parser;
           infix_pat_parser;
@@ -437,6 +446,14 @@ end = struct
     in
     return (String s)
 
+  and char_parser : factor parser =
+    let* c =
+      expect_token_get_data (function
+        | CharToken c -> Some c
+        | _ -> None)
+    in
+    return (Char c)
+
   and unit_parser : factor parser =
     let* () = expect_token Unit in
     return Unit
@@ -473,6 +490,7 @@ end = struct
         | BooleanType -> Some "bool"
         | IntegerType -> Some "int"
         | StringType -> Some "string"
+        | CharType -> Some "char"
         | FloatType -> Some "float"
         | UnitType -> Some "unit"
         | _ -> None)
@@ -581,6 +599,7 @@ end = struct
       [
         boolean_parser;
         string_parser;
+        char_parser;
         unit_parser;
         integer_parser ();
         float_factor_parser;
@@ -899,6 +918,10 @@ end = struct
     let* () = expect_token FloatType in
     return FloatType
 
+  let char_type_parser : factor_type parser =
+    let* () = expect_token CharType in
+    return CharType
+
   let type_var_written_parser : factor_type parser =
     let* s =
       expect_token_get_data (function
@@ -962,9 +985,10 @@ end = struct
 
   let factor_type_parser () : factor_type parser =
     integer_type_parser <|> string_type_parser <|> boolean_type_parser
-    <|> unit_type_parser <|> float_type_parser <|> type_var_written_parser
-    <|> vector_type_parser <|> paren_factor_type_parser <|> list_type_parser
-    <|> type_app_parser <|> type_name_parser
+    <|> unit_type_parser <|> float_type_parser <|> char_type_parser
+    <|> type_var_written_parser <|> vector_type_parser
+    <|> paren_factor_type_parser <|> list_type_parser <|> type_app_parser
+    <|> type_name_parser
 
   let factor_type_parser = factor_type_parser ()
 end

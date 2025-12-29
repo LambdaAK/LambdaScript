@@ -17,6 +17,7 @@ and condense_sub_pat : sub_pat -> c_pat = function
   | WildcardPat -> CWildcardPat
   | Pat pat -> condense_pat pat
   | InfixPat s -> CIdPat s
+  | CharPat c -> CCharPat c
   | VariantPat (name, payload_pat_opt) ->
       let payload_c_pat_opt =
         match payload_pat_opt with
@@ -181,6 +182,7 @@ and condense_factor : factor -> c_expr = function
   | String s -> EString s
   | Unit -> EUnit
   | Integer i -> EInt i
+  | Char c -> EChar c
   | FloatFactor f -> EFloat f
   | Id s -> EId s
   | ParenFactor expr -> condense_expr expr
@@ -202,6 +204,7 @@ and condense_factor_type : factor_type -> mono_type = function
   | IntegerType -> IntType
   | StringType -> StringType
   | BooleanType -> BoolType
+  | CharType -> CharType
   | UnitType -> UnitType
   | FloatType -> FloatType
   | TypeVarWritten i ->
@@ -234,7 +237,7 @@ and cons_from_list : c_expr list -> c_expr = function
   | e :: es -> EBop (CCons, e, cons_from_list es)
 
 and all_type_vars_in_type : mono_type -> string list = function
-  | IntType | FloatType | BoolType | StringType | UnitType -> []
+  | IntType | FloatType | BoolType | StringType | CharType | UnitType -> []
   | TypeVar v -> [ v ]
   | FunctionType (i, o) ->
       all_type_vars_in_type i @ all_type_vars_in_type o

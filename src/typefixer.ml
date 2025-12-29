@@ -39,6 +39,7 @@ let rec create_substitution (t : mono_type) (seen : string list) :
   | FloatType -> []
   | BoolType -> []
   | StringType -> []
+  | CharType -> []
   | UnitType -> []
   | TypeName _ -> []
   | CTypeApp (_, args) ->
@@ -70,6 +71,7 @@ let fix_type (t : mono_type) : mono_type =
     | FloatType -> FloatType
     | BoolType -> BoolType
     | StringType -> StringType
+    | CharType -> CharType
     | UnitType -> UnitType
     | TypeName v -> TypeName v
     | CTypeApp (name, args) ->

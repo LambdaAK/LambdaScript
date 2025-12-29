@@ -307,9 +307,11 @@ let type_test (expr : string) (expected_output : string) : test =
 let type_is_bool (program : string) = type_test program "bool"
 let type_is_int (program : string) = type_test program "int"
 let type_is_string (program : string) = type_test program "str"
+let type_is_char (program : string) = type_test program "char"
 let () = ignore type_is_bool
 let () = ignore type_is_int
 let () = ignore type_is_string
+let () = ignore type_is_char
 
 let int_types : string list =
   [
@@ -423,6 +425,7 @@ let bool_types =
   ]
 
 let string_types = [ {|""|}; {|"hello"|} ]
+let char_types = [ "'a'"; "'b'" ]
 
 let function_type_tests =
   [
@@ -826,6 +829,13 @@ let boolean_tests =
     ("1 + 2 + 3 - 4 - 5 - 6", "-9");
   ]
 
+let char_eval_tests =
+  [
+    ("'a'", "'a'");
+    ("'a' == 'a'", "true");
+    ("'a' == 'b'", "false");
+  ]
+
 let ternary_tests =
   [
     ("if true then 0 else 1", "0");
@@ -1135,6 +1145,9 @@ let bool_type_tests : test list =
 let string_type_tests : test list =
   List.map (fun expression -> type_is_string expression) string_types
 
+let char_type_tests : test list =
+  List.map (fun expression -> type_is_char expression) char_types
+
 let function_type_tests : test list =
   List.map
     (fun (a, b) -> type_test a b)
@@ -1170,6 +1183,7 @@ let eval_test_data =
   [
     arithmetic_tests |> IntTestModifier.modify_tests;
     boolean_tests;
+    char_eval_tests;
     complex_tests;
     minus_tests;
     mult_div_mod_tests;
@@ -4582,6 +4596,7 @@ let all_tests =
       int_type_tests;
       bool_type_tests;
       string_type_tests;
+      char_type_tests;
       [ string_concat_tests ];
       function_type_tests;
       pair_type_tests;

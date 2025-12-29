@@ -14,6 +14,7 @@ let built_ins : (string * value * c_type) list =
     ("bool", UnitValue, Mono BoolType);
     ("int", UnitValue, Mono IntType);
     ("string", UnitValue, Mono StringType);
+    ("char", UnitValue, Mono CharType);
     ("float", UnitValue, Mono FloatType);
     ("unit", UnitValue, Mono UnitType);
   ]

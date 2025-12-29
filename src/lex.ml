@@ -2,6 +2,7 @@ type token_type =
   | Integer of int
   | FloatToken of float
   | Boolean of bool
+  | CharToken of char
   | StringToken of string
   | Unit
   | Id of string
@@ -36,6 +37,7 @@ type token_type =
   | IntegerType
   | BooleanType
   | StringType
+  | CharType
   | UnitType
   | FloatType
   | LBracket
@@ -74,6 +76,7 @@ let string_of_token_type : token_type -> string = function
   | Integer n ->
       let s : string = string_of_int n in
       "<integer: " ^ s ^ ">"
+  | CharToken c -> "<char: " ^ String.make 1 c ^ ">"
   | StringToken s -> "<string: " ^ s ^ ">"
   | FloatToken f ->
       let s : string = string_of_float f in
@@ -108,6 +111,7 @@ let string_of_token_type : token_type -> string = function
   | IntegerType -> "<integer type>"
   | BooleanType -> "<boolean type>"
   | StringType -> "<string type>"
+  | CharType -> "<char type>"
   | UnitType -> "<unit type>"
   | LBracket -> "<left bracket>"
   | RBracket -> "<right bracket>"
@@ -269,6 +273,7 @@ let keywords =
     ("int", IntegerType);
     ("bool", BooleanType);
     ("str", StringType);
+    ("char", CharType);
     ("unit", UnitType);
     ("if", If);
     ("then", Then);
@@ -342,6 +347,22 @@ let rec lex_string (lst : char list) (acc : string) : token * char list =
 
       lex_string t (acc ^ char_string)
   | [] -> failwith "expected closing double quote in lexing string"
+
+let decode_char_escape = function
+  | '\\' -> '\\'
+  | '\'' -> '\''
+  | 'n' -> '\n'
+  | 't' -> '\t'
+  | 'r' -> '\r'
+  | c -> c
+
+let lex_char_literal (lst : char list) : token * char list =
+  match lst with
+  | '\\' :: escaped :: '\'' :: rest ->
+      let ch = decode_char_escape escaped in
+      ({ token_type = CharToken ch; line = 0 }, rest)
+  | c :: '\'' :: rest -> ({ token_type = CharToken c; line = 0 }, rest)
+  | _ -> failwith "expected closing single quote in lexing char"
 
 let rec lex_id (lst : char list) (acc : string) : token * char list =
   (* the first char has to be a letter the following characters can be letters,
@@ -496,12 +517,22 @@ let lex (lst : char list) : token list =
                     match rest with
                     | ')' :: _ -> emit_token !line_number LParen rest lex
                     | _ -> emit_token !line_number LParen rest lex)
-            (* Type variables starting with single quote *)
-            | '\'' :: tokens_after_single_quote ->
-                let type_var_token, tokens_after_type_var =
-                  lex_type_var tokens_after_single_quote ""
-                in
-                type_var_token :: lex tokens_after_type_var
+            (* Type variables or char literals starting with single quote *)
+            | '\'' :: tokens_after_single_quote -> (
+                match tokens_after_single_quote with
+                | c :: '\'' :: rest ->
+                    let char_token =
+                      { token_type = CharToken c; line = !line_number }
+                    in
+                    char_token :: lex rest
+                | '\\' :: _ ->
+                    let char_token, remainder = lex_char_literal tokens_after_single_quote in
+                    { char_token with line = !line_number } :: lex remainder
+                | _ ->
+                    let type_var_token, tokens_after_type_var =
+                      lex_type_var tokens_after_single_quote ""
+                    in
+                    type_var_token :: lex tokens_after_type_var)
             (* String literals *)
             | '"' :: c :: t ->
                 if c = '"' then emit_token !line_number (StringToken "") t lex
