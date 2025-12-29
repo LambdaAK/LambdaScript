@@ -158,7 +158,10 @@ and condense_arith_expr : arith_expr -> c_expr = function
       EBop (CMinus, condense_arith_expr arith_expr, condense_term term)
   | Term term -> condense_term term
   | CustomArithExpr (op_string, ae, t) ->
-      EApp (EApp (EId op_string, condense_arith_expr ae), condense_term t)
+      if op_string = "^" then
+        EBop (CConcat, condense_arith_expr ae, condense_term t)
+      else
+        EApp (EApp (EId op_string, condense_arith_expr ae), condense_term t)
 
 and condense_term : term -> c_expr = function
   | Mul (t, af) -> EBop (CMul, condense_term t, condense_app_factor af)

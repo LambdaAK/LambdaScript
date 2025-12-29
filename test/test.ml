@@ -1725,6 +1725,36 @@ let program_expression_type_tests =
              ~expr:"x" ~expected_type:"(int, (str, bool))" );
        ]
 
+let string_concat_tests =
+  let open ProgramTesting in
+  "string_concatenation"
+  >::: [
+    ( "string concat basic" >:: fun _ ->
+      assert_expression_has_type ~program:"" ~expr:{|"hello" ^ "world"|} ~expected_type:"str" );
+    ( "string concat multiple" >:: fun _ ->
+      assert_expression_has_type ~program:"" ~expr:{|"a" ^ "b" ^ "c"|} ~expected_type:"str" );
+    ( "string concat with variables" >:: fun _ ->
+      assert_expression_has_type
+        ~program:{|
+          let x = "hello"
+          let y = "world"
+        |}
+        ~expr:{|x ^ y|}
+        ~expected_type:"str" );
+    ( "string concat empty strings" >:: fun _ ->
+      assert_expression_has_type ~program:"" ~expr:{|"" ^ ""|} ~expected_type:"str" );
+    ( "string concat eval basic" >:: fun _ ->
+      assert_expression_has_value ~program:"" ~expr:{|"hello" ^ "world"|} ~expected_value:{|"helloworld"|} );
+    ( "string concat eval multiple" >:: fun _ ->
+      assert_expression_has_value ~program:"" ~expr:{|"a" ^ "b" ^ "c" ^ "d"|} ~expected_value:{|"abcd"|} );
+    ( "string concat eval with spaces" >:: fun _ ->
+      assert_expression_has_value ~program:"" ~expr:{|"hello" ^ " " ^ "world"|} ~expected_value:{|"hello world"|} );
+    ( "string concat eval empty" >:: fun _ ->
+      assert_expression_has_value ~program:"" ~expr:{|"" ^ "test" ^ ""|} ~expected_value:{|"test"|} );
+    ( "string concat in function" >:: fun _ ->
+      assert_expression_has_value ~program:"" ~expr:{|(\x -> \y -> x ^ y) "foo" "bar"|} ~expected_value:{|"foobar"|} );
+  ]
+
 let program_expression_value_tests =
   let open ProgramTesting in
   "program_expression_values"
@@ -4552,6 +4582,7 @@ let all_tests =
       int_type_tests;
       bool_type_tests;
       string_type_tests;
+      [ string_concat_tests ];
       function_type_tests;
       pair_type_tests;
       vector_type_tests;

@@ -121,6 +121,7 @@ let rec string_of_expr : c_expr -> string = function
         | CMul -> "*"
         | CDiv -> "/"
         | CMod -> "%"
+        | CConcat -> "^"
         | CEQ -> "="
         | CNE -> "<>"
         | CLT -> "<"

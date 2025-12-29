@@ -412,6 +412,7 @@ and eval_bop (op : c_bop) (e1 : c_expr) (e2 : c_expr) (env : env) :
       | CMul, IntegerValue a, IntegerValue b -> IntegerValue (a * b) |> return
       | CDiv, IntegerValue a, IntegerValue b -> IntegerValue (a / b) |> return
       | CMod, IntegerValue a, IntegerValue b -> IntegerValue (a mod b) |> return
+      | CConcat, StringValue s1, StringValue s2 -> StringValue (s1 ^ s2) |> return
       | CEQ, a, b -> BooleanValue (a = b) |> return
       | CNE, a, b -> BooleanValue (a <> b) |> return
       | CLT, IntegerValue a, IntegerValue b -> BooleanValue (a < b) |> return
@@ -631,6 +632,7 @@ and string_of_bop = function
   | CMul -> "*"
   | CDiv -> "/"
   | CMod -> "%"
+  | CConcat -> "^"
   | CEQ -> "=="
   | CNE -> "!="
   | CLT -> "<"

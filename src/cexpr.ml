@@ -26,6 +26,7 @@ type c_bop =
   | CAnd
   | COr
   | CCons
+  | CConcat
 
 (* Type variables are represented as strings *)
 type type_var = string

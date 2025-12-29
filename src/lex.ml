@@ -173,18 +173,18 @@ let is_letter : char -> bool =
 let is_alpha_num (c : char) = is_letter c || is_num c
 
 let is_bop_prefix : char -> bool = function
-  | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' -> true
+  | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' | '^' -> true
   | _ -> false
 
 let is_special =
-  (* + - * / % < > = & | : ; , *)
+  (* + - * / % < > = & | : ; , ^ *)
   function
-  | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' | '&' | '|' | ':' | ';' | ','
+  | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' | '&' | '|' | ':' | ';' | ',' | '^'
     -> true
   | _ -> false
 
 let is_addop_prefix = function
-  | '+' | '-' -> true
+  | '+' | '-' | '^' -> true
   | _ -> false
 
 let is_mulop_prefix = function
