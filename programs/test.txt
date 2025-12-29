@@ -29,7 +29,7 @@ let (*>) p1 p2 =
     | Some (_, rest) -> p2 rest
     | None -> None
 
-let (>>=) parser f =
+let (>>=) parser [Parser<a>] f [a -> Parser<b>] =
   \tokens ->
     switch parser tokens =>
     | Some (result, rest) -> f result rest

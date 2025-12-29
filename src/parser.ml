@@ -50,7 +50,7 @@ module ParserUtils = struct
 
   (** * Parser is a parser for 'a * tokens is a list of tokens * Returns a
       parser that parses 'a while possible, and returns the list of 'a *)
-  let parse_several (parser : 'a parser) : 'a list parser =
+  let parse_several (parser : 'a parser) =
     let rec parse_several' acc tokens =
       match parser tokens with
       | Some (result, remaining_tokens) ->
