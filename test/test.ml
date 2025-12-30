@@ -3593,6 +3593,21 @@ let red_black_tree_tests =
              |}
              ~expr:"minimum tree5 == 1 && maximum tree5 == 9"
              ~expected_value:"true" );
+         ( "recursive type annotation in function parameter" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree =
+                 | Leaf
+                 | Node of (Tree, Tree, int)
+
+               let rec num_nodes (t : Tree) =
+                 case t do
+                 | Leaf -> 0
+                 | Node (l, r, _) -> 1 + (num_nodes l) + (num_nodes r)
+             |}
+             ~expr:"num_nodes (Node (Node (Leaf, Leaf, 1), Leaf, 2))"
+             ~expected_value:"2" );
        ]
 
 (* ============================================================================

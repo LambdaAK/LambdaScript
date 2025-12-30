@@ -1457,7 +1457,19 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       match List.find_opt (fun (n, _, _) -> n = v) type_env with
       | Some type_def ->
           let _, _, t = type_def in
-          simplify_mono_type t type_env
+          (* Check if this is a recursive sum type (FixedPoint) *)
+          (match t with
+          | FixedPoint (name, body) when name = v ->
+              (* For recursive sum types in annotations, return the CTypeApp directly
+                 rather than the FixedPoint wrapper, as the FixedPoint is just for
+                 internal representation. This allows proper unification with
+                 constructor types which use CTypeApp. *)
+              (match body with
+              | CTypeApp (app_name, _) when app_name = v ->
+                  (* Return CTypeApp with no args for nullary recursive types *)
+                  return (CTypeApp (v, []))
+              | _ -> simplify_mono_type body type_env)
+          | _ -> simplify_mono_type t type_env)
       | None ->
           (* If not found, treat it as a type variable (could be a type
              parameter) *)

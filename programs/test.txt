@@ -1,6 +1,12 @@
-type my_type = {
-  v1 : int,
-  v2 : bool
-}
+type rec Tree =
+  | Leaf
+  | Node of {
+    left : Tree,
+    right: Tree,
+    value: int
+  }
 
-let f (x : my_type) = x
+let rec num_nodes t =
+  case t do
+  | Leaf -> 0
+  | Node r -> 1 + (num_nodes r.left) + (num_nodes r.right)
