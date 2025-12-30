@@ -1,1 +1,0 @@
-let f = fn r -> (r.x.y, r.x.z)
