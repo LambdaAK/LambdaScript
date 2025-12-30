@@ -4,3 +4,5 @@ let my_record = {
   x : 10,
   y : true
 }
+
+let result = f my_record

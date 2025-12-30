@@ -4668,7 +4668,7 @@ let record_type_tests =
       ("fn x -> {x: x, y: x}", "'a -> {x: 'a, y: 'a}");
       (* Functions accessing fields *)
       ("fn r -> r.x", "{x: 'a} -> 'a");
-      ("fn r -> r.x + r.y", "({x: int, y: int} -> int)");
+      ("fn r -> r.x + r.y", "{x: int, y: int} -> int");
       (* Subtyping in let bindings *)
       ("let r = {x: 1, y: 2} in r.x", "int");
       ("let f = fn r -> r.x in f {x: 1, y: 2}", "int");

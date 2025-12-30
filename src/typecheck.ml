@@ -713,6 +713,35 @@ and reduce_eq (c : type_equations) (type_env : type_env) : type_equations =
       if t1 = t2 then reduce_eq c' type_env
       else
         match (t1, t2) with
+        | TypeVar id, RecordType fields2 when not (inside t1 t2) ->
+            (* Special handling for type variables unified with records:
+               Look for other constraints on the same type variable and merge all record types *)
+            let rec collect_record_constraints acc remaining =
+              match remaining with
+              | [] -> (List.rev acc, [])
+              | (TypeVar id2, RecordType fields) :: rest when id = id2 ->
+                  collect_record_constraints (fields :: acc) rest
+              | other :: rest ->
+                  let (records, others) = collect_record_constraints acc rest in
+                  (records, other :: others)
+            in
+            let (other_records, other_constraints) = collect_record_constraints [fields2] c' in
+            (* Merge all record field lists, unifying duplicate field names *)
+            let all_fields = List.flatten other_records in
+            let rec merge_fields acc extra_eqs = function
+              | [] -> (List.rev acc, extra_eqs)
+              | (name, typ) :: rest ->
+                  match List.assoc_opt name acc with
+                  | Some existing_typ ->
+                      (* Field already exists - add equation to unify types *)
+                      merge_fields acc ((existing_typ, typ) :: extra_eqs) rest
+                  | None ->
+                      (* New field - add it *)
+                      merge_fields ((name, typ) :: acc) extra_eqs rest
+            in
+            let (unique_fields, field_equations) = merge_fields [] [] all_fields in
+            let merged_record = RecordType unique_fields in
+            (t1, merged_record) :: reduce_eq (field_equations @ substitute id merged_record other_constraints) type_env
         | TypeVar id, _ when not (inside t1 t2) ->
             (t1, t2) :: reduce_eq (substitute id t2 c') type_env
         | _, TypeVar _ -> reduce_eq ((t2, t1) :: c') type_env
