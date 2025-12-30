@@ -1,8 +1,1 @@
-let f r = r.x
-
-let my_record = {
-  x : 10,
-  y : true
-}
-
-let result = f my_record
+let f = fn r -> (r.x.y, r.x.z)

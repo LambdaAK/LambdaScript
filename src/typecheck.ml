@@ -706,109 +706,140 @@ and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
                   (* For now, just ignore the payload *)
                   (sum_type, [], []))))
 
-and reduce_eq (c : type_equations) (type_env : type_env) : type_equations =
-  match c with
-  | [] -> []
-  | (t1, t2) :: c' -> (
-      if t1 = t2 then reduce_eq c' type_env
-      else
-        match (t1, t2) with
-        | TypeVar id, RecordType fields2 when not (inside t1 t2) ->
-            (* Special handling for type variables unified with records:
-               Look for other constraints on the same type variable and merge all record types *)
-            let rec collect_record_constraints acc remaining =
-              match remaining with
-              | [] -> (List.rev acc, [])
-              | (TypeVar id2, RecordType fields) :: rest when id = id2 ->
-                  collect_record_constraints (fields :: acc) rest
-              | other :: rest ->
-                  let (records, others) = collect_record_constraints acc rest in
-                  (records, other :: others)
-            in
-            let (other_records, other_constraints) = collect_record_constraints [fields2] c' in
-            (* Merge all record field lists, unifying duplicate field names *)
-            let all_fields = List.flatten other_records in
-            let rec merge_fields acc extra_eqs = function
-              | [] -> (List.rev acc, extra_eqs)
-              | (name, typ) :: rest ->
-                  match List.assoc_opt name acc with
-                  | Some existing_typ ->
-                      (* Field already exists - add equation to unify types *)
-                      merge_fields acc ((existing_typ, typ) :: extra_eqs) rest
-                  | None ->
-                      (* New field - add it *)
-                      merge_fields ((name, typ) :: acc) extra_eqs rest
-            in
-            let (unique_fields, field_equations) = merge_fields [] [] all_fields in
-            let merged_record = RecordType unique_fields in
-            (t1, merged_record) :: reduce_eq (field_equations @ substitute id merged_record other_constraints) type_env
-        | TypeVar id, _ when not (inside t1 t2) ->
-            (t1, t2) :: reduce_eq (substitute id t2 c') type_env
-        | _, TypeVar _ -> reduce_eq ((t2, t1) :: c') type_env
-        | FunctionType (i1, o1), FunctionType (i2, o2) ->
-            reduce_eq ((i1, i2) :: (o1, o2) :: c') type_env
-        | CListType et1, CListType et2 -> reduce_eq ((et1, et2) :: c') type_env
-        | CTypeApp (name1, args1), CTypeApp (name2, args2) ->
-            if name1 = name2 && List.length args1 = List.length args2 then
-              (* Unify corresponding type arguments *)
-              let arg_equations = List.combine args1 args2 in
-              reduce_eq (arg_equations @ c') type_env
-            else raise TypeFailure
-        | VectorType types1, VectorType types2 -> (
-            match (types1, types2) with
-            | type1 :: tail1, type2 :: tail2 ->
-                reduce_eq
-                  ((type1, type2) :: (VectorType tail1, VectorType tail2) :: c')
-                  type_env
-            | _ -> raise TypeFailure (* TOOD: replace these with Errors *))
-        | FixedPoint (name1, body1), FixedPoint (name2, body2) ->
-            if name1 = name2 then
-              (* Same recursive type - unify their bodies *)
-              reduce_eq ((body1, body2) :: c') type_env
-            else raise TypeFailure
-        | FixedPoint (name, body), CTypeApp (app_name, args) ->
-            (* Check if CTypeApp represents the same recursive type *)
-            if name = app_name then
-              (* Unify the body with the CTypeApp - for recursive types, the
-                 CTypeApp is the representation *)
-              reduce_eq ((body, CTypeApp (app_name, args)) :: c') type_env
-            else raise TypeFailure
-        | CTypeApp (app_name, args), FixedPoint (name, body) ->
-            (* Same as above, but reversed *)
-            if name = app_name then
-              reduce_eq ((CTypeApp (app_name, args), body) :: c') type_env
-            else raise TypeFailure
-        | TypeName name1, CTypeApp (name2, _) ->
-            (* TypeName can unify with CTypeApp if they have the same name *)
-            if name1 = name2 then reduce_eq c' type_env else raise TypeFailure
-        | CTypeApp (name1, _), TypeName name2 ->
-            (* Same as above, but reversed *)
-            if name1 = name2 then reduce_eq c' type_env else raise TypeFailure
-        | RecordType fields1, RecordType fields2 ->
-            (* Record unification with width subtyping:
-               Case 1: If both have the same fields, unify field types
-               Case 2: If one is a subset of the other, use subtyping
-               We unify all common fields and accept if one side has all fields of the other *)
-            let rec unify_common_fields acc remaining1 remaining2 =
-              match remaining1 with
-              | [] -> (List.rev acc, [], remaining2)
-              | (name1, type1) :: rest1 ->
-                  match List.assoc_opt name1 remaining2 with
-                  | Some type2 ->
-                      (* Found common field - add equation and remove from both sides *)
-                      let remaining2' = List.filter (fun (n, _) -> n <> name1) remaining2 in
-                      unify_common_fields ((type1, type2) :: acc) rest1 remaining2'
-                  | None ->
-                      (* Field only in fields1 - continue *)
-                      let (eqs, extra1, extra2) = unify_common_fields acc rest1 remaining2 in
-                      (eqs, (name1, type1) :: extra1, extra2)
-            in
-            let (common_eqs, _, _) = unify_common_fields [] fields1 fields2 in
-            (* Record unification: unify all common fields and accept disjoint fields.
-               This handles both subtyping (one record has more fields than expected)
-               and merging (multiple field accesses on same variable create disjoint constraints). *)
-            reduce_eq (common_eqs @ c') type_env
-        | _ -> raise TypeFailure)
+and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
+  (* Helper function that tracks accumulated output for proper substitution *)
+  let rec reduce_eq_acc (acc : type_equations) (c : type_equations) : type_equations =
+    match c with
+    | [] -> List.rev acc
+    | (t1, t2) :: c' -> (
+        (* Debug output *)
+        (* Printf.eprintf "Processing: %s = %s\n" (string_of_mono_type t1) (string_of_mono_type t2);
+        Printf.eprintf "  Acc size: %d, Remaining size: %d\n" (List.length acc) (List.length c'); *)
+        if t1 = t2 then reduce_eq_acc acc c'
+        else
+          match (t1, t2) with
+          | TypeVar id, RecordType fields2 when not (inside t1 t2) ->
+              (* Special handling for type variables unified with records:
+                 Look for other constraints on the same type variable and merge all record types *)
+              let rec collect_record_constraints acc_records remaining =
+                match remaining with
+                | [] -> (List.rev acc_records, [])
+                | (TypeVar id2, RecordType fields) :: rest when id = id2 ->
+                    collect_record_constraints (fields :: acc_records) rest
+                | other :: rest ->
+                    let (records, others) = collect_record_constraints acc_records rest in
+                    (records, other :: others)
+              in
+              let (other_records, other_constraints) = collect_record_constraints [fields2] c' in
+              (* Debug *)
+              (* Printf.eprintf "  Collected %d record constraints for %s\n" (List.length other_records) id; *)
+              (* Merge all record field lists, unifying duplicate field names *)
+              let all_fields = List.flatten other_records in
+              let rec merge_fields acc_fields extra_eqs = function
+                | [] -> (List.rev acc_fields, extra_eqs)
+                | (name, typ) :: rest ->
+                    match List.assoc_opt name acc_fields with
+                    | Some existing_typ ->
+                        (* Field already exists - unify the two types *)
+                        (* Printf.eprintf "    Field %s appears twice: %s = %s\n" name (string_of_mono_type existing_typ) (string_of_mono_type typ); *)
+                        (* Prefer TypeVar over RecordType to preserve type variable links *)
+                        let (representative, other) = match (existing_typ, typ) with
+                          | (TypeVar _, _) -> (existing_typ, typ)
+                          | (_, TypeVar _) -> (typ, existing_typ)
+                          | _ -> (existing_typ, typ)  (* Both are non-TypeVars, pick existing *)
+                        in
+                        (* Update acc_fields if we're changing the representative *)
+                        let acc_fields_updated = 
+                          if representative = existing_typ then acc_fields
+                          else List.map (fun (n, t) -> if n = name then (n, representative) else (n, t)) acc_fields
+                        in
+                        (* Generate equation to unify *)
+                        merge_fields acc_fields_updated ((representative, other) :: extra_eqs) rest
+                    | None ->
+                        (* New field - add it *)
+                        merge_fields ((name, typ) :: acc_fields) extra_eqs rest
+              in
+              let (unique_fields, field_equations) = merge_fields [] [] all_fields in
+              let merged_record = RecordType unique_fields in
+              (* Debug *)
+              (* Printf.eprintf "  Merged record: %s\n" (string_of_mono_type merged_record);
+              Printf.eprintf "  Generated %d field equations\n" (List.length field_equations); *)
+              (* Apply substitution to both accumulated output and remaining constraints *)
+              let new_acc = substitute id merged_record acc in
+              (* DON'T substitute in field_equations - add them as-is so they get processed properly *)
+              let new_remaining = field_equations @ substitute id merged_record other_constraints in
+              reduce_eq_acc ((t1, merged_record) :: new_acc) new_remaining
+          | TypeVar id, _ when not (inside t1 t2) ->
+              (* Apply substitution to both accumulated output and remaining constraints *)
+              let new_acc = substitute id t2 acc in
+              let new_remaining = substitute id t2 c' in
+              reduce_eq_acc ((t1, t2) :: new_acc) new_remaining
+          | _, TypeVar _ -> reduce_eq_acc acc ((t2, t1) :: c')
+          | FunctionType (i1, o1), FunctionType (i2, o2) ->
+              reduce_eq_acc acc ((i1, i2) :: (o1, o2) :: c')
+          | CListType et1, CListType et2 -> reduce_eq_acc acc ((et1, et2) :: c')
+          | CTypeApp (name1, args1), CTypeApp (name2, args2) ->
+              if name1 = name2 && List.length args1 = List.length args2 then
+                (* Unify corresponding type arguments *)
+                let arg_equations = List.combine args1 args2 in
+                reduce_eq_acc acc (arg_equations @ c')
+              else raise TypeFailure
+          | VectorType types1, VectorType types2 -> (
+              match (types1, types2) with
+              | type1 :: tail1, type2 :: tail2 ->
+                  reduce_eq_acc acc
+                    ((type1, type2) :: (VectorType tail1, VectorType tail2) :: c')
+              | _ -> raise TypeFailure (* TOOD: replace these with Errors *))
+          | FixedPoint (name1, body1), FixedPoint (name2, body2) ->
+              if name1 = name2 then
+                (* Same recursive type - unify their bodies *)
+                reduce_eq_acc acc ((body1, body2) :: c')
+              else raise TypeFailure
+          | FixedPoint (name, body), CTypeApp (app_name, args) ->
+              (* Check if CTypeApp represents the same recursive type *)
+              if name = app_name then
+                (* Unify the body with the CTypeApp - for recursive types, the
+                   CTypeApp is the representation *)
+                reduce_eq_acc acc ((body, CTypeApp (app_name, args)) :: c')
+              else raise TypeFailure
+          | CTypeApp (app_name, args), FixedPoint (name, body) ->
+              (* Same as above, but reversed *)
+              if name = app_name then
+                reduce_eq_acc acc ((CTypeApp (app_name, args), body) :: c')
+              else raise TypeFailure
+          | TypeName name1, CTypeApp (name2, _) ->
+              (* TypeName can unify with CTypeApp if they have the same name *)
+              if name1 = name2 then reduce_eq_acc acc c' else raise TypeFailure
+          | CTypeApp (name1, _), TypeName name2 ->
+              (* Same as above, but reversed *)
+              if name1 = name2 then reduce_eq_acc acc c' else raise TypeFailure
+          | RecordType fields1, RecordType fields2 ->
+              (* Record unification with width subtyping:
+                 Case 1: If both have the same fields, unify field types
+                 Case 2: If one is a subset of the other, use subtyping
+                 We unify all common fields and accept if one side has all fields of the other *)
+              let rec unify_common_fields acc_fields remaining1 remaining2 =
+                match remaining1 with
+                | [] -> (List.rev acc_fields, [], remaining2)
+                | (name1, type1) :: rest1 ->
+                    match List.assoc_opt name1 remaining2 with
+                    | Some type2 ->
+                        (* Found common field - add equation and remove from both sides *)
+                        let remaining2' = List.filter (fun (n, _) -> n <> name1) remaining2 in
+                        unify_common_fields ((type1, type2) :: acc_fields) rest1 remaining2'
+                    | None ->
+                        (* Field only in fields1 - continue *)
+                        let (eqs, extra1, extra2) = unify_common_fields acc_fields rest1 remaining2 in
+                        (eqs, (name1, type1) :: extra1, extra2)
+              in
+              let (common_eqs, _, _) = unify_common_fields [] fields1 fields2 in
+              (* Record unification: unify all common fields and accept disjoint fields.
+                 This handles both subtyping (one record has more fields than expected)
+                 and merging (multiple field accesses on same variable create disjoint constraints). *)
+              reduce_eq_acc acc (common_eqs @ c')
+          | _ -> raise TypeFailure)
+  in
+  reduce_eq_acc [] c
 
 (** [get_type var subs] applies a substitution to a type variable.
 
