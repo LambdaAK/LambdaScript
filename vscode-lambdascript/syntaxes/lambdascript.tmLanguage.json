@@ -1,0 +1,223 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "LambdaScript",
+  "scopeName": "source.lambdascript",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#storage"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#constants"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#characters"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#functions"
+    },
+    {
+      "include": "#type-constructors"
+    },
+    {
+      "include": "#punctuation"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.block.lambdascript",
+          "begin": "\\(\\*",
+          "end": "\\*\\)",
+          "patterns": [
+            {
+              "include": "#comments"
+            }
+          ]
+        },
+        {
+          "name": "comment.line.double-slash.lambdascript",
+          "begin": "//",
+          "end": "$"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.lambdascript",
+          "match": "\\b(if|then|else|case|do|of)\\b"
+        },
+        {
+          "name": "keyword.other.lambdascript",
+          "match": "\\b(let|in|rec|fn|type)\\b"
+        }
+      ]
+    },
+    "storage": {
+      "patterns": [
+        {
+          "name": "storage.type.lambdascript",
+          "match": "\\b(rec)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.primitive.lambdascript",
+          "match": "\\b(int|float|bool|string|char|unit)\\b"
+        },
+        {
+          "name": "support.type.custom.lambdascript",
+          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        },
+        {
+          "name": "support.type.variable.lambdascript",
+          "match": "'[a-z][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.lambdascript",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "constant.language.unit.lambdascript",
+          "match": "\\(\\)"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.lambdascript",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.lambdascript",
+              "match": "\\\\(n|t|r|\\\\|\"|')"
+            }
+          ]
+        }
+      ]
+    },
+    "characters": {
+      "patterns": [
+        {
+          "name": "string.quoted.single.lambdascript",
+          "match": "'([^'\\\\]|\\\\(n|t|r|\\\\|\"|'))'"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.lambdascript",
+          "match": "\\b-?[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.lambdascript",
+          "match": "\\b-?[0-9]+\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.lambdascript",
+          "match": "->"
+        },
+        {
+          "name": "keyword.operator.cons.lambdascript",
+          "match": "::"
+        },
+        {
+          "name": "keyword.operator.comparison.lambdascript",
+          "match": "(==|!=|<>|<=|>=|<|>)"
+        },
+        {
+          "name": "keyword.operator.logical.lambdascript",
+          "match": "(&&|\\|\\|)"
+        },
+        {
+          "name": "keyword.operator.arithmetic.lambdascript",
+          "match": "(\\+|-|\\*|/|%)"
+        },
+        {
+          "name": "keyword.operator.type-annotation.lambdascript",
+          "match": ":"
+        },
+        {
+          "name": "keyword.operator.pipe.lambdascript",
+          "match": "\\|"
+        },
+        {
+          "name": "keyword.operator.assignment.lambdascript",
+          "match": "="
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.lambdascript",
+          "match": "\\b(print|println|int_to_str|int_to_float|float_to_int|string_to_list|map|filter|reduce_left|reduce_right|not)\\b"
+        },
+        {
+          "name": "entity.name.function.lambdascript",
+          "match": "\\b[a-z_][a-zA-Z0-9_]*\\b(?=\\s*=)"
+        }
+      ]
+    },
+    "type-constructors": {
+      "patterns": [
+        {
+          "name": "entity.name.type.constructor.lambdascript",
+          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.section.brackets.lambdascript",
+          "match": "[\\[\\]()]"
+        },
+        {
+          "name": "punctuation.section.braces.lambdascript",
+          "match": "[{}]"
+        },
+        {
+          "name": "punctuation.separator.comma.lambdascript",
+          "match": ","
+        },
+        {
+          "name": "punctuation.terminator.semicolon.lambdascript",
+          "match": ";"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,32 @@
+type rec Tree<a> =
+  | Leaf
+  | Node of {
+    left : Tree<a>,
+    right: Tree<a>,
+    value: a
+  }
+
+let rec num_nodes (t : Tree<a>) =
+  case t do
+  | Leaf -> 0
+  | Node r -> 1 + (num_nodes r.left) + (num_nodes r.right)
+
+let rec map_tree f t =
+  case t do
+  | Leaf -> Leaf
+  | Node r -> Node {
+    left: map_tree f r.left,
+    right: map_tree f r.right,
+    value: f r.value
+  }
+
+let my_tree = Node {
+  left: Node {
+    left: Leaf,
+    right: Leaf,
+    value: 20
+  },
+  right: Leaf,
+  value: 10
+}
+
