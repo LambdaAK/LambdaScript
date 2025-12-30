@@ -236,6 +236,8 @@ and condense_factor_type : factor_type -> mono_type = function
   | VectorType types -> VectorType (List.map condense_compound_type types)
   | ListType et -> CListType (condense_compound_type et)
   | TypeApp (name, args) -> CTypeApp (name, List.map condense_compound_type args)
+  | RecordTypeWritten fields ->
+      RecordType (List.map (fun (name, ct) -> (name, condense_compound_type ct)) fields)
 
 and condense_compound_type : compound_type -> mono_type = function
   | BasicType bt -> condense_factor_type bt

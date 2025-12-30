@@ -4675,6 +4675,48 @@ let record_type_tests =
       ("let f = fn r -> r.x in f {x: true}", "bool");
     ]
 
+let named_record_type_tests =
+  let open ProgramTesting in
+  "named_record_types"
+  >::: [
+         ( "type definition with record" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type MyType = {x: int, y: bool}
+           |} );
+         ( "function using named record type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type MyType = {x: int, y: bool}
+               let getValue = fn (r : MyType) -> r.x
+             |}
+             ~expr:"getValue"
+             ~expected_type:"{x: int, y: bool} -> int" );
+         ( "create value with named record type" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type MyType = {v1: int, v2: bool}
+             |}
+             ~expr:"{v1: 42, v2: true}"
+             ~expected_value:"{v1: 42, v2: true}" );
+         ( "access field from named record type" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type MyType = {v1: int, v2: bool}
+               let x = {v1: 10, v2: false}
+             |}
+             ~expr:"x.v1"
+             ~expected_value:"10" );
+         ( "nested record type definition" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Inner = {x: int}
+               type Outer = {inner: Inner, y: bool}
+             |}
+             ~expr:"{inner: {x: 5}, y: true}"
+             ~expected_type:"{inner: {x: int}, y: bool}" );
+       ]
+
 let record_eval_tests =
   List.map
     (fun (a, b) -> eval_test a b)
@@ -4737,6 +4779,7 @@ let all_tests =
       [ polymorphic_nullary_constructor_regression_tests ];
       [ bind_operator_lexing_regression_tests ];
       record_type_tests;
+      [ named_record_type_tests ];
       record_eval_tests;
     ]
 

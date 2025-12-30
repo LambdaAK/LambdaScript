@@ -1038,12 +1038,29 @@ end = struct
     in
     return (TypeApp (name, args))
 
+  let record_type_parser : factor_type parser =
+    (* Record type: {field1: type1, field2: type2, ...} *)
+    let* () = expect_token LBrace in
+    let field_parser : (string * compound_type) parser =
+      let* field_name =
+        expect_token_get_data (function
+          | Id s -> Some s
+          | _ -> None)
+      in
+      let* () = expect_token Colon in
+      let* field_type = CompoundTypeParser.compound_type_parser in
+      return (field_name, field_type)
+    in
+    let* fields = parse_sep_delim field_parser Comma in
+    let* () = expect_token RBrace in
+    return (RecordTypeWritten fields)
+
   let factor_type_parser () : factor_type parser =
     integer_type_parser <|> string_type_parser <|> boolean_type_parser
     <|> unit_type_parser <|> float_type_parser <|> char_type_parser
     <|> type_var_written_parser <|> vector_type_parser
     <|> paren_factor_type_parser <|> list_type_parser <|> type_app_parser
-    <|> type_name_parser
+    <|> record_type_parser <|> type_name_parser
 
   let factor_type_parser = factor_type_parser ()
 end

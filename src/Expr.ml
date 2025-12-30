@@ -52,6 +52,7 @@ and factor_type =
   | VectorType of compound_type list
   | ListType of compound_type
   | TypeApp of string * compound_type list
+  | RecordTypeWritten of (string * compound_type) list (* {x: int, y: bool} *)
 
 type defn =
   | Defn of pat * compound_type option * expr * compound_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
