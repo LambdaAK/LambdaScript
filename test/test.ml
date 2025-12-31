@@ -5759,6 +5759,281 @@ let mutual_recursion_complex_tests =
              ~expr:"(x, y, z)" ~expected_value:"(1, 2, 3)" );
        ]
 
+(* Constructor Type Tests *)
+let simple_constructor_type_tests =
+  let open ProgramTesting in
+  "simple_constructor_type_tests"
+  >::: [
+         ( "simple nullary constructors" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type MyType = | A | B | C
+             |}
+             ~expr:"A" ~expected_type:"MyType" );
+         ( "simple nullary constructor B" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type MyType = | A | B | C
+             |}
+             ~expr:"B" ~expected_type:"MyType" );
+         ( "simple constructor with payload" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Result = | Success of int | Failure of str
+             |}
+             ~expr:"Success" ~expected_type:"int -> Result" );
+         ( "simple constructor with string payload" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Result = | Success of int | Failure of str
+             |}
+             ~expr:"Failure" ~expected_type:"str -> Result" );
+         ( "constructor with tuple payload" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Pair = | MkPair of (int, str)
+             |}
+             ~expr:"MkPair" ~expected_type:"(int, str) -> Pair" );
+         ( "parameterized nullary constructor" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Option<a> = | None | Some of a
+             |}
+             ~expr:"None" ~expected_type:"Option<'a>" );
+         ( "parameterized constructor with payload" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Option<a> = | None | Some of a
+             |}
+             ~expr:"Some" ~expected_type:"'a -> Option<'a>" );
+         ( "constructor with list payload" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Container<a> = | Empty | Full of [a]
+             |}
+             ~expr:"Full" ~expected_type:"['a] -> Container<'a>" );
+         ( "constructor with multiple type params" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Either<a, b> = | Left of a | Right of b
+             |}
+             ~expr:"Left" ~expected_type:"'a -> Either<'a, 'b>" );
+         ( "constructor with multiple type params right" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Either<a, b> = | Left of a | Right of b
+             |}
+             ~expr:"Right" ~expected_type:"'a -> Either<'b, 'a>" );
+       ]
+
+let recursive_constructor_type_tests =
+  let open ProgramTesting in
+  "recursive_constructor_type_tests"
+  >::: [
+         ( "recursive list nil" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec List = | Nil | Cons of (int, List)
+             |}
+             ~expr:"Nil" ~expected_type:"List" );
+         ( "recursive list cons" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec List = | Nil | Cons of (int, List)
+             |}
+             ~expr:"Cons" ~expected_type:"(int, List) -> List" );
+         ( "recursive list with multiple self-references" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec List = | Nil | Cons of (int, List) | ConsTwo of (int, List, List)
+             |}
+             ~expr:"ConsTwo" ~expected_type:"(int, List, List) -> List" );
+         ( "parameterized recursive list nil" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec List<a> = | Nil | Cons of (a, List<a>)
+             |}
+             ~expr:"Nil" ~expected_type:"List<'a>" );
+         ( "parameterized recursive list cons" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec List<a> = | Nil | Cons of (a, List<a>)
+             |}
+             ~expr:"Cons" ~expected_type:"('a, List<'a>) -> List<'a>" );
+         ( "binary tree leaf" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (Tree<a>, a, Tree<a>)
+             |}
+             ~expr:"Leaf" ~expected_type:"'a -> Tree<'a>" );
+         ( "binary tree node" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (Tree<a>, a, Tree<a>)
+             |}
+             ~expr:"Node" ~expected_type:"(Tree<'a>, 'a, Tree<'a>) -> Tree<'a>" );
+         ( "rose tree with list of children" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec RoseTree<a> = | RNode of (a, [RoseTree<a>])
+             |}
+             ~expr:"RNode" ~expected_type:"('a, [RoseTree<'a>]) -> RoseTree<'a>" );
+         ( "expression tree const" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Expr =
+                 | Const of int
+                 | Add of (Expr, Expr)
+                 | Mul of (Expr, Expr)
+             |}
+             ~expr:"Const" ~expected_type:"int -> Expr" );
+         ( "expression tree add" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Expr =
+                 | Const of int
+                 | Add of (Expr, Expr)
+                 | Mul of (Expr, Expr)
+             |}
+             ~expr:"Add" ~expected_type:"(Expr, Expr) -> Expr" );
+         ( "expression tree mul" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Expr =
+                 | Const of int
+                 | Add of (Expr, Expr)
+                 | Mul of (Expr, Expr)
+             |}
+             ~expr:"Mul" ~expected_type:"(Expr, Expr) -> Expr" );
+       ]
+
+let complex_constructor_type_tests =
+  let open ProgramTesting in
+  "complex_constructor_type_tests"
+  >::: [
+         ( "red black tree empty" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Empty
+                 | Node of (Color, RBTree<a>, a, RBTree<a>)
+             |}
+             ~expr:"Empty" ~expected_type:"RBTree<'a>" );
+         ( "red black tree node" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Color = | Red | Black
+               type rec RBTree<a> =
+                 | Empty
+                 | Node of (Color, RBTree<a>, a, RBTree<a>)
+             |}
+             ~expr:"Node" ~expected_type:"(Color, RBTree<'a>, 'a, RBTree<'a>) -> RBTree<'a>" );
+         ( "nested recursive type with records" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Tree<a> =
+                 | Leaf
+                 | Branch of {value: a, left: Tree<a>, right: Tree<a>}
+             |}
+             ~expr:"Branch" ~expected_type:"{value: 'a, left: Tree<'a>, right: Tree<'a>} -> Tree<'a>" );
+         ( "AVL tree with height" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec AVLTree<a> =
+                 | Empty
+                 | Node of (AVLTree<a>, a, AVLTree<a>, int)
+             |}
+             ~expr:"Node" ~expected_type:"(AVLTree<'a>, 'a, AVLTree<'a>, int) -> AVLTree<'a>" );
+         ( "zipper type with context" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (Tree<a>, Tree<a>)
+               type rec Context<a> =
+                 | Top
+                 | L of (Context<a>, Tree<a>)
+                 | R of (Tree<a>, Context<a>)
+             |}
+             ~expr:"L" ~expected_type:"(Context<'a>, Tree<'a>) -> Context<'a>" );
+         ( "constructor with multiple recursive references in list" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec MultiTree<a> =
+                 | Leaf of a
+                 | Branch of [MultiTree<a>]
+             |}
+             ~expr:"Branch" ~expected_type:"[MultiTree<'a>] -> MultiTree<'a>" );
+         ( "constructor combining records and recursion" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec LinkedList<a> =
+                 | Empty
+                 | Cell of {head: a, tail: LinkedList<a>}
+             |}
+             ~expr:"Cell" ~expected_type:"{head: 'a, tail: LinkedList<'a>} -> LinkedList<'a>" );
+       ]
+
+let constructor_with_type_alias_tests =
+  let open ProgramTesting in
+  "constructor_with_type_alias_tests"
+  >::: [
+         ( "constructor using type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Point = (int, int)
+               type Shape = | Circle of Point | Rectangle of (Point, Point)
+             |}
+             ~expr:"Circle" ~expected_type:"(int, int) -> Shape" );
+         ( "recursive constructor with type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Point = {x: int, y: int}
+               type rec Shape =
+                 | Circle of {center: Point, radius: int}
+                 | Group of [Shape]
+             |}
+             ~expr:"Circle" ~expected_type:"{center: {x: int, y: int}, radius: int} -> Shape" );
+         ( "constructor with nested type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Coord = int
+               type Point = (Coord, Coord)
+               type Shape = | Circle of Point
+             |}
+             ~expr:"Circle" ~expected_type:"(int, int) -> Shape" );
+       ]
+
 let all_tests =
   List.flatten
     [
@@ -5799,6 +6074,10 @@ let all_tests =
       [ mutual_recursion_basic_tests ];
       [ mutual_recursion_type_tests ];
       [ mutual_recursion_complex_tests ];
+      [ simple_constructor_type_tests ];
+      [ recursive_constructor_type_tests ];
+      [ complex_constructor_type_tests ];
+      [ constructor_with_type_alias_tests ];
     ]
 
 let suite = "suite" >::: all_tests
