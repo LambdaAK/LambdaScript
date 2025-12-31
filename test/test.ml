@@ -4979,8 +4979,7 @@ let very_complex_record_tests =
                  case t do
                  | Empty -> 0
                  | Branch b -> 1 + count_forest b.children
-
-               let rec count_forest = fn trees ->
+               and count_forest = fn trees ->
                  case trees do
                  | [] -> 0
                  | h :: t -> count_nodes h + count_forest t
@@ -5374,6 +5373,392 @@ let complex_record_scenarios =
              ~expr:"area" ~expected_value:"50" );
        ]
 
+(* Mutually Recursive Function Tests *)
+let mutual_recursion_basic_tests =
+  let open ProgramTesting in
+  "mutual_recursion_basic_tests"
+  >::: [
+         ( "is_even is_odd basic" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec is_even = fn n ->
+                 if n == 0 then true
+                 else is_odd (n - 1)
+               and is_odd = fn n ->
+                 if n == 0 then false
+                 else is_even (n - 1)
+             |}
+             ~expr:"is_even 4" ~expected_value:"true" );
+         ( "is_even is_odd odd number" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec is_even = fn n ->
+                 if n == 0 then true
+                 else is_odd (n - 1)
+               and is_odd = fn n ->
+                 if n == 0 then false
+                 else is_even (n - 1)
+             |}
+             ~expr:"is_odd 5" ~expected_value:"true" );
+         ( "is_even is_odd even check" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec is_even = fn n ->
+                 if n == 0 then true
+                 else is_odd (n - 1)
+               and is_odd = fn n ->
+                 if n == 0 then false
+                 else is_even (n - 1)
+             |}
+             ~expr:"is_even 7" ~expected_value:"false" );
+         ( "is_even is_odd both functions" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec is_even = fn n ->
+                 if n == 0 then true
+                 else is_odd (n - 1)
+               and is_odd = fn n ->
+                 if n == 0 then false
+                 else is_even (n - 1)
+             |}
+             ~expr:"(is_even 6, is_odd 6)" ~expected_value:"(true, false)" );
+         ( "mutual recursion with type annotations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec is_even : int -> bool = fn n ->
+                 if n == 0 then true
+                 else is_odd (n - 1)
+               and is_odd : int -> bool = fn n ->
+                 if n == 0 then false
+                 else is_even (n - 1)
+             |}
+             ~expr:"is_even 10" ~expected_value:"true" );
+         ( "mutual recursion in expression" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let result =
+                 let rec is_even = fn n ->
+                   if n == 0 then true
+                   else is_odd (n - 1)
+                 and is_odd = fn n ->
+                   if n == 0 then false
+                   else is_even (n - 1)
+                 in is_even 8
+             |}
+             ~expr:"result" ~expected_value:"true" );
+         ( "three mutually recursive functions" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec f = fn n ->
+                 if n <= 0 then 1
+                 else g (n - 1) + 1
+               and g = fn n ->
+                 if n <= 0 then 2
+                 else h (n - 1) + 1
+               and h = fn n ->
+                 if n <= 0 then 3
+                 else f (n - 1) + 1
+             |}
+             ~expr:"f 3" ~expected_value:"4" );
+         ( "three mutually recursive functions different starting point" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec f = fn n ->
+                 if n <= 0 then 1
+                 else g (n - 1) + 1
+               and g = fn n ->
+                 if n <= 0 then 2
+                 else h (n - 1) + 1
+               and h = fn n ->
+                 if n <= 0 then 3
+                 else f (n - 1) + 1
+             |}
+             ~expr:"g 2" ~expected_value:"3" );
+         ( "mutual recursion with different types" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec stringify_even = fn n ->
+                 if n == 0 then "zero"
+                 else stringify_odd (n - 1)
+               and stringify_odd = fn n ->
+                 if n == 0 then "not zero"
+                 else stringify_even (n - 1)
+             |}
+             ~expr:"stringify_even 3" ~expected_value:"\"not zero\"" );
+         ( "mutual recursion with list processing" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec sum_evens = fn lst ->
+                 case lst do
+                 | [] -> 0
+                 | h :: t -> h + sum_odds t
+               and sum_odds = fn lst ->
+                 case lst do
+                 | [] -> 0
+                 | h :: t -> sum_evens t
+             |}
+             ~expr:"sum_evens [1, 2, 3, 4, 5]" ~expected_value:"9" );
+       ]
+
+let mutual_recursion_type_tests =
+  let open ProgramTesting in
+  "mutual_recursion_type_tests"
+  >::: [
+         ( "is_even has correct type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               let rec is_even = fn n ->
+                 if n == 0 then true
+                 else is_odd (n - 1)
+               and is_odd = fn n ->
+                 if n == 0 then false
+                 else is_even (n - 1)
+             |}
+             ~expr:"is_even" ~expected_type:"int -> bool" );
+         ( "is_odd has correct type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               let rec is_even = fn n ->
+                 if n == 0 then true
+                 else is_odd (n - 1)
+               and is_odd = fn n ->
+                 if n == 0 then false
+                 else is_even (n - 1)
+             |}
+             ~expr:"is_odd" ~expected_type:"int -> bool" );
+         ( "mutual recursion with explicit type annotations" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               let rec f : int -> int = fn n ->
+                 if n <= 0 then 0
+                 else g (n - 1)
+               and g : int -> int = fn n ->
+                 if n <= 0 then 1
+                 else f (n - 1)
+             |}
+             ~expr:"f" ~expected_type:"int -> int" );
+         ( "mutual recursion with string return type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               let rec describe_even = fn n ->
+                 if n == 0 then "even"
+                 else describe_odd (n - 1)
+               and describe_odd = fn n ->
+                 if n == 0 then "odd"
+                 else describe_even (n - 1)
+             |}
+             ~expr:"describe_even" ~expected_type:"int -> str" );
+         ( "mutual recursion with list type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               let rec process_a = fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> process_b t
+               and process_b = fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> h :: process_a t
+             |}
+             ~expr:"process_a" ~expected_type:"['a] -> ['a]" );
+       ]
+
+let mutual_recursion_complex_tests =
+  let open ProgramTesting in
+  "mutual_recursion_complex_tests"
+  >::: [
+         ( "mutual recursion with multiple parameters" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec ackermann_helper = fn m -> fn n ->
+                 if m == 0 then n + 1
+                 else if n == 0 then ackermann m (m - 1) 1
+                 else ackermann m (m - 1) (ackermann_helper m (n - 1))
+               and ackermann = fn a -> fn m -> fn n ->
+                 if a == 0 then ackermann_helper m n
+                 else ackermann_helper m n
+             |}
+             ~expr:"ackermann 0 2 2" ~expected_value:"7" );
+         ( "mutual recursion with pattern matching" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec flatten_evens = fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t ->
+                   case h do
+                   | [] -> flatten_odds t
+                   | x :: xs -> x :: flatten_odds (xs :: t)
+               and flatten_odds = fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> flatten_evens t
+             |}
+             ~expr:"flatten_evens [[1, 2], [3, 4], [5]]"
+             ~expected_value:"[1, 3, 5]" );
+         ( "mutual recursion with records" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Node = {value: int, is_even_pos: bool}
+
+               let rec process_even = fn lst -> fn pos ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> {value: h, is_even_pos: true} :: process_odd t (pos + 1)
+               and process_odd = fn lst -> fn pos ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> {value: h, is_even_pos: false} :: process_even t (pos + 1)
+
+               let result = process_even [1, 2, 3, 4] 0
+               let first = case result do | h :: _ -> h | [] -> {value: 0, is_even_pos: false}
+             |}
+             ~expr:"first.value" ~expected_value:"1" );
+         ( "mutual recursion with higher-order functions" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec apply_to_evens = fn f -> fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> f h :: apply_to_odds f t
+               and apply_to_odds = fn f -> fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> h :: apply_to_evens f t
+
+               let double = fn x -> x * 2
+             |}
+             ~expr:"apply_to_evens double [1, 2, 3, 4, 5]"
+             ~expected_value:"[2, 2, 6, 4, 10]" );
+         ( "four mutually recursive functions" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec a = fn n ->
+                 if n <= 0 then 1
+                 else b (n - 1) + 1
+               and b = fn n ->
+                 if n <= 0 then 2
+                 else c (n - 1) + 1
+               and c = fn n ->
+                 if n <= 0 then 3
+                 else d (n - 1) + 1
+               and d = fn n ->
+                 if n <= 0 then 4
+                 else a (n - 1) + 1
+             |}
+             ~expr:"a 4" ~expected_value:"5" );
+         ( "mutual recursion with accumulator pattern" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec sum_with_toggle = fn lst -> fn acc -> fn use_double ->
+                 case lst do
+                 | [] -> acc
+                 | h :: t ->
+                   if use_double
+                   then sum_normal t (acc + h * 2) false
+                   else sum_normal t (acc + h) true
+               and sum_normal = fn lst -> fn acc -> fn use_double ->
+                 case lst do
+                 | [] -> acc
+                 | h :: t ->
+                   if use_double
+                   then sum_with_toggle t (acc + h * 2) false
+                   else sum_with_toggle t (acc + h) true
+             |}
+             ~expr:"sum_with_toggle [1, 2, 3, 4] 0 true"
+             ~expected_value:"14" );
+         ( "mutual recursion in nested expression" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let outer = fn x ->
+                 let rec f = fn n ->
+                   if n <= 0 then x
+                   else g (n - 1) + x
+                 and g = fn n ->
+                   if n <= 0 then x * 2
+                   else f (n - 1) + x
+                 in f 3
+             |}
+             ~expr:"outer 5" ~expected_value:"25" );
+         ( "mutual recursion returning tuples" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec pair_a = fn n ->
+                 if n <= 0 then (1, 2)
+                 else pair_b (n - 1)
+               and pair_b = fn n ->
+                 if n <= 0 then (3, 4)
+                 else pair_a (n - 1)
+
+               let result_even = pair_a 4
+               let result_odd = pair_a 5
+             |}
+             ~expr:"(result_even, result_odd)" ~expected_value:"((1, 2), (3, 4))" );
+         ( "mutual recursion with sum types" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec IntOrStr =
+                 | IVal of int
+                 | SVal of str
+
+               let rec process_int = fn x ->
+                 case x do
+                 | IVal n -> n * 2
+                 | SVal s -> process_str (IVal 5)
+               and process_str = fn x ->
+                 case x do
+                 | IVal n -> n + 1
+                 | SVal s -> 0
+
+               let val1 = process_int (IVal 3)
+               let val2 = process_int (SVal "test")
+             |}
+             ~expr:"(val1, val2)" ~expected_value:"(6, 6)" );
+         ( "chained mutual recursion call" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let rec f = fn n ->
+                 if n <= 0 then 0
+                 else 1 + g (n - 1)
+               and g = fn n ->
+                 if n <= 0 then 0
+                 else 2 + h (n - 1)
+               and h = fn n ->
+                 if n <= 0 then 0
+                 else 3 + f (n - 1)
+
+               let x = f 1
+               let y = g 1
+               let z = h 1
+             |}
+             ~expr:"(x, y, z)" ~expected_value:"(1, 2, 3)" );
+       ]
+
 let all_tests =
   List.flatten
     [
@@ -5411,6 +5796,9 @@ let all_tests =
       extended_record_eval_tests;
       [ complex_record_scenarios ];
       [ very_complex_record_tests ];
+      [ mutual_recursion_basic_tests ];
+      [ mutual_recursion_type_tests ];
+      [ mutual_recursion_complex_tests ];
     ]
 
 let suite = "suite" >::: all_tests
