@@ -6034,6 +6034,440 @@ let constructor_with_type_alias_tests =
              ~expr:"Circle" ~expected_type:"(int, int) -> Shape" );
        ]
 
+(* Float and Character Tests *)
+let float_operation_tests =
+  let open ProgramTesting in
+  "float_operation_tests"
+  >::: [
+         ( "float literal type" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:"3.14" ~expected_type:"float" );
+         ( "int to float conversion type" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:"int_to_float" ~expected_type:"int -> float" );
+         ( "float to int conversion type" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:"float_to_int" ~expected_type:"float -> int" );
+       ]
+
+let char_tests =
+  let open ProgramTesting in
+  "char_tests"
+  >::: [
+         ( "char literal type" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:"'a'" ~expected_type:"char" );
+         ( "char escape sequence type" >:: fun _ ->
+           assert_expression_has_type ~program:"" ~expr:"'\\n'" ~expected_type:"char" );
+         ( "char in pattern match" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let f = fn c -> case c do | 'a' -> 1 | 'b' -> 2 | _ -> 3
+             |}
+             ~expr:"f 'a'" ~expected_value:"1" );
+         ( "char pattern match wildcard" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let f = fn c -> case c do | 'a' -> 1 | 'b' -> 2 | _ -> 3
+             |}
+             ~expr:"f 'z'" ~expected_value:"3" );
+       ]
+
+let string_operation_tests =
+  let open ProgramTesting in
+  "string_operation_tests"
+  >::: [
+         ( "string concatenation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"\"hello\" ^ \" \" ^ \"world\""
+             ~expected_value:"\"hello world\"" );
+         ( "string concatenation type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:""
+             ~expr:"\"a\" ^ \"b\""
+             ~expected_type:"str" );
+         ( "empty string concatenation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"\"\" ^ \"hello\" ^ \"\""
+             ~expected_value:"\"hello\"" );
+         ( "string to list conversion type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:""
+             ~expr:"string_to_list"
+             ~expected_type:"str -> [char]" );
+         ( "int to string type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:""
+             ~expr:"int_to_str"
+             ~expected_type:"int -> str" );
+         ( "string in pattern match" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let greet = fn name ->
+                 case name do
+                 | "Alice" -> "Hello Alice!"
+                 | "Bob" -> "Hi Bob!"
+                 | _ -> "Hello stranger!"
+             |}
+             ~expr:"greet \"Alice\""
+             ~expected_value:"\"Hello Alice!\"" );
+       ]
+
+(* List Comprehension Tests *)
+let list_comprehension_tests =
+  let open ProgramTesting in
+  "list_comprehension_tests"
+  >::: [
+         ( "simple map comprehension" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"[x * 2 | x <- [1, 2, 3]]"
+             ~expected_value:"[2, 4, 6]" );
+         ( "nested comprehension" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"[(x, y) | x <- [1, 2], y <- [3, 4]]"
+             ~expected_value:"[(1, 3), (1, 4), (2, 3), (2, 4)]" );
+         ( "comprehension with arithmetic" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"[x + y | x <- [1, 2], y <- [10, 20]]"
+             ~expected_value:"[11, 21, 12, 22]" );
+         ( "comprehension type inference" >:: fun _ ->
+           assert_expression_has_type
+             ~program:""
+             ~expr:"[x * 2 | x <- [1, 2, 3]]"
+             ~expected_type:"[int]" );
+         ( "tuple comprehension type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:""
+             ~expr:"[(x, y) | x <- [1, 2], y <- [3, 4]]"
+             ~expected_type:"[(int, int)]" );
+       ]
+
+(* Pattern Matching Tests *)
+let advanced_pattern_matching_tests =
+  let open ProgramTesting in
+  "advanced_pattern_matching_tests"
+  >::: [
+         ( "nested tuple pattern" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let f = fn x -> case x do | ((a, b), c) -> a + b + c
+             |}
+             ~expr:"f ((1, 2), 3)"
+             ~expected_value:"6" );
+         ( "cons pattern in function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let head = fn lst -> case lst do | h :: _ -> h | [] -> 0
+             |}
+             ~expr:"head [5, 6, 7]"
+             ~expected_value:"5" );
+         ( "multiple cons pattern" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let second = fn lst -> case lst do | _ :: h :: _ -> h | _ -> 0
+             |}
+             ~expr:"second [1, 2, 3]"
+             ~expected_value:"2" );
+         ( "wildcard in tuple" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let f = fn x -> case x do | (_, b, _) -> b
+             |}
+             ~expr:"f (1, 2, 3)"
+             ~expected_value:"2" );
+         ( "pattern with constructor and tuple" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type Pair = | P of (int, int)
+               let sum = fn x -> case x do | P (a, b) -> a + b
+             |}
+             ~expr:"sum (P (3, 4))"
+             ~expected_value:"7" );
+       ]
+
+(* Operator Precedence Tests *)
+let operator_precedence_tests =
+  let open ProgramTesting in
+  "operator_precedence_tests"
+  >::: [
+         ( "multiplication before addition" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"2 + 3 * 4"
+             ~expected_value:"14" );
+         ( "parentheses override precedence" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"(2 + 3) * 4"
+             ~expected_value:"20" );
+         ( "division before subtraction" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"10 - 6 / 2"
+             ~expected_value:"7" );
+         ( "modulo with addition" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"10 + 7 % 3"
+             ~expected_value:"11" );
+         ( "comparison with arithmetic" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"2 + 3 > 4"
+             ~expected_value:"true" );
+         ( "logical and with comparison" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"3 > 2 && 5 < 10"
+             ~expected_value:"true" );
+         ( "logical or with and" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"false && true || true"
+             ~expected_value:"true" );
+         ( "cons with arithmetic" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"1 + 2 :: 3 + 4 :: []"
+             ~expected_value:"[3, 7]" );
+       ]
+
+(* Higher-Order Function Tests *)
+let higher_order_function_tests =
+  let open ProgramTesting in
+  "higher_order_function_tests"
+  >::: [
+         ( "map with lambda" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"map (fn x -> x * 2) [1, 2, 3]"
+             ~expected_value:"[2, 4, 6]" );
+         ( "filter even numbers" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"filter (fn x -> x % 2 == 0) [1, 2, 3, 4, 5, 6]"
+             ~expected_value:"[2, 4, 6]" );
+         ( "reduce_left sum" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"reduce_left (fn acc -> fn x -> acc + x) 0 [1, 2, 3, 4]"
+             ~expected_value:"10" );
+         ( "reduce_right cons" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"reduce_right (fn x -> fn acc -> x :: acc) [1, 2, 3] []"
+             ~expected_value:"[1, 2, 3]" );
+         ( "map composition" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let double = fn x -> x * 2
+               let inc = fn x -> x + 1
+             |}
+             ~expr:"map inc (map double [1, 2, 3])"
+             ~expected_value:"[3, 5, 7]" );
+         ( "filter and map chain" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"map (fn x -> x * 2) (filter (fn x -> x > 2) [1, 2, 3, 4])"
+             ~expected_value:"[6, 8]" );
+         ( "function returning function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let add = fn x -> fn y -> x + y
+               let add5 = add 5
+             |}
+             ~expr:"add5 10"
+             ~expected_value:"15" );
+       ]
+
+(* Nested Data Structure Tests *)
+let nested_data_structure_tests =
+  let open ProgramTesting in
+  "nested_data_structure_tests"
+  >::: [
+         ( "list of lists" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"[[1, 2], [3, 4], [5]]"
+             ~expected_value:"[[1, 2], [3, 4], [5]]" );
+         ( "nested tuple" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"((1, 2), (3, 4))"
+             ~expected_value:"((1, 2), (3, 4))" );
+         ( "list of tuples" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"[(1, 2), (3, 4)]"
+             ~expected_value:"[(1, 2), (3, 4)]" );
+         ( "tuple of lists" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"([1, 2], [3, 4])"
+             ~expected_value:"([1, 2], [3, 4])" );
+         ( "deeply nested list" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"[[[1, 2]], [[3]]]"
+             ~expected_value:"[[[1, 2]], [[3]]]" );
+         ( "nested record access" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let p = {outer: {inner: {value: 42}}}
+             |}
+             ~expr:"p.outer.inner.value"
+             ~expected_value:"42" );
+       ]
+
+(* Type Alias Tests *)
+let type_alias_tests =
+  let open ProgramTesting in
+  "type_alias_tests"
+  >::: [
+         ( "simple type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:"type MyInt = int"
+             ~expr:"42"
+             ~expected_type:"int" );
+         ( "tuple type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:"type Pair = (int, int)"
+             ~expr:"(1, 2)"
+             ~expected_type:"(int, int)" );
+         ( "function type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:"type IntFunc = int -> int"
+             ~expr:"fn x -> x + 1"
+             ~expected_type:"int -> int" );
+         ( "list type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:"type IntList = [int]"
+             ~expr:"[1, 2, 3]"
+             ~expected_type:"[int]" );
+         ( "parameterized type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:"type Box<a> = (a, a)"
+             ~expr:"(1, 2)"
+             ~expected_type:"(int, int)" );
+         ( "nested type alias" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Inner = int
+               type Outer = (Inner, Inner)
+             |}
+             ~expr:"(1, 2)"
+             ~expected_type:"(int, int)" );
+       ]
+
+(* Edge Case Tests *)
+let edge_case_tests =
+  let open ProgramTesting in
+  "edge_case_tests"
+  >::: [
+         ( "empty list type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:""
+             ~expr:"[]"
+             ~expected_type:"['a]" );
+         ( "unit value type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:""
+             ~expr:"()"
+             ~expected_type:"unit" );
+         ( "single element tuple" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"(42)"
+             ~expected_value:"42" );
+         ( "negation of negation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"~-(~-5)"
+             ~expected_value:"5" );
+         ( "zero division by subtraction" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"10 - 10"
+             ~expected_value:"0" );
+         ( "identity function application" >:: fun _ ->
+           assert_expression_has_value
+             ~program:"let id = fn x -> x"
+             ~expr:"id 42"
+             ~expected_value:"42" );
+         ( "const function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:"let const = fn x -> fn y -> x"
+             ~expr:"const 5 10"
+             ~expected_value:"5" );
+       ]
+
+(* Recursion Edge Cases *)
+let recursion_edge_case_tests =
+  let open ProgramTesting in
+  "recursion_edge_case_tests"
+  >::: [
+         ( "recursive function with immediate return" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec f = fn n -> if n == 0 then 1 else 1
+             |}
+             ~expr:"f 5"
+             ~expected_value:"1" );
+         ( "recursive function base case" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec sum = fn n -> if n == 0 then 0 else n + sum (n - 1)
+             |}
+             ~expr:"sum 0"
+             ~expected_value:"0" );
+         ( "recursive function with accumulator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec sum_acc = fn n -> fn acc ->
+                 if n == 0 then acc else sum_acc (n - 1) (acc + n)
+             |}
+             ~expr:"sum_acc 5 0"
+             ~expected_value:"15" );
+       ]
+
+(* List Operation Tests *)
+let list_operation_tests =
+  let open ProgramTesting in
+  "list_operation_tests"
+  >::: [
+         ( "cons to empty list" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"1 :: []"
+             ~expected_value:"[1]" );
+         ( "multiple cons" >:: fun _ ->
+           assert_expression_has_value
+             ~program:""
+             ~expr:"1 :: 2 :: 3 :: []"
+             ~expected_value:"[1, 2, 3]" );
+         ( "list concatenation via cons" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec append = fn l1 -> fn l2 ->
+                 case l1 do
+                 | [] -> l2
+                 | h :: t -> h :: append t l2
+             |}
+             ~expr:"append [1, 2] [3, 4]"
+             ~expected_value:"[1, 2, 3, 4]" );
+         ( "list reverse" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec rev = fn lst -> fn acc ->
+                 case lst do
+                 | [] -> acc
+                 | h :: t -> rev t (h :: acc)
+             |}
+             ~expr:"rev [1, 2, 3] []"
+             ~expected_value:"[3, 2, 1]" );
+       ]
+
 let all_tests =
   List.flatten
     [
@@ -6078,6 +6512,18 @@ let all_tests =
       [ recursive_constructor_type_tests ];
       [ complex_constructor_type_tests ];
       [ constructor_with_type_alias_tests ];
+      [ float_operation_tests ];
+      [ char_tests ];
+      [ string_operation_tests ];
+      [ list_comprehension_tests ];
+      [ advanced_pattern_matching_tests ];
+      [ operator_precedence_tests ];
+      [ higher_order_function_tests ];
+      [ nested_data_structure_tests ];
+      [ type_alias_tests ];
+      [ edge_case_tests ];
+      [ recursion_edge_case_tests ];
+      [ list_operation_tests ];
     ]
 
 let suite = "suite" >::: all_tests
