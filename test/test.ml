@@ -6468,6 +6468,1116 @@ let list_operation_tests =
              ~expected_value:"[3, 2, 1]" );
        ]
 
+(* COMPLEX AND EXTENSIVE TESTS - 100 Tests *)
+
+(* Complex Recursive Algorithm Tests *)
+let complex_recursive_algorithms =
+  let open ProgramTesting in
+  "complex_recursive_algorithms"
+  >::: [
+         ( "fibonacci recursive" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec fib = fn n ->
+                 if n <= 1 then n
+                 else fib (n - 1) + fib (n - 2)
+             |}
+             ~expr:"fib 10"
+             ~expected_value:"55" );
+         ( "factorial with accumulator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec fact = fn n -> fn acc ->
+                 if n <= 1 then acc
+                 else fact (n - 1) (n * acc)
+             |}
+             ~expr:"fact 6 1"
+             ~expected_value:"720" );
+         ( "greatest common divisor" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec gcd = fn a -> fn b ->
+                 if b == 0 then a
+                 else gcd b (a % b)
+             |}
+             ~expr:"gcd 48 18"
+             ~expected_value:"6" );
+         ( "power function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec pow = fn base -> fn exp ->
+                 if exp == 0 then 1
+                 else base * pow base (exp - 1)
+             |}
+             ~expr:"pow 2 10"
+             ~expected_value:"1024" );
+         ( "sum of digits" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec sum_digits = fn n ->
+                 if n < 10 then n
+                 else (n % 10) + sum_digits (n / 10)
+             |}
+             ~expr:"sum_digits 12345"
+             ~expected_value:"15" );
+         ( "collatz sequence length" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec collatz_len = fn n -> fn count ->
+                 if n == 1 then count
+                 else if n % 2 == 0 then collatz_len (n / 2) (count + 1)
+                 else collatz_len (n * 3 + 1) (count + 1)
+             |}
+             ~expr:"collatz_len 10 0"
+             ~expected_value:"6" );
+         ( "is prime check" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec is_prime_helper = fn n -> fn divisor ->
+                 if divisor * divisor > n then true
+                 else if n % divisor == 0 then false
+                 else is_prime_helper n (divisor + 1)
+
+               let is_prime = fn n ->
+                 if n < 2 then false
+                 else is_prime_helper n 2
+             |}
+             ~expr:"is_prime 17"
+             ~expected_value:"true" );
+         ( "nth prime number" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec is_prime_helper = fn n -> fn divisor ->
+                 if divisor * divisor > n then true
+                 else if n % divisor == 0 then false
+                 else is_prime_helper n (divisor + 1)
+
+               let is_prime = fn n ->
+                 if n < 2 then false
+                 else is_prime_helper n 2
+
+               let rec nth_prime = fn n -> fn candidate -> fn count ->
+                 if is_prime candidate then
+                   if count == n then candidate
+                   else nth_prime n (candidate + 1) (count + 1)
+                 else nth_prime n (candidate + 1) count
+             |}
+             ~expr:"nth_prime 5 2 0"
+             ~expected_value:"13" );
+       ]
+
+(* Complex List Processing Tests *)
+let complex_list_processing =
+  let open ProgramTesting in
+  "complex_list_processing"
+  >::: [
+         ( "quicksort implementation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec filter = fn pred -> fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> if pred h then h :: filter pred t else filter pred t
+
+               let rec append = fn l1 -> fn l2 ->
+                 case l1 do
+                 | [] -> l2
+                 | h :: t -> h :: append t l2
+
+               let rec quicksort = fn lst ->
+                 case lst do
+                 | [] -> []
+                 | pivot :: rest ->
+                   let smaller = filter (fn x -> x < pivot) rest in
+                   let larger = filter (fn x -> x >= pivot) rest in
+                   append (append (quicksort smaller) (pivot :: [])) (quicksort larger)
+             |}
+             ~expr:"quicksort [3, 1, 4, 1, 5, 9, 2, 6]"
+             ~expected_value:"[1, 1, 2, 3, 4, 5, 6, 9]" );
+         ( "mergesort implementation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec take = fn n -> fn lst ->
+                 if n == 0 then []
+                 else case lst do
+                 | [] -> []
+                 | h :: t -> h :: take (n - 1) t
+
+               let rec drop = fn n -> fn lst ->
+                 if n == 0 then lst
+                 else case lst do
+                 | [] -> []
+                 | _ :: t -> drop (n - 1) t
+
+               let rec merge = fn l1 -> fn l2 ->
+                 case l1 do
+                 | [] -> l2
+                 | h1 :: t1 ->
+                   case l2 do
+                   | [] -> l1
+                   | h2 :: t2 ->
+                     if h1 < h2 then h1 :: merge t1 l2
+                     else h2 :: merge l1 t2
+
+               let rec length = fn lst ->
+                 case lst do
+                 | [] -> 0
+                 | _ :: t -> 1 + length t
+
+               let rec mergesort = fn lst ->
+                 let len = length lst in
+                 if len <= 1 then lst
+                 else
+                   let mid = len / 2 in
+                   let left = take mid lst in
+                   let right = drop mid lst in
+                   merge (mergesort left) (mergesort right)
+             |}
+             ~expr:"mergesort [5, 2, 8, 1, 9]"
+             ~expected_value:"[1, 2, 5, 8, 9]" );
+         ( "list zip function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec zip = fn l1 -> fn l2 ->
+                 case l1 do
+                 | [] -> []
+                 | h1 :: t1 ->
+                   case l2 do
+                   | [] -> []
+                   | h2 :: t2 -> (h1, h2) :: zip t1 t2
+             |}
+             ~expr:"zip [1, 2, 3] [4, 5, 6]"
+             ~expected_value:"[(1, 4), (2, 5), (3, 6)]" );
+         ( "list unzip function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec unzip = fn lst ->
+                 case lst do
+                 | [] -> ([], [])
+                 | (a, b) :: t ->
+                   let rest = unzip t in
+                   case rest do
+                   | (as, bs) -> (a :: as, b :: bs)
+             |}
+             ~expr:"unzip [(1, 2), (3, 4), (5, 6)]"
+             ~expected_value:"([1, 3, 5], [2, 4, 6])" );
+         ( "partition list" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec partition = fn pred -> fn lst ->
+                 case lst do
+                 | [] -> ([], [])
+                 | h :: t ->
+                   let rest = partition pred t in
+                   case rest do
+                   | (trues, falses) ->
+                     if pred h then (h :: trues, falses)
+                     else (trues, h :: falses)
+             |}
+             ~expr:"partition (fn x -> x % 2 == 0) [1, 2, 3, 4, 5, 6]"
+             ~expected_value:"([2, 4, 6], [1, 3, 5])" );
+         ( "group consecutive elements" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec group = fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t ->
+                   case t do
+                   | [] -> [[h]]
+                   | h2 :: _ ->
+                     let rest_grouped = group t in
+                     case rest_grouped do
+                     | first_group :: other_groups ->
+                       case first_group do
+                       | fg_head :: _ ->
+                         if h == fg_head then (h :: first_group) :: other_groups
+                         else [h] :: rest_grouped
+                       | [] -> [[h]]
+                     | [] -> [[h]]
+             |}
+             ~expr:"group [1, 1, 2, 2, 2, 3, 1]"
+             ~expected_value:"[[1, 1], [2, 2, 2], [3], [1]]" );
+         ( "take while predicate" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec takeWhile = fn pred -> fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> if pred h then h :: takeWhile pred t else []
+             |}
+             ~expr:"takeWhile (fn x -> x < 5) [1, 2, 3, 6, 7, 1]"
+             ~expected_value:"[1, 2, 3]" );
+         ( "drop while predicate" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec dropWhile = fn pred -> fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> if pred h then dropWhile pred t else lst
+             |}
+             ~expr:"dropWhile (fn x -> x < 5) [1, 2, 3, 6, 7, 1]"
+             ~expected_value:"[6, 7, 1]" );
+         ( "list intersperse" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec intersperse = fn sep -> fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t ->
+                   case t do
+                   | [] -> [h]
+                   | _ -> h :: sep :: intersperse sep t
+             |}
+             ~expr:"intersperse 0 [1, 2, 3, 4]"
+             ~expected_value:"[1, 0, 2, 0, 3, 0, 4]" );
+         ( "list flatten" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec append = fn l1 -> fn l2 ->
+                 case l1 do
+                 | [] -> l2
+                 | h :: t -> h :: append t l2
+
+               let rec flatten = fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> append h (flatten t)
+             |}
+             ~expr:"flatten [[1, 2], [3], [4, 5, 6]]"
+             ~expected_value:"[1, 2, 3, 4, 5, 6]" );
+       ]
+
+(* Complex Binary Tree Tests *)
+let complex_tree_operations =
+  let open ProgramTesting in
+  "complex_tree_operations"
+  >::: [
+         ( "binary tree insert" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree = | Empty | Node of (Tree, int, Tree)
+
+               let rec insert = fn tree -> fn value ->
+                 case tree do
+                 | Empty -> Node (Empty, value, Empty)
+                 | Node (l, v, r) ->
+                   if value < v then Node (insert l value, v, r)
+                   else if value > v then Node (l, v, insert r value)
+                   else tree
+
+               let tree = insert (insert (insert Empty 5) 3) 7
+
+               let rec contains = fn tree -> fn value ->
+                 case tree do
+                 | Empty -> false
+                 | Node (l, v, r) ->
+                   if value == v then true
+                   else if value < v then contains l value
+                   else contains r value
+             |}
+             ~expr:"contains tree 3"
+             ~expected_value:"true" );
+         ( "binary tree size" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree = | Empty | Node of (Tree, int, Tree)
+
+               let rec insert = fn tree -> fn value ->
+                 case tree do
+                 | Empty -> Node (Empty, value, Empty)
+                 | Node (l, v, r) ->
+                   if value < v then Node (insert l value, v, r)
+                   else Node (l, v, insert r value)
+
+               let rec size = fn tree ->
+                 case tree do
+                 | Empty -> 0
+                 | Node (l, _, r) -> 1 + size l + size r
+
+               let tree = insert (insert (insert (insert Empty 5) 3) 7) 2
+             |}
+             ~expr:"size tree"
+             ~expected_value:"4" );
+         ( "binary tree height" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree = | Empty | Node of (Tree, int, Tree)
+
+               let rec insert = fn tree -> fn value ->
+                 case tree do
+                 | Empty -> Node (Empty, value, Empty)
+                 | Node (l, v, r) ->
+                   if value < v then Node (insert l value, v, r)
+                   else Node (l, v, insert r value)
+
+               let max = fn a -> fn b -> if a > b then a else b
+
+               let rec height = fn tree ->
+                 case tree do
+                 | Empty -> 0
+                 | Node (l, _, r) -> 1 + max (height l) (height r)
+
+               let tree = insert (insert (insert Empty 5) 3) 2
+             |}
+             ~expr:"height tree"
+             ~expected_value:"3" );
+         ( "binary tree inorder traversal" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree = | Empty | Node of (Tree, int, Tree)
+
+               let rec append = fn l1 -> fn l2 ->
+                 case l1 do
+                 | [] -> l2
+                 | h :: t -> h :: append t l2
+
+               let rec inorder = fn tree ->
+                 case tree do
+                 | Empty -> []
+                 | Node (l, v, r) -> append (append (inorder l) [v]) (inorder r)
+
+               let tree = Node (Node (Empty, 1, Empty), 2, Node (Empty, 3, Empty))
+             |}
+             ~expr:"inorder tree"
+             ~expected_value:"[1, 2, 3]" );
+         ( "binary tree preorder traversal" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree = | Empty | Node of (Tree, int, Tree)
+
+               let rec append = fn l1 -> fn l2 ->
+                 case l1 do
+                 | [] -> l2
+                 | h :: t -> h :: append t l2
+
+               let rec preorder = fn tree ->
+                 case tree do
+                 | Empty -> []
+                 | Node (l, v, r) -> v :: append (preorder l) (preorder r)
+
+               let tree = Node (Node (Empty, 1, Empty), 2, Node (Empty, 3, Empty))
+             |}
+             ~expr:"preorder tree"
+             ~expected_value:"[2, 1, 3]" );
+         ( "binary tree postorder traversal" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree = | Empty | Node of (Tree, int, Tree)
+
+               let rec append = fn l1 -> fn l2 ->
+                 case l1 do
+                 | [] -> l2
+                 | h :: t -> h :: append t l2
+
+               let rec postorder = fn tree ->
+                 case tree do
+                 | Empty -> []
+                 | Node (l, v, r) -> append (append (postorder l) (postorder r)) [v]
+
+               let tree = Node (Node (Empty, 1, Empty), 2, Node (Empty, 3, Empty))
+             |}
+             ~expr:"postorder tree"
+             ~expected_value:"[1, 3, 2]" );
+         ( "binary tree sum" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree = | Empty | Node of (Tree, int, Tree)
+
+               let rec sum = fn tree ->
+                 case tree do
+                 | Empty -> 0
+                 | Node (l, v, r) -> v + sum l + sum r
+
+               let tree = Node (Node (Empty, 1, Empty), 2, Node (Empty, 3, Empty))
+             |}
+             ~expr:"sum tree"
+             ~expected_value:"6" );
+         ( "binary tree map" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree = | Empty | Node of (Tree, int, Tree)
+
+               let rec tree_map = fn f -> fn tree ->
+                 case tree do
+                 | Empty -> Empty
+                 | Node (l, v, r) -> Node (tree_map f l, f v, tree_map f r)
+
+               let rec sum = fn tree ->
+                 case tree do
+                 | Empty -> 0
+                 | Node (l, v, r) -> v + sum l + sum r
+
+               let tree = Node (Node (Empty, 1, Empty), 2, Node (Empty, 3, Empty))
+               let doubled = tree_map (fn x -> x * 2) tree
+             |}
+             ~expr:"sum doubled"
+             ~expected_value:"12" );
+       ]
+
+(* Complex Sum Type Tests *)
+let complex_sum_type_operations =
+  let open ProgramTesting in
+  "complex_sum_type_operations"
+  >::: [
+         ( "option map function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type Option<a> = | None | Some of a
+
+               let option_map = fn f -> fn opt ->
+                 case opt do
+                 | None -> None
+                 | Some x -> Some (f x)
+             |}
+             ~expr:"option_map (fn x -> x * 2) (Some 5)"
+             ~expected_value:"Some 10" );
+         ( "option bind function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type Option<a> = | None | Some of a
+
+               let option_bind = fn opt -> fn f ->
+                 case opt do
+                 | None -> None
+                 | Some x -> f x
+
+               let safe_div = fn a -> fn b ->
+                 if b == 0 then None else Some (a / b)
+             |}
+             ~expr:"option_bind (Some 10) (fn x -> safe_div x 2)"
+             ~expected_value:"Some 5" );
+         ( "either map function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type Either<a, b> = | Left of a | Right of b
+
+               let either_map = fn f -> fn either ->
+                 case either do
+                 | Left x -> Left x
+                 | Right y -> Right (f y)
+             |}
+             ~expr:"either_map (fn x -> x + 1) (Right 5)"
+             ~expected_value:"Right 6" );
+         ( "result chain operations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type Result<a> = | Ok of a | Error of int
+
+               let result_map = fn f -> fn result ->
+                 case result do
+                 | Error e -> Error e
+                 | Ok x -> Ok (f x)
+
+               let increment = fn x -> x + 1
+               let double = fn x -> x * 2
+             |}
+             ~expr:"result_map double (result_map increment (Ok 5))"
+             ~expected_value:"Ok 12" );
+         ( "list of options filter" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type Option<a> = | None | Some of a
+
+               let rec filter_options = fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t ->
+                   case h do
+                   | None -> filter_options t
+                   | Some x -> x :: filter_options t
+             |}
+             ~expr:"filter_options [Some 1, None, Some 2, Some 3, None]"
+             ~expected_value:"[1, 2, 3]" );
+         ( "expression evaluator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Expr = | Val of int | Add of (Expr, Expr) | Mul of (Expr, Expr)
+
+               let rec eval = fn expr ->
+                 case expr do
+                 | Val n -> n
+                 | Add (e1, e2) -> eval e1 + eval e2
+                 | Mul (e1, e2) -> eval e1 * eval e2
+
+               let expr = Add (Mul (Val 2, Val 3), Val 4)
+             |}
+             ~expr:"eval expr"
+             ~expected_value:"10" );
+         ( "nested expression evaluator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Expr = | Val of int | Add of (Expr, Expr) | Mul of (Expr, Expr) | Sub of (Expr, Expr)
+
+               let rec eval = fn expr ->
+                 case expr do
+                 | Val n -> n
+                 | Add (e1, e2) -> eval e1 + eval e2
+                 | Mul (e1, e2) -> eval e1 * eval e2
+                 | Sub (e1, e2) -> eval e1 - eval e2
+
+               let expr = Sub (Mul (Add (Val 2, Val 3), Val 4), Val 5)
+             |}
+             ~expr:"eval expr"
+             ~expected_value:"15" );
+         ( "peano arithmetic" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Nat = | Zero | Succ of Nat
+
+               let rec nat_to_int = fn n ->
+                 case n do
+                 | Zero -> 0
+                 | Succ m -> 1 + nat_to_int m
+
+               let rec add_nat = fn n -> fn m ->
+                 case n do
+                 | Zero -> m
+                 | Succ p -> Succ (add_nat p m)
+
+               let three = Succ (Succ (Succ Zero))
+               let two = Succ (Succ Zero)
+             |}
+             ~expr:"nat_to_int (add_nat three two)"
+             ~expected_value:"5" );
+       ]
+
+(* Complex Function Composition Tests *)
+let complex_function_composition =
+  let open ProgramTesting in
+  "complex_function_composition"
+  >::: [
+         ( "compose three functions" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let compose = fn f -> fn g -> fn x -> f (g x)
+               let add1 = fn x -> x + 1
+               let double = fn x -> x * 2
+               let square = fn x -> x * x
+               let f = compose square (compose double add1)
+             |}
+             ~expr:"f 3"
+             ~expected_value:"64" );
+         ( "pipeline of transformations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let pipeline = fn x -> fn f -> f x
+               let add1 = fn x -> x + 1
+               let double = fn x -> x * 2
+               let square = fn x -> x * x
+             |}
+             ~expr:"pipeline (pipeline (pipeline 3 add1) double) square"
+             ~expected_value:"64" );
+         ( "function iteration" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec iterate = fn f -> fn n -> fn x ->
+                 if n == 0 then x
+                 else iterate f (n - 1) (f x)
+
+               let inc = fn x -> x + 1
+             |}
+             ~expr:"iterate inc 10 0"
+             ~expected_value:"10" );
+         ( "curry and uncurry" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let curry = fn f -> fn a -> fn b -> f (a, b)
+               let uncurry = fn f -> fn pair ->
+                 case pair do
+                 | (a, b) -> f a b
+
+               let add_tuple = fn pair ->
+                 case pair do
+                 | (a, b) -> a + b
+
+               let add_curried = curry add_tuple
+             |}
+             ~expr:"add_curried 3 5"
+             ~expected_value:"8" );
+         ( "flip function arguments" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let flip = fn f -> fn a -> fn b -> f b a
+               let sub = fn a -> fn b -> a - b
+               let reversed_sub = flip sub
+             |}
+             ~expr:"reversed_sub 5 10"
+             ~expected_value:"5" );
+         ( "constant function" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let const = fn x -> fn _ -> x
+               let always_five = const 5
+             |}
+             ~expr:"always_five 100"
+             ~expected_value:"5" );
+         ( "apply function n times" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec apply_n = fn f -> fn n -> fn x ->
+                 if n == 0 then x
+                 else f (apply_n f (n - 1) x)
+
+               let double = fn x -> x * 2
+             |}
+             ~expr:"apply_n double 4 1"
+             ~expected_value:"16" );
+         ( "compose list of functions" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec compose_all = fn funcs -> fn x ->
+                 case funcs do
+                 | [] -> x
+                 | f :: rest -> f (compose_all rest x)
+
+               let add1 = fn x -> x + 1
+               let double = fn x -> x * 2
+             |}
+             ~expr:"compose_all [add1, double, add1] 3"
+             ~expected_value:"9" );
+       ]
+
+(* Complex Pattern Matching Tests *)
+let complex_pattern_matching_scenarios =
+  let open ProgramTesting in
+  "complex_pattern_matching_scenarios"
+  >::: [
+         ( "deeply nested pattern" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let extract = fn x ->
+                 case x do
+                 | (((a, b), c), d) -> a + b + c + d
+             |}
+             ~expr:"extract (((1, 2), 3), 4)"
+             ~expected_value:"10" );
+         ( "pattern match on list of tuples" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec sum_pairs = fn lst ->
+                 case lst do
+                 | [] -> 0
+                 | (a, b) :: t -> a + b + sum_pairs t
+             |}
+             ~expr:"sum_pairs [(1, 2), (3, 4), (5, 6)]"
+             ~expected_value:"21" );
+         ( "pattern match multiple levels" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec process = fn lst ->
+                 case lst do
+                 | [] -> 0
+                 | (a, b) :: rest ->
+                   case rest do
+                   | [] -> a + b
+                   | (c, d) :: rest2 -> a + b + c + d + process rest2
+             |}
+             ~expr:"process [(1, 2), (3, 4), (5, 6)]"
+             ~expected_value:"21" );
+         ( "pattern match with guards simulation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let classify = fn n ->
+                 if n < 0 then ~-1
+                 else if n == 0 then 0
+                 else if n < 10 then 1
+                 else 2
+             |}
+             ~expr:"classify 5"
+             ~expected_value:"1" );
+       ]
+
+(* Complex Record Operations *)
+let complex_record_operations =
+  let open ProgramTesting in
+  "complex_record_operations"
+  >::: [
+         ( "record update simulation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let update_x = fn r -> fn new_x ->
+                 {x: new_x, y: r.y}
+
+               let p = {x: 1, y: 2}
+               let p2 = update_x p 10
+             |}
+             ~expr:"p2.x + p2.y"
+             ~expected_value:"12" );
+         ( "records in list operations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec sum_x = fn lst ->
+                 case lst do
+                 | [] -> 0
+                 | h :: t -> h.x + sum_x t
+
+               let points = [{x: 1, y: 2}, {x: 3, y: 4}, {x: 5, y: 6}]
+             |}
+             ~expr:"sum_x points"
+             ~expected_value:"9" );
+         ( "record transformation pipeline" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let scale_x = fn r -> fn factor ->
+                 {x: r.x * factor, y: r.y}
+
+               let scale_y = fn r -> fn factor ->
+                 {x: r.x, y: r.y * factor}
+
+               let p = {x: 2, y: 3}
+               let p2 = scale_y (scale_x p 2) 3
+             |}
+             ~expr:"p2.x + p2.y"
+             ~expected_value:"13" );
+         ( "nested record updates" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let update_inner = fn r -> fn new_val ->
+                 {outer: {inner: {value: new_val}}}
+
+               let r = {outer: {inner: {value: 5}}}
+               let r2 = update_inner r 20
+             |}
+             ~expr:"r2.outer.inner.value"
+             ~expected_value:"20" );
+         ( "record with computed fields" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let make_point = fn x -> fn y ->
+                 {x: x, y: y, sum: x + y, product: x * y}
+
+               let p = make_point 3 4
+             |}
+             ~expr:"p.sum + p.product"
+             ~expected_value:"19" );
+       ]
+
+(* Complex Higher-Order Function Tests *)
+let complex_higher_order_functions =
+  let open ProgramTesting in
+  "complex_higher_order_functions"
+  >::: [
+         ( "map with multiple transformations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec map = fn f -> fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> f h :: map f t
+
+               let transform = fn x -> (x + 1) * 2
+             |}
+             ~expr:"map transform [1, 2, 3, 4, 5]"
+             ~expected_value:"[4, 6, 8, 10, 12]" );
+         ( "filter with complex predicate" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec filter = fn pred -> fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> if pred h then h :: filter pred t else filter pred t
+
+               let complex_pred = fn x ->
+                 x % 2 == 0 && x > 5
+             |}
+             ~expr:"filter complex_pred [1, 2, 6, 8, 3, 10, 4]"
+             ~expected_value:"[6, 8, 10]" );
+         ( "fold with complex accumulator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec fold_left = fn f -> fn acc -> fn lst ->
+                 case lst do
+                 | [] -> acc
+                 | h :: t -> fold_left f (f acc h) t
+
+               let update = fn acc -> fn x ->
+                 {sum: acc.sum + x, count: acc.count + 1, max: if x > acc.max then x else acc.max}
+
+               let result = fold_left update {sum: 0, count: 0, max: 0} [1, 5, 3, 9, 2]
+             |}
+             ~expr:"result.sum + result.max"
+             ~expected_value:"29" );
+         ( "scan left operation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec scan_left = fn f -> fn acc -> fn lst ->
+                 case lst do
+                 | [] -> [acc]
+                 | h :: t -> acc :: scan_left f (f acc h) t
+             |}
+             ~expr:"scan_left (fn a -> fn x -> a + x) 0 [1, 2, 3, 4]"
+             ~expected_value:"[0, 1, 3, 6, 10]" );
+         ( "all and any predicates" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec all = fn pred -> fn lst ->
+                 case lst do
+                 | [] -> true
+                 | h :: t -> if pred h then all pred t else false
+
+               let rec any = fn pred -> fn lst ->
+                 case lst do
+                 | [] -> false
+                 | h :: t -> if pred h then true else any pred t
+
+               let is_positive = fn x -> x > 0
+             |}
+             ~expr:"all is_positive [1, 2, 3, 4]"
+             ~expected_value:"true" );
+         ( "none predicate" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec none = fn pred -> fn lst ->
+                 case lst do
+                 | [] -> true
+                 | h :: t -> if pred h then false else none pred t
+
+               let is_negative = fn x -> x < 0
+             |}
+             ~expr:"none is_negative [1, 2, 3, 4]"
+             ~expected_value:"true" );
+       ]
+
+(* Complex Mutual Recursion Tests *)
+let complex_mutual_recursion =
+  let open ProgramTesting in
+  "complex_mutual_recursion"
+  >::: [
+         ( "mutual recursion with lists" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec sum_at_even = fn lst -> fn pos ->
+                 case lst do
+                 | [] -> 0
+                 | h :: t ->
+                   if pos % 2 == 0 then h + sum_at_odd t (pos + 1)
+                   else sum_at_odd t (pos + 1)
+               and sum_at_odd = fn lst -> fn pos ->
+                 case lst do
+                 | [] -> 0
+                 | h :: t ->
+                   if pos % 2 == 1 then h + sum_at_even t (pos + 1)
+                   else sum_at_even t (pos + 1)
+             |}
+             ~expr:"sum_at_even [1, 2, 3, 4, 5, 6] 0"
+             ~expected_value:"21" );
+         ( "mutual recursion state machine" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec state_a = fn n ->
+                 if n == 0 then 1
+                 else if n % 3 == 0 then state_b (n - 1)
+                 else state_c (n - 1)
+               and state_b = fn n ->
+                 if n == 0 then 2
+                 else state_a (n - 1) + 1
+               and state_c = fn n ->
+                 if n == 0 then 3
+                 else state_a (n - 1) + 2
+             |}
+             ~expr:"state_a 5"
+             ~expected_value:"6" );
+         ( "mutual recursion with accumulator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec count_evens = fn lst -> fn acc ->
+                 case lst do
+                 | [] -> acc
+                 | h :: t ->
+                   if h % 2 == 0 then count_evens t (acc + 1)
+                   else count_evens t acc
+
+               let result = count_evens [1, 2, 3, 4, 5, 6] 0
+             |}
+             ~expr:"result"
+             ~expected_value:"3" );
+       ]
+
+(* Complex Arithmetic and Math Tests *)
+let complex_math_operations =
+  let open ProgramTesting in
+  "complex_math_operations"
+  >::: [
+         ( "lcm calculation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec gcd = fn a -> fn b ->
+                 if b == 0 then a
+                 else gcd b (a % b)
+
+               let lcm = fn a -> fn b ->
+                 (a * b) / gcd a b
+             |}
+             ~expr:"lcm 12 18"
+             ~expected_value:"36" );
+         ( "modular exponentiation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec mod_pow = fn base -> fn exp -> fn modulus ->
+                 if exp == 0 then 1
+                 else if exp % 2 == 0 then
+                   let half = mod_pow base (exp / 2) modulus in
+                   (half * half) % modulus
+                 else
+                   (base * mod_pow base (exp - 1) modulus) % modulus
+             |}
+             ~expr:"mod_pow 2 10 1000"
+             ~expected_value:"24" );
+         ( "sum of range" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec sum_range = fn start -> fn stop ->
+                 if start > stop then 0
+                 else start + sum_range (start + 1) stop
+             |}
+             ~expr:"sum_range 1 10"
+             ~expected_value:"55" );
+         ( "product of range" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec product_range = fn start -> fn stop ->
+                 if start > stop then 1
+                 else start * product_range (start + 1) stop
+             |}
+             ~expr:"product_range 1 5"
+             ~expected_value:"120" );
+         ( "count divisors" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec count_divisors = fn n -> fn d ->
+                 if d > n then 0
+                 else if n % d == 0 then 1 + count_divisors n (d + 1)
+                 else count_divisors n (d + 1)
+             |}
+             ~expr:"count_divisors 12 1"
+             ~expected_value:"6" );
+         ( "sum of divisors" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec sum_divisors = fn n -> fn d ->
+                 if d > n then 0
+                 else if n % d == 0 then d + sum_divisors n (d + 1)
+                 else sum_divisors n (d + 1)
+             |}
+             ~expr:"sum_divisors 12 1"
+             ~expected_value:"28" );
+       ]
+
+(* Complex Integration Tests *)
+let complex_integration_tests =
+  let open ProgramTesting in
+  "complex_integration_tests"
+  >::: [
+         ( "complex data pipeline" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec map = fn f -> fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> f h :: map f t
+
+               let rec filter = fn pred -> fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> if pred h then h :: filter pred t else filter pred t
+
+               let rec fold_left = fn f -> fn acc -> fn lst ->
+                 case lst do
+                 | [] -> acc
+                 | h :: t -> fold_left f (f acc h) t
+
+               let result = fold_left (fn a -> fn x -> a + x) 0
+                 (filter (fn x -> x > 5)
+                   (map (fn x -> x * 2) [1, 2, 3, 4, 5, 6, 7]))
+             |}
+             ~expr:"result"
+             ~expected_value:"50" );
+         ( "list comprehension simulation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec map = fn f -> fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> f h :: map f t
+
+               let rec filter = fn pred -> fn lst ->
+                 case lst do
+                 | [] -> []
+                 | h :: t -> if pred h then h :: filter pred t else filter pred t
+
+               let result = map (fn x -> x * x)
+                 (filter (fn x -> x % 2 == 0) [1, 2, 3, 4, 5, 6, 7, 8])
+             |}
+             ~expr:"result"
+             ~expected_value:"[4, 16, 36, 64]" );
+         ( "tree to list conversion" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree = | Empty | Node of (Tree, int, Tree)
+
+               let rec append = fn l1 -> fn l2 ->
+                 case l1 do
+                 | [] -> l2
+                 | h :: t -> h :: append t l2
+
+               let rec to_list = fn tree ->
+                 case tree do
+                 | Empty -> []
+                 | Node (l, v, r) -> append (to_list l) (v :: to_list r)
+
+               let tree = Node (Node (Empty, 1, Empty), 2, Node (Empty, 3, Empty))
+             |}
+             ~expr:"to_list tree"
+             ~expected_value:"[1, 2, 3]" );
+         ( "count occurrences in list" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec count_occurrences = fn x -> fn lst ->
+                 case lst do
+                 | [] -> 0
+                 | h :: t ->
+                   if h == x then 1 + count_occurrences x t
+                   else count_occurrences x t
+             |}
+             ~expr:"count_occurrences 3 [1, 3, 2, 3, 4, 3, 5]"
+             ~expected_value:"3" );
+         ( "remove duplicates" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec contains = fn x -> fn lst ->
+                 case lst do
+                 | [] -> false
+                 | h :: t -> if h == x then true else contains x t
+
+               let rec remove_dups = fn lst -> fn seen ->
+                 case lst do
+                 | [] -> []
+                 | h :: t ->
+                   if contains h seen then remove_dups t seen
+                   else h :: remove_dups t (h :: seen)
+             |}
+             ~expr:"remove_dups [1, 2, 3, 2, 4, 1, 5] []"
+             ~expected_value:"[1, 2, 3, 4, 5]" );
+         ( "intersection of lists" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec contains = fn x -> fn lst ->
+                 case lst do
+                 | [] -> false
+                 | h :: t -> if h == x then true else contains x t
+
+               let rec intersection = fn l1 -> fn l2 ->
+                 case l1 do
+                 | [] -> []
+                 | h :: t ->
+                   if contains h l2 then h :: intersection t l2
+                   else intersection t l2
+             |}
+             ~expr:"intersection [1, 2, 3, 4] [3, 4, 5, 6]"
+             ~expected_value:"[3, 4]" );
+       ]
+
 let all_tests =
   List.flatten
     [
@@ -6524,6 +7634,17 @@ let all_tests =
       [ edge_case_tests ];
       [ recursion_edge_case_tests ];
       [ list_operation_tests ];
+      [ complex_recursive_algorithms ];
+      [ complex_list_processing ];
+      [ complex_tree_operations ];
+      [ complex_sum_type_operations ];
+      [ complex_function_composition ];
+      [ complex_pattern_matching_scenarios ];
+      [ complex_record_operations ];
+      [ complex_higher_order_functions ];
+      [ complex_mutual_recursion ];
+      [ complex_math_operations ];
+      [ complex_integration_tests ];
     ]
 
 let suite = "suite" >::: all_tests
