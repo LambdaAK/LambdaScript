@@ -96,6 +96,11 @@ and string_of_value = function
         values |> List.map string_of_value |> String.concat ", "
       in
       "[" ^ values_string ^ "]"
+  | RecordValue fields ->
+      let field_strs = List.map (fun (name, v) ->
+        name ^ ": " ^ string_of_value v
+      ) fields in
+      "{" ^ String.concat ", " field_strs ^ "}"
   | VariantValue (cons_name, None) -> cons_name
   | VariantValue (cons_name, Some payload) ->
       let payload_str = string_of_value payload in
@@ -359,6 +364,72 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
           match new_bindings_option with
           | None -> Error (OtherError "no pattern matched in let rec")
           | Some new_bindings -> eval_c_expr e2 (new_bindings @ env)))
+  | EBindMutRec (bindings, body) ->
+      (* For mutually recursive bindings:
+         1. Evaluate all bodies to get closures
+         2. Create recursive closures for all of them
+         3. Create bindings for all of them
+         4. Backpatch all environment references
+         5. Evaluate body in the extended environment *)
+
+      (* First pass: evaluate bodies and create recursive closures *)
+      let* bindings_and_refs =
+        let rec process_bindings acc = function
+          | [] -> return (List.rev acc)
+          | (pat, _, expr, _, _) :: rest ->
+              let* value = eval_c_expr expr env in
+              let value_rec, env_ref_opt =
+                match value with
+                | FunctionClosure (closure_env, closure_pat, _, closure_body) ->
+                    let env_ref = ref closure_env in
+                    (RecursiveFunctionClosure (env_ref, closure_pat, None, closure_body),
+                     Some env_ref)
+                | _ ->
+                    (value, None)
+              in
+              (match bind_pat pat value_rec with
+              | None -> Error (OtherError "no pattern matched in mutually recursive let")
+              | Some new_bindings ->
+                  process_bindings ((new_bindings, env_ref_opt) :: acc) rest)
+        in
+        process_bindings [] bindings
+      in
+
+      (* Collect all bindings *)
+      let all_bindings =
+        List.flatten (List.map fst bindings_and_refs)
+      in
+
+      (* Second pass: backpatch all recursive function closures *)
+      let () =
+        List.iter
+          (fun (_, env_ref_opt) ->
+            match env_ref_opt with
+            | Some env_ref -> env_ref := all_bindings @ env
+            | None -> ())
+          bindings_and_refs
+      in
+
+      (* Evaluate body in the extended environment *)
+      eval_c_expr body (all_bindings @ env)
+  | ERecordLit fields ->
+      (* Evaluate each field expression and create a record value *)
+      let rec eval_fields acc = function
+        | [] -> return (RecordValue (List.rev acc))
+        | (name, expr) :: rest ->
+            let* value = eval_c_expr expr env in
+            eval_fields ((name, value) :: acc) rest
+      in
+      eval_fields [] fields
+  | EFieldAccess (record_expr, field_name) -> (
+      (* Evaluate the record expression and extract the field *)
+      let* record_value = eval_c_expr record_expr env in
+      match record_value with
+      | RecordValue fields -> (
+          match List.assoc_opt field_name fields with
+          | Some v -> return v
+          | None -> Error (OtherError ("Field " ^ field_name ^ " not found in record")))
+      | _ -> Error (OtherError "Field access on non-record value"))
 
 and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   match (f, v) with
@@ -587,6 +658,51 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
               env_ref := new_bindings @ env
           | _ -> ());
           new_bindings |> return)
+  | CDefnMutRec defns ->
+      (* For mutually recursive definitions:
+         1. Create recursive closures for all functions
+         2. Create bindings for all of them
+         3. Backpatch all environment references *)
+
+      (* First pass: create bindings with temporary values and collect closure refs *)
+      let* initial_bindings_and_refs =
+        let rec process_defns acc = function
+          | [] -> return (List.rev acc)
+          | (pat, _, body, _, _) :: rest ->
+              let* value = eval_c_expr body env in
+              let value_rec, env_ref_opt =
+                match value with
+                | FunctionClosure (closure_env, closure_pat, _, closure_body) ->
+                    let env_ref = ref closure_env in
+                    (RecursiveFunctionClosure (env_ref, closure_pat, None, closure_body),
+                     Some env_ref)
+                | _ ->
+                    (value, None)
+              in
+              (match bind_pat pat value_rec with
+              | None -> Error (OtherError "eval_defn: pattern match failed in mutual recursion")
+              | Some new_bindings ->
+                  process_defns ((new_bindings, env_ref_opt) :: acc) rest)
+        in
+        process_defns [] defns
+      in
+
+      (* Collect all bindings *)
+      let all_bindings =
+        List.flatten (List.map fst initial_bindings_and_refs)
+      in
+
+      (* Second pass: backpatch all recursive function closures *)
+      let () =
+        List.iter
+          (fun (_, env_ref_opt) ->
+            match env_ref_opt with
+            | Some env_ref -> env_ref := all_bindings @ env
+            | None -> ())
+          initial_bindings_and_refs
+      in
+
+      return all_bindings
   | CTypeAlias _ ->
       (* doesn't do anything *)
       return []

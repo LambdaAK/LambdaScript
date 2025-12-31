@@ -55,6 +55,22 @@ let rec condense_defn : defn -> c_defn = function
         | Some t -> Some (condense_type t)
       in
       CDefnRec (a, b, c, d, num_explicit_params)
+  | DefnMutRec defns ->
+      let condensed_defns =
+        List.map
+          (fun (pattern, cto, body_expression, return_type, num_explicit_params) ->
+            ( condense_pat pattern,
+              (match cto with
+              | None -> None
+              | Some t -> Some (condense_type t)),
+              condense_expr body_expression,
+              (match return_type with
+              | None -> None
+              | Some t -> Some (condense_type t)),
+              num_explicit_params ))
+          defns
+      in
+      CDefnMutRec condensed_defns
   | TypeDef (name, type_params, ct) ->
       CTypeAlias (name, type_params, condense_compound_type ct)
   | SumTypeDef (name, type_params, constructors) ->
@@ -118,6 +134,22 @@ and condense_expr : expr -> c_expr = function
           (match return_type with
           | None -> None
           | Some ct -> Some (condense_type ct)) )
+  | BindMutRec (bindings, body) ->
+      let condensed_bindings =
+        List.map
+          (fun (pat, cto, e1, return_type, num_explicit_params) ->
+            ( condense_pat pat,
+              (match cto with
+              | None -> None
+              | Some ct -> Some (condense_type ct)),
+              condense_expr e1,
+              (match return_type with
+              | None -> None
+              | Some ct -> Some (condense_type ct)),
+              num_explicit_params ))
+          bindings
+      in
+      EBindMutRec (condensed_bindings, condense_expr body)
   | Switch (e, branches) ->
       ESwitch
         ( condense_expr e,
@@ -213,6 +245,10 @@ and condense_factor : factor -> c_expr = function
   | ListComprehension (e, generators) ->
       EListComprehension
         (condense_expr e, List.map condense_generator generators)
+  | RecordLit fields ->
+      ERecordLit (List.map (fun (name, expr) -> (name, condense_expr expr)) fields)
+  | FieldAccess (factor, field_name) ->
+      EFieldAccess (condense_factor factor, field_name)
 
 (* Condense types *)
 
@@ -232,6 +268,8 @@ and condense_factor_type : factor_type -> mono_type = function
   | VectorType types -> VectorType (List.map condense_compound_type types)
   | ListType et -> CListType (condense_compound_type et)
   | TypeApp (name, args) -> CTypeApp (name, List.map condense_compound_type args)
+  | RecordTypeWritten fields ->
+      RecordType (List.map (fun (name, ct) -> (name, condense_compound_type ct)) fields)
 
 and condense_compound_type : compound_type -> mono_type = function
   | BasicType bt -> condense_factor_type bt
@@ -267,3 +305,6 @@ and all_type_vars_in_type : mono_type -> string list = function
       List.concat (List.map all_type_vars_in_type args)
       |> List.sort_uniq compare
   | FixedPoint (_, body) -> all_type_vars_in_type body
+  | RecordType fields ->
+      List.concat (List.map (fun (_, t) -> all_type_vars_in_type t) fields)
+      |> List.sort_uniq compare

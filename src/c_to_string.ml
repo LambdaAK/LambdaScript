@@ -26,6 +26,11 @@ let rec string_of_mono_type : mono_type -> string = function
         let args_str = List.map string_of_mono_type args in
         name ^ "<" ^ String.concat ", " args_str ^ ">"
   | FixedPoint (_, body) -> string_of_mono_type body
+  | RecordType fields ->
+      let field_strs = List.map (fun (name, t) ->
+        name ^ ": " ^ string_of_mono_type t
+      ) fields in
+      "{" ^ String.concat ", " field_strs ^ "}"
 
 let string_of_c_type (ct : c_type) : string =
   let rec collect_vars acc = function
@@ -148,6 +153,18 @@ let rec string_of_expr : c_expr -> string = function
              (fun (p, e) -> string_of_pat p ^ " <- " ^ string_of_expr e)
              generators)
       ^ "]"
+  | ERecordLit fields ->
+      let field_strs = List.map (fun (name, e) ->
+        name ^ ": " ^ string_of_expr e
+      ) fields in
+      "{" ^ String.concat ", " field_strs ^ "}"
+  | EFieldAccess (e, field) ->
+      string_of_expr e ^ "." ^ field
+  | EBindMutRec (bindings, body) ->
+      let binding_strs = List.map (fun (pat, _, expr, _, _) ->
+        string_of_pat pat ^ " = " ^ string_of_expr expr
+      ) bindings in
+      "let rec " ^ String.concat "\nand " binding_strs ^ " in\n" ^ string_of_expr body
 
 and string_of_defn : c_defn -> string = function
   | CDefn (pat, t_opt, e, return_type_opt, _) ->
@@ -174,6 +191,16 @@ and string_of_defn : c_defn -> string = function
         | None -> ""
       in
       "let rec " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = " ^ string_of_expr e
+  | CDefnMutRec defns ->
+      let defn_strs = List.map (fun (pat, t_opt, e, _, _) ->
+        let type_annot =
+          match t_opt with
+          | Some t -> " : " ^ string_of_type t
+          | None -> ""
+        in
+        string_of_pat pat ^ type_annot ^ " = " ^ string_of_expr e
+      ) defns in
+      "let rec " ^ String.concat "\nand " defn_strs
   | CTypeAlias (name, args, body) ->
       let args_str =
         match args with

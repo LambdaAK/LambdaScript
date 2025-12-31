@@ -52,10 +52,12 @@ and factor_type =
   | VectorType of compound_type list
   | ListType of compound_type
   | TypeApp of string * compound_type list
+  | RecordTypeWritten of (string * compound_type) list (* {x: int, y: bool} *)
 
 type defn =
   | Defn of pat * compound_type option * expr * compound_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
   | DefnRec of pat * compound_type option * expr * compound_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
+  | DefnMutRec of (pat * compound_type option * expr * compound_type option * int) list (* mutually recursive definitions *)
   | TypeDef of string * string list * compound_type
   | SumTypeDef of string * string list * (string * compound_type option) list
   | SumTypeDefRec of string * string list * (string * compound_type option) list
@@ -72,6 +74,7 @@ and expr =
   | ConsExpr of cons_expr
   | Bind of pat * compound_type option * expr * expr * compound_type option (* pat, type_annotation, e1, e2, return_type *)
   | BindRec of pat * compound_type option * expr * expr * compound_type option (* pat, type_annotation, e1, e2, return_type *)
+  | BindMutRec of (pat * compound_type option * expr * compound_type option * int) list * expr (* mutually recursive bindings and body *)
   | Switch of expr * switch_branch list
   | Block of expr_or_defn list
 
@@ -130,6 +133,8 @@ and factor =
   | ListSugar of expr list (* list represents a list literal like [1;2;3;4;5] *)
   | ListEnumeration of expr * expr
   | ListComprehension of expr * generator list
+  | RecordLit of (string * expr) list
+  | FieldAccess of factor * string
 
 and generator = pat * expr
 

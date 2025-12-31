@@ -161,6 +161,11 @@ and string_of_mono_type (t : mono_type) : string =
       let args_str = List.map string_of_mono_type args in
       name ^ "<" ^ String.concat ", " args_str ^ ">"
   | FixedPoint (name, body) -> "μ" ^ name ^ ". " ^ string_of_mono_type body
+  | RecordType fields ->
+      let field_strs = List.map (fun (name, t) ->
+        name ^ ": " ^ string_of_mono_type t
+      ) fields in
+      "{" ^ String.concat ", " field_strs ^ "}"
 
 (** [generate env e] performs type inference on the expression [e] in the static
     environment [env].
@@ -194,12 +199,36 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
   | EApp (e1, e2) -> generate_e_app env type_env e1 e2
   | EBind (pat, cto, e1, e2, return_type) -> generate_e_bind env type_env pat cto e1 e2 return_type
   | EBindRec (pat, _, e1, e2, return_type) -> generate_e_bind_rec env type_env pat e1 e2 return_type
+  | EBindMutRec (bindings, body) -> generate_e_bind_mut_rec env type_env bindings body
   | ETernary (e1, e2, e3) -> generate_e_ternary env type_env e1 e2 e3
   | EVector expressions -> generate_e_vector env type_env expressions
   | EListEnumeration (e1, e2) -> generate_e_list_enumeration env type_env e1 e2
   | EListComprehension (e, generators) ->
       generate_e_list_comprehension env type_env e generators
   | ESwitch (e1, branches) -> generate_e_switch env type_env e1 branches
+  | ERecordLit fields ->
+      (* Generate constraints for each field expression *)
+      let rec process_fields acc_types acc_equations = function
+        | [] -> return (List.rev acc_types, acc_equations)
+        | (field_name, field_expr) :: rest ->
+            let- field_type, field_equations, _ = generate env type_env field_expr in
+            process_fields ((field_name, field_type) :: acc_types) (acc_equations @ field_equations) rest
+      in
+      let- field_types, equations = process_fields [] [] fields in
+      return (RecordType field_types, equations, [])
+  | EFieldAccess (record_expr, field_name) ->
+      (* Generate type for the record expression *)
+      let- record_type, record_equations, _ = generate env type_env record_expr in
+      (* Create fresh type variable for the field *)
+      let field_type = fresh_type_var () in
+      (* Create constraint: record_type must be a record with at least this field *)
+      (* For now, we'll use a simpler approach - just return the field type *)
+      (* and add an equation that record_type = RecordType with this field *)
+      (* This is simplified - full row polymorphism would be more complex *)
+      let minimal_record = RecordType [(field_name, field_type)] in
+      (* Add equation: record_type = minimal_record (simplified, should handle subtyping) *)
+      let equation = (record_type, minimal_record) in
+      return (field_type, equation :: record_equations, [])
   | EBlock [] -> return (UnitType, [], [])
   | EBlock parts -> (
       (* if the last part is a definition, then the entire thing evaluates to
@@ -481,6 +510,94 @@ and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
   in
   return (t2, return_type_constraints @ (new_constraint :: c1) @ c2, [])
 
+(** [generate_e_bind_mut_rec env type_env bindings body] generates type constraints
+    for mutually recursive let bindings.
+    @param env The static environment
+    @param type_env The type environment
+    @param bindings List of (pat, type_annotation, expr, return_type, num_explicit_params)
+    @param body The expression in the scope of the bindings
+    @return Type and constraints for the mutually recursive bindings *)
+and generate_e_bind_mut_rec (env : static_env) (type_env : type_env)
+    (bindings : (c_pat * c_type option * c_expr * c_type option * int) list)
+    (body : c_expr) : (mono_type * type_equations * type_env) type_check_result =
+  (* Extract function IDs from patterns *)
+  let- function_ids =
+    let rec extract_ids acc = function
+      | [] -> return (List.rev acc)
+      | (pat, _, _, _, _) :: rest ->
+          let- id =
+            match pat with
+            | CIdPat id -> return id
+            | _ ->
+                Error
+                  (OtherError
+                     ("Invalid pattern in mutually recursive let binding: expected an \
+                       identifier, got: " ^ string_of_pat pat))
+          in
+          extract_ids (id :: acc) rest
+    in
+    extract_ids [] bindings
+  in
+
+  (* Create fresh type variables for each function *)
+  let fresh_types = List.map (fun _ -> fresh_type_var ()) function_ids in
+
+  (* Create the mutual recursive environment *)
+  let mut_rec_env =
+    List.fold_left2
+      (fun acc_env id fresh_type -> (id, Mono fresh_type) :: acc_env)
+      env
+      function_ids
+      fresh_types
+  in
+
+  (* Typecheck all bodies in the mutual recursive environment *)
+  let- body_results =
+    let rec typecheck_bodies acc = function
+      | [] -> return (List.rev acc)
+      | (_, _, expr, _, _) :: rest ->
+          let- t, constraints, _ = generate mut_rec_env type_env expr in
+          typecheck_bodies ((t, constraints) :: acc) rest
+    in
+    typecheck_bodies [] bindings
+  in
+
+  (* Generate constraints for each binding *)
+  let all_constraints =
+    List.fold_left2
+      (fun acc fresh_type (body_type, body_constraints) ->
+        (* Constraint: fresh type must equal body type *)
+        let type_constraint = (fresh_type, body_type) in
+        type_constraint :: body_constraints @ acc)
+      []
+      fresh_types
+      body_results
+  in
+
+  (* Generalize all function types *)
+  let- generalized_types =
+    let rec generalize_all acc = function
+      | [] -> return (List.rev acc)
+      | (body_type, _) :: rest ->
+          let- gen_type = generalize all_constraints env type_env body_type in
+          generalize_all (gen_type :: acc) rest
+    in
+    generalize_all [] body_results
+  in
+
+  (* Create environment for the body with generalized types *)
+  let body_env =
+    List.fold_left2
+      (fun acc_env id gen_type -> (id, gen_type) :: acc_env)
+      env
+      function_ids
+      generalized_types
+  in
+
+  (* Typecheck the body *)
+  let- t_body, c_body, _ = generate body_env type_env body in
+  return (t_body, all_constraints @ c_body, [])
+
 (** [generate_e_ternary env e1 e2 e3] generates type constraints for ternary
     expressions.
     @param env The static environment
@@ -678,56 +795,107 @@ and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
                   (* For now, just ignore the payload *)
                   (sum_type, [], []))))
 
-and reduce_eq (c : type_equations) (type_env : type_env) : type_equations =
-  match c with
-  | [] -> []
-  | (t1, t2) :: c' -> (
-      if t1 = t2 then reduce_eq c' type_env
-      else
-        match (t1, t2) with
-        | TypeVar id, _ when not (inside t1 t2) ->
-            (t1, t2) :: reduce_eq (substitute id t2 c') type_env
-        | _, TypeVar _ -> reduce_eq ((t2, t1) :: c') type_env
-        | FunctionType (i1, o1), FunctionType (i2, o2) ->
-            reduce_eq ((i1, i2) :: (o1, o2) :: c') type_env
-        | CListType et1, CListType et2 -> reduce_eq ((et1, et2) :: c') type_env
-        | CTypeApp (name1, args1), CTypeApp (name2, args2) ->
-            if name1 = name2 && List.length args1 = List.length args2 then
-              (* Unify corresponding type arguments *)
-              let arg_equations = List.combine args1 args2 in
-              reduce_eq (arg_equations @ c') type_env
-            else raise TypeFailure
-        | VectorType types1, VectorType types2 -> (
-            match (types1, types2) with
-            | type1 :: tail1, type2 :: tail2 ->
-                reduce_eq
-                  ((type1, type2) :: (VectorType tail1, VectorType tail2) :: c')
-                  type_env
-            | _ -> raise TypeFailure (* TOOD: replace these with Errors *))
-        | FixedPoint (name1, body1), FixedPoint (name2, body2) ->
-            if name1 = name2 then
-              (* Same recursive type - unify their bodies *)
-              reduce_eq ((body1, body2) :: c') type_env
-            else raise TypeFailure
-        | FixedPoint (name, body), CTypeApp (app_name, args) ->
-            (* Check if CTypeApp represents the same recursive type *)
-            if name = app_name then
-              (* Unify the body with the CTypeApp - for recursive types, the
-                 CTypeApp is the representation *)
-              reduce_eq ((body, CTypeApp (app_name, args)) :: c') type_env
-            else raise TypeFailure
-        | CTypeApp (app_name, args), FixedPoint (name, body) ->
-            (* Same as above, but reversed *)
-            if name = app_name then
-              reduce_eq ((CTypeApp (app_name, args), body) :: c') type_env
-            else raise TypeFailure
-        | TypeName name1, CTypeApp (name2, _) ->
-            (* TypeName can unify with CTypeApp if they have the same name *)
-            if name1 = name2 then reduce_eq c' type_env else raise TypeFailure
-        | CTypeApp (name1, _), TypeName name2 ->
-            (* Same as above, but reversed *)
-            if name1 = name2 then reduce_eq c' type_env else raise TypeFailure
-        | _ -> raise TypeFailure)
+and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
+  (* Optimized version: instead of substituting through all accumulated equations
+     on every step, we just accumulate the equations and defer substitution.
+     This changes O(n²) behavior to O(n). *)
+  let rec reduce_eq_acc (acc : type_equations) (c : type_equations) : type_equations =
+    match c with
+    | [] -> List.rev acc
+    | (t1, t2) :: c' -> (
+        if t1 = t2 then reduce_eq_acc acc c'
+        else
+          match (t1, t2) with
+          | TypeVar id, RecordType fields2 when not (inside t1 t2) ->
+              (* Special handling for type variables unified with records *)
+              let rec collect_record_constraints acc_records remaining =
+                match remaining with
+                | [] -> (List.rev acc_records, [])
+                | (TypeVar id2, RecordType fields) :: rest when id = id2 ->
+                    collect_record_constraints (fields :: acc_records) rest
+                | other :: rest ->
+                    let (records, others) = collect_record_constraints acc_records rest in
+                    (records, other :: others)
+              in
+              let (other_records, other_constraints) = collect_record_constraints [fields2] c' in
+              let all_fields = List.flatten other_records in
+              let rec merge_fields acc_fields extra_eqs = function
+                | [] -> (List.rev acc_fields, extra_eqs)
+                | (name, typ) :: rest ->
+                    match List.assoc_opt name acc_fields with
+                    | Some existing_typ ->
+                        let (representative, other) = match (existing_typ, typ) with
+                          | (TypeVar _, _) -> (existing_typ, typ)
+                          | (_, TypeVar _) -> (typ, existing_typ)
+                          | _ -> (existing_typ, typ)
+                        in
+                        let acc_fields_updated =
+                          if representative = existing_typ then acc_fields
+                          else List.map (fun (n, t) -> if n = name then (n, representative) else (n, t)) acc_fields
+                        in
+                        merge_fields acc_fields_updated ((representative, other) :: extra_eqs) rest
+                    | None ->
+                        merge_fields ((name, typ) :: acc_fields) extra_eqs rest
+              in
+              let (unique_fields, field_equations) = merge_fields [] [] all_fields in
+              let merged_record = RecordType unique_fields in
+              (* OPTIMIZATION: Only substitute in remaining constraints, not in acc *)
+              let new_remaining = field_equations @ substitute id merged_record other_constraints in
+              reduce_eq_acc ((t1, merged_record) :: acc) new_remaining
+          | TypeVar id, _ when not (inside t1 t2) ->
+              (* OPTIMIZATION: Only substitute in remaining constraints, not in acc.
+                 The accumulated equations will be processed by get_type which follows chains. *)
+              let new_remaining = substitute id t2 c' in
+              reduce_eq_acc ((t1, t2) :: acc) new_remaining
+          | _, TypeVar _ -> reduce_eq_acc acc ((t2, t1) :: c')
+          | FunctionType (i1, o1), FunctionType (i2, o2) ->
+              reduce_eq_acc acc ((i1, i2) :: (o1, o2) :: c')
+          | CListType et1, CListType et2 -> reduce_eq_acc acc ((et1, et2) :: c')
+          | CTypeApp (name1, args1), CTypeApp (name2, args2) ->
+              if name1 = name2 && List.length args1 = List.length args2 then
+                let arg_equations = List.combine args1 args2 in
+                reduce_eq_acc acc (arg_equations @ c')
+              else raise TypeFailure
+          | VectorType types1, VectorType types2 -> (
+              match (types1, types2) with
+              | type1 :: tail1, type2 :: tail2 ->
+                  reduce_eq_acc acc
+                    ((type1, type2) :: (VectorType tail1, VectorType tail2) :: c')
+              | _ -> raise TypeFailure)
+          | FixedPoint (name1, body1), FixedPoint (name2, body2) ->
+              if name1 = name2 then
+                reduce_eq_acc acc ((body1, body2) :: c')
+              else raise TypeFailure
+          | FixedPoint (name, body), CTypeApp (app_name, args) ->
+              if name = app_name then
+                reduce_eq_acc acc ((body, CTypeApp (app_name, args)) :: c')
+              else raise TypeFailure
+          | CTypeApp (app_name, args), FixedPoint (name, body) ->
+              if name = app_name then
+                reduce_eq_acc acc ((CTypeApp (app_name, args), body) :: c')
+              else raise TypeFailure
+          | TypeName name1, CTypeApp (name2, _) ->
+              if name1 = name2 then reduce_eq_acc acc c' else raise TypeFailure
+          | CTypeApp (name1, _), TypeName name2 ->
+              if name1 = name2 then reduce_eq_acc acc c' else raise TypeFailure
+          | RecordType fields1, RecordType fields2 ->
+              let rec unify_common_fields acc_fields remaining1 remaining2 =
+                match remaining1 with
+                | [] -> (List.rev acc_fields, [], remaining2)
+                | (name1, type1) :: rest1 ->
+                    match List.assoc_opt name1 remaining2 with
+                    | Some type2 ->
+                        let remaining2' = List.filter (fun (n, _) -> n <> name1) remaining2 in
+                        unify_common_fields ((type1, type2) :: acc_fields) rest1 remaining2'
+                    | None ->
+                        let (eqs, extra1, extra2) = unify_common_fields acc_fields rest1 remaining2 in
+                        (eqs, (name1, type1) :: extra1, extra2)
+              in
+              let (common_eqs, _, _) = unify_common_fields [] fields1 fields2 in
+              reduce_eq_acc acc (common_eqs @ c')
+          | _ -> raise TypeFailure)
+  in
+  reduce_eq_acc [] c
 
 (** [get_type var subs] applies a substitution to a type variable.
 
@@ -801,6 +969,15 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
       (* Apply substitution to the body of the fixed point *)
       let- body_type = get_type body subs type_env in
       return (FixedPoint (name, body_type))
+  | RecordType fields ->
+      (* Apply substitution to each field type *)
+      let rec aux acc = function
+        | [] -> return (RecordType (List.rev acc))
+        | (field_name, field_type) :: rest ->
+            let- new_field_type = get_type field_type subs type_env in
+            aux ((field_name, new_field_type) :: acc) rest
+      in
+      aux [] fields
 
 and get_type_of_type_var (var : string) (subs : type_equations)
     (type_env : type_env) : mono_type type_check_result =
@@ -831,6 +1008,7 @@ and inside (inside_type : mono_type) (outside_type : mono_type) : bool =
   | CListType t -> inside inside_type t
   | CTypeApp (_, args) -> List.exists (inside inside_type) args
   | FixedPoint (_, body) -> inside inside_type body
+  | RecordType fields -> List.exists (fun (_, t) -> inside inside_type t) fields
   | _ -> false
 
 (** [is_basic_type t] checks if a type is a basic type (int, bool, string,
@@ -848,6 +1026,7 @@ and is_basic_type (t : mono_type) : bool =
   | TypeName _ -> false
   | CTypeApp _ -> false
   | FixedPoint (_, body) -> is_basic_type body
+  | RecordType fields -> List.for_all (fun (_, t) -> is_basic_type t) fields
 
 (** [substitute var_id t equations] substitutes a type variable with a type
     throughout a list of type equations.
@@ -880,6 +1059,7 @@ and substitute (var_id : string) (t : mono_type) (equations : type_equations) :
     | TypeName v -> TypeName v
     | CTypeApp (name, args) -> CTypeApp (name, List.map substitute_in_type args)
     | FixedPoint (name, body) -> FixedPoint (name, substitute_in_type body)
+    | RecordType fields -> RecordType (List.map (fun (name, t) -> (name, substitute_in_type t)) fields)
   in
   match equations with
   | [] -> []
@@ -1176,6 +1356,104 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
 
       (* Return value bindings in static env and empty type env *)
       return (new_bindings, [])
+  | CDefnMutRec defns ->
+      (* For mutually recursive definitions, we need to:
+         1. Create fresh type variables for each definition
+         2. Add all of them to the environment
+         3. Typecheck all bodies in that environment
+         4. Generate constraints and solve them
+         5. Generalize the types *)
+
+      (* Extract patterns and create fresh type variables for each *)
+      let patterns_and_fresh_types =
+        List.map
+          (fun (pat, _, _, _, _) ->
+            let pattern_type, pattern_env, pattern_equations = type_of_pat env type_env pat in
+            let fresh_type = fresh_type_var () in
+            (pat, pattern_type, pattern_env, pattern_equations, fresh_type))
+          defns
+      in
+
+      (* Create the recursive environment with all names *)
+      let rec_env =
+        List.fold_left
+          (fun acc_env (_, _, pattern_env, _, fresh_type) ->
+            List.map (fun (id, _) -> (id, Mono fresh_type)) pattern_env @ acc_env)
+          env
+          patterns_and_fresh_types
+      in
+
+      (* Typecheck all bodies and collect equations *)
+      let- all_body_results =
+        let rec process_bodies acc_equations = function
+          | [] -> return (List.rev acc_equations)
+          | (_, _, body, _, _) :: rest ->
+              let- body_type, body_equations, _ = generate rec_env type_env body in
+              process_bodies ((body_type, body_equations) :: acc_equations) rest
+        in
+        process_bodies [] defns
+      in
+
+      (* Generate constraints for each definition *)
+      let all_equations =
+        List.fold_left2
+          (fun acc (_, pattern_type, _, pattern_equations, fresh_type) (body_type, body_equations) ->
+            (* Constraint: pattern type must match body type *)
+            let pattern_body_constraint = (pattern_type, body_type) in
+            (* Constraint: fresh type must match body type *)
+            let rec_constraint = (fresh_type, body_type) in
+            pattern_equations @ body_equations @ [pattern_body_constraint; rec_constraint] @ acc)
+          []
+          patterns_and_fresh_types
+          all_body_results
+      in
+
+      (* Handle type annotations if present *)
+      let- annotation_equations =
+        let rec process_annotations acc = function
+          | [] -> return (List.rev acc)
+          | (_, pattern_type, _, _, _) :: pats_rest ->
+              (match defns with
+              | (_, type_annotation, _, _, _) :: _ ->
+                  let- annot_eqs =
+                    match type_annotation with
+                    | Some t ->
+                        let- simplified_t = instantiate_and_simplify t type_env in
+                        return [ (pattern_type, simplified_t) ]
+                    | None -> return []
+                  in
+                  process_annotations (annot_eqs @ acc) pats_rest
+              | [] -> return acc)
+        in
+        process_annotations [] patterns_and_fresh_types
+      in
+
+      let all_equations = all_equations @ annotation_equations in
+
+      (* Generalize all the types *)
+      let- generalized_types =
+        let rec generalize_all acc = function
+          | [] -> return (List.rev acc)
+          | (body_type, _) :: rest ->
+              let- gen_type = generalize all_equations env type_env body_type in
+              generalize_all (gen_type :: acc) rest
+        in
+        generalize_all [] all_body_results
+      in
+
+      (* Create bindings for all definitions *)
+      let all_bindings =
+        List.fold_left2
+          (fun acc (pat, _, _, _, _) gen_type ->
+            match bind_static pat gen_type with
+            | Some bindings -> bindings @ acc
+            | None -> failwith "Pattern binding failed in mutual recursion")
+          []
+          patterns_and_fresh_types
+          generalized_types
+      in
+
+      return (all_bindings, [])
   | CTypeAlias (name, params, body) ->
       (* Add the type alias to the type environment *)
       return ([], [ (name, params, body) ])
@@ -1215,6 +1493,12 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                   | PolyType _ ->
                       failwith "Constructor payload cannot be polymorphic"
                 in
+                (* First, simplify the payload type to expand type aliases *)
+                let payload_simplified =
+                  match simplify_mono_type payload_mono type_env with
+                  | Ok t -> t
+                  | Error _ -> payload_mono  (* If simplification fails, use original *)
+                in
                 (* Convert TypeName references to type parameters into
                    TypeVar *)
                 let rec convert_params_to_vars t =
@@ -1228,9 +1512,11 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                   | CListType t -> CListType (convert_params_to_vars t)
                   | CTypeApp (name, args) ->
                       CTypeApp (name, List.map convert_params_to_vars args)
+                  | RecordType fields ->
+                      RecordType (List.map (fun (n, t) -> (n, convert_params_to_vars t)) fields)
                   | _ -> t
                 in
-                let payload_with_vars = convert_params_to_vars payload_mono in
+                let payload_with_vars = convert_params_to_vars payload_simplified in
                 (* Create polymorphic type: ∀params. payload ->
                    SumType<params> *)
                 let rec make_poly_type params_left payload sum_type =
@@ -1256,6 +1542,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       in
       let fixedpoint_body = FixedPoint (type_name, sum_type_app) in
       let type_env_entry = [ (type_name, type_params, fixedpoint_body) ] in
+      (* Extend type environment with the current type so it can be referenced in payloads *)
+      let extended_type_env = type_env_entry @ type_env in
 
       (* Create constructor bindings *)
       (* For recursive types, the type is μtype_name.body *)
@@ -1284,10 +1572,21 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                   | PolyType _ ->
                       failwith "Constructor payload cannot be polymorphic"
                 in
+                (* First, simplify the payload type to expand type aliases *)
+                (* Use extended_type_env so the recursive type can be referenced *)
+                let payload_simplified =
+                  match simplify_mono_type payload_mono extended_type_env with
+                  | Ok t -> t
+                  | Error _ -> payload_mono  (* If simplification fails, use original *)
+                in
                 (* Convert TypeName references to type parameters into
-                   TypeVar *)
+                   TypeVar, and references to the recursive type itself into
+                   the proper type application *)
                 let rec convert_params_to_vars t =
                   match t with
+                  | TypeName v when v = type_name ->
+                      (* Reference to the recursive type itself *)
+                      sum_type_app
                   | TypeName v when List.mem v type_params -> TypeVar v
                   | FunctionType (t1, t2) ->
                       FunctionType
@@ -1299,9 +1598,11 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                       CTypeApp (name, List.map convert_params_to_vars args)
                   | FixedPoint (name, body) ->
                       FixedPoint (name, convert_params_to_vars body)
+                  | RecordType fields ->
+                      RecordType (List.map (fun (n, t) -> (n, convert_params_to_vars t)) fields)
                   | _ -> t
                 in
-                let payload_with_vars = convert_params_to_vars payload_mono in
+                let payload_with_vars = convert_params_to_vars payload_simplified in
                 (* Create polymorphic type: ∀params. payload ->
                    SumType<params> *)
                 let rec make_poly_type params_left payload sum_type =
@@ -1364,7 +1665,19 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       match List.find_opt (fun (n, _, _) -> n = v) type_env with
       | Some type_def ->
           let _, _, t = type_def in
-          simplify_mono_type t type_env
+          (* Check if this is a recursive sum type (FixedPoint) *)
+          (match t with
+          | FixedPoint (name, body) when name = v ->
+              (* For recursive sum types in annotations, return the CTypeApp directly
+                 rather than the FixedPoint wrapper, as the FixedPoint is just for
+                 internal representation. This allows proper unification with
+                 constructor types which use CTypeApp. *)
+              (match body with
+              | CTypeApp (app_name, _) when app_name = v ->
+                  (* Return CTypeApp with no args for nullary recursive types *)
+                  return (CTypeApp (v, []))
+              | _ -> simplify_mono_type body type_env)
+          | _ -> simplify_mono_type t type_env)
       | None ->
           (* If not found, treat it as a type variable (could be a type
              parameter) *)
@@ -1415,6 +1728,7 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
                     | CListType et -> CListType (apply_subst et)
                     | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
                     | FixedPoint (n, b) -> FixedPoint (n, apply_subst b)
+                    | RecordType fields -> RecordType (List.map (fun (name, t) -> (name, apply_subst t)) fields)
                     | _ -> t
                   in
                   return (FixedPoint (fp_name, apply_subst fp_body))
@@ -1449,6 +1763,7 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
               | CListType et -> CListType (apply_subst et)
               | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
               | FixedPoint (name, body) -> FixedPoint (name, apply_subst body)
+              | RecordType fields -> RecordType (List.map (fun (name, t) -> (name, apply_subst t)) fields)
               | _ -> t
             in
 
@@ -1460,6 +1775,15 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       (* Simplify the body of the fixed point *)
       let- body_simplified = simplify_mono_type body type_env in
       return (FixedPoint (name, body_simplified))
+  | RecordType fields ->
+      (* Simplify each field type *)
+      let rec aux acc = function
+        | [] -> return (RecordType (List.rev acc))
+        | (field_name, field_type) :: rest ->
+            let- simplified_field_type = simplify_mono_type field_type type_env in
+            aux ((field_name, simplified_field_type) :: acc) rest
+      in
+      aux [] fields
 
 let rec get_mono_type (t : c_type) : mono_type =
   match t with

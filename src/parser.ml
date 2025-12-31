@@ -598,6 +598,22 @@ end = struct
     let* () = expect_token RBracket in
     return (ListComprehension (expr, branches))
 
+  and record_lit_parser () : factor parser =
+    (* {field1: expr1, field2: expr2, ...} *)
+    let* () = expect_token LBrace in
+    (* Parse comma-separated field:value pairs *)
+    let parse_fields () =
+      let* field_name = expect_token_get_data (function
+        | Id id -> Some id
+        | _ -> None) in
+      let* () = expect_token Colon in
+      let* field_expr = expr_parser in
+      return (field_name, field_expr)
+    in
+    let* fields = parse_sep_delim (parse_fields ()) Comma in
+    let* () = expect_token RBrace in
+    return (RecordLit fields)
+
   and factor_parser () =
     dispatch_parser
       [
@@ -611,6 +627,10 @@ end = struct
           | LParen :: _ -> true
           | _ -> false),
           infix_id_parser () <|> paren_factor_parser <|> vector_parser () );
+        ( (function
+          | LBrace :: _ -> true
+          | _ -> false),
+          record_lit_parser () );
       ]
       [
         boolean_parser;
@@ -625,7 +645,22 @@ end = struct
         opposite_parser ();
       ]
 
-  let factor_parser = factor_parser ()
+  (* Parse field access: factor.field.field... *)
+  and field_access_parser () : factor parser =
+    let rec parse_field_accesses base_factor =
+      let* () = expect_token Dot in
+      let* field_name = expect_token_get_data (function
+        | Id id -> Some id
+        | _ -> None) in
+      let new_factor = FieldAccess (base_factor, field_name) in
+      (* Try to parse more field accesses *)
+      (parse_field_accesses new_factor) <|> return new_factor
+    in
+    let* base = factor_parser () in
+    (parse_field_accesses base) <|> return base
+
+  let factor_with_field_access_parser = field_access_parser ()
+  let factor_parser = factor_with_field_access_parser
 end
 
 and AppFactorParser : sig
@@ -836,9 +871,8 @@ end = struct
     (let* pat = PatParser.pat_parser in
      return (pat, None))
 
-  and bind_rec_parser () : expr parser =
-    let* () = expect_token Let in
-    let* () = expect_token Rec in
+  (* Helper to parse a single binding component (pattern, args, type, body) for expressions *)
+  and parse_single_bind_component () : (pat * compound_type option * expr * compound_type option * int) parser =
     let* pat, cto = pat_and_type_annotation_parser in
     (* parse argument patterns *)
     let* arg_pats_and_type_annotations : (pat * compound_type option) list =
@@ -853,14 +887,34 @@ end = struct
     in
     let* () = expect_token Equals in
     let* e1 = expr_parser () in
-    let* () = expect_token In in
-    (* TODO: Try printing what the remaining tokens are here *)
-    let* e2 = expr_parser () in
 
     (* wrap body in functions *)
-    return
-      (BindRec
-         (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2, return_type_option))
+    let num_explicit_params = List.length arg_pats_and_type_annotations in
+    return (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option, num_explicit_params)
+
+  and bind_rec_parser () : expr parser =
+    let* () = expect_token Let in
+    let* () = expect_token Rec in
+    let* first_bind = parse_single_bind_component () in
+
+    (* Try to parse 'and' clauses for mutual recursion *)
+    let* and_binds =
+      parse_several (
+        let* () = expect_token And in
+        parse_single_bind_component ()
+      )
+    in
+
+    let* () = expect_token In in
+    let* e2 = expr_parser () in
+
+    (* If we have and clauses, return BindMutRec, otherwise BindRec *)
+    match and_binds with
+    | [] ->
+        let (pat, cto, e1, return_type_option, _) = first_bind in
+        return (BindRec (pat, cto, e1, e2, return_type_option))
+    | _ ->
+        return (BindMutRec (first_bind :: and_binds, e2))
 
   and bind_parser () : expr parser =
     let* () = expect_token Let in
@@ -1003,12 +1057,29 @@ end = struct
     in
     return (TypeApp (name, args))
 
+  let record_type_parser : factor_type parser =
+    (* Record type: {field1: type1, field2: type2, ...} *)
+    let* () = expect_token LBrace in
+    let field_parser : (string * compound_type) parser =
+      let* field_name =
+        expect_token_get_data (function
+          | Id s -> Some s
+          | _ -> None)
+      in
+      let* () = expect_token Colon in
+      let* field_type = CompoundTypeParser.compound_type_parser in
+      return (field_name, field_type)
+    in
+    let* fields = parse_sep_delim field_parser Comma in
+    let* () = expect_token RBrace in
+    return (RecordTypeWritten fields)
+
   let factor_type_parser () : factor_type parser =
     integer_type_parser <|> string_type_parser <|> boolean_type_parser
     <|> unit_type_parser <|> float_type_parser <|> char_type_parser
     <|> type_var_written_parser <|> vector_type_parser
     <|> paren_factor_type_parser <|> list_type_parser <|> type_app_parser
-    <|> type_name_parser
+    <|> record_type_parser <|> type_name_parser
 
   let factor_type_parser = factor_type_parser ()
 end
@@ -1071,9 +1142,8 @@ end = struct
     return
       (Defn (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option, num_explicit_params))
 
-  let let_rec_defn_parser () : defn parser =
-    let* () = expect_token Let in
-    let* () = expect_token Rec in
+  (* Helper to parse a single definition component (pattern, args, type, body) *)
+  let parse_single_defn_component () : (pat * compound_type option * expr * compound_type option * int) parser =
     let* pat, cto = ExprParser.pat_and_type_annotation_parser in
     (* parse argument patterns *)
     let* arg_pats_and_type_annotations : (pat * compound_type option) list =
@@ -1105,8 +1175,28 @@ end = struct
 
     (* wrap body in functions *)
     let num_explicit_params = List.length arg_pats_and_type_annotations in
-    return
-      (DefnRec (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option, num_explicit_params))
+    return (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option, num_explicit_params)
+
+  let let_rec_defn_parser () : defn parser =
+    let* () = expect_token Let in
+    let* () = expect_token Rec in
+    let* first_defn = parse_single_defn_component () in
+
+    (* Try to parse 'and' clauses for mutual recursion *)
+    let* and_defns =
+      parse_several (
+        let* () = expect_token And in
+        parse_single_defn_component ()
+      )
+    in
+
+    (* If we have and clauses, return DefnMutRec, otherwise DefnRec *)
+    match and_defns with
+    | [] ->
+        let (pat, final_cto, body, return_type_option, num_explicit_params) = first_defn in
+        return (DefnRec (pat, final_cto, body, return_type_option, num_explicit_params))
+    | _ ->
+        return (DefnMutRec (first_defn :: and_defns))
 
   let string_parser : string parser =
     let* s =

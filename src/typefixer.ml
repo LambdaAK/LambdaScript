@@ -50,6 +50,13 @@ let rec create_substitution (t : mono_type) (seen : string list) :
         ([], seen) args
       |> fst
   | FixedPoint (_, body) -> create_substitution body seen
+  | RecordType fields ->
+      List.fold_left
+        (fun (acc, seen) (_, t) ->
+          let subs = create_substitution t seen in
+          (acc @ subs, seen @ List.map fst subs))
+        ([], seen) fields
+      |> fst
 
 (* There may be type variables in t. We need to replace them with variables 1,
    2, ....
@@ -78,6 +85,8 @@ let fix_type (t : mono_type) : mono_type =
         CTypeApp (name, List.map (fun t -> apply_substitution t subs) args)
     | FixedPoint (name, body) ->
         FixedPoint (name, apply_substitution body subs)
+    | RecordType fields ->
+        RecordType (List.map (fun (name, t) -> (name, apply_substitution t subs)) fields)
   in
   let subs = create_substitution t [] in
   apply_substitution t subs

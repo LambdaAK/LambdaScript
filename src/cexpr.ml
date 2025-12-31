@@ -47,6 +47,7 @@ type mono_type =
   | CListType of mono_type
   | CTypeApp of string * mono_type list
   | FixedPoint of string * mono_type
+  | RecordType of (string * mono_type) list
 
 (* the string is the name of the type constructor, and mono_type list is the
    list of arguments*)
@@ -61,6 +62,7 @@ type c_type =
 and c_defn =
   | CDefn of c_pat * c_type option * c_expr * c_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
   | CDefnRec of c_pat * c_type option * c_expr * c_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
+  | CDefnMutRec of (c_pat * c_type option * c_expr * c_type option * int) list (* mutually recursive definitions *)
   | CTypeAlias of string * string list * mono_type
   | CSumType of string * string list * (string * c_type option) list
   | CSumTypeRec of string * string list * (string * c_type option) list
@@ -75,6 +77,7 @@ and c_expr =
   | EFunction of c_pat * c_type option * c_expr
   | EBind of c_pat * c_type option * c_expr * c_expr * c_type option (* pat, type_annotation, e1, e2, return_type *)
   | EBindRec of c_pat * c_type option * c_expr * c_expr * c_type option (* pat, type_annotation, e1, e2, return_type *)
+  | EBindMutRec of (c_pat * c_type option * c_expr * c_type option * int) list * c_expr (* mutually recursive bindings and body *)
   | EBlock of c_expr_or_c_defn list
   | ETernary of c_expr * c_expr * c_expr
   | ESwitch of c_expr * c_switch_branch list
@@ -91,6 +94,8 @@ and c_expr =
   | ENil
   | EListEnumeration of c_expr * c_expr
   | EListComprehension of c_expr * (c_pat * c_expr) list
+  | ERecordLit of (string * c_expr) list
+  | EFieldAccess of c_expr * string
 
 and value =
   | IntegerValue of int
@@ -105,6 +110,7 @@ and value =
   | ListValue of value list
   | BuiltInFunction of builtin_function
   | VariantValue of string * value option
+  | RecordValue of (string * value) list
 (* Constructor name and optional payload value *)
 
 and builtin_function =
@@ -159,6 +165,8 @@ and substitute_type (t : c_type) (var : type_var) (replacement : mono_type) :
            (name, List.map (fun arg -> substitute_mono arg var replacement) args))
   | Mono (FixedPoint (name, body)) ->
       Mono (FixedPoint (name, substitute_mono body var replacement))
+  | Mono (RecordType fields) ->
+      Mono (RecordType (List.map (fun (name, t) -> (name, substitute_mono t var replacement)) fields))
   | Mono t -> Mono t
   | PolyType (v, body) ->
       if v = var then t else PolyType (v, substitute_type body var replacement)
@@ -178,6 +186,8 @@ and substitute_mono (t : mono_type) (var : type_var) (replacement : mono_type) :
         (name, List.map (fun arg -> substitute_mono arg var replacement) args)
   | FixedPoint (name, body) ->
       FixedPoint (name, substitute_mono body var replacement)
+  | RecordType fields ->
+      RecordType (List.map (fun (name, t) -> (name, substitute_mono t var replacement)) fields)
   | _ -> t
 
 let rec string_of_mono_type : mono_type -> string = function
@@ -203,6 +213,11 @@ let rec string_of_mono_type : mono_type -> string = function
         let args_str = List.map string_of_mono_type args in
         name ^ "<" ^ String.concat ", " args_str ^ ">"
   | FixedPoint (_, body) -> string_of_mono_type body
+  | RecordType fields ->
+      let field_strs = List.map (fun (name, t) ->
+        name ^ ": " ^ string_of_mono_type t
+      ) fields in
+      "{" ^ String.concat ", " field_strs ^ "}"
 
 let rec string_of_type : c_type -> string = function
   | Mono t -> string_of_mono_type t
@@ -230,5 +245,6 @@ let get_mono_type_vars (t : mono_type) : string list =
     | TypeName _ -> acc
     | CTypeApp (_, args) -> List.fold_left (fun a t -> aux t a) acc args
     | FixedPoint (_, body) -> aux body acc
+    | RecordType fields -> List.fold_left (fun a (_, t) -> aux t a) acc fields
   in
   aux t [] |> List.rev

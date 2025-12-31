@@ -39,3 +39,10 @@
  (libraries Language)
  (instrumentation
   (backend bisect_ppx)))
+
+(executable
+ (name verify_types)
+ (modules verify_types)
+ (libraries Language)
+ (instrumentation
+  (backend bisect_ppx)))

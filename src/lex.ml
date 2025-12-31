@@ -51,6 +51,7 @@ type token_type =
   | RBrace
   | Let
   | Rec
+  | And
   | Comma
   | WildcardPattern
   | ConsToken
@@ -66,6 +67,7 @@ type token_type =
   | LAngle
   | RAngle
   | Of
+  | Dot
 
 type token = {
   token_type : token_type;
@@ -125,6 +127,7 @@ let string_of_token_type : token_type -> string = function
   | RBrace -> "<rbrace>"
   | Let -> "<let>"
   | Rec -> "<rec>"
+  | And -> "<and>"
   | Comma -> "<comma>"
   | WildcardPattern -> "<wildcard pattern>"
   | TypeVar s -> "<type var: " ^ s ^ ">"
@@ -146,6 +149,7 @@ let string_of_token_type : token_type -> string = function
   | LAngle -> "<"
   | RAngle -> ">"
   | Of -> "<of>"
+  | Dot -> "<dot>"
 [@@coverage off]
 
 let string_of_token : token -> string =
@@ -293,6 +297,7 @@ let keywords =
     ("in", In);
     ("let", Let);
     ("rec", Rec);
+    ("and", And);
     ("bind", Bind);
     ("fn", Fn);
     ("switch", Switch);
@@ -454,6 +459,7 @@ let single_char_tokens =
     ('}', RBrace);
     (')', RParen);
     ('_', WildcardPattern);
+    ('.', Dot);
   ]
 
 (* Try to match a multi-character sequence *)
@@ -562,8 +568,8 @@ let lex (lst : char list) : token list =
             | h :: _ when is_bop_prefix h ->
                 let bop, chars_after = lex_bop lst in
                 make_token !line_number bop :: lex chars_after
-            (* Numbers (including floats) *)
-            | n :: _ when is_num_or_dot n ->
+            (* Numbers (including floats) - only start with digits, not dots *)
+            | n :: _ when is_num n ->
                 let num_token, tail = lex_num lst "" in
                 num_token :: lex tail
             (* Identifiers (also handles keywords, but those are checked

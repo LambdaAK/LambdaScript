@@ -79,6 +79,14 @@ let rec string_of_basic_type (ft : factor_type) (level : int) : string =
           (List.map (fun t -> string_of_compound_type t (level + 1)) args)
       ^ indentations_with_newline level
       ^ "] )"
+  | RecordTypeWritten fields ->
+      "RecordTypeWritten ({"
+      ^ indentations_with_newline (level + 1)
+      ^ String.concat
+          (",\n" ^ indentations_with_newline (level + 1))
+          (List.map (fun (name, t) -> name ^ ": " ^ string_of_compound_type t (level + 1)) fields)
+      ^ indentations_with_newline level
+      ^ "})"
 
 and string_of_compound_type (ct : compound_type) (level : int) =
   match ct with
@@ -227,6 +235,17 @@ let rec string_of_expr (e : expr) (level : int) : string =
               string_of_compound_type ct (level + 1)
             in
             indentations_with_newline (level + 1) ^ string_of_ct)
+      ^ indentations_with_newline level
+      ^ ")"
+  | BindMutRec (bindings, body) ->
+      let bindings_str = String.concat "\nand " (List.map (fun (p, _, e, _, _) ->
+        string_of_pat p ^ " = " ^ string_of_expr e level
+      ) bindings) in
+      let body_str = string_of_expr body (level + 1) in
+      "BindMutRec (" ^ indentations_with_newline (level + 1)
+      ^ bindings_str
+      ^ indentations_with_newline (level + 1)
+      ^ body_str
       ^ indentations_with_newline level
       ^ ")"
 
@@ -444,6 +463,17 @@ and string_of_factor (factor : factor) (level : int) =
           (",\n" ^ indentations_with_newline (level + 1))
           (List.map (fun e -> string_of_expr e (level + 1)) es)
       ^ ")"
+  | RecordLit fields ->
+      "RecordLit ("
+      ^ String.concat
+          (",\n" ^ indentations_with_newline (level + 1))
+          (List.map (fun (name, e) ->
+            name ^ ": " ^ string_of_expr e (level + 1)) fields)
+      ^ ")"
+  | FieldAccess (f, field_name) ->
+      "FieldAccess ("
+      ^ string_of_factor f (level + 1)
+      ^ ", " ^ field_name ^ ")"
 
 and string_of_defn (d : defn) (level : int) =
   let cto_string cto =
@@ -470,6 +500,14 @@ and string_of_defn (d : defn) (level : int) =
       ^ indentations_with_newline (level + 1)
       ^ string_of_expr e (level + 1)
       ^ "," ^ cto_string return_type
+      ^ ")"
+  | DefnMutRec defns ->
+      let defns_str = String.concat "\nand " (List.map (fun (p, cto, e, _, _) ->
+        string_of_pat p ^ cto_string cto ^ " = " ^ string_of_expr e level
+      ) defns) in
+      "DefnMutRec (" ^ indentations_with_newline (level + 1)
+      ^ defns_str
+      ^ indentations_with_newline level
       ^ ")"
   | TypeDef (name, args, ct) ->
       "TypeDef (" ^ name

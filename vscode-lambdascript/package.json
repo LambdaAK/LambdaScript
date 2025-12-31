@@ -1,0 +1,37 @@
+{
+  "name": "lambdascript",
+  "displayName": "LambdaScript",
+  "description": "Syntax highlighting for LambdaScript programming language",
+  "version": "0.1.0",
+  "publisher": "lambdascript",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "lambdascript",
+        "aliases": [
+          "LambdaScript",
+          "lambdascript",
+          "ls"
+        ],
+        "extensions": [
+          ".ls",
+          ".lambdascript"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "lambdascript",
+        "scopeName": "source.lambdascript",
+        "path": "./syntaxes/lambdascript.tmLanguage.json"
+      }
+    ]
+  }
+}
