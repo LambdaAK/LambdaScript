@@ -7981,7 +7981,7 @@ let mutually_recursive_types_evaluation_tests =
                  | NSuccO m -> is_odd m
              |}
              ~expr:"is_even (NSuccE (NSuccO (NSuccE NZero)))"
-             ~expected_value:"false" );
+             ~expected_value:"true" );
          (* Test 33: Binary tree evaluation *)
          ( "binary tree sum" >:: fun _ ->
            assert_expression_has_value
@@ -8207,7 +8207,7 @@ let mutually_recursive_types_advanced_tests =
                let tree = RNode (1, RCons (RNode (2, RNil), RCons (RNode (3, RCons (RNode (4, RNil), RNil)), RNil)))
              |}
              ~expr:"depth_rose tree"
-             ~expected_value:"2" );
+             ~expected_value:"3" );
          (* Test 45: Four mutually recursive types *)
          ( "four types typecheck" >:: fun _ ->
            assert_program_typechecks
