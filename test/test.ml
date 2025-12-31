@@ -4763,6 +4763,274 @@ let record_eval_tests =
       ("let f = fn r -> r.x + 1 in f {x: 5, y: 10}", "6");
     ]
 
+(* ============================================================================
+   COMPREHENSIVE RECORD TYPE TESTS
+
+   Additional tests for record types covering edge cases, complex scenarios,
+   and various usage patterns.
+   ============================================================================ *)
+
+let extended_record_type_tests =
+  List.map
+    (fun (a, b) -> type_test a b)
+    [
+      (* Single field records of different types *)
+      ("{n: 42}", "{n: int}");
+      ("{s: \"test\"}", "{s: str}");
+      ("{b: false}", "{b: bool}");
+      ("{c: 'x'}", "{c: char}");
+      ("{f: 3.14}", "{f: float}");
+      ("{u: ()}", "{u: unit}");
+      (* Multiple field records with mixed types *)
+      ("{a: 1, b: \"two\", c: true, d: 'e'}", "{a: int, b: str, c: bool, d: char}");
+      ("{x: 1, y: 2, z: 3}", "{x: int, y: int, z: int}");
+      (* Records with lists *)
+      ("{items: []}", "{items: ['a]}");
+      ("{items: [1, 2, 3]}", "{items: [int]}");
+      ("{names: [\"a\", \"b\"]}", "{names: [str]}");
+      (* Records with tuples *)
+      ("{pair: (1, 2)}", "{pair: (int, int)}");
+      ("{triple: (1, \"x\", true)}", "{triple: (int, str, bool)}");
+      ("{coords: (1, 2), name: \"point\"}", "{coords: (int, int), name: str}");
+      (* Records with functions *)
+      ("{add: fn x -> fn y -> x + y}", "{add: int -> int -> int}");
+      ("{map_func: fn f -> fn lst -> case lst do | [] -> [] | h :: t -> f h :: []}",
+       "{map_func: ('a -> 'b) -> ['a] -> ['b]}");
+      (* Deeply nested records *)
+      ("{a: {b: {c: 1}}}", "{a: {b: {c: int}}}");
+      ("{a: {b: {c: {d: true}}}}", "{a: {b: {c: {d: bool}}}}");
+      ("{outer: {inner: {value: 42, flag: true}}}", "{outer: {inner: {value: int, flag: bool}}}");
+      (* Nested field access chains *)
+      ("{a: {b: {c: 1}}}.a.b.c", "int");
+      ("{x: {y: {z: \"deep\"}}}.x.y.z", "str");
+      (* Records returned from functions *)
+      ("(fn x -> {value: x}) 42", "{value: int}");
+      ("(fn x -> fn y -> {x: x, y: y}) 1 true", "{x: int, y: bool}");
+      (* Functions taking records and returning values *)
+      ("fn r -> r.x + r.y", "{x: int, y: int} -> int");
+      ("fn r -> r.x :: r.y", "{x: 'a, y: ['a]} -> ['a]");
+      ("fn r -> if r.flag then r.value else 0", "{flag: bool, value: int} -> int");
+      (* Functions taking records and returning records *)
+      ("fn r -> {x: r.x + 1}", "{x: int} -> {x: int}");
+      ("fn r -> {a: r.x, b: r.y}", "{x: 'a, y: 'b} -> {a: 'a, b: 'b}");
+      (* Higher-order functions with records *)
+      ("fn f -> fn r -> {result: f r.value}", "('a -> 'b) -> {value: 'a} -> {result: 'b}");
+      (* Records in let bindings with field access *)
+      ("let r = {x: 1, y: 2} in r.x + r.y", "int");
+      ("let r1 = {a: 10} in let r2 = {b: r1.a} in r2.b", "int");
+      (* Records with polymorphic fields *)
+      ("{id: fn x -> x, value: 42}", "{id: 'a -> 'a, value: int}");
+      ("{first: fn (x, y) -> x, data: (1, 2)}", "{first: ('a, 'b) -> 'a, data: (int, int)}");
+      (* Multiple records in expressions *)
+      ("let r1 = {x: 1} in let r2 = {y: 2} in r1.x + r2.y", "int");
+      (* Records with computed field values *)
+      ("{x: 1 + 1, y: 2 * 2}", "{x: int, y: int}");
+      ("{result: 10 / 2, doubled: 5 * 2}", "{result: int, doubled: int}");
+      (* Recursive functions with records *)
+      ("let rec sum_field = fn lst -> case lst do | [] -> 0 | h :: t -> h.value + sum_field t in sum_field",
+       "[{value: int}] -> int");
+    ]
+
+let extended_record_eval_tests =
+  List.map
+    (fun (a, b) -> eval_test a b)
+    [
+      (* Single field records *)
+      ("{x: 1}", "{x: 1}");
+      ("{name: \"Alice\"}", "{name: \"Alice\"}");
+      ("{active: true}", "{active: true}");
+      (* Multiple field records *)
+      ("{x: 1, y: 2, z: 3}", "{x: 1, y: 2, z: 3}");
+      ("{name: \"Bob\", age: 30, active: true}", "{name: \"Bob\", age: 30, active: true}");
+      (* Field access on various types *)
+      ("{x: 100}.x", "100");
+      ("{name: \"test\"}.name", "\"test\"");
+      ("{flag: false}.flag", "false");
+      (* Computed field values *)
+      ("{x: 1 + 2}", "{x: 3}");
+      ("{sum: 10 + 20, product: 5 * 6}", "{sum: 30, product: 30}");
+      ("{x: 5 * 2}.x", "10");
+      ("{result: 100 / 10}.result", "10");
+      (* Nested records evaluation *)
+      ("{a: {b: 1}}", "{a: {b: 1}}");
+      ("{outer: {inner: {value: 42}}}", "{outer: {inner: {value: 42}}}");
+      ("{a: {b: 1}}.a", "{b: 1}");
+      ("{a: {b: {c: 100}}}.a.b", "{c: 100}");
+      ("{a: {b: {c: 100}}}.a.b.c", "100");
+      (* Deep nesting *)
+      ("{x: {y: {z: {w: 5}}}}.x.y.z.w", "5");
+      (* Records with lists *)
+      ("{items: [1, 2, 3]}", "{items: [1, 2, 3]}");
+      ("{items: [1, 2, 3]}.items", "[1, 2, 3]");
+      ("{data: []}.data", "[]");
+      (* Records with tuples *)
+      ("{pair: (10, 20)}", "{pair: (10, 20)}");
+      ("{pair: (10, 20)}.pair", "(10, 20)");
+      ("{point: (1, 2, 3)}.point", "(1, 2, 3)");
+      (* Functions creating records *)
+      ("(fn x -> {value: x}) 42", "{value: 42}");
+      ("(fn x -> fn y -> {x: x, y: y}) 5 10", "{x: 5, y: 10}");
+      ("(fn x -> {doubled: x * 2}) 7", "{doubled: 14}");
+      (* Functions accessing record fields *)
+      ("(fn r -> r.x) {x: 99}", "99");
+      ("(fn r -> r.x + r.y) {x: 10, y: 20}", "30");
+      ("(fn r -> r.x * r.y) {x: 3, y: 4}", "12");
+      (* Subtyping: functions expecting fewer fields *)
+      ("(fn r -> r.x) {x: 1, y: 2, z: 3}", "1");
+      ("(fn r -> r.a + r.b) {a: 5, b: 10, c: 15, d: 20}", "15");
+      (* Let bindings with records *)
+      ("let r = {x: 5, y: 10} in r.x", "5");
+      ("let r = {x: 5, y: 10} in r.y", "10");
+      ("let r = {x: 5, y: 10} in r.x + r.y", "15");
+      ("let r1 = {a: 1} in let r2 = {b: r1.a + 1} in r2.b", "2");
+      (* Multiple record field accesses *)
+      ("let r = {x: 3, y: 4} in r.x * r.x + r.y * r.y", "25");
+      (* Records with function fields *)
+      ("{f: fn x -> x + 1}.f 5", "6");
+      ("{add: fn x -> fn y -> x + y}.add 3 4", "7");
+      (* Nested records with computed values *)
+      ("{outer: {inner: 2 + 3}}.outer.inner", "5");
+      ("{a: {b: {c: 10 * 5}}}.a.b.c", "50");
+      (* Complex expressions with records *)
+      ("let make_point = fn x -> fn y -> {x: x, y: y} in make_point 10 20", "{x: 10, y: 20}");
+      ("let make_point = fn x -> fn y -> {x: x, y: y} in (make_point 5 15).x", "5");
+      ("let get_x = fn r -> r.x in let p = {x: 100, y: 200} in get_x p", "100");
+      (* Records in conditional expressions *)
+      ("if true then {x: 1} else {x: 2}", "{x: 1}");
+      ("if false then {x: 1} else {x: 2}", "{x: 2}");
+      ("(if true then {value: 10} else {value: 20}).value", "10");
+      (* Records with operators as field values *)
+      ("{sum: 1 + 2 + 3, diff: 10 - 5}.sum", "6");
+      ("{sum: 1 + 2 + 3, diff: 10 - 5}.diff", "5");
+    ]
+
+let complex_record_scenarios =
+  let open ProgramTesting in
+  "complex_record_scenarios"
+  >::: [
+         ( "record type alias" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type Point = {x: int, y: int}
+             type Person = {name: str, age: int}
+           |} );
+         ( "function with record type parameter" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Point = {x: int, y: int}
+               let distance_squared = fn (p : Point) -> p.x * p.x + p.y * p.y
+             |}
+             ~expr:"distance_squared"
+             ~expected_type:"{x: int, y: int} -> int" );
+         ( "nested record types" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type Inner = {value: int}
+               type Outer = {inner: Inner, label: str}
+             |}
+             ~expr:"{inner: {value: 42}, label: \"test\"}"
+             ~expected_type:"{inner: {value: int}, label: str}" );
+         ( "record with list field" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type Container = {items: [int]}
+             |}
+             ~expr:"{items: [1, 2, 3]}"
+             ~expected_value:"{items: [1, 2, 3]}" );
+         ( "record creation and field update pattern" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let original = {x: 10, y: 20}
+               let updated = {x: original.x + 1, y: original.y + 1}
+             |}
+             ~expr:"updated"
+             ~expected_value:"{x: 11, y: 21}" );
+         ( "higher-order function with record" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let apply_to_field = fn f -> fn r -> {result: f r.value}
+               let double = fn x -> x * 2
+             |}
+             ~expr:"apply_to_field double {value: 5}"
+             ~expected_value:"{result: 10}" );
+         ( "record with polymorphic field accessed" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let get_first = fn r -> r.first
+             |}
+             ~expr:"get_first {first: 42, second: \"test\"}"
+             ~expected_value:"42" );
+         ( "recursive function processing record list" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rec sum_ages = fn people ->
+                 case people do
+                 | [] -> 0
+                 | h :: t -> h.age + sum_ages t
+             |}
+             ~expr:"sum_ages [{age: 10}, {age: 20}, {age: 30}]"
+             ~expected_value:"60" );
+         ( "record with function field called" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let ops = {add: fn x -> fn y -> x + y, mul: fn x -> fn y -> x * y}
+             |}
+             ~expr:"ops.add 3 4"
+             ~expected_value:"7" );
+         ( "deeply nested record access" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let data = {level1: {level2: {level3: {level4: 42}}}}
+             |}
+             ~expr:"data.level1.level2.level3.level4"
+             ~expected_value:"42" );
+         ( "record construction from another record" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let p1 = {x: 5, y: 10}
+               let p2 = {x: p1.y, y: p1.x}
+             |}
+             ~expr:"p2"
+             ~expected_value:"{x: 10, y: 5}" );
+         ( "multiple records with field access" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let r1 = {a: 1, b: 2}
+               let r2 = {c: 3, d: 4}
+               let sum = r1.a + r1.b + r2.c + r2.d
+             |}
+             ~expr:"sum"
+             ~expected_value:"10" );
+         ( "record with mixed field types" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type Entity = {
+                 id: int,
+                 name: str,
+                 active: bool,
+                 tags: [str]
+               }
+             |}
+             ~expr:"{id: 1, name: \"test\", active: true, tags: [\"a\", \"b\"]}"
+             ~expected_value:"{id: 1, name: \"test\", active: true, tags: [\"a\", \"b\"]}" );
+         ( "conditional with records" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let get_point = fn use_default ->
+                 if use_default then {x: 0, y: 0} else {x: 10, y: 20}
+             |}
+             ~expr:"get_point true"
+             ~expected_value:"{x: 0, y: 0}" );
+         ( "record field used in arithmetic" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               let rect = {width: 5, height: 10}
+               let area = rect.width * rect.height
+             |}
+             ~expr:"area"
+             ~expected_value:"50" );
+       ]
+
 let all_tests =
   List.flatten
     [
@@ -4796,6 +5064,9 @@ let all_tests =
       record_type_tests;
       [ named_record_type_tests ];
       record_eval_tests;
+      extended_record_type_tests;
+      extended_record_eval_tests;
+      [ complex_record_scenarios ];
     ]
 
 let suite = "suite" >::: all_tests
