@@ -1542,6 +1542,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       in
       let fixedpoint_body = FixedPoint (type_name, sum_type_app) in
       let type_env_entry = [ (type_name, type_params, fixedpoint_body) ] in
+      (* Extend type environment with the current type so it can be referenced in payloads *)
+      let extended_type_env = type_env_entry @ type_env in
 
       (* Create constructor bindings *)
       (* For recursive types, the type is μtype_name.body *)
@@ -1571,15 +1573,20 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                       failwith "Constructor payload cannot be polymorphic"
                 in
                 (* First, simplify the payload type to expand type aliases *)
+                (* Use extended_type_env so the recursive type can be referenced *)
                 let payload_simplified =
-                  match simplify_mono_type payload_mono type_env with
+                  match simplify_mono_type payload_mono extended_type_env with
                   | Ok t -> t
                   | Error _ -> payload_mono  (* If simplification fails, use original *)
                 in
                 (* Convert TypeName references to type parameters into
-                   TypeVar *)
+                   TypeVar, and references to the recursive type itself into
+                   the proper type application *)
                 let rec convert_params_to_vars t =
                   match t with
+                  | TypeName v when v = type_name ->
+                      (* Reference to the recursive type itself *)
+                      sum_type_app
                   | TypeName v when List.mem v type_params -> TypeVar v
                   | FunctionType (t1, t2) ->
                       FunctionType
