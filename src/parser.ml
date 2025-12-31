@@ -871,9 +871,8 @@ end = struct
     (let* pat = PatParser.pat_parser in
      return (pat, None))
 
-  and bind_rec_parser () : expr parser =
-    let* () = expect_token Let in
-    let* () = expect_token Rec in
+  (* Helper to parse a single binding component (pattern, args, type, body) for expressions *)
+  and parse_single_bind_component () : (pat * compound_type option * expr * compound_type option * int) parser =
     let* pat, cto = pat_and_type_annotation_parser in
     (* parse argument patterns *)
     let* arg_pats_and_type_annotations : (pat * compound_type option) list =
@@ -888,14 +887,34 @@ end = struct
     in
     let* () = expect_token Equals in
     let* e1 = expr_parser () in
-    let* () = expect_token In in
-    (* TODO: Try printing what the remaining tokens are here *)
-    let* e2 = expr_parser () in
 
     (* wrap body in functions *)
-    return
-      (BindRec
-         (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2, return_type_option))
+    let num_explicit_params = List.length arg_pats_and_type_annotations in
+    return (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option, num_explicit_params)
+
+  and bind_rec_parser () : expr parser =
+    let* () = expect_token Let in
+    let* () = expect_token Rec in
+    let* first_bind = parse_single_bind_component () in
+
+    (* Try to parse 'and' clauses for mutual recursion *)
+    let* and_binds =
+      parse_several (
+        let* () = expect_token And in
+        parse_single_bind_component ()
+      )
+    in
+
+    let* () = expect_token In in
+    let* e2 = expr_parser () in
+
+    (* If we have and clauses, return BindMutRec, otherwise BindRec *)
+    match and_binds with
+    | [] ->
+        let (pat, cto, e1, return_type_option, _) = first_bind in
+        return (BindRec (pat, cto, e1, e2, return_type_option))
+    | _ ->
+        return (BindMutRec (first_bind :: and_binds, e2))
 
   and bind_parser () : expr parser =
     let* () = expect_token Let in
@@ -1123,9 +1142,8 @@ end = struct
     return
       (Defn (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option, num_explicit_params))
 
-  let let_rec_defn_parser () : defn parser =
-    let* () = expect_token Let in
-    let* () = expect_token Rec in
+  (* Helper to parse a single definition component (pattern, args, type, body) *)
+  let parse_single_defn_component () : (pat * compound_type option * expr * compound_type option * int) parser =
     let* pat, cto = ExprParser.pat_and_type_annotation_parser in
     (* parse argument patterns *)
     let* arg_pats_and_type_annotations : (pat * compound_type option) list =
@@ -1157,8 +1175,28 @@ end = struct
 
     (* wrap body in functions *)
     let num_explicit_params = List.length arg_pats_and_type_annotations in
-    return
-      (DefnRec (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option, num_explicit_params))
+    return (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option, num_explicit_params)
+
+  let let_rec_defn_parser () : defn parser =
+    let* () = expect_token Let in
+    let* () = expect_token Rec in
+    let* first_defn = parse_single_defn_component () in
+
+    (* Try to parse 'and' clauses for mutual recursion *)
+    let* and_defns =
+      parse_several (
+        let* () = expect_token And in
+        parse_single_defn_component ()
+      )
+    in
+
+    (* If we have and clauses, return DefnMutRec, otherwise DefnRec *)
+    match and_defns with
+    | [] ->
+        let (pat, final_cto, body, return_type_option, num_explicit_params) = first_defn in
+        return (DefnRec (pat, final_cto, body, return_type_option, num_explicit_params))
+    | _ ->
+        return (DefnMutRec (first_defn :: and_defns))
 
   let string_parser : string parser =
     let* s =

@@ -62,6 +62,7 @@ type c_type =
 and c_defn =
   | CDefn of c_pat * c_type option * c_expr * c_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
   | CDefnRec of c_pat * c_type option * c_expr * c_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
+  | CDefnMutRec of (c_pat * c_type option * c_expr * c_type option * int) list (* mutually recursive definitions *)
   | CTypeAlias of string * string list * mono_type
   | CSumType of string * string list * (string * c_type option) list
   | CSumTypeRec of string * string list * (string * c_type option) list
@@ -76,6 +77,7 @@ and c_expr =
   | EFunction of c_pat * c_type option * c_expr
   | EBind of c_pat * c_type option * c_expr * c_expr * c_type option (* pat, type_annotation, e1, e2, return_type *)
   | EBindRec of c_pat * c_type option * c_expr * c_expr * c_type option (* pat, type_annotation, e1, e2, return_type *)
+  | EBindMutRec of (c_pat * c_type option * c_expr * c_type option * int) list * c_expr (* mutually recursive bindings and body *)
   | EBlock of c_expr_or_c_defn list
   | ETernary of c_expr * c_expr * c_expr
   | ESwitch of c_expr * c_switch_branch list

@@ -160,6 +160,11 @@ let rec string_of_expr : c_expr -> string = function
       "{" ^ String.concat ", " field_strs ^ "}"
   | EFieldAccess (e, field) ->
       string_of_expr e ^ "." ^ field
+  | EBindMutRec (bindings, body) ->
+      let binding_strs = List.map (fun (pat, _, expr, _, _) ->
+        string_of_pat pat ^ " = " ^ string_of_expr expr
+      ) bindings in
+      "let rec " ^ String.concat "\nand " binding_strs ^ " in\n" ^ string_of_expr body
 
 and string_of_defn : c_defn -> string = function
   | CDefn (pat, t_opt, e, return_type_opt, _) ->
@@ -186,6 +191,16 @@ and string_of_defn : c_defn -> string = function
         | None -> ""
       in
       "let rec " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = " ^ string_of_expr e
+  | CDefnMutRec defns ->
+      let defn_strs = List.map (fun (pat, t_opt, e, _, _) ->
+        let type_annot =
+          match t_opt with
+          | Some t -> " : " ^ string_of_type t
+          | None -> ""
+        in
+        string_of_pat pat ^ type_annot ^ " = " ^ string_of_expr e
+      ) defns in
+      "let rec " ^ String.concat "\nand " defn_strs
   | CTypeAlias (name, args, body) ->
       let args_str =
         match args with

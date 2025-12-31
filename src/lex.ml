@@ -51,6 +51,7 @@ type token_type =
   | RBrace
   | Let
   | Rec
+  | And
   | Comma
   | WildcardPattern
   | ConsToken
@@ -126,6 +127,7 @@ let string_of_token_type : token_type -> string = function
   | RBrace -> "<rbrace>"
   | Let -> "<let>"
   | Rec -> "<rec>"
+  | And -> "<and>"
   | Comma -> "<comma>"
   | WildcardPattern -> "<wildcard pattern>"
   | TypeVar s -> "<type var: " ^ s ^ ">"
@@ -295,6 +297,7 @@ let keywords =
     ("in", In);
     ("let", Let);
     ("rec", Rec);
+    ("and", And);
     ("bind", Bind);
     ("fn", Fn);
     ("switch", Switch);

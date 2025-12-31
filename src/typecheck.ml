@@ -199,6 +199,7 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
   | EApp (e1, e2) -> generate_e_app env type_env e1 e2
   | EBind (pat, cto, e1, e2, return_type) -> generate_e_bind env type_env pat cto e1 e2 return_type
   | EBindRec (pat, _, e1, e2, return_type) -> generate_e_bind_rec env type_env pat e1 e2 return_type
+  | EBindMutRec (bindings, body) -> generate_e_bind_mut_rec env type_env bindings body
   | ETernary (e1, e2, e3) -> generate_e_ternary env type_env e1 e2 e3
   | EVector expressions -> generate_e_vector env type_env expressions
   | EListEnumeration (e1, e2) -> generate_e_list_enumeration env type_env e1 e2
@@ -508,6 +509,94 @@ and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
     generate ((function_id, generalized_type) :: env) type_env e2
   in
   return (t2, return_type_constraints @ (new_constraint :: c1) @ c2, [])
+
+(** [generate_e_bind_mut_rec env type_env bindings body] generates type constraints
+    for mutually recursive let bindings.
+    @param env The static environment
+    @param type_env The type environment
+    @param bindings List of (pat, type_annotation, expr, return_type, num_explicit_params)
+    @param body The expression in the scope of the bindings
+    @return Type and constraints for the mutually recursive bindings *)
+and generate_e_bind_mut_rec (env : static_env) (type_env : type_env)
+    (bindings : (c_pat * c_type option * c_expr * c_type option * int) list)
+    (body : c_expr) : (mono_type * type_equations * type_env) type_check_result =
+  (* Extract function IDs from patterns *)
+  let- function_ids =
+    let rec extract_ids acc = function
+      | [] -> return (List.rev acc)
+      | (pat, _, _, _, _) :: rest ->
+          let- id =
+            match pat with
+            | CIdPat id -> return id
+            | _ ->
+                Error
+                  (OtherError
+                     ("Invalid pattern in mutually recursive let binding: expected an \
+                       identifier, got: " ^ string_of_pat pat))
+          in
+          extract_ids (id :: acc) rest
+    in
+    extract_ids [] bindings
+  in
+
+  (* Create fresh type variables for each function *)
+  let fresh_types = List.map (fun _ -> fresh_type_var ()) function_ids in
+
+  (* Create the mutual recursive environment *)
+  let mut_rec_env =
+    List.fold_left2
+      (fun acc_env id fresh_type -> (id, Mono fresh_type) :: acc_env)
+      env
+      function_ids
+      fresh_types
+  in
+
+  (* Typecheck all bodies in the mutual recursive environment *)
+  let- body_results =
+    let rec typecheck_bodies acc = function
+      | [] -> return (List.rev acc)
+      | (_, _, expr, _, _) :: rest ->
+          let- t, constraints, _ = generate mut_rec_env type_env expr in
+          typecheck_bodies ((t, constraints) :: acc) rest
+    in
+    typecheck_bodies [] bindings
+  in
+
+  (* Generate constraints for each binding *)
+  let all_constraints =
+    List.fold_left2
+      (fun acc fresh_type (body_type, body_constraints) ->
+        (* Constraint: fresh type must equal body type *)
+        let type_constraint = (fresh_type, body_type) in
+        type_constraint :: body_constraints @ acc)
+      []
+      fresh_types
+      body_results
+  in
+
+  (* Generalize all function types *)
+  let- generalized_types =
+    let rec generalize_all acc = function
+      | [] -> return (List.rev acc)
+      | (body_type, _) :: rest ->
+          let- gen_type = generalize all_constraints env type_env body_type in
+          generalize_all (gen_type :: acc) rest
+    in
+    generalize_all [] body_results
+  in
+
+  (* Create environment for the body with generalized types *)
+  let body_env =
+    List.fold_left2
+      (fun acc_env id gen_type -> (id, gen_type) :: acc_env)
+      env
+      function_ids
+      generalized_types
+  in
+
+  (* Typecheck the body *)
+  let- t_body, c_body, _ = generate body_env type_env body in
+  return (t_body, all_constraints @ c_body, [])
 
 (** [generate_e_ternary env e1 e2 e3] generates type constraints for ternary
     expressions.
@@ -1267,6 +1356,104 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
 
       (* Return value bindings in static env and empty type env *)
       return (new_bindings, [])
+  | CDefnMutRec defns ->
+      (* For mutually recursive definitions, we need to:
+         1. Create fresh type variables for each definition
+         2. Add all of them to the environment
+         3. Typecheck all bodies in that environment
+         4. Generate constraints and solve them
+         5. Generalize the types *)
+
+      (* Extract patterns and create fresh type variables for each *)
+      let patterns_and_fresh_types =
+        List.map
+          (fun (pat, _, _, _, _) ->
+            let pattern_type, pattern_env, pattern_equations = type_of_pat env type_env pat in
+            let fresh_type = fresh_type_var () in
+            (pat, pattern_type, pattern_env, pattern_equations, fresh_type))
+          defns
+      in
+
+      (* Create the recursive environment with all names *)
+      let rec_env =
+        List.fold_left
+          (fun acc_env (_, _, pattern_env, _, fresh_type) ->
+            List.map (fun (id, _) -> (id, Mono fresh_type)) pattern_env @ acc_env)
+          env
+          patterns_and_fresh_types
+      in
+
+      (* Typecheck all bodies and collect equations *)
+      let- all_body_results =
+        let rec process_bodies acc_equations = function
+          | [] -> return (List.rev acc_equations)
+          | (_, _, body, _, _) :: rest ->
+              let- body_type, body_equations, _ = generate rec_env type_env body in
+              process_bodies ((body_type, body_equations) :: acc_equations) rest
+        in
+        process_bodies [] defns
+      in
+
+      (* Generate constraints for each definition *)
+      let all_equations =
+        List.fold_left2
+          (fun acc (_, pattern_type, _, pattern_equations, fresh_type) (body_type, body_equations) ->
+            (* Constraint: pattern type must match body type *)
+            let pattern_body_constraint = (pattern_type, body_type) in
+            (* Constraint: fresh type must match body type *)
+            let rec_constraint = (fresh_type, body_type) in
+            pattern_equations @ body_equations @ [pattern_body_constraint; rec_constraint] @ acc)
+          []
+          patterns_and_fresh_types
+          all_body_results
+      in
+
+      (* Handle type annotations if present *)
+      let- annotation_equations =
+        let rec process_annotations acc = function
+          | [] -> return (List.rev acc)
+          | (_, pattern_type, _, _, _) :: pats_rest ->
+              (match defns with
+              | (_, type_annotation, _, _, _) :: _ ->
+                  let- annot_eqs =
+                    match type_annotation with
+                    | Some t ->
+                        let- simplified_t = instantiate_and_simplify t type_env in
+                        return [ (pattern_type, simplified_t) ]
+                    | None -> return []
+                  in
+                  process_annotations (annot_eqs @ acc) pats_rest
+              | [] -> return acc)
+        in
+        process_annotations [] patterns_and_fresh_types
+      in
+
+      let all_equations = all_equations @ annotation_equations in
+
+      (* Generalize all the types *)
+      let- generalized_types =
+        let rec generalize_all acc = function
+          | [] -> return (List.rev acc)
+          | (body_type, _) :: rest ->
+              let- gen_type = generalize all_equations env type_env body_type in
+              generalize_all (gen_type :: acc) rest
+        in
+        generalize_all [] all_body_results
+      in
+
+      (* Create bindings for all definitions *)
+      let all_bindings =
+        List.fold_left2
+          (fun acc (pat, _, _, _, _) gen_type ->
+            match bind_static pat gen_type with
+            | Some bindings -> bindings @ acc
+            | None -> failwith "Pattern binding failed in mutual recursion")
+          []
+          patterns_and_fresh_types
+          generalized_types
+      in
+
+      return (all_bindings, [])
   | CTypeAlias (name, params, body) ->
       (* Add the type alias to the type environment *)
       return ([], [ (name, params, body) ])

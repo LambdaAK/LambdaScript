@@ -55,6 +55,22 @@ let rec condense_defn : defn -> c_defn = function
         | Some t -> Some (condense_type t)
       in
       CDefnRec (a, b, c, d, num_explicit_params)
+  | DefnMutRec defns ->
+      let condensed_defns =
+        List.map
+          (fun (pattern, cto, body_expression, return_type, num_explicit_params) ->
+            ( condense_pat pattern,
+              (match cto with
+              | None -> None
+              | Some t -> Some (condense_type t)),
+              condense_expr body_expression,
+              (match return_type with
+              | None -> None
+              | Some t -> Some (condense_type t)),
+              num_explicit_params ))
+          defns
+      in
+      CDefnMutRec condensed_defns
   | TypeDef (name, type_params, ct) ->
       CTypeAlias (name, type_params, condense_compound_type ct)
   | SumTypeDef (name, type_params, constructors) ->
@@ -118,6 +134,22 @@ and condense_expr : expr -> c_expr = function
           (match return_type with
           | None -> None
           | Some ct -> Some (condense_type ct)) )
+  | BindMutRec (bindings, body) ->
+      let condensed_bindings =
+        List.map
+          (fun (pat, cto, e1, return_type, num_explicit_params) ->
+            ( condense_pat pat,
+              (match cto with
+              | None -> None
+              | Some ct -> Some (condense_type ct)),
+              condense_expr e1,
+              (match return_type with
+              | None -> None
+              | Some ct -> Some (condense_type ct)),
+              num_explicit_params ))
+          bindings
+      in
+      EBindMutRec (condensed_bindings, condense_expr body)
   | Switch (e, branches) ->
       ESwitch
         ( condense_expr e,

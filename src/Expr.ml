@@ -57,6 +57,7 @@ and factor_type =
 type defn =
   | Defn of pat * compound_type option * expr * compound_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
   | DefnRec of pat * compound_type option * expr * compound_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
+  | DefnMutRec of (pat * compound_type option * expr * compound_type option * int) list (* mutually recursive definitions *)
   | TypeDef of string * string list * compound_type
   | SumTypeDef of string * string list * (string * compound_type option) list
   | SumTypeDefRec of string * string list * (string * compound_type option) list
@@ -73,6 +74,7 @@ and expr =
   | ConsExpr of cons_expr
   | Bind of pat * compound_type option * expr * expr * compound_type option (* pat, type_annotation, e1, e2, return_type *)
   | BindRec of pat * compound_type option * expr * expr * compound_type option (* pat, type_annotation, e1, e2, return_type *)
+  | BindMutRec of (pat * compound_type option * expr * compound_type option * int) list * expr (* mutually recursive bindings and body *)
   | Switch of expr * switch_branch list
   | Block of expr_or_defn list
 

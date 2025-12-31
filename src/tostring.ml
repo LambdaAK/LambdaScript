@@ -237,6 +237,17 @@ let rec string_of_expr (e : expr) (level : int) : string =
             indentations_with_newline (level + 1) ^ string_of_ct)
       ^ indentations_with_newline level
       ^ ")"
+  | BindMutRec (bindings, body) ->
+      let bindings_str = String.concat "\nand " (List.map (fun (p, _, e, _, _) ->
+        string_of_pat p ^ " = " ^ string_of_expr e level
+      ) bindings) in
+      let body_str = string_of_expr body (level + 1) in
+      "BindMutRec (" ^ indentations_with_newline (level + 1)
+      ^ bindings_str
+      ^ indentations_with_newline (level + 1)
+      ^ body_str
+      ^ indentations_with_newline level
+      ^ ")"
 
 and string_of_cons_expr (ce : cons_expr) (level : int) : string =
   match ce with
@@ -489,6 +500,14 @@ and string_of_defn (d : defn) (level : int) =
       ^ indentations_with_newline (level + 1)
       ^ string_of_expr e (level + 1)
       ^ "," ^ cto_string return_type
+      ^ ")"
+  | DefnMutRec defns ->
+      let defns_str = String.concat "\nand " (List.map (fun (p, cto, e, _, _) ->
+        string_of_pat p ^ cto_string cto ^ " = " ^ string_of_expr e level
+      ) defns) in
+      "DefnMutRec (" ^ indentations_with_newline (level + 1)
+      ^ defns_str
+      ^ indentations_with_newline level
       ^ ")"
   | TypeDef (name, args, ct) ->
       "TypeDef (" ^ name
