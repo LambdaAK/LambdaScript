@@ -1306,6 +1306,12 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                   | PolyType _ ->
                       failwith "Constructor payload cannot be polymorphic"
                 in
+                (* First, simplify the payload type to expand type aliases *)
+                let payload_simplified =
+                  match simplify_mono_type payload_mono type_env with
+                  | Ok t -> t
+                  | Error _ -> payload_mono  (* If simplification fails, use original *)
+                in
                 (* Convert TypeName references to type parameters into
                    TypeVar *)
                 let rec convert_params_to_vars t =
@@ -1319,9 +1325,11 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                   | CListType t -> CListType (convert_params_to_vars t)
                   | CTypeApp (name, args) ->
                       CTypeApp (name, List.map convert_params_to_vars args)
+                  | RecordType fields ->
+                      RecordType (List.map (fun (n, t) -> (n, convert_params_to_vars t)) fields)
                   | _ -> t
                 in
-                let payload_with_vars = convert_params_to_vars payload_mono in
+                let payload_with_vars = convert_params_to_vars payload_simplified in
                 (* Create polymorphic type: ∀params. payload ->
                    SumType<params> *)
                 let rec make_poly_type params_left payload sum_type =
@@ -1375,6 +1383,12 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                   | PolyType _ ->
                       failwith "Constructor payload cannot be polymorphic"
                 in
+                (* First, simplify the payload type to expand type aliases *)
+                let payload_simplified =
+                  match simplify_mono_type payload_mono type_env with
+                  | Ok t -> t
+                  | Error _ -> payload_mono  (* If simplification fails, use original *)
+                in
                 (* Convert TypeName references to type parameters into
                    TypeVar *)
                 let rec convert_params_to_vars t =
@@ -1394,7 +1408,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                       RecordType (List.map (fun (n, t) -> (n, convert_params_to_vars t)) fields)
                   | _ -> t
                 in
-                let payload_with_vars = convert_params_to_vars payload_mono in
+                let payload_with_vars = convert_params_to_vars payload_simplified in
                 (* Create polymorphic type: ∀params. payload ->
                    SumType<params> *)
                 let rec make_poly_type params_left payload sum_type =

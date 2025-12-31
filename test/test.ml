@@ -4701,30 +4701,31 @@ let named_record_type_tests =
            |} );
          ( "function using named record type" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type MyType = {x: int, y: bool}
                let getValue = fn (r : MyType) -> r.x
              |}
-             ~expr:"getValue"
-             ~expected_type:"{x: int, y: bool} -> int" );
+             ~expr:"getValue" ~expected_type:"{x: int, y: bool} -> int" );
          ( "create value with named record type" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type MyType = {v1: int, v2: bool}
              |}
-             ~expr:"{v1: 42, v2: true}"
-             ~expected_value:"{v1: 42, v2: true}" );
+             ~expr:"{v1: 42, v2: true}" ~expected_value:"{v1: 42, v2: true}" );
          ( "access field from named record type" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type MyType = {v1: int, v2: bool}
                let x = {v1: 10, v2: false}
              |}
-             ~expr:"x.v1"
-             ~expected_value:"10" );
+             ~expr:"x.v1" ~expected_value:"10" );
          ( "nested record type definition" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Inner = {x: int}
                type Outer = {inner: Inner, y: bool}
              |}
@@ -4766,8 +4767,8 @@ let record_eval_tests =
 (* ============================================================================
    COMPREHENSIVE RECORD TYPE TESTS
 
-   Additional tests for record types covering edge cases, complex scenarios,
-   and various usage patterns.
+   Additional tests for record types covering edge cases, complex scenarios, and
+   various usage patterns.
    ============================================================================ *)
 
 let extended_record_type_tests =
@@ -4782,7 +4783,8 @@ let extended_record_type_tests =
       ("{f: 3.14}", "{f: float}");
       ("{u: ()}", "{u: unit}");
       (* Multiple field records with mixed types *)
-      ("{a: 1, b: \"two\", c: true, d: 'e'}", "{a: int, b: str, c: bool, d: char}");
+      ( "{a: 1, b: \"two\", c: true, d: 'e'}",
+        "{a: int, b: str, c: bool, d: char}" );
       ("{x: 1, y: 2, z: 3}", "{x: int, y: int, z: int}");
       (* Records with lists *)
       ("{items: []}", "{items: ['a]}");
@@ -4794,12 +4796,14 @@ let extended_record_type_tests =
       ("{coords: (1, 2), name: \"point\"}", "{coords: (int, int), name: str}");
       (* Records with functions *)
       ("{add: fn x -> fn y -> x + y}", "{add: int -> int -> int}");
-      ("{map_func: fn f -> fn lst -> case lst do | [] -> [] | h :: t -> f h :: []}",
-       "{map_func: ('a -> 'b) -> ['a] -> ['b]}");
+      ( "{map_func: fn f -> fn lst -> case lst do | [] -> [] | h :: t -> f h \
+         :: []}",
+        "{map_func: ('a -> 'b) -> ['a] -> ['b]}" );
       (* Deeply nested records *)
       ("{a: {b: {c: 1}}}", "{a: {b: {c: int}}}");
       ("{a: {b: {c: {d: true}}}}", "{a: {b: {c: {d: bool}}}}");
-      ("{outer: {inner: {value: 42, flag: true}}}", "{outer: {inner: {value: int, flag: bool}}}");
+      ( "{outer: {inner: {value: 42, flag: true}}}",
+        "{outer: {inner: {value: int, flag: bool}}}" );
       (* Nested field access chains *)
       ("{a: {b: {c: 1}}}.a.b.c", "int");
       ("{x: {y: {z: \"deep\"}}}.x.y.z", "str");
@@ -4809,26 +4813,30 @@ let extended_record_type_tests =
       (* Functions taking records and returning values *)
       ("fn r -> r.x + r.y", "{x: int, y: int} -> int");
       ("fn r -> r.x :: r.y", "{x: 'a, y: ['a]} -> ['a]");
-      ("fn r -> if r.flag then r.value else 0", "{flag: bool, value: int} -> int");
+      ( "fn r -> if r.flag then r.value else 0",
+        "{flag: bool, value: int} -> int" );
       (* Functions taking records and returning records *)
       ("fn r -> {x: r.x + 1}", "{x: int} -> {x: int}");
       ("fn r -> {a: r.x, b: r.y}", "{x: 'a, y: 'b} -> {a: 'a, b: 'b}");
       (* Higher-order functions with records *)
-      ("fn f -> fn r -> {result: f r.value}", "('a -> 'b) -> {value: 'a} -> {result: 'b}");
+      ( "fn f -> fn r -> {result: f r.value}",
+        "('a -> 'b) -> {value: 'a} -> {result: 'b}" );
       (* Records in let bindings with field access *)
       ("let r = {x: 1, y: 2} in r.x + r.y", "int");
       ("let r1 = {a: 10} in let r2 = {b: r1.a} in r2.b", "int");
       (* Records with polymorphic fields *)
       ("{id: fn x -> x, value: 42}", "{id: 'a -> 'a, value: int}");
-      ("{first: fn (x, y) -> x, data: (1, 2)}", "{first: ('a, 'b) -> 'a, data: (int, int)}");
+      ( "{first: fn (x, y) -> x, data: (1, 2)}",
+        "{first: ('a, 'b) -> 'a, data: (int, int)}" );
       (* Multiple records in expressions *)
       ("let r1 = {x: 1} in let r2 = {y: 2} in r1.x + r2.y", "int");
       (* Records with computed field values *)
       ("{x: 1 + 1, y: 2 * 2}", "{x: int, y: int}");
       ("{result: 10 / 2, doubled: 5 * 2}", "{result: int, doubled: int}");
       (* Recursive functions with records *)
-      ("let rec sum_field = fn lst -> case lst do | [] -> 0 | h :: t -> h.value + sum_field t in sum_field",
-       "[{value: int}] -> int");
+      ( "let rec sum_field = fn lst -> case lst do | [] -> 0 | h :: t -> \
+         h.value + sum_field t in sum_field",
+        "[{value: int}] -> int" );
     ]
 
 let extended_record_eval_tests =
@@ -4841,7 +4849,8 @@ let extended_record_eval_tests =
       ("{active: true}", "{active: true}");
       (* Multiple field records *)
       ("{x: 1, y: 2, z: 3}", "{x: 1, y: 2, z: 3}");
-      ("{name: \"Bob\", age: 30, active: true}", "{name: \"Bob\", age: 30, active: true}");
+      ( "{name: \"Bob\", age: 30, active: true}",
+        "{name: \"Bob\", age: 30, active: true}" );
       (* Field access on various types *)
       ("{x: 100}.x", "100");
       ("{name: \"test\"}.name", "\"test\"");
@@ -4892,8 +4901,10 @@ let extended_record_eval_tests =
       ("{outer: {inner: 2 + 3}}.outer.inner", "5");
       ("{a: {b: {c: 10 * 5}}}.a.b.c", "50");
       (* Complex expressions with records *)
-      ("let make_point = fn x -> fn y -> {x: x, y: y} in make_point 10 20", "{x: 10, y: 20}");
-      ("let make_point = fn x -> fn y -> {x: x, y: y} in (make_point 5 15).x", "5");
+      ( "let make_point = fn x -> fn y -> {x: x, y: y} in make_point 10 20",
+        "{x: 10, y: 20}" );
+      ( "let make_point = fn x -> fn y -> {x: x, y: y} in (make_point 5 15).x",
+        "5" );
       ("let get_x = fn r -> r.x in let p = {x: 100, y: 200} in get_x p", "100");
       (* Records in conditional expressions *)
       ("if true then {x: 1} else {x: 2}", "{x: 1}");
@@ -4904,6 +4915,330 @@ let extended_record_eval_tests =
       ("{sum: 1 + 2 + 3, diff: 10 - 5}.diff", "5");
     ]
 
+let very_complex_record_tests =
+  let open ProgramTesting in
+  "very_complex_record_tests"
+  >::: [
+         ( "binary tree with records" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree =
+                 | Leaf
+                 | Node of {value: int, left: Tree, right: Tree}
+
+               let rec tree_sum = fn t ->
+                 case t do
+                 | Leaf -> 0
+                 | Node n -> n.value + tree_sum n.left + tree_sum n.right
+
+               let tree = Node {
+                 value: 10,
+                 left: Node {value: 5, left: Leaf, right: Leaf},
+                 right: Node {value: 15, left: Leaf, right: Leaf}
+               }
+             |}
+             ~expr:"tree_sum tree" ~expected_value:"30" );
+         ( "linked list with record nodes" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec List<a> =
+                 | Nil
+                 | Cons of {head: a, tail: List<a>}
+
+               let rec length = fn lst ->
+                 case lst do
+                 | Nil -> 0
+                 | Cons cell -> 1 + length cell.tail
+
+               let rec map_list = fn f -> fn lst ->
+                 case lst do
+                 | Nil -> Nil
+                 | Cons cell -> Cons {head: f cell.head, tail: map_list f cell.tail}
+
+               let my_list = Cons {
+                 head: 1,
+                 tail: Cons {head: 2, tail: Cons {head: 3, tail: Nil}}
+               }
+
+               let doubled = map_list (fn x -> x * 2) my_list
+             |}
+             ~expr:"length doubled" ~expected_value:"3" );
+         ( "record containing multiple recursive types" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> =
+                 | Empty
+                 | Branch of {value: a, children: [Tree<a>]}
+
+               type Forest<a> = {trees: [Tree<a>], count: int}
+
+               let rec count_nodes = fn t ->
+                 case t do
+                 | Empty -> 0
+                 | Branch b -> 1 + count_forest b.children
+
+               let rec count_forest = fn trees ->
+                 case trees do
+                 | [] -> 0
+                 | h :: t -> count_nodes h + count_forest t
+
+               let forest = {
+                 trees: [
+                   Branch {value: 1, children: [Empty, Empty]},
+                   Branch {value: 2, children: [Branch {value: 3, children: []}]}
+                 ],
+                 count: 2
+               }
+             |}
+             ~expr:"count_forest forest.trees" ~expected_value:"3" );
+         ( "database-like record operations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type User = {id: int, name: str, age: int, active: bool}
+
+               let rec filter_users = fn pred -> fn users ->
+                 case users do
+                 | [] -> []
+                 | h :: t ->
+                   if pred h then h :: filter_users pred t
+                   else filter_users pred t
+
+               let rec map_users = fn f -> fn users ->
+                 case users do
+                 | [] -> []
+                 | h :: t -> f h :: map_users f t
+
+               let users = [
+                 {id: 1, name: "Alice", age: 25, active: true},
+                 {id: 2, name: "Bob", age: 30, active: false},
+                 {id: 3, name: "Charlie", age: 35, active: true}
+               ]
+
+               let active_users = filter_users (fn u -> u.active) users
+               let ages = map_users (fn u -> u.age) active_users
+
+               let rec sum_list = fn lst ->
+                 case lst do
+                 | [] -> 0
+                 | h :: t -> h + sum_list t
+             |}
+             ~expr:"sum_list ages" ~expected_value:"60" );
+         ( "nested records with recursive type and computations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Point = {x: int, y: int}
+               type rec Shape =
+                 | Circle of {center: Point, radius: int}
+                 | Rectangle of {topLeft: Point, bottomRight: Point}
+                 | Group of {shapes: [Shape]}
+
+               let rec count_shapes = fn s ->
+                 case s do
+                 | Circle _ -> 1
+                 | Rectangle _ -> 1
+                 | Group g ->
+                   let rec count_list = fn lst ->
+                     case lst do
+                     | [] -> 0
+                     | h :: t -> count_shapes h + count_list t
+                   in count_list g.shapes
+
+               let scene = Group {
+                 shapes: [
+                   Circle {center: {x: 0, y: 0}, radius: 5},
+                   Rectangle {topLeft: {x: 0, y: 0}, bottomRight: {x: 10, y: 10}},
+                   Group {shapes: [
+                     Circle {center: {x: 5, y: 5}, radius: 3},
+                     Circle {center: {x: 10, y: 10}, radius: 2}
+                   ]}
+                 ]
+               }
+             |}
+             ~expr:"count_shapes scene" ~expected_value:"4" );
+         ( "state machine with records" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type State = {value: int, running: bool, history: [int]}
+
+               let step = fn s -> fn n ->
+                 if s.running then
+                   {value: s.value + n, running: true, history: s.value :: s.history}
+                 else s
+
+               let stop = fn s ->
+                 {value: s.value, running: false, history: s.history}
+
+               let init = {value: 0, running: true, history: []}
+               let s1 = step init 5
+               let s2 = step s1 10
+               let s3 = step s2 3
+               let s4 = stop s3
+               let s5 = step s4 100
+             |}
+             ~expr:"s5.value" ~expected_value:"18" );
+         ( "record-based expression tree evaluator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Expr =
+                 | Const of int
+                 | Add of {left: Expr, right: Expr}
+                 | Mul of {left: Expr, right: Expr}
+                 | Var of str
+
+               type Env = {bindings: [(str, int)]}
+
+               let rec lookup = fn name -> fn bindings ->
+                 case bindings do
+                 | [] -> 0
+                 | (k, v) :: rest ->
+                   if k == name then v else lookup name rest
+
+               let rec eval = fn env -> fn expr ->
+                 case expr do
+                 | Const n -> n
+                 | Add op -> eval env op.left + eval env op.right
+                 | Mul op -> eval env op.left * eval env op.right
+                 | Var name -> lookup name env.bindings
+
+               let env = {bindings: [("x", 10), ("y", 5)]}
+               let expr = Add {
+                 left: Mul {left: Var "x", right: Const 2},
+                 right: Var "y"
+               }
+             |}
+             ~expr:"eval env expr" ~expected_value:"25" );
+         ( "graph with records and traversal" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Node = {id: int, value: int, neighbors: [int]}
+               type Graph = {nodes: [Node]}
+
+               let rec find_node = fn id -> fn nodes ->
+                 case nodes do
+                 | [] -> {id: 0, value: 0, neighbors: []}
+                 | h :: t -> if h.id == id then h else find_node id t
+
+               let rec sum_neighbors = fn graph -> fn ids ->
+                 case ids do
+                 | [] -> 0
+                 | h :: t ->
+                   let node = find_node h graph.nodes in
+                   node.value + sum_neighbors graph t
+
+               let graph = {
+                 nodes: [
+                   {id: 1, value: 10, neighbors: [2, 3]},
+                   {id: 2, value: 20, neighbors: [1]},
+                   {id: 3, value: 30, neighbors: [1]}
+                 ]
+               }
+
+               let root = find_node 1 graph.nodes
+             |}
+             ~expr:"sum_neighbors graph root.neighbors" ~expected_value:"50" );
+         ( "record transformation pipeline" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Person = {name: str, score: int}
+               type Result = {person: Person, grade: str, passed: bool}
+
+               let get_grade = fn score ->
+                 if score >= 90 then "A"
+                 else if score >= 80 then "B"
+                 else if score >= 70 then "C"
+                 else "F"
+
+               let to_result = fn p ->
+                 let grade = get_grade p.score in
+                 {
+                   person: p,
+                   grade: grade,
+                   passed: p.score >= 70
+                 }
+
+               let rec process = fn people ->
+                 case people do
+                 | [] -> []
+                 | h :: t -> to_result h :: process t
+
+               let rec count_passed = fn results ->
+                 case results do
+                 | [] -> 0
+                 | h :: t ->
+                   if h.passed then 1 + count_passed t
+                   else count_passed t
+
+               let people = [
+                 {name: "Alice", score: 95},
+                 {name: "Bob", score: 65},
+                 {name: "Charlie", score: 85},
+                 {name: "Diana", score: 75}
+               ]
+
+               let results = process people
+             |}
+             ~expr:"count_passed results" ~expected_value:"3" );
+         ( "complex nested record with multiple operations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type Stats = {min: int, max: int, sum: int, count: int}
+               type DataSet = {name: str, values: [int], stats: Stats}
+
+               let rec calc_sum = fn lst ->
+                 case lst do
+                 | [] -> 0
+                 | h :: t -> h + calc_sum t
+
+               let rec calc_min = fn lst -> fn current ->
+                 case lst do
+                 | [] -> current
+                 | h :: t ->
+                   if h < current then calc_min t h
+                   else calc_min t current
+
+               let rec calc_max = fn lst -> fn current ->
+                 case lst do
+                 | [] -> current
+                 | h :: t ->
+                   if h > current then calc_max t h
+                   else calc_max t current
+
+               let rec length = fn lst ->
+                 case lst do
+                 | [] -> 0
+                 | h :: t -> 1 + length t
+
+               let make_stats = fn values ->
+                 case values do
+                 | [] -> {min: 0, max: 0, sum: 0, count: 0}
+                 | h :: t -> {
+                     min: calc_min t h,
+                     max: calc_max t h,
+                     sum: calc_sum values,
+                     count: length values
+                   }
+
+               let values = [10, 5, 20, 15, 8, 25, 12]
+               let dataset = {
+                 name: "test",
+                 values: values,
+                 stats: make_stats values
+               }
+             |}
+             ~expr:"dataset.stats.max + dataset.stats.min" ~expected_value:"30"
+         );
+       ]
+
 let complex_record_scenarios =
   let open ProgramTesting in
   "complex_record_scenarios"
@@ -4913,18 +5248,21 @@ let complex_record_scenarios =
              {|
              type Point = {x: int, y: int}
              type Person = {name: str, age: int}
-           |} );
+           |}
+         );
          ( "function with record type parameter" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Point = {x: int, y: int}
                let distance_squared = fn (p : Point) -> p.x * p.x + p.y * p.y
              |}
-             ~expr:"distance_squared"
-             ~expected_type:"{x: int, y: int} -> int" );
+             ~expr:"distance_squared" ~expected_type:"{x: int, y: int} -> int"
+         );
          ( "nested record types" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Inner = {value: int}
                type Outer = {inner: Inner, label: str}
              |}
@@ -4932,22 +5270,23 @@ let complex_record_scenarios =
              ~expected_type:"{inner: {value: int}, label: str}" );
          ( "record with list field" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type Container = {items: [int]}
              |}
-             ~expr:"{items: [1, 2, 3]}"
-             ~expected_value:"{items: [1, 2, 3]}" );
+             ~expr:"{items: [1, 2, 3]}" ~expected_value:"{items: [1, 2, 3]}" );
          ( "record creation and field update pattern" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let original = {x: 10, y: 20}
                let updated = {x: original.x + 1, y: original.y + 1}
              |}
-             ~expr:"updated"
-             ~expected_value:"{x: 11, y: 21}" );
+             ~expr:"updated" ~expected_value:"{x: 11, y: 21}" );
          ( "higher-order function with record" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let apply_to_field = fn f -> fn r -> {result: f r.value}
                let double = fn x -> x * 2
              |}
@@ -4955,14 +5294,16 @@ let complex_record_scenarios =
              ~expected_value:"{result: 10}" );
          ( "record with polymorphic field accessed" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let get_first = fn r -> r.first
              |}
              ~expr:"get_first {first: 42, second: \"test\"}"
              ~expected_value:"42" );
          ( "recursive function processing record list" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec sum_ages = fn people ->
                  case people do
                  | [] -> 0
@@ -4972,38 +5313,39 @@ let complex_record_scenarios =
              ~expected_value:"60" );
          ( "record with function field called" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let ops = {add: fn x -> fn y -> x + y, mul: fn x -> fn y -> x * y}
              |}
-             ~expr:"ops.add 3 4"
-             ~expected_value:"7" );
+             ~expr:"ops.add 3 4" ~expected_value:"7" );
          ( "deeply nested record access" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let data = {level1: {level2: {level3: {level4: 42}}}}
              |}
-             ~expr:"data.level1.level2.level3.level4"
-             ~expected_value:"42" );
+             ~expr:"data.level1.level2.level3.level4" ~expected_value:"42" );
          ( "record construction from another record" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let p1 = {x: 5, y: 10}
                let p2 = {x: p1.y, y: p1.x}
              |}
-             ~expr:"p2"
-             ~expected_value:"{x: 10, y: 5}" );
+             ~expr:"p2" ~expected_value:"{x: 10, y: 5}" );
          ( "multiple records with field access" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let r1 = {a: 1, b: 2}
                let r2 = {c: 3, d: 4}
                let sum = r1.a + r1.b + r2.c + r2.d
              |}
-             ~expr:"sum"
-             ~expected_value:"10" );
+             ~expr:"sum" ~expected_value:"10" );
          ( "record with mixed field types" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type Entity = {
                  id: int,
                  name: str,
@@ -5012,23 +5354,24 @@ let complex_record_scenarios =
                }
              |}
              ~expr:"{id: 1, name: \"test\", active: true, tags: [\"a\", \"b\"]}"
-             ~expected_value:"{id: 1, name: \"test\", active: true, tags: [\"a\", \"b\"]}" );
+             ~expected_value:
+               "{id: 1, name: \"test\", active: true, tags: [\"a\", \"b\"]}" );
          ( "conditional with records" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let get_point = fn use_default ->
                  if use_default then {x: 0, y: 0} else {x: 10, y: 20}
              |}
-             ~expr:"get_point true"
-             ~expected_value:"{x: 0, y: 0}" );
+             ~expr:"get_point true" ~expected_value:"{x: 0, y: 0}" );
          ( "record field used in arithmetic" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rect = {width: 5, height: 10}
                let area = rect.width * rect.height
              |}
-             ~expr:"area"
-             ~expected_value:"50" );
+             ~expr:"area" ~expected_value:"50" );
        ]
 
 let all_tests =
@@ -5067,6 +5410,7 @@ let all_tests =
       extended_record_type_tests;
       extended_record_eval_tests;
       [ complex_record_scenarios ];
+      [ very_complex_record_tests ];
     ]
 
 let suite = "suite" >::: all_tests

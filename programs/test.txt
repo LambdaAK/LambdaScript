@@ -1,31 +1,27 @@
-type rec Tree<a> =
-  | Leaf
-  | Node of {
-    left : Tree<a>,
-    right: Tree<a>,
-    value: a
-  }
+type Point = {x: int, y: int}
+               type rec Shape =
+                 | Circle of {center: Point, radius: int}
+                 | Rectangle of {topLeft: Point, bottomRight: Point}
+                 | Group of {shapes: [Shape]}
 
-let rec num_nodes (t : Tree<a>) =
-  case t do
-  | Leaf -> 0
-  | Node r -> 1 + (num_nodes r.left) + (num_nodes r.right)
+               let rec count_shapes = fn s ->
+                 case s do
+                 | Circle _ -> 1
+                 | Rectangle _ -> 1
+                 | Group g ->
+                   let rec count_list = fn lst ->
+                     case lst do
+                     | [] -> 0
+                     | h :: t -> count_shapes h + count_list t
+                   in count_list g.shapes
 
-let rec map_tree f t =
-  case t do
-  | Leaf -> Leaf
-  | Node r -> Node {
-    left: map_tree f r.left,
-    right: map_tree f r.right,
-    value: f r.value
-  }
-
-let my_tree = Node {
-  left: Node {
-    left: Leaf,
-    right: Leaf,
-    value: 20
-  },
-  right: Leaf,
-  value: 10
-}
+               let scene = Group {
+                 shapes: [
+                   Circle {center: {x: 0, y: 0}, radius: 5},
+                   Rectangle {topLeft: {x: 0, y: 0}, bottomRight: {x: 10, y: 10}},
+                   Group {shapes: [
+                     Circle {center: {x: 5, y: 5}, radius: 3},
+                     Circle {center: {x: 10, y: 10}, radius: 2}
+                   ]}
+                 ]
+               }
