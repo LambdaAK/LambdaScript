@@ -240,6 +240,29 @@ and string_of_defn : c_defn -> string = function
           constructors
       in
       "type rec " ^ name ^ args_str ^ " = " ^ String.concat "\n  " constructors_str
+  | CSumTypeRecMutRec types ->
+      let type_strs =
+        List.mapi
+          (fun i (name, args, constructors) ->
+            let args_str =
+              match args with
+              | [] -> ""
+              | _ -> "<" ^ String.concat ", " args ^ ">"
+            in
+            let constructors_str =
+              List.map
+                (fun (cons_name, payload_type_opt) ->
+                  match payload_type_opt with
+                  | None -> "| " ^ cons_name
+                  | Some payload_type ->
+                      "| " ^ cons_name ^ " of " ^ string_of_c_type payload_type)
+                constructors
+            in
+            let prefix = if i = 0 then "type rec " else "and " in
+            prefix ^ name ^ args_str ^ " = " ^ String.concat "\n  " constructors_str)
+          types
+      in
+      String.concat "\n" type_strs
 
 let rec string_of_program : c_program -> string = function
   | [] -> ""

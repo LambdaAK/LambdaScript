@@ -99,6 +99,25 @@ let rec condense_defn : defn -> c_defn = function
           constructors
       in
       CSumTypeRec (name, type_params, condensed_constructors)
+  | SumTypeDefMutRec types ->
+      let condensed_types =
+        List.map
+          (fun (name, type_params, constructors) ->
+            let condensed_constructors =
+              List.map
+                (fun (cons_name, payload_type_opt) ->
+                  ( cons_name,
+                    match payload_type_opt with
+                    | None -> None
+                    | Some ct ->
+                        let mono_t = condense_compound_type ct in
+                        Some (Mono mono_t) ))
+                constructors
+            in
+            (name, type_params, condensed_constructors))
+          types
+      in
+      CSumTypeRecMutRec condensed_types
 
 and condense_expr : expr -> c_expr = function
   | Function (pat, ct_opt, expr) ->

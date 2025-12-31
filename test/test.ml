@@ -7578,6 +7578,731 @@ let complex_integration_tests =
              ~expected_value:"[3, 4]" );
        ]
 
+(* ============================================================ *)
+(* MUTUALLY RECURSIVE TYPES TESTS *)
+(* ============================================================ *)
+
+let mutually_recursive_types_basic_tests =
+  let open ProgramTesting in
+  "Mutually Recursive Types - Basic"
+  >::: [
+         (* Test 1: Simple Even/Odd definition *)
+         ( "even odd types typecheck" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Even = | Zero | SuccE of Odd
+             and Odd = | SuccO of Even
+           |} );
+         (* Test 2: Zero constructor type *)
+         ( "zero constructor type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+             |}
+             ~expr:"Zero"
+             ~expected_type:"Even" );
+         (* Test 3: SuccE constructor type *)
+         ( "succE constructor type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+             |}
+             ~expr:"SuccE"
+             ~expected_type:"Odd -> Even" );
+         (* Test 4: SuccO constructor type *)
+         ( "succO constructor type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+             |}
+             ~expr:"SuccO"
+             ~expected_type:"Even -> Odd" );
+         (* Test 5: Create simple even number *)
+         ( "create even number" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+             |}
+             ~expr:"SuccE (SuccO Zero)"
+             ~expected_type:"Even" );
+         (* Test 6: Create simple odd number *)
+         ( "create odd number" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+             |}
+             ~expr:"SuccO Zero"
+             ~expected_type:"Odd" );
+         (* Test 7: Pattern match on Even *)
+         ( "pattern match even" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+
+               let is_zero = fn e ->
+                 case e do
+                 | Zero -> true
+                 | SuccE _ -> false
+             |}
+             ~expr:"is_zero Zero"
+             ~expected_value:"true" );
+         (* Test 8: Pattern match on Odd *)
+         ( "pattern match odd" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+
+               let get_pred = fn o ->
+                 case o do
+                 | SuccO e -> e
+             |}
+             ~expr:"get_pred (SuccO Zero)"
+             ~expected_value:"Zero" );
+         (* Test 9: Convert even to int *)
+         ( "even to int" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+
+               let rec even_to_int = fn e ->
+                 case e do
+                 | Zero -> 0
+                 | SuccE o -> 1 + odd_to_int o
+               and odd_to_int = fn o ->
+                 case o do
+                 | SuccO e -> 1 + even_to_int e
+             |}
+             ~expr:"even_to_int (SuccE (SuccO (SuccE (SuccO Zero))))"
+             ~expected_value:"4" );
+         (* Test 10: Convert odd to int *)
+         ( "odd to int" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+
+               let rec even_to_int = fn e ->
+                 case e do
+                 | Zero -> 0
+                 | SuccE o -> 1 + odd_to_int o
+               and odd_to_int = fn o ->
+                 case o do
+                 | SuccO e -> 1 + even_to_int e
+             |}
+             ~expr:"odd_to_int (SuccO Zero)"
+             ~expected_value:"1" );
+       ]
+
+let mutually_recursive_types_with_params_tests =
+  let open ProgramTesting in
+  "Mutually Recursive Types - With Type Parameters"
+  >::: [
+         (* Test 11: Tree/Forest with type parameters *)
+         ( "tree forest typechecks" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+             and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+           |} );
+         (* Test 12: Leaf constructor type *)
+         ( "leaf constructor type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             |}
+             ~expr:"Leaf"
+             ~expected_type:"'a -> Tree<'a>" );
+         (* Test 13: Node constructor type *)
+         ( "node constructor type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             |}
+             ~expr:"Node"
+             ~expected_type:"('a, Forest<'a>) -> Tree<'a>" );
+         (* Test 14: Empty constructor type *)
+         ( "empty forest constructor type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             |}
+             ~expr:"Empty"
+             ~expected_type:"Forest<'a>" );
+         (* Test 15: Trees constructor type *)
+         ( "trees constructor type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             |}
+             ~expr:"Trees"
+             ~expected_type:"(Tree<'a>, Forest<'a>) -> Forest<'a>" );
+         (* Test 16: Create simple tree *)
+         ( "create simple tree" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             |}
+             ~expr:"Leaf 5"
+             ~expected_type:"Tree<int>" );
+         (* Test 17: Create tree with children *)
+         ( "create tree with children" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             |}
+             ~expr:"Node (1, Trees (Leaf 2, Empty))"
+             ~expected_type:"Tree<int>" );
+         (* Test 18: Create forest *)
+         ( "create forest" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             |}
+             ~expr:"Trees (Leaf 1, Trees (Leaf 2, Empty))"
+             ~expected_type:"Forest<int>" );
+         (* Test 19: Count tree nodes *)
+         ( "count tree nodes" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let rec count_tree = fn t ->
+                 case t do
+                 | Leaf _ -> 1
+                 | Node (_, f) -> 1 + count_forest f
+               and count_forest = fn f ->
+                 case f do
+                 | Empty -> 0
+                 | Trees (t, rest) -> count_tree t + count_forest rest
+             |}
+             ~expr:"count_tree (Node (1, Trees (Leaf 2, Trees (Leaf 3, Empty))))"
+             ~expected_value:"3" );
+         (* Test 20: Sum tree values *)
+         ( "sum tree values" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let rec sum_tree = fn t ->
+                 case t do
+                 | Leaf x -> x
+                 | Node (x, f) -> x + sum_forest f
+               and sum_forest = fn f ->
+                 case f do
+                 | Empty -> 0
+                 | Trees (t, rest) -> sum_tree t + sum_forest rest
+             |}
+             ~expr:"sum_tree (Node (1, Trees (Leaf 2, Trees (Leaf 3, Empty))))"
+             ~expected_value:"6" );
+       ]
+
+let mutually_recursive_types_complex_tests =
+  let open ProgramTesting in
+  "Mutually Recursive Types - Complex Scenarios"
+  >::: [
+         (* Test 21: Expression and Statement types *)
+         ( "expr stmt typechecks" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Expr = | Num of int | BinOp of (Expr, Expr)
+             and Stmt = | Assign of Expr | Block of StmtList
+             and StmtList = | StmtNil | StmtCons of (Stmt, StmtList)
+           |} );
+         (* Test 22: Three mutually recursive types *)
+         ( "three types typecheck" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec A = | AVal of int | ToB of B
+             and B = | BVal of int | ToC of C
+             and C = | CVal of int | ToA of A
+           |} );
+         (* Test 23: Cycle through types *)
+         ( "cycle through types" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type rec A = | AVal of int | ToB of B
+               and B = | BVal of int | ToC of C
+               and C = | CVal of int | ToA of A
+             |}
+             ~expr:"ToB (ToC (ToA (AVal 5)))"
+             ~expected_type:"A" );
+         (* Test 24: Extract value from cycle *)
+         ( "extract value from cycle" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec A = | AVal of int | ToB of B
+               and B = | BVal of int | ToC of C
+               and C = | CVal of int | ToA of A
+
+               let rec get_a = fn a ->
+                 case a do
+                 | AVal x -> x
+                 | ToB b -> get_b b
+               and get_b = fn b ->
+                 case b do
+                 | BVal x -> x
+                 | ToC c -> get_c c
+               and get_c = fn c ->
+                 case c do
+                 | CVal x -> x
+                 | ToA a -> get_a a
+             |}
+             ~expr:"get_a (ToB (ToC (ToA (AVal 42))))"
+             ~expected_value:"42" );
+         (* Test 25: Person and Group *)
+         ( "person group typechecks" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Person = | Individual of int | InGroup of Group
+             and Group = | EmptyGroup | Members of (Person, Group)
+           |} );
+         (* Test 26: Count people in group *)
+         ( "count people" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Person = | Individual of int | InGroup of Group
+               and Group = | EmptyGroup | Members of (Person, Group)
+
+               let rec count_person = fn p ->
+                 case p do
+                 | Individual _ -> 1
+                 | InGroup g -> count_group g
+               and count_group = fn g ->
+                 case g do
+                 | EmptyGroup -> 0
+                 | Members (p, rest) -> count_person p + count_group rest
+             |}
+             ~expr:"count_group (Members (Individual 1, Members (InGroup (Members (Individual 2, EmptyGroup)), EmptyGroup)))"
+             ~expected_value:"2" );
+         (* Test 27: AST with Expr and Decl *)
+         ( "ast expr decl typechecks" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Expr = | Var of int | Call of (Expr, Expr) | Let of Decl * Expr
+             and Decl = | VarDecl of (int, Expr)
+           |} );
+         (* Test 28: Pattern with nested constructors *)
+         ( "nested pattern match" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec A = | ALeaf of int | ANode of B
+               and B = | BLeaf of int | BNode of A
+
+               let get_val = fn a ->
+                 case a do
+                 | ALeaf x -> x
+                 | ANode b ->
+                   case b do
+                   | BLeaf y -> y
+                   | BNode _ -> 0
+             |}
+             ~expr:"get_val (ANode (BLeaf 99))"
+             ~expected_value:"99" );
+         (* Test 29: List-like structure with two types *)
+         ( "dual list typechecks" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec ListA<a> = | NilA | ConsA of (a, ListB<a>)
+             and ListB<a> = | NilB | ConsB of (a, ListA<a>)
+           |} );
+         (* Test 30: Dual list length *)
+         ( "dual list length" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec ListA<a> = | NilA | ConsA of (a, ListB<a>)
+               and ListB<a> = | NilB | ConsB of (a, ListA<a>)
+
+               let rec len_a = fn la ->
+                 case la do
+                 | NilA -> 0
+                 | ConsA (_, lb) -> 1 + len_b lb
+               and len_b = fn lb ->
+                 case lb do
+                 | NilB -> 0
+                 | ConsB (_, la) -> 1 + len_a la
+             |}
+             ~expr:"len_a (ConsA (1, ConsB (2, ConsA (3, NilB))))"
+             ~expected_value:"3" );
+       ]
+
+let mutually_recursive_types_evaluation_tests =
+  let open ProgramTesting in
+  "Mutually Recursive Types - Evaluation"
+  >::: [
+         (* Test 31: Create and evaluate Even number 6 *)
+         ( "even number 6" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+
+               let rec even_to_int = fn e ->
+                 case e do
+                 | Zero -> 0
+                 | SuccE o -> 1 + odd_to_int o
+               and odd_to_int = fn o ->
+                 case o do
+                 | SuccO e -> 1 + even_to_int e
+             |}
+             ~expr:"even_to_int (SuccE (SuccO (SuccE (SuccO (SuccE (SuccO Zero))))))"
+             ~expected_value:"6" );
+         (* Test 32: Check if even *)
+         ( "is even check" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Nat = | NZero | NSuccE of Nat | NSuccO of Nat
+
+               let rec is_even = fn n ->
+                 case n do
+                 | NZero -> true
+                 | NSuccE m -> is_odd m
+                 | NSuccO m -> is_even m
+               and is_odd = fn n ->
+                 case n do
+                 | NZero -> false
+                 | NSuccE m -> is_even m
+                 | NSuccO m -> is_odd m
+             |}
+             ~expr:"is_even (NSuccE (NSuccO (NSuccE NZero)))"
+             ~expected_value:"false" );
+         (* Test 33: Binary tree evaluation *)
+         ( "binary tree sum" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let rec sum_tree = fn t ->
+                 case t do
+                 | Leaf x -> x
+                 | Node (x, f) -> x + sum_forest f
+               and sum_forest = fn f ->
+                 case f do
+                 | Empty -> 0
+                 | Trees (t, rest) -> sum_tree t + sum_forest rest
+
+               let tree = Node (10, Trees (Leaf 5, Trees (Node (3, Trees (Leaf 2, Empty)), Empty)))
+             |}
+             ~expr:"sum_tree tree"
+             ~expected_value:"20" );
+         (* Test 34: Deep nesting *)
+         ( "deep nesting" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec A = | AVal of int | ANext of B
+               and B = | BNext of C
+               and C = | CNext of D
+               and D = | DVal of int
+
+               let rec get = fn a ->
+                 case a do
+                 | AVal x -> x
+                 | ANext b ->
+                   case b do
+                   | BNext c ->
+                     case c do
+                     | CNext d ->
+                       case d do
+                       | DVal x -> x
+             |}
+             ~expr:"get (ANext (BNext (CNext (DVal 123))))"
+             ~expected_value:"123" );
+         (* Test 35: Map over tree *)
+         ( "map over tree" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let rec map_tree = fn f -> fn t ->
+                 case t do
+                 | Leaf x -> Leaf (f x)
+                 | Node (x, forest) -> Node (f x, map_forest f forest)
+               and map_forest = fn f -> fn forest ->
+                 case forest do
+                 | Empty -> Empty
+                 | Trees (t, rest) -> Trees (map_tree f t, map_forest f rest)
+
+               let rec sum_tree = fn t ->
+                 case t do
+                 | Leaf x -> x
+                 | Node (x, f) -> x + sum_forest f
+               and sum_forest = fn f ->
+                 case f do
+                 | Empty -> 0
+                 | Trees (t, rest) -> sum_tree t + sum_forest rest
+
+               let tree = Node (1, Trees (Leaf 2, Trees (Leaf 3, Empty)))
+               let doubled = map_tree (fn x -> x * 2) tree
+             |}
+             ~expr:"sum_tree doubled"
+             ~expected_value:"12" );
+         (* Test 36: Boolean evaluation *)
+         ( "boolean expr evaluation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec BExpr = | BTrue | BFalse | BAnd of (BExpr, BExpr) | BOr of (BExpr, BExpr) | BNot of BExpr
+
+               let rec eval = fn e ->
+                 case e do
+                 | BTrue -> true
+                 | BFalse -> false
+                 | BAnd (e1, e2) -> eval e1 && eval e2
+                 | BOr (e1, e2) -> eval e1 || eval e2
+                 | BNot e1 -> if eval e1 then false else true
+             |}
+             ~expr:"eval (BAnd (BOr (BTrue, BFalse), BNot BFalse))"
+             ~expected_value:"true" );
+         (* Test 37: Count nodes in complex tree *)
+         ( "count nodes complex tree" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let rec count_tree = fn t ->
+                 case t do
+                 | Leaf _ -> 1
+                 | Node (_, f) -> 1 + count_forest f
+               and count_forest = fn f ->
+                 case f do
+                 | Empty -> 0
+                 | Trees (t, rest) -> count_tree t + count_forest rest
+
+               let tree = Node (1, Trees (Node (2, Trees (Leaf 3, Trees (Leaf 4, Empty))), Trees (Leaf 5, Empty)))
+             |}
+             ~expr:"count_tree tree"
+             ~expected_value:"5" );
+         (* Test 38: Find element in tree *)
+         ( "find in tree" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let rec find_tree = fn target -> fn t ->
+                 case t do
+                 | Leaf x -> x == target
+                 | Node (x, f) -> if x == target then true else find_forest target f
+               and find_forest = fn target -> fn f ->
+                 case f do
+                 | Empty -> false
+                 | Trees (t, rest) ->
+                   if find_tree target t then true else find_forest target rest
+
+               let tree = Node (1, Trees (Leaf 2, Trees (Leaf 3, Empty)))
+             |}
+             ~expr:"find_tree 3 tree"
+             ~expected_value:"true" );
+         (* Test 39: Max value in tree *)
+         ( "max value in tree" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let max = fn a -> fn b -> if a > b then a else b
+
+               let rec max_tree = fn t ->
+                 case t do
+                 | Leaf x -> x
+                 | Node (x, f) -> max x (max_forest f x)
+               and max_forest = fn f -> fn acc ->
+                 case f do
+                 | Empty -> acc
+                 | Trees (t, rest) -> max (max_tree t) (max_forest rest acc)
+
+               let tree = Node (5, Trees (Leaf 10, Trees (Leaf 3, Empty)))
+             |}
+             ~expr:"max_tree tree"
+             ~expected_value:"10" );
+         (* Test 40: Flatten tree to list *)
+         ( "flatten tree" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let rec append = fn l1 -> fn l2 ->
+                 case l1 do
+                 | [] -> l2
+                 | h :: t -> h :: append t l2
+
+               let rec flatten_tree = fn t ->
+                 case t do
+                 | Leaf x -> [x]
+                 | Node (x, f) -> x :: flatten_forest f
+               and flatten_forest = fn f ->
+                 case f do
+                 | Empty -> []
+                 | Trees (t, rest) -> append (flatten_tree t) (flatten_forest rest)
+
+               let tree = Node (1, Trees (Leaf 2, Trees (Leaf 3, Empty)))
+             |}
+             ~expr:"flatten_tree tree"
+             ~expected_value:"[1, 2, 3]" );
+       ]
+
+let mutually_recursive_types_advanced_tests =
+  let open ProgramTesting in
+  "Mutually Recursive Types - Advanced"
+  >::: [
+         (* Test 41: Parameterized with multiple params *)
+         ( "multiple type params" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec PairA<a, b> = | PA of (a, PairB<b, a>)
+             and PairB<a, b> = | PB of (a, PairA<b, a>) | PBNil
+           |} );
+         (* Test 42: Swap types *)
+         ( "swap pair types" >:: fun _ ->
+           assert_expression_has_type
+             ~program:{|
+               type rec PairA<a, b> = | PA of (a, PairB<b, a>)
+               and PairB<a, b> = | PB of (a, PairA<b, a>) | PBNil
+             |}
+             ~expr:"PA (5, PB (true, PA (10, PBNil)))"
+             ~expected_type:"PairA<int, bool>" );
+         (* Test 43: Rose tree variant *)
+         ( "rose tree typechecks" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Rose<a> = | RNode of (a, RoseList<a>)
+             and RoseList<a> = | RNil | RCons of (Rose<a>, RoseList<a>)
+           |} );
+         (* Test 44: Rose tree depth *)
+         ( "rose tree depth" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Rose<a> = | RNode of (a, RoseList<a>)
+               and RoseList<a> = | RNil | RCons of (Rose<a>, RoseList<a>)
+
+               let max = fn a -> fn b -> if a > b then a else b
+
+               let rec depth_rose = fn r ->
+                 case r do
+                 | RNode (_, children) -> 1 + depth_list children
+               and depth_list = fn rl ->
+                 case rl do
+                 | RNil -> 0
+                 | RCons (r, rest) -> max (depth_rose r) (depth_list rest)
+
+               let tree = RNode (1, RCons (RNode (2, RNil), RCons (RNode (3, RCons (RNode (4, RNil), RNil)), RNil)))
+             |}
+             ~expr:"depth_rose tree"
+             ~expected_value:"2" );
+         (* Test 45: Four mutually recursive types *)
+         ( "four types typecheck" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec A = | ToB of B
+             and B = | ToC of C
+             and C = | ToD of D
+             and D = | ToA of A | DVal of int
+           |} );
+         (* Test 46: Circular reference chain *)
+         ( "circular chain" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec A = | ToB of B
+               and B = | ToC of C
+               and C = | ToD of D
+               and D = | ToA of A | DVal of int
+
+               let rec get = fn a ->
+                 case a do
+                 | ToB b ->
+                   case b do
+                   | ToC c ->
+                     case c do
+                     | ToD d ->
+                       case d do
+                       | DVal x -> x
+                       | ToA a2 -> get a2
+             |}
+             ~expr:"get (ToB (ToC (ToD (ToA (ToB (ToC (ToD (DVal 77))))))))"
+             ~expected_value:"77" );
+         (* Test 47: Binary and unary ops *)
+         ( "binary unary ops" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Expr = | Val of int | BinOp of BinaryOp | UnOp of UnaryOp
+             and BinaryOp = | Add of (Expr, Expr) | Mul of (Expr, Expr)
+             and UnaryOp = | Neg of Expr
+           |} );
+         (* Test 48: Evaluate binary/unary *)
+         ( "eval binary unary" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Expr = | Val of int | BinOp of BinaryOp | UnOp of UnaryOp
+               and BinaryOp = | Add of (Expr, Expr) | Mul of (Expr, Expr)
+               and UnaryOp = | Neg of Expr
+
+               let rec eval = fn e ->
+                 case e do
+                 | Val x -> x
+                 | BinOp b -> eval_bin b
+                 | UnOp u -> eval_un u
+               and eval_bin = fn b ->
+                 case b do
+                 | Add (e1, e2) -> eval e1 + eval e2
+                 | Mul (e1, e2) -> eval e1 * eval e2
+               and eval_un = fn u ->
+                 case u do
+                 | Neg e -> 0 - eval e
+             |}
+             ~expr:"eval (BinOp (Add (Val 5, UnOp (Neg (Val 3)))))"
+             ~expected_value:"2" );
+         (* Test 49: Graph node and edge *)
+         ( "graph node edge" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Node<a> = | N of (a, EdgeList<a>)
+             and EdgeList<a> = | ENil | ECons of (Edge<a>, EdgeList<a>)
+             and Edge<a> = | E of Node<a>
+           |} );
+         (* Test 50: Count graph nodes *)
+         ( "count graph nodes" >:: fun _ ->
+           assert_expression_has_value
+             ~program:{|
+               type rec Node<a> = | N of (a, EdgeList<a>)
+               and EdgeList<a> = | ENil | ECons of (Edge<a>, EdgeList<a>)
+               and Edge<a> = | E of Node<a>
+
+               let rec count_node = fn n ->
+                 case n do
+                 | N (_, edges) -> 1 + count_edges edges
+               and count_edges = fn edges ->
+                 case edges do
+                 | ENil -> 0
+                 | ECons (e, rest) -> count_edge e + count_edges rest
+               and count_edge = fn e ->
+                 case e do
+                 | E n -> count_node n
+
+               let node = N (1, ECons (E (N (2, ENil)), ECons (E (N (3, ENil)), ENil)))
+             |}
+             ~expr:"count_node node"
+             ~expected_value:"3" );
+       ]
+
 let all_tests =
   List.flatten
     [
@@ -7645,6 +8370,11 @@ let all_tests =
       [ complex_mutual_recursion ];
       [ complex_math_operations ];
       [ complex_integration_tests ];
+      [ mutually_recursive_types_basic_tests ];
+      [ mutually_recursive_types_with_params_tests ];
+      [ mutually_recursive_types_complex_tests ];
+      [ mutually_recursive_types_evaluation_tests ];
+      [ mutually_recursive_types_advanced_tests ];
     ]
 
 let suite = "suite" >::: all_tests

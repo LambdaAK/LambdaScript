@@ -1616,6 +1616,96 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
           constructors
       in
       return (constructor_bindings, type_env_entry)
+  | CSumTypeRecMutRec types ->
+      (* Mutually recursive sum types - similar to CSumTypeRec but for multiple types *)
+      (* For type rec Even = | Zero | SuccE of Odd and Odd = | SuccO of Even *)
+      (* We represent each type as: μTypeName. CTypeApp(TypeName, params) *)
+
+      (* Step 1: Create type environment entries for all types *)
+      let type_env_entries =
+        List.map
+          (fun (type_name, type_params, _) ->
+            let sum_type_app =
+              CTypeApp (type_name, List.map (fun p -> TypeVar p) type_params)
+            in
+            let fixedpoint_body = FixedPoint (type_name, sum_type_app) in
+            (type_name, type_params, fixedpoint_body))
+          types
+      in
+
+      (* Step 2: Extend type environment with all types so they can reference each other *)
+      let extended_type_env = type_env_entries @ type_env in
+
+      (* Step 3: Create constructor bindings for all types *)
+      let all_constructor_bindings =
+        List.concat_map
+          (fun (type_name, type_params, constructors) ->
+            let sum_type_app =
+              CTypeApp (type_name, List.map (fun p -> TypeVar p) type_params)
+            in
+            List.map
+              (fun (cons_name, payload_type_opt) ->
+                match payload_type_opt with
+                | None ->
+                    (* Nullary constructor *)
+                    let rec make_poly params_left =
+                      match params_left with
+                      | [] -> Mono sum_type_app
+                      | param :: rest -> PolyType (param, make_poly rest)
+                    in
+                    (cons_name, make_poly type_params)
+                | Some payload_type ->
+                    (* Constructor with payload *)
+                    let payload_mono =
+                      match payload_type with
+                      | Mono m -> m
+                      | PolyType _ ->
+                          failwith "Constructor payload cannot be polymorphic"
+                    in
+                    (* Simplify the payload type using extended environment *)
+                    let payload_simplified =
+                      match simplify_mono_type payload_mono extended_type_env with
+                      | Ok t -> t
+                      | Error _ -> payload_mono
+                    in
+                    (* Convert TypeName references to the proper types *)
+                    (* This function needs to handle references to ANY of the mutually recursive types *)
+                    let all_type_names = List.map (fun (name, _, _) -> name) types in
+                    let rec convert_params_to_vars t =
+                      match t with
+                      | TypeName v when List.mem v all_type_names ->
+                          (* Reference to one of the mutually recursive types *)
+                          (* Find its type parameters *)
+                          let (_, found_params, _) = List.find (fun (name, _, _) -> name = v) type_env_entries in
+                          CTypeApp (v, List.map (fun p -> TypeVar p) found_params)
+                      | TypeName v when List.mem v type_params -> TypeVar v
+                      | FunctionType (t1, t2) ->
+                          FunctionType
+                            (convert_params_to_vars t1, convert_params_to_vars t2)
+                      | VectorType ts ->
+                          VectorType (List.map convert_params_to_vars ts)
+                      | CListType t -> CListType (convert_params_to_vars t)
+                      | CTypeApp (name, args) ->
+                          CTypeApp (name, List.map convert_params_to_vars args)
+                      | FixedPoint (name, body) ->
+                          FixedPoint (name, convert_params_to_vars body)
+                      | RecordType fields ->
+                          RecordType (List.map (fun (n, t) -> (n, convert_params_to_vars t)) fields)
+                      | _ -> t
+                    in
+                    let payload_with_vars = convert_params_to_vars payload_simplified in
+                    (* Create polymorphic type *)
+                    let rec make_poly_type params_left payload sum_type =
+                      match params_left with
+                      | [] -> Mono (FunctionType (payload, sum_type))
+                      | param :: rest ->
+                          PolyType (param, make_poly_type rest payload sum_type)
+                    in
+                    (cons_name, make_poly_type type_params payload_with_vars sum_type_app))
+              constructors)
+          types
+      in
+      return (all_constructor_bindings, type_env_entries)
 
 (* Given a type with type names, simplify it by replacing the type names with
    the actual types
