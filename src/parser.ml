@@ -1202,7 +1202,6 @@ end = struct
     let* s =
       expect_token_get_data (function
         | TypeVar s -> Some s
-        | Id s -> Some s (* Also accept plain identifiers *)
         | _ -> None)
     in
     return s

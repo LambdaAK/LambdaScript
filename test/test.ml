@@ -1507,7 +1507,7 @@ let program_typecheck_tests =
          ( "type definition typechecks" >:: fun _ ->
            assert_program_typechecks
              {|
-             type Pair<a> = (a, a)
+             type Pair<'a> = ('a, 'a)
              let (p : Pair<int>) = (1, 2)
            |}
          );
@@ -1568,7 +1568,7 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Pair<a> = (a, a)
+               type Pair<'a> = ('a, 'a)
                let (p : Pair<Pair<int>>) = ((1, 2), (3, 4))
              |}
              ~expr:"p" ~expected_type:"((int, int), (int, int))" );
@@ -1585,7 +1585,7 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Box<a> = (a, a, a)
+               type Box<'a> = ('a, 'a, 'a)
                let (b : Box<int>) = (1, 2, 3)
              |}
              ~expr:"b" ~expected_type:"(int, int, int)" );
@@ -1593,7 +1593,7 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Pair<a> = (a, a)
+               type Pair<'a> = ('a, 'a)
                let make_pair x = (x, x)
              |}
              ~expr:"make_pair 5" ~expected_type:"(int, int)" );
@@ -1601,7 +1601,7 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Pair<a> = (a, a)
+               type Pair<'a> = ('a, 'a)
                let first p = case p do | (x, _) -> x
              |}
              ~expr:"first" ~expected_type:"('a, 'b) -> 'a" );
@@ -1625,7 +1625,7 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type MyList<a> = [a]
+               type MyList<'a> = ['a]
                let (xs : MyList<int>) = [1, 2, 3]
              |}
              ~expr:"xs" ~expected_type:"[int]" );
@@ -1653,7 +1653,7 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Container<a> = (a, [a])
+               type Container<'a> = ('a, ['a])
                let (c1 : Container<int>) = (42, [1, 2, 3])
              |}
              ~expr:"c1" ~expected_type:"(int, [int])" );
@@ -1661,7 +1661,7 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Transformer<a> = a -> a
+               type Transformer<'a> = 'a -> 'a
                let (double : Transformer<int>) = fn x -> x * 2
              |}
              ~expr:"double 5" ~expected_type:"int" );
@@ -1669,8 +1669,8 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Pair<a> = (a, a)
-               type Quad<a> = Pair<Pair<a>>
+               type Pair<'a> = ('a, 'a)
+               type Quad<'a> = Pair<Pair<'a>>
                let (q : Quad<int>) = ((1, 2), (3, 4))
              |}
              ~expr:"q" ~expected_type:"((int, int), (int, int))" );
@@ -1678,7 +1678,7 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Wrapper<a> = (a, a)
+               type Wrapper<'a> = ('a, 'a)
                let wrap x = (x, x)
              |}
              ~expr:"wrap" ~expected_type:"'a -> ('a, 'a)" );
@@ -1686,7 +1686,7 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Pair<a> = (a, a)
+               type Pair<'a> = ('a, 'a)
                let pairs = [(1, 2), (3, 4), (5, 6)]
              |}
              ~expr:"pairs" ~expected_type:"[(int, int)]" );
@@ -1694,7 +1694,7 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Pair<a> = (a, a)
+               type Pair<'a> = ('a, 'a)
                let get_first p = case p do | (x, _) -> x
                let x = get_first (1, 2)
              |}
@@ -1703,7 +1703,7 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type BinaryOp<a> = a -> a -> a
+               type BinaryOp<'a> = 'a -> 'a -> 'a
                let (add : BinaryOp<int>) = fn x -> fn y -> x + y
              |}
              ~expr:"add" ~expected_type:"int -> int -> int" );
@@ -1711,7 +1711,7 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Pair<a, b> = (a, b)
+               type Pair<'a, 'b> = ('a, 'b)
                let (p : Pair<int, bool>) = (42, true)
              |}
              ~expr:"p" ~expected_type:"(int, bool)" );
@@ -1719,8 +1719,8 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Pair<a, b> = (a, b)
-               type LeftIntPair<a> = Pair<int, a>
+               type Pair<'a, 'b> = ('a, 'b)
+               type LeftIntPair<'a> = Pair<int, 'a>
                let (p : LeftIntPair<bool>) = (42, true)
              |}
              ~expr:"p" ~expected_type:"(int, bool)" );
@@ -1728,7 +1728,7 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Triple<a, b, c> = (a, (b, c))
+               type Triple<'a, 'b, 'c> = ('a, ('b, 'c))
                let (t : Triple<int, bool, str>) = (1, (true, "hello"))
              |}
              ~expr:"t" ~expected_type:"(int, (bool, str))" );
@@ -1736,9 +1736,9 @@ let program_expression_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Pair<a, b> = (a, b)
-               type Triple<a, b, c> = (a, (b, c))
-               type RightBoolTriple<a, b> = Triple<a, b, bool>
+               type Pair<'a, 'b> = ('a, 'b)
+               type Triple<'a, 'b, 'c> = ('a, ('b, 'c))
+               type RightBoolTriple<'a, 'b> = Triple<'a, 'b, bool>
                let (x : RightBoolTriple<int, str>) = (1, ("hello", true))
              |}
              ~expr:"x" ~expected_type:"(int, (str, bool))" );
@@ -1863,14 +1863,14 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Option<a> = | Some of a | None
+               type Option<'a> = | Some of 'a | None
              |}
              ~expr:"Some 5" ~expected_value:"Some 5" );
          ( "nullary constructor None" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type Option<a> = | Some of a | None
+               type Option<'a> = | Some of 'a | None
              |}
              ~expr:"None" ~expected_value:"None" );
          ( "pattern match on True" >:: fun _ ->
@@ -1903,7 +1903,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Option<a> = | Some of a | None
+               type Option<'a> = | Some of 'a | None
              |}
              ~expr:
                {|
@@ -1916,7 +1916,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Option<a> = | Some of a | None
+               type Option<'a> = | Some of 'a | None
              |}
              ~expr:
                {|
@@ -1929,7 +1929,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Option<a> = | Some of a | None
+               type Option<'a> = | Some of 'a | None
                let x = Some 10
              |}
              ~expr:
@@ -1985,14 +1985,14 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Pair<a, b> = | Pair of (a, b)
+               type Pair<'a, 'b> = | Pair of ('a, 'b)
              |}
              ~expr:"Pair (1, 2)" ~expected_value:"Pair (1, 2)" );
          ( "pattern match tuple payload" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type Pair<a, b> = | Pair of (a, b)
+               type Pair<'a, 'b> = | Pair of ('a, 'b)
              |}
              ~expr:
                {|
@@ -2004,7 +2004,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Option<a> = | Some of a | None
+               type Option<'a> = | Some of 'a | None
                let x = Some (Some 42)
              |}
              ~expr:
@@ -2048,21 +2048,21 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
              |}
              ~expr:"Nil" ~expected_value:"Nil" );
          ( "recursive list - Cons with Nil" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
              |}
              ~expr:"Cons (1, Nil)" ~expected_value:"Cons (1, Nil)" );
          ( "recursive list - nested Cons" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
              |}
              ~expr:"Cons (1, Cons (2, Nil))"
              ~expected_value:"Cons (1, Cons (2, Nil))" );
@@ -2070,7 +2070,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
              |}
              ~expr:
                {|
@@ -2083,7 +2083,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
              |}
              ~expr:
                {|
@@ -2096,7 +2096,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
                let rec length lst =
                  case lst do
                  | Nil -> 0
@@ -2108,7 +2108,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
                let rec sum lst =
                  case lst do
                  | Nil -> 0
@@ -2120,14 +2120,14 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
+               type rec Tree<'a> = | Leaf | Node of ('a, Tree<'a>, Tree<'a>)
              |}
              ~expr:"Leaf" ~expected_value:"Leaf" );
          ( "recursive binary tree - single Node" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
+               type rec Tree<'a> = | Leaf | Node of ('a, Tree<'a>, Tree<'a>)
              |}
              ~expr:"Node (5, Leaf, Leaf)" ~expected_value:"Node (5, Leaf, Leaf)"
          );
@@ -2135,7 +2135,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
+               type rec Tree<'a> = | Leaf | Node of ('a, Tree<'a>, Tree<'a>)
              |}
              ~expr:"Node (1, Node (2, Leaf, Leaf), Node (3, Leaf, Leaf))"
              ~expected_value:
@@ -2144,7 +2144,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
+               type rec Tree<'a> = | Leaf | Node of ('a, Tree<'a>, Tree<'a>)
              |}
              ~expr:
                {|
@@ -2157,7 +2157,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
+               type rec Tree<'a> = | Leaf | Node of ('a, Tree<'a>, Tree<'a>)
              |}
              ~expr:
                {|
@@ -2170,7 +2170,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
+               type rec Tree<'a> = | Leaf | Node of ('a, Tree<'a>, Tree<'a>)
                let rec size t =
                  case t do
                  | Leaf -> 0
@@ -2182,7 +2182,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
+               type rec Tree<'a> = | Leaf | Node of ('a, Tree<'a>, Tree<'a>)
                let rec sum_tree t =
                  case t do
                  | Leaf -> 0
@@ -2255,7 +2255,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type TypeOne<a> = (a, int)
+               type TypeOne<'a> = ('a, int)
              |}
                "TypeOne<bool>"
            in
@@ -2264,8 +2264,8 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type TypeOne<a> = (a, int)
-               type TypeTwo<a> = (a, TypeOne<a>)
+               type TypeOne<'a> = ('a, int)
+               type TypeTwo<'a> = ('a, TypeOne<'a>)
              |}
                "TypeTwo<bool>"
            in
@@ -2274,7 +2274,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Pair<a, b> = (a, b)
+               type Pair<'a, 'b> = ('a, 'b)
              |}
                "Pair<int, bool>"
            in
@@ -2283,8 +2283,8 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Pair<a, b> = (a, b)
-               type Triple<a, b, c> = (a, Pair<b, c>)
+               type Pair<'a, 'b> = ('a, 'b)
+               type Triple<'a, 'b, 'c> = ('a, Pair<'b, 'c>)
              |}
                "Triple<int, bool, str>"
            in
@@ -2322,7 +2322,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Pair<a, b> = (a, b)
+               type Pair<'a, 'b> = ('a, 'b)
              |}
                "Pair<int, bool>"
            in
@@ -2331,7 +2331,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Pair<a, b> = (a, b)
+               type Pair<'a, 'b> = ('a, 'b)
              |}
                "Pair<bool, int>"
            in
@@ -2340,7 +2340,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Pair<a, b> = (a, b)
+               type Pair<'a, 'b> = ('a, 'b)
              |}
                "Pair<int, int>"
            in
@@ -2350,7 +2350,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Triple<a, b, c> = (a, b, c)
+               type Triple<'a, 'b, 'c> = ('a, 'b, 'c)
              |}
                "Triple<int, bool, str>"
            in
@@ -2359,7 +2359,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Triple<a, b, c> = (a, b, c)
+               type Triple<'a, 'b, 'c> = ('a, 'b, 'c)
              |}
                "Triple<int, int, int>"
            in
@@ -2369,7 +2369,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Quad<a, b, c, d> = (a, b, c, d)
+               type Quad<'a, 'b, 'c, 'd> = ('a, 'b, 'c, 'd)
              |}
                "Quad<int, bool, str, float>"
            in
@@ -2379,7 +2379,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Five<a, b, c, d, e> = (a, b, c, d, e)
+               type Five<'a, 'b, 'c, 'd, 'e> = ('a, 'b, 'c, 'd, 'e)
              |}
                "Five<int, bool, str, float, unit>"
            in
@@ -2398,7 +2398,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Func<a> = a -> a
+               type Func<'a> = 'a -> 'a
              |}
                "Func<int>"
            in
@@ -2407,7 +2407,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Func<a, b> = a -> b
+               type Func<'a, 'b> = 'a -> 'b
              |}
                "Func<int, bool>"
            in
@@ -2416,7 +2416,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Func<a> = a -> a -> a
+               type Func<'a> = 'a -> 'a -> 'a
              |}
                "Func<int>"
            in
@@ -2425,7 +2425,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Func<a, b> = (a, b) -> a
+               type Func<'a, 'b> = ('a, 'b) -> 'a
              |}
                "Func<int, bool>"
            in
@@ -2434,7 +2434,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Func<a, b> = a -> (a, b)
+               type Func<'a, 'b> = 'a -> ('a, 'b)
              |}
                "Func<int, bool>"
            in
@@ -2453,7 +2453,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type List<a> = [a]
+               type List<'a> = ['a]
              |}
                "List<bool>"
            in
@@ -2462,7 +2462,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type PairList<a, b> = [(a, b)]
+               type PairList<'a, 'b> = [('a, 'b)]
              |}
                "PairList<int, bool>"
            in
@@ -2472,7 +2472,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Lists<a, b> = ([a], [b])
+               type Lists<'a, 'b> = (['a], ['b])
              |}
                "Lists<int, bool>"
            in
@@ -2481,7 +2481,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type FuncList<a> = [a -> a]
+               type FuncList<'a> = ['a -> 'a]
              |}
                "FuncList<int>"
            in
@@ -2490,7 +2490,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Func<a> = [a] -> a
+               type Func<'a> = ['a] -> 'a
              |}
                "Func<int>"
            in
@@ -2499,7 +2499,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Func<a> = a -> [a]
+               type Func<'a> = 'a -> ['a]
              |}
                "Func<bool>"
            in
@@ -2512,8 +2512,8 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type First<a> = (a, int)
-               type Second<a> = (First<a>, bool)
+               type First<'a> = ('a, int)
+               type Second<'a> = (First<'a>, bool)
              |}
                "Second<int>"
            in
@@ -2522,9 +2522,9 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type A<a> = (a, int)
-               type B<a> = (A<a>, bool)
-               type C<a> = (B<a>, str)
+               type A<'a> = ('a, int)
+               type B<'a> = (A<'a>, bool)
+               type C<'a> = (B<'a>, str)
              |}
                "C<int>"
            in
@@ -2533,8 +2533,8 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Pair<a, b> = (a, b)
-               type Triple<a, b, c> = (Pair<a, b>, c)
+               type Pair<'a, 'b> = ('a, 'b)
+               type Triple<'a, 'b, 'c> = (Pair<'a, 'b>, 'c)
              |}
                "Triple<int, bool, str>"
            in
@@ -2543,8 +2543,8 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Wrapper<a> = (a, int)
-               type Double<a> = (Wrapper<a>, Wrapper<bool>)
+               type Wrapper<'a> = ('a, int)
+               type Double<'a> = (Wrapper<'a>, Wrapper<bool>)
              |}
                "Double<int>"
            in
@@ -2555,7 +2555,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Complex<a, b, c> = ((a, b), (b, c), (a, c))
+               type Complex<'a, 'b, 'c> = (('a, 'b), ('b, 'c), ('a, 'c))
              |}
                "Complex<int, bool, str>"
            in
@@ -2566,7 +2566,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Func<a, b> = (a, b) -> a
+               type Func<'a, 'b> = ('a, 'b) -> 'a
              |}
                "Func<int, bool>"
            in
@@ -2575,7 +2575,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type ComplexList<a, b> = [((a, b), (b, a))]
+               type ComplexList<'a, 'b> = [(('a, 'b), ('b, 'a))]
              |}
                "ComplexList<int, bool>"
            in
@@ -2594,7 +2594,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Wrapper<a> = (a, int)
+               type Wrapper<'a> = ('a, int)
              |}
                "Wrapper<bool>"
            in
@@ -2613,7 +2613,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Pair<a> = (a, a)
+               type Pair<'a> = ('a, 'a)
              |}
                "Pair<int>"
            in
@@ -2622,7 +2622,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Wrapper<a> = (a, int)
+               type Wrapper<'a> = ('a, int)
              |}
                "Wrapper<Wrapper<int>>"
            in
@@ -2631,7 +2631,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Box<a> = (a, int)
+               type Box<'a> = ('a, int)
              |}
                "Box<Box<Box<int>>>"
            in
@@ -2641,7 +2641,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Swap<a, b> = (b, a)
+               type Swap<'a, 'b> = ('b, 'a)
              |}
                "Swap<int, bool>"
            in
@@ -2650,7 +2650,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Triple<a> = (a, a, a)
+               type Triple<'a> = ('a, 'a, 'a)
              |}
                "Triple<str>"
            in
@@ -2659,7 +2659,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Mixed<a, b> = (a, b, a, b)
+               type Mixed<'a, 'b> = ('a, 'b, 'a, 'b)
              |}
                "Mixed<int, bool>"
            in
@@ -2669,7 +2669,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Option<a> = (bool, a)
+               type Option<'a> = (bool, 'a)
              |}
                "Option<int>"
            in
@@ -2678,7 +2678,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Result<a, b> = (bool, a, b)
+               type Result<'a, 'b> = (bool, 'a, 'b)
              |}
                "Result<int, str>"
            in
@@ -2687,7 +2687,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Maybe<a> = (bool, a)
+               type Maybe<'a> = (bool, 'a)
              |}
                "Maybe<bool>"
            in
@@ -2696,7 +2696,7 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Either<a, b> = (bool, a, b)
+               type Either<'a, 'b> = (bool, 'a, 'b)
              |}
                "Either<int, str>"
            in
@@ -2712,9 +2712,9 @@ let red_black_tree_tests =
            assert_program_typechecks
              {|
              type Color = | Red | Black
-             type rec RBTree<a> =
+             type rec RBTree<'a> =
                | Leaf
-               | Node of (Color, a, RBTree<a>, RBTree<a>)
+               | Node of (Color, a, RBTree<'a>, RBTree<'a>)
            |}
          );
          ( "create empty rb tree" >:: fun _ ->
@@ -2722,9 +2722,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
              |}
              ~expr:"Leaf" ~expected_value:"Leaf" );
          ( "create red node" >:: fun _ ->
@@ -2732,9 +2732,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
              |}
              ~expr:"Node (Red, 5, Leaf, Leaf)"
              ~expected_value:"Node (Red, 5, Leaf, Leaf)" );
@@ -2743,9 +2743,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
              |}
              ~expr:"Node (Black, 10, Leaf, Leaf)"
              ~expected_value:"Node (Black, 10, Leaf, Leaf)" );
@@ -2755,9 +2755,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec contains x tree =
                  case tree do
@@ -2773,9 +2773,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec contains x tree =
                  case tree do
@@ -2791,9 +2791,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec contains x tree =
                  case tree do
@@ -2810,9 +2810,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec contains x tree =
                  case tree do
@@ -2830,9 +2830,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let balance tree =
                  case tree do
@@ -2852,9 +2852,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let balance tree =
                  case tree do
@@ -2876,9 +2876,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec size tree =
                  case tree do
@@ -2891,9 +2891,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec size tree =
                  case tree do
@@ -2906,9 +2906,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec size tree =
                  case tree do
@@ -2921,9 +2921,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec size tree =
                  case tree do
@@ -2940,9 +2940,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec height tree =
                  case tree do
@@ -2958,9 +2958,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec height tree =
                  case tree do
@@ -2976,9 +2976,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec height tree =
                  case tree do
@@ -2994,9 +2994,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec height tree =
                  case tree do
@@ -3016,9 +3016,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec minimum tree =
                  case tree do
@@ -3032,9 +3032,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec minimum tree =
                  case tree do
@@ -3049,9 +3049,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec minimum tree =
                  case tree do
@@ -3068,9 +3068,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec maximum tree =
                  case tree do
@@ -3084,9 +3084,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec maximum tree =
                  case tree do
@@ -3101,9 +3101,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec maximum tree =
                  case tree do
@@ -3121,9 +3121,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let tree = Node (Black, 5,
                            Node (Red, 3,
@@ -3143,9 +3143,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec size tree =
                  case tree do
@@ -3166,9 +3166,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec contains x tree =
                  case tree do
@@ -3192,9 +3192,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec contains x tree =
                  case tree do
@@ -3219,9 +3219,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let make_black tree =
                  case tree do
@@ -3234,9 +3234,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let make_black tree =
                  case tree do
@@ -3249,9 +3249,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let make_black tree =
                  case tree do
@@ -3265,9 +3265,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let balance tree =
                  case tree do
@@ -3299,9 +3299,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let balance tree =
                  case tree do
@@ -3341,9 +3341,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let balance tree =
                  case tree do
@@ -3383,9 +3383,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let balance tree =
                  case tree do
@@ -3433,9 +3433,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let balance tree =
                  case tree do
@@ -3489,9 +3489,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let balance tree =
                  case tree do
@@ -3538,9 +3538,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let balance tree =
                  case tree do
@@ -3649,9 +3649,9 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
              |}
              ~expr:"Node"
              ~expected_type:"(Color, 'a, RBTree<'a>, RBTree<'a>) -> RBTree<'a>"
@@ -3662,9 +3662,9 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
              |}
              ~expr:"Node (Red, 5, Leaf, Leaf)" ~expected_type:"RBTree<int>" );
          (* Test multiple sum types referencing each other *)
@@ -3674,7 +3674,7 @@ let sum_type_constructor_inference_tests =
                {|
                type Status = | Active | Inactive
                type Priority = | High | Low
-               type rec Task<a> =
+               type rec Task<'a> =
                  | Task of (Status, Priority, a)
              |}
              ~expr:"Task" ~expected_type:"(Status, Priority, 'a) -> Task<'a>" );
@@ -3684,9 +3684,9 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
              |}
              ~expr:"Node (Red, 5, Leaf, Leaf)"
              ~expected_value:"Node (Red, 5, Leaf, Leaf)" );
@@ -3696,9 +3696,9 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
              |}
              ~expr:
                {|
@@ -3713,9 +3713,9 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
              |}
              ~expr:
                {|
@@ -3753,7 +3753,7 @@ let sum_type_constructor_inference_tests =
                {|
                type Size = | Small | Large
                type Color = | Red | Black
-               type Colored<a> = | Colored of (Color, a)
+               type Colored<'a> = | Colored of (Color, 'a)
              |}
              ~expr:"Colored" ~expected_type:"(Color, 'a) -> Colored<'a>" );
          (* Test that concrete types in tuple payloads work *)
@@ -3773,9 +3773,9 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let make_red_node x = Node (Red, x, Leaf, Leaf)
              |}
@@ -3786,9 +3786,9 @@ let sum_type_constructor_inference_tests =
              {|
                type Color = | Red | Black
                type Size = | Big | Small
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let bad_node = Node (Big, 5, Leaf, Leaf)
              |}
@@ -3799,7 +3799,7 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Tag = | Important | Normal
-               type Wrapper<a> = | Wrap of (Tag, a)
+               type Wrapper<'a> = | Wrap of (Tag, 'a)
              |}
              ~expr:"Wrap" ~expected_type:"(Tag, 'a) -> Wrapper<'a>" );
          (* Test complex nested structure *)
@@ -3809,9 +3809,9 @@ let sum_type_constructor_inference_tests =
                {|
                type Status = | Active | Inactive
                type Priority = | High | Low | Medium
-               type rec TaskList<a> =
+               type rec TaskList<'a> =
                  | Empty
-                 | Task of (Status, Priority, a, TaskList<a>)
+                 | Task of (Status, Priority, a, TaskList<'a>)
              |}
              ~expr:"Task"
              ~expected_type:
@@ -3838,7 +3838,7 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type Colored<a> = | Colored of (Color, a)
+               type Colored<'a> = | Colored of (Color, 'a)
              |}
              ~expr:
                {|
@@ -3852,9 +3852,9 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let rec contains x tree =
                  case tree do
@@ -3871,9 +3871,9 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<a>, RBTree<a>)
+                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
 
                let balance tree =
                  case tree do
@@ -4231,7 +4231,7 @@ let option_map_type_test =
            assert_expression_has_type
              ~program:
                {|
-          type Option<a> =
+          type Option<'a> =
             | None
             | Some of a
 
@@ -4349,7 +4349,7 @@ let parenthesized_builtin_operator_tests =
 
    These tests verify that nullary constructors (like None) in sum types with
    type parameters are properly polymorphic. Without the fix, None would have
-   type Option<a> with a free variable 'a', causing all uses to share the same
+   type Option<'a> with 'a free variable 'a', causing all uses to share the same
    type variable.
    ============================================================================ *)
 let polymorphic_nullary_constructor_regression_tests =
@@ -4361,7 +4361,7 @@ let polymorphic_nullary_constructor_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type Option<a> =
+          type Option<'a> =
             | None
             | Some of a
 
@@ -4377,7 +4377,7 @@ let polymorphic_nullary_constructor_regression_tests =
            assert_expression_has_value
              ~program:
                {|
-          type Option<a> =
+          type Option<'a> =
             | None
             | Some of a
 
@@ -4391,7 +4391,7 @@ let polymorphic_nullary_constructor_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type Option<a> =
+          type Option<'a> =
             | None
             | Some of a
 
@@ -4407,7 +4407,7 @@ let polymorphic_nullary_constructor_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type Result<a, e> =
+          type Result<'a, 'e> =
             | Ok of a
             | Error of e
 
@@ -4423,11 +4423,11 @@ let polymorphic_nullary_constructor_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type Either<a, b> =
+          type Either<'a, 'b> =
             | Left of a
             | Right of b
 
-          type Maybe<a> =
+          type Maybe<'a> =
             | Nothing
             | Just of a
 
@@ -4442,7 +4442,7 @@ let polymorphic_nullary_constructor_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type Option<a> =
+          type Option<'a> =
             | None
             | Some of a
 
@@ -4458,7 +4458,7 @@ let polymorphic_nullary_constructor_regression_tests =
            assert_expression_has_value
              ~program:
                {|
-          type Option<a> =
+          type Option<'a> =
             | None
             | Some of a
 
@@ -4478,7 +4478,7 @@ let polymorphic_nullary_constructor_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type PairOrEmpty<a, b> =
+          type PairOrEmpty<'a, 'b> =
             | Empty
             | Pair of (a, b)
 
@@ -4506,7 +4506,7 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type Option<a> =
+          type Option<'a> =
             | None
             | Some of a
 
@@ -4522,7 +4522,7 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_value
              ~program:
                {|
-          type Option<a> =
+          type Option<'a> =
             | None
             | Some of a
 
@@ -4540,7 +4540,7 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_value
              ~program:
                {|
-          type Option<a> =
+          type Option<'a> =
             | None
             | Some of a
 
@@ -4560,7 +4560,7 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_value
              ~program:
                {|
-          type Option<a> =
+          type Option<'a> =
             | None
             | Some of a
 
@@ -4577,7 +4577,7 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type Box<a> = (a, int)
+          type Box<'a> = ('a, int)
 
           let unbox x = x
         |}
@@ -4588,7 +4588,7 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_value
              ~program:
                {|
-          type Option<a> =
+          type Option<'a> =
             | None
             | Some of a
 
@@ -4605,7 +4605,7 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_value
              ~program:
                {|
-          type Option<a> =
+          type Option<'a> =
             | None
             | Some of a
 
@@ -4623,7 +4623,7 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type Nested<a> = (a, a)
+          type Nested<'a> = ('a, 'a)
 
           let identity x = x
         |}
@@ -4634,7 +4634,7 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_value
              ~program:
                {|
-          type Option<a> =
+          type Option<'a> =
             | None
             | Some of a
 
@@ -4943,9 +4943,9 @@ let very_complex_record_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> =
+               type rec List<'a> =
                  | Nil
-                 | Cons of {head: a, tail: List<a>}
+                 | Cons of {head: a, tail: List<'a>}
 
                let rec length = fn lst ->
                  case lst do
@@ -4969,11 +4969,11 @@ let very_complex_record_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> =
+               type rec Tree<'a> =
                  | Empty
-                 | Branch of {value: a, children: [Tree<a>]}
+                 | Branch of {value: a, children: [Tree<'a>]}
 
-               type Forest<a> = {trees: [Tree<a>], count: int}
+               type Forest<'a> = {trees: [Tree<'a>], count: int}
 
                let rec count_nodes = fn t ->
                  case t do
@@ -5804,35 +5804,35 @@ let simple_constructor_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Option<a> = | None | Some of a
+               type Option<'a> = | None | Some of 'a
              |}
              ~expr:"None" ~expected_type:"Option<'a>" );
          ( "parameterized constructor with payload" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Option<a> = | None | Some of a
+               type Option<'a> = | None | Some of 'a
              |}
              ~expr:"Some" ~expected_type:"'a -> Option<'a>" );
          ( "constructor with list payload" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Container<a> = | Empty | Full of [a]
+               type Container<'a> = | Empty | Full of ['a]
              |}
              ~expr:"Full" ~expected_type:"['a] -> Container<'a>" );
          ( "constructor with multiple type params" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Either<a, b> = | Left of a | Right of b
+               type Either<'a, 'b> = | Left of 'a | Right of 'b
              |}
              ~expr:"Left" ~expected_type:"'a -> Either<'a, 'b>" );
          ( "constructor with multiple type params right" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Either<a, b> = | Left of a | Right of b
+               type Either<'a, 'b> = | Left of 'a | Right of 'b
              |}
              ~expr:"Right" ~expected_type:"'a -> Either<'b, 'a>" );
        ]
@@ -5866,28 +5866,28 @@ let recursive_constructor_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
              |}
              ~expr:"Nil" ~expected_type:"List<'a>" );
          ( "parameterized recursive list cons" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
              |}
              ~expr:"Cons" ~expected_type:"('a, List<'a>) -> List<'a>" );
          ( "binary tree leaf" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (Tree<a>, a, Tree<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of (Tree<'a>, 'a, Tree<'a>)
              |}
              ~expr:"Leaf" ~expected_type:"'a -> Tree<'a>" );
          ( "binary tree node" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (Tree<a>, a, Tree<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of (Tree<'a>, 'a, Tree<'a>)
              |}
              ~expr:"Node" ~expected_type:"(Tree<'a>, 'a, Tree<'a>) -> Tree<'a>"
          );
@@ -5895,7 +5895,7 @@ let recursive_constructor_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec RoseTree<a> = | RNode of (a, [RoseTree<a>])
+               type rec RoseTree<'a> = | RNode of ('a, [RoseTree<'a>])
              |}
              ~expr:"RNode" ~expected_type:"('a, [RoseTree<'a>]) -> RoseTree<'a>"
          );
@@ -5940,9 +5940,9 @@ let complex_constructor_type_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Empty
-                 | Node of (Color, RBTree<a>, a, RBTree<a>)
+                 | Node of (Color, RBTree<'a>, a, RBTree<'a>)
              |}
              ~expr:"Empty" ~expected_type:"RBTree<'a>" );
          ( "red black tree node" >:: fun _ ->
@@ -5950,9 +5950,9 @@ let complex_constructor_type_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<a> =
+               type rec RBTree<'a> =
                  | Empty
-                 | Node of (Color, RBTree<a>, a, RBTree<a>)
+                 | Node of (Color, RBTree<'a>, a, RBTree<'a>)
              |}
              ~expr:"Node"
              ~expected_type:"(Color, RBTree<'a>, 'a, RBTree<'a>) -> RBTree<'a>"
@@ -5961,9 +5961,9 @@ let complex_constructor_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<a> =
+               type rec Tree<'a> =
                  | Leaf
-                 | Branch of {value: a, left: Tree<a>, right: Tree<a>}
+                 | Branch of {value: a, left: Tree<'a>, right: Tree<'a>}
              |}
              ~expr:"Branch"
              ~expected_type:
@@ -5972,9 +5972,9 @@ let complex_constructor_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec AVLTree<a> =
+               type rec AVLTree<'a> =
                  | Empty
-                 | Node of (AVLTree<a>, a, AVLTree<a>, int)
+                 | Node of (AVLTree<'a>, a, AVLTree<'a>, int)
              |}
              ~expr:"Node"
              ~expected_type:"(AVLTree<'a>, 'a, AVLTree<'a>, int) -> AVLTree<'a>"
@@ -5983,11 +5983,11 @@ let complex_constructor_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (Tree<a>, Tree<a>)
-               type rec Context<a> =
+               type rec Tree<'a> = | Leaf of 'a | Node of (Tree<'a>, Tree<'a>)
+               type rec Context<'a> =
                  | Top
-                 | L of (Context<a>, Tree<a>)
-                 | R of (Tree<a>, Context<a>)
+                 | L of (Context<'a>, Tree<'a>)
+                 | R of (Tree<'a>, Context<'a>)
              |}
              ~expr:"L" ~expected_type:"(Context<'a>, Tree<'a>) -> Context<'a>"
          );
@@ -5995,18 +5995,18 @@ let complex_constructor_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec MultiTree<a> =
+               type rec MultiTree<'a> =
                  | Leaf of a
-                 | Branch of [MultiTree<a>]
+                 | Branch of [MultiTree<'a>]
              |}
              ~expr:"Branch" ~expected_type:"[MultiTree<'a>] -> MultiTree<'a>" );
          ( "constructor combining records and recursion" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec LinkedList<a> =
+               type rec LinkedList<'a> =
                  | Empty
-                 | Cell of {head: a, tail: LinkedList<a>}
+                 | Cell of {head: a, tail: LinkedList<'a>}
              |}
              ~expr:"Cell"
              ~expected_type:"{head: 'a, tail: LinkedList<'a>} -> LinkedList<'a>"
@@ -6313,7 +6313,7 @@ let type_alias_tests =
            assert_expression_has_type ~program:"type IntList = [int]"
              ~expr:"[1, 2, 3]" ~expected_type:"[int]" );
          ( "parameterized type alias" >:: fun _ ->
-           assert_expression_has_type ~program:"type Box<a> = (a, a)"
+           assert_expression_has_type ~program:"type Box<'a> = (a, a)"
              ~expr:"(1, 2)" ~expected_type:"(int, int)" );
          ( "nested type alias" >:: fun _ ->
            assert_expression_has_type
@@ -6881,7 +6881,7 @@ let complex_sum_type_operations =
            assert_expression_has_value
              ~program:
                {|
-               type Option<a> = | None | Some of a
+               type Option<'a> = | None | Some of 'a
 
                let option_map = fn f -> fn opt ->
                  case opt do
@@ -6894,7 +6894,7 @@ let complex_sum_type_operations =
            assert_expression_has_value
              ~program:
                {|
-               type Option<a> = | None | Some of a
+               type Option<'a> = | None | Some of 'a
 
                let option_bind = fn opt -> fn f ->
                  case opt do
@@ -6910,7 +6910,7 @@ let complex_sum_type_operations =
            assert_expression_has_value
              ~program:
                {|
-               type Either<a, b> = | Left of a | Right of b
+               type Either<'a, 'b> = | Left of 'a | Right of 'b
 
                let either_map = fn f -> fn either ->
                  case either do
@@ -6923,7 +6923,7 @@ let complex_sum_type_operations =
            assert_expression_has_value
              ~program:
                {|
-               type Result<a> = | Ok of a | Error of int
+               type Result<'a> = | Ok of 'a | Error of int
 
                let result_map = fn f -> fn result ->
                  case result do
@@ -6939,7 +6939,7 @@ let complex_sum_type_operations =
            assert_expression_has_value
              ~program:
                {|
-               type Option<a> = | None | Some of a
+               type Option<'a> = | None | Some of 'a
 
                let rec filter_options = fn lst ->
                  case lst do
@@ -7680,8 +7680,8 @@ let mutually_recursive_types_with_params_tests =
          ( "tree forest typechecks" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-             and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+             and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
            |}
          );
          (* Test 12: Leaf constructor type *)
@@ -7689,8 +7689,8 @@ let mutually_recursive_types_with_params_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
              |}
              ~expr:"Leaf" ~expected_type:"'a -> Tree<'a>" );
          (* Test 13: Node constructor type *)
@@ -7698,8 +7698,8 @@ let mutually_recursive_types_with_params_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
              |}
              ~expr:"Node" ~expected_type:"('a, Forest<'a>) -> Tree<'a>" );
          (* Test 14: Empty constructor type *)
@@ -7707,8 +7707,8 @@ let mutually_recursive_types_with_params_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
              |}
              ~expr:"Empty" ~expected_type:"Forest<'a>" );
          (* Test 15: Trees constructor type *)
@@ -7716,8 +7716,8 @@ let mutually_recursive_types_with_params_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
              |}
              ~expr:"Trees" ~expected_type:"(Tree<'a>, Forest<'a>) -> Forest<'a>"
          );
@@ -7726,8 +7726,8 @@ let mutually_recursive_types_with_params_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
              |}
              ~expr:"Leaf 5" ~expected_type:"Tree<int>" );
          (* Test 17: Create tree with children *)
@@ -7735,8 +7735,8 @@ let mutually_recursive_types_with_params_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
              |}
              ~expr:"Node (1, Trees (Leaf 2, Empty))" ~expected_type:"Tree<int>"
          );
@@ -7745,8 +7745,8 @@ let mutually_recursive_types_with_params_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
              |}
              ~expr:"Trees (Leaf 1, Trees (Leaf 2, Empty))"
              ~expected_type:"Forest<int>" );
@@ -7755,8 +7755,8 @@ let mutually_recursive_types_with_params_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
 
                let rec count_tree = fn t ->
                  case t do
@@ -7775,8 +7775,8 @@ let mutually_recursive_types_with_params_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
 
                let rec sum_tree = fn t ->
                  case t do
@@ -7904,8 +7904,8 @@ let mutually_recursive_types_complex_tests =
          ( "dual list typechecks" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec ListA<a> = | NilA | ConsA of (a, ListB<a>)
-             and ListB<a> = | NilB | ConsB of (a, ListA<a>)
+             type rec ListA<'a> = | NilA | ConsA of ('a, ListB<'a>)
+             and ListB<'a> = | NilB | ConsB of (a, ListA<'a>)
            |}
          );
          (* Test 30: Dual list length *)
@@ -7913,8 +7913,8 @@ let mutually_recursive_types_complex_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec ListA<a> = | NilA | ConsA of (a, ListB<a>)
-               and ListB<a> = | NilB | ConsB of (a, ListA<a>)
+               type rec ListA<'a> = | NilA | ConsA of ('a, ListB<'a>)
+               and ListB<'a> = | NilB | ConsB of (a, ListA<'a>)
 
                let rec len_a = fn la ->
                  case la do
@@ -7978,8 +7978,8 @@ let mutually_recursive_types_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
 
                let rec sum_tree = fn t ->
                  case t do
@@ -8021,8 +8021,8 @@ let mutually_recursive_types_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
 
                let rec map_tree = fn f -> fn t ->
                  case t do
@@ -8068,8 +8068,8 @@ let mutually_recursive_types_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
 
                let rec count_tree = fn t ->
                  case t do
@@ -8088,8 +8088,8 @@ let mutually_recursive_types_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
 
                let rec find_tree = fn target -> fn t ->
                  case t do
@@ -8109,8 +8109,8 @@ let mutually_recursive_types_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
 
                let max = fn a -> fn b -> if a > b then a else b
 
@@ -8131,8 +8131,8 @@ let mutually_recursive_types_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
-               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
+               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
 
                let rec append = fn l1 -> fn l2 ->
                  case l1 do
@@ -8161,8 +8161,8 @@ let mutually_recursive_types_advanced_tests =
          ( "multiple type params" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec PairA<a, b> = | PA of (a, PairB<b, a>)
-             and PairB<a, b> = | PB of (a, PairA<b, a>) | PBNil
+             type rec PairA<'a, 'b> = | PA of ('a, PairB<'b, 'a>)
+             and PairB<'a, 'b> = | PB of (a, PairA<'b, 'a>) | PBNil
            |}
          );
          (* Test 42: Swap types *)
@@ -8170,8 +8170,8 @@ let mutually_recursive_types_advanced_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec PairA<a, b> = | PA of (a, PairB<b, a>)
-               and PairB<a, b> = | PB of (a, PairA<b, a>) | PBNil
+               type rec PairA<'a, 'b> = | PA of ('a, PairB<'b, 'a>)
+               and PairB<'a, 'b> = | PB of (a, PairA<'b, 'a>) | PBNil
              |}
              ~expr:"PA (5, PB (true, PA (10, PBNil)))"
              ~expected_type:"PairA<int, bool>" );
@@ -8179,8 +8179,8 @@ let mutually_recursive_types_advanced_tests =
          ( "rose tree typechecks" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec Rose<a> = | RNode of (a, RoseList<a>)
-             and RoseList<a> = | RNil | RCons of (Rose<a>, RoseList<a>)
+             type rec Rose<'a> = | RNode of ('a, RoseList<'a>)
+             and RoseList<'a> = | RNil | RCons of (Rose<'a>, RoseList<'a>)
            |}
          );
          (* Test 44: Rose tree depth *)
@@ -8188,8 +8188,8 @@ let mutually_recursive_types_advanced_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Rose<a> = | RNode of (a, RoseList<a>)
-               and RoseList<a> = | RNil | RCons of (Rose<a>, RoseList<a>)
+               type rec Rose<'a> = | RNode of ('a, RoseList<'a>)
+               and RoseList<'a> = | RNil | RCons of (Rose<'a>, RoseList<'a>)
 
                let max = fn a -> fn b -> if a > b then a else b
 
@@ -8274,9 +8274,9 @@ let mutually_recursive_types_advanced_tests =
          ( "graph node edge" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec Node<a> = | N of (a, EdgeList<a>)
-             and EdgeList<a> = | ENil | ECons of (Edge<a>, EdgeList<a>)
-             and Edge<a> = | E of Node<a>
+             type rec Node<'a> = | N of ('a, EdgeList<'a>)
+             and EdgeList<'a> = | ENil | ECons of (Edge<'a>, EdgeList<'a>)
+             and Edge<'a> = | E of Node<'a>
            |}
          );
          (* Test 50: Count graph nodes *)
@@ -8284,9 +8284,9 @@ let mutually_recursive_types_advanced_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Node<a> = | N of (a, EdgeList<a>)
-               and EdgeList<a> = | ENil | ECons of (Edge<a>, EdgeList<a>)
-               and Edge<a> = | E of Node<a>
+               type rec Node<'a> = | N of ('a, EdgeList<'a>)
+               and EdgeList<'a> = | ENil | ECons of (Edge<'a>, EdgeList<'a>)
+               and Edge<'a> = | E of Node<'a>
 
                let rec count_node = fn n ->
                  case n do
@@ -8413,8 +8413,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec MTree<a> = | MLeaf of a | MNode of (a, MForest<a>)
-               and MForest<a> = | FNil | FCons of (MTree<a>, MForest<a>)
+               type rec MTree<'a> = | MLeaf of 'a | MNode of ('a, MForest<'a>)
+               and MForest<'a> = | FNil | FCons of (MTree<'a>, MForest<'a>)
 
                let rec tree_map = fn f -> fn tree ->
                  case tree do
@@ -8606,7 +8606,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<a> = | Empty | Branch of (a, Tree<a>, Tree<a>)
+               type rec Tree<'a> = | Empty | Branch of ('a, Tree<'a>, Tree<'a>)
 
                let rec fold_tree = fn leaf_fn -> fn branch_fn -> fn tree ->
                  case tree do
@@ -9022,8 +9022,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Event<a> = | NoEvent | Ev of (a, EventStream<a>)
-               and EventStream<a> = | Stream of Event<a>
+               type rec Event<'a> = | NoEvent | Ev of ('a, EventStream<'a>)
+               and EventStream<'a> = | Stream of Event<'a>
 
                let rec map_events = fn f -> fn stream ->
                  case stream do
@@ -9105,8 +9105,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Queue<a> = | Q of (QList<a>, QList<a>)
-               and QList<a> = | QNil | QCons of (a, QList<a>)
+               type rec Queue<'a> = | Q of (QList<'a>, QList<'a>)
+               and QList<'a> = | QNil | QCons of (a, QList<'a>)
 
                let rec enqueue = fn x -> fn q ->
                  case q do
@@ -9146,8 +9146,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec PVec<a> = | PVNode of (PVChildren<a>, int)
-               and PVChildren<a> = | PVNil | PVCons of (PVec<a>, PVChildren<a>)
+               type rec PVec<'a> = | PVNode of (PVChildren<'a>, int)
+               and PVChildren<'a> = | PVNil | PVCons of (PVec<'a>, PVChildren<'a>)
 
                let rec pvec_size = fn vec ->
                  case vec do
@@ -9176,7 +9176,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec ParseResult<a> = | PSuccess of a | PFailure
+               type rec ParseResult<'a> = | PSuccess of 'a | PFailure
 
                let rec extract_result = fn result ->
                  case result do
@@ -9559,8 +9559,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Option<a> = | None | Some of a
-              and Result<a, b> = | Ok of a | Err of b
+              type rec Option<'a> = | None | Some of 'a
+              and Result<'a, 'b> = | Ok of a | Err of b
 
               let rec unwrap_or = fn opt -> fn default ->
                 case opt do
@@ -9819,7 +9819,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Pair<a, b> = | P of (a, b)
+              type rec Pair<'a, 'b> = | P of ('a, 'b)
 
               let rec zip = fn l1 -> fn l2 ->
                 case l1 do
@@ -10007,7 +10007,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Pair<a> = | P of (a, a)
+              type rec Pair<'a> = | P of ('a, 'a)
 
               let rec chunk_pairs = fn list ->
                 case list do
@@ -10126,7 +10126,7 @@ let very_complex_integration_tests =
              ~program:
                {|
               type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
-              and Option<a> = | None | Some of a
+              and Option<'a> = | None | Some of a
 
               let rec prune = fn threshold -> fn tree ->
                 case tree do
@@ -10156,8 +10156,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Groups<a> = | GNil | GCons of (Group<a>, Groups<a>)
-              and Group<a> = | Single of a | Multiple of (a, int)
+              type rec Groups<'a> = | GNil | GCons of (Group<'a>, Groups<'a>)
+              and Group<'a> = | Single of a | Multiple of (a, int)
 
               let rec count_consecutive = fn list ->
                 case list do

@@ -1504,6 +1504,15 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                 let rec convert_params_to_vars t =
                   match t with
                   | TypeName v when List.mem v type_params -> TypeVar v
+                  | TypeVar v ->
+                      (* Extract variable name from $written(x) format *)
+                      let var_name =
+                        if String.length v > 9 && String.sub v 0 9 = "$written("
+                        then String.sub v 9 (String.length v - 10)
+                        else v
+                      in
+                      if List.mem var_name type_params then TypeVar var_name
+                      else TypeVar v
                   | FunctionType (t1, t2) ->
                       FunctionType
                         (convert_params_to_vars t1, convert_params_to_vars t2)
@@ -1588,6 +1597,15 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                       (* Reference to the recursive type itself *)
                       sum_type_app
                   | TypeName v when List.mem v type_params -> TypeVar v
+                  | TypeVar v ->
+                      (* Extract variable name from $written(x) format *)
+                      let var_name =
+                        if String.length v > 9 && String.sub v 0 9 = "$written("
+                        then String.sub v 9 (String.length v - 10)
+                        else v
+                      in
+                      if List.mem var_name type_params then TypeVar var_name
+                      else TypeVar v
                   | FunctionType (t1, t2) ->
                       FunctionType
                         (convert_params_to_vars t1, convert_params_to_vars t2)
@@ -1679,6 +1697,15 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                           let (_, found_params, _) = List.find (fun (name, _, _) -> name = v) type_env_entries in
                           CTypeApp (v, List.map (fun p -> TypeVar p) found_params)
                       | TypeName v when List.mem v type_params -> TypeVar v
+                      | TypeVar v ->
+                          (* Extract variable name from $written(x) format *)
+                          let var_name =
+                            if String.length v > 9 && String.sub v 0 9 = "$written("
+                            then String.sub v 9 (String.length v - 10)
+                            else v
+                          in
+                          if List.mem var_name type_params then TypeVar var_name
+                          else TypeVar v
                       | FunctionType (t1, t2) ->
                           FunctionType
                             (convert_params_to_vars t1, convert_params_to_vars t2)
