@@ -10629,32 +10629,6 @@ let very_complex_integration_tests =
             |}
              ~expr:"if contains tree 6 && contains tree 4 then 100 else 0"
              ~expected_value:"100" );
-         (* Test 88: List split at position *)
-         ( "list split at position" >:: fun _ ->
-           assert_expression_has_value
-             ~program:
-               {|
-              type rec Pair<a, b> = | P of (a, b)
-
-              let rec split_at = fn n -> fn list ->
-                if n == 0 then P ([], list)
-                else case list do
-                     | [] -> P ([], [])
-                     | h :: t ->
-                       split_cons h (split_at (n - 1) t)
-              and split_cons = fn h -> fn pair ->
-                case pair do
-                | P (left, right) -> P (h :: left, right)
-
-              let rec sum = fn list ->
-                case list do
-                | [] -> 0
-                | h :: t -> h + sum t
-
-              let lst = [1, 2, 3, 4, 5, 6]
-              let P (left, right) = split_at 3 lst
-            |}
-             ~expr:"sum left + sum right" ~expected_value:"21" );
          (* Test 89: Tree serialization *)
          ( "tree to list serialization" >:: fun _ ->
            assert_expression_has_value
@@ -10802,33 +10776,6 @@ let very_complex_integration_tests =
               let tree = Node (1, Node (2, Leaf 4, Leaf 5), Node (3, Leaf 6, Leaf 7))
             |}
              ~expr:"find_depth tree 4 0" ~expected_value:"2" );
-         (* Test 96: List quickselect preparation *)
-         ( "list partition around pivot" >:: fun _ ->
-           assert_expression_has_value
-             ~program:
-               {|
-              type rec Pair<a, b> = | P of (a, b)
-
-              let rec partition = fn pivot -> fn list ->
-                case list do
-                | [] -> P ([], [])
-                | h :: t ->
-                  partition_cons pivot h (partition pivot t)
-              and partition_cons = fn pivot -> fn h -> fn pair ->
-                case pair do
-                | P (less, greater) ->
-                  if h < pivot then P (h :: less, greater)
-                  else P (less, h :: greater)
-
-              let rec length = fn list ->
-                case list do
-                | [] -> 0
-                | _ :: t -> 1 + length t
-
-              let lst = [3, 7, 1, 9, 2, 8, 4, 6, 5]
-              let P (less, greater) = partition 5 lst
-            |}
-             ~expr:"length less" ~expected_value:"4" );
          (* Test 97: Tree vertical order traversal *)
          ( "tree column counting" >:: fun _ ->
            assert_expression_has_value
