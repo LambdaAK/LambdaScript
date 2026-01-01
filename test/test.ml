@@ -8820,12 +8820,12 @@ let very_complex_integration_tests =
                  | Accept (s, rest) ->
                    if s == state then true else is_accepting state rest
 
-               let rec find_next = fn state -> fn char -> fn trans ->
+               let rec find_next = fn state -> fn charr -> fn trans ->
                  case trans do
                  | TEmpty -> state
                  | Trans (s, c, next, rest) ->
-                   if s == state && c == char then next
-                   else find_next state char rest
+                   if s == state && c == charr then next
+                   else find_next state charr rest
 
                let rec run_from = fn state -> fn trans -> fn input ->
                  case input do
@@ -10335,7 +10335,7 @@ let very_complex_integration_tests =
               let tree = Node (5, Node (12, Leaf 3, Leaf 7), Node (9, Leaf 1, Leaf 15))
             |}
              ~expr:"tree_max tree" ~expected_value:"15" );
-         (* Test 74: List range generation *)
+         (* Test 74: List rangfinite automaton simulatioe generation *)
          ( "list range generation" >:: fun _ ->
            assert_expression_has_value
              ~program:
