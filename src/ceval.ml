@@ -756,6 +756,27 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
           constructors
       in
       return constructor_bindings
+  | CSumTypeRecMutRec types ->
+      (* Mutually recursive sum types work the same way at runtime as regular
+         recursive sum types. Create constructor bindings for all types. *)
+      let all_constructor_bindings =
+        List.concat_map
+          (fun (_type_name, _type_params, constructors) ->
+            List.map
+              (fun (cons_name, payload_type_opt) ->
+                match payload_type_opt with
+                | None ->
+                    (* Nullary constructor *)
+                    (cons_name, VariantValue (cons_name, None))
+                | Some _ ->
+                    (* Constructor with payload *)
+                    ( cons_name,
+                      FunctionClosure
+                        ([], CIdPat ("__constructor_" ^ cons_name), None, EUnit) ))
+              constructors)
+          types
+      in
+      return all_constructor_bindings
 
 and string_of_bop = function
   | CPlus -> "+"

@@ -21,7 +21,6 @@ type token_type =
   | Switch
   | Case
   | Do
-  | End
   | Plus
   | Minus
   | Times
@@ -136,7 +135,6 @@ let string_of_token_type : token_type -> string = function
   | Switch -> "<switch>"
   | Case -> "<case>"
   | Do -> "<do>"
-  | End -> "<end>"
   | Semicolon -> "<semicolon>"
   | Enum -> "<enum>"
   | Relop s -> "<relop: " ^ s ^ ">"
@@ -303,7 +301,6 @@ let keywords =
     ("switch", Switch);
     ("case", Case);
     ("do", Do);
-    ("end", End);
     ("enum", Enum);
     ("float", FloatType);
     ("of", Of);

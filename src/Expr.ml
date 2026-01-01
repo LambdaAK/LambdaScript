@@ -61,6 +61,7 @@ type defn =
   | TypeDef of string * string list * compound_type
   | SumTypeDef of string * string list * (string * compound_type option) list
   | SumTypeDefRec of string * string list * (string * compound_type option) list
+  | SumTypeDefMutRec of (string * string list * (string * compound_type option) list) list (* mutually recursive sum types *)
 
 and switch_branch = pat * expr
 

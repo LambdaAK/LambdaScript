@@ -66,6 +66,7 @@ and c_defn =
   | CTypeAlias of string * string list * mono_type
   | CSumType of string * string list * (string * c_type option) list
   | CSumTypeRec of string * string list * (string * c_type option) list
+  | CSumTypeRecMutRec of (string * string list * (string * c_type option) list) list (* mutually recursive sum types *)
 
 and c_switch_branch = c_pat * c_expr
 

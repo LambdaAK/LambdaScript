@@ -1,10 +1,31 @@
-type rec List =
-  | Nil
-  | Cons of (int, List)
-  | ConsTwo of (int, List, List)
+type rec Automaton = | Auto of (int, Transitions, AcceptStates)
+               and Transitions = | TEmpty | Trans of (int, int, int, Transitions)
+               and AcceptStates = | AEmpty | Accept of (int, AcceptStates)
 
-let rec big_list = 
-  let rec make_list n acc =
-    if n == 0 then acc
-    else make_list (n - 1) (Cons (n, acc))
-  in make_list 10000 Nil
+               let rec is_accepting = fn state -> fn accept ->
+                 case accept do
+                 | AEmpty -> false
+                 | Accept (s, rest) ->
+                   if s == state then true else is_accepting state rest
+
+               let rec find_next = fn state -> fn charr -> fn trans ->
+                 case trans do
+                 | TEmpty -> state
+                 | Trans (s, c, next, rest) ->
+                   if s == state && c == charr then next
+                   else find_next state charr rest
+
+               let rec run_from = fn state -> fn trans -> fn input ->
+                 case input do
+                 | [] -> state
+                 | c :: rest ->
+                   let next = find_next state c trans in
+                   run_from next trans rest
+
+               let rec simulate = fn auto -> fn input ->
+                 case auto do
+                 | Auto (start, trans, accept) ->
+                   let final = run_from start trans input in
+                   is_accepting final accept
+
+               let auto = Auto (0, Trans (0, 1, 1, Trans (1, 2, 2, TEmpty)), Accept (2, AEmpty))

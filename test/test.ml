@@ -5467,7 +5467,8 @@ let mutual_recursion_basic_tests =
                  else f (n - 1) + 1
              |}
              ~expr:"f 3" ~expected_value:"4" );
-         ( "three mutually recursive functions different starting point" >:: fun _ ->
+         ( "three mutually recursive functions different starting point"
+         >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
@@ -5686,8 +5687,7 @@ let mutual_recursion_complex_tests =
                    then sum_with_toggle t (acc + h * 2) false
                    else sum_with_toggle t (acc + h) true
              |}
-             ~expr:"sum_with_toggle [1, 2, 3, 4] 0 true"
-             ~expected_value:"14" );
+             ~expr:"sum_with_toggle [1, 2, 3, 4] 0 true" ~expected_value:"14" );
          ( "mutual recursion in nested expression" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -5716,7 +5716,8 @@ let mutual_recursion_complex_tests =
                let result_even = pair_a 4
                let result_odd = pair_a 5
              |}
-             ~expr:"(result_even, result_odd)" ~expected_value:"((1, 2), (3, 4))" );
+             ~expr:"(result_even, result_odd)"
+             ~expected_value:"((1, 2), (3, 4))" );
          ( "mutual recursion with sum types" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -5888,14 +5889,16 @@ let recursive_constructor_type_tests =
                {|
                type rec Tree<a> = | Leaf of a | Node of (Tree<a>, a, Tree<a>)
              |}
-             ~expr:"Node" ~expected_type:"(Tree<'a>, 'a, Tree<'a>) -> Tree<'a>" );
+             ~expr:"Node" ~expected_type:"(Tree<'a>, 'a, Tree<'a>) -> Tree<'a>"
+         );
          ( "rose tree with list of children" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
                type rec RoseTree<a> = | RNode of (a, [RoseTree<a>])
              |}
-             ~expr:"RNode" ~expected_type:"('a, [RoseTree<'a>]) -> RoseTree<'a>" );
+             ~expr:"RNode" ~expected_type:"('a, [RoseTree<'a>]) -> RoseTree<'a>"
+         );
          ( "expression tree const" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -5951,7 +5954,9 @@ let complex_constructor_type_tests =
                  | Empty
                  | Node of (Color, RBTree<a>, a, RBTree<a>)
              |}
-             ~expr:"Node" ~expected_type:"(Color, RBTree<'a>, 'a, RBTree<'a>) -> RBTree<'a>" );
+             ~expr:"Node"
+             ~expected_type:"(Color, RBTree<'a>, 'a, RBTree<'a>) -> RBTree<'a>"
+         );
          ( "nested recursive type with records" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -5960,7 +5965,9 @@ let complex_constructor_type_tests =
                  | Leaf
                  | Branch of {value: a, left: Tree<a>, right: Tree<a>}
              |}
-             ~expr:"Branch" ~expected_type:"{value: 'a, left: Tree<'a>, right: Tree<'a>} -> Tree<'a>" );
+             ~expr:"Branch"
+             ~expected_type:
+               "{value: 'a, left: Tree<'a>, right: Tree<'a>} -> Tree<'a>" );
          ( "AVL tree with height" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -5969,7 +5976,9 @@ let complex_constructor_type_tests =
                  | Empty
                  | Node of (AVLTree<a>, a, AVLTree<a>, int)
              |}
-             ~expr:"Node" ~expected_type:"(AVLTree<'a>, 'a, AVLTree<'a>, int) -> AVLTree<'a>" );
+             ~expr:"Node"
+             ~expected_type:"(AVLTree<'a>, 'a, AVLTree<'a>, int) -> AVLTree<'a>"
+         );
          ( "zipper type with context" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -5980,7 +5989,8 @@ let complex_constructor_type_tests =
                  | L of (Context<a>, Tree<a>)
                  | R of (Tree<a>, Context<a>)
              |}
-             ~expr:"L" ~expected_type:"(Context<'a>, Tree<'a>) -> Context<'a>" );
+             ~expr:"L" ~expected_type:"(Context<'a>, Tree<'a>) -> Context<'a>"
+         );
          ( "constructor with multiple recursive references in list" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -5998,7 +6008,9 @@ let complex_constructor_type_tests =
                  | Empty
                  | Cell of {head: a, tail: LinkedList<a>}
              |}
-             ~expr:"Cell" ~expected_type:"{head: 'a, tail: LinkedList<'a>} -> LinkedList<'a>" );
+             ~expr:"Cell"
+             ~expected_type:"{head: 'a, tail: LinkedList<'a>} -> LinkedList<'a>"
+         );
        ]
 
 let constructor_with_type_alias_tests =
@@ -6022,7 +6034,9 @@ let constructor_with_type_alias_tests =
                  | Circle of {center: Point, radius: int}
                  | Group of [Shape]
              |}
-             ~expr:"Circle" ~expected_type:"{center: {x: int, y: int}, radius: int} -> Shape" );
+             ~expr:"Circle"
+             ~expected_type:"{center: {x: int, y: int}, radius: int} -> Shape"
+         );
          ( "constructor with nested type alias" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -6040,11 +6054,14 @@ let float_operation_tests =
   "float_operation_tests"
   >::: [
          ( "float literal type" >:: fun _ ->
-           assert_expression_has_type ~program:"" ~expr:"3.14" ~expected_type:"float" );
+           assert_expression_has_type ~program:"" ~expr:"3.14"
+             ~expected_type:"float" );
          ( "int to float conversion type" >:: fun _ ->
-           assert_expression_has_type ~program:"" ~expr:"int_to_float" ~expected_type:"int -> float" );
+           assert_expression_has_type ~program:"" ~expr:"int_to_float"
+             ~expected_type:"int -> float" );
          ( "float to int conversion type" >:: fun _ ->
-           assert_expression_has_type ~program:"" ~expr:"float_to_int" ~expected_type:"float -> int" );
+           assert_expression_has_type ~program:"" ~expr:"float_to_int"
+             ~expected_type:"float -> int" );
        ]
 
 let char_tests =
@@ -6052,18 +6069,22 @@ let char_tests =
   "char_tests"
   >::: [
          ( "char literal type" >:: fun _ ->
-           assert_expression_has_type ~program:"" ~expr:"'a'" ~expected_type:"char" );
+           assert_expression_has_type ~program:"" ~expr:"'a'"
+             ~expected_type:"char" );
          ( "char escape sequence type" >:: fun _ ->
-           assert_expression_has_type ~program:"" ~expr:"'\\n'" ~expected_type:"char" );
+           assert_expression_has_type ~program:"" ~expr:"'\\n'"
+             ~expected_type:"char" );
          ( "char in pattern match" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let f = fn c -> case c do | 'a' -> 1 | 'b' -> 2 | _ -> 3
              |}
              ~expr:"f 'a'" ~expected_value:"1" );
          ( "char pattern match wildcard" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let f = fn c -> case c do | 'a' -> 1 | 'b' -> 2 | _ -> 3
              |}
              ~expr:"f 'z'" ~expected_value:"3" );
@@ -6074,41 +6095,32 @@ let string_operation_tests =
   "string_operation_tests"
   >::: [
          ( "string concatenation" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
+           assert_expression_has_value ~program:""
              ~expr:"\"hello\" ^ \" \" ^ \"world\""
              ~expected_value:"\"hello world\"" );
          ( "string concatenation type" >:: fun _ ->
-           assert_expression_has_type
-             ~program:""
-             ~expr:"\"a\" ^ \"b\""
+           assert_expression_has_type ~program:"" ~expr:"\"a\" ^ \"b\""
              ~expected_type:"str" );
          ( "empty string concatenation" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"\"\" ^ \"hello\" ^ \"\""
-             ~expected_value:"\"hello\"" );
+           assert_expression_has_value ~program:""
+             ~expr:"\"\" ^ \"hello\" ^ \"\"" ~expected_value:"\"hello\"" );
          ( "string to list conversion type" >:: fun _ ->
-           assert_expression_has_type
-             ~program:""
-             ~expr:"string_to_list"
+           assert_expression_has_type ~program:"" ~expr:"string_to_list"
              ~expected_type:"str -> [char]" );
          ( "int to string type" >:: fun _ ->
-           assert_expression_has_type
-             ~program:""
-             ~expr:"int_to_str"
+           assert_expression_has_type ~program:"" ~expr:"int_to_str"
              ~expected_type:"int -> str" );
          ( "string in pattern match" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let greet = fn name ->
                  case name do
                  | "Alice" -> "Hello Alice!"
                  | "Bob" -> "Hi Bob!"
                  | _ -> "Hello stranger!"
              |}
-             ~expr:"greet \"Alice\""
-             ~expected_value:"\"Hello Alice!\"" );
+             ~expr:"greet \"Alice\"" ~expected_value:"\"Hello Alice!\"" );
        ]
 
 (* List Comprehension Tests *)
@@ -6117,28 +6129,21 @@ let list_comprehension_tests =
   "list_comprehension_tests"
   >::: [
          ( "simple map comprehension" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"[x * 2 | x <- [1, 2, 3]]"
-             ~expected_value:"[2, 4, 6]" );
+           assert_expression_has_value ~program:""
+             ~expr:"[x * 2 | x <- [1, 2, 3]]" ~expected_value:"[2, 4, 6]" );
          ( "nested comprehension" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
+           assert_expression_has_value ~program:""
              ~expr:"[(x, y) | x <- [1, 2], y <- [3, 4]]"
              ~expected_value:"[(1, 3), (1, 4), (2, 3), (2, 4)]" );
          ( "comprehension with arithmetic" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
+           assert_expression_has_value ~program:""
              ~expr:"[x + y | x <- [1, 2], y <- [10, 20]]"
              ~expected_value:"[11, 21, 12, 22]" );
          ( "comprehension type inference" >:: fun _ ->
-           assert_expression_has_type
-             ~program:""
-             ~expr:"[x * 2 | x <- [1, 2, 3]]"
-             ~expected_type:"[int]" );
+           assert_expression_has_type ~program:""
+             ~expr:"[x * 2 | x <- [1, 2, 3]]" ~expected_type:"[int]" );
          ( "tuple comprehension type" >:: fun _ ->
-           assert_expression_has_type
-             ~program:""
+           assert_expression_has_type ~program:""
              ~expr:"[(x, y) | x <- [1, 2], y <- [3, 4]]"
              ~expected_type:"[(int, int)]" );
        ]
@@ -6150,40 +6155,40 @@ let advanced_pattern_matching_tests =
   >::: [
          ( "nested tuple pattern" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let f = fn x -> case x do | ((a, b), c) -> a + b + c
              |}
-             ~expr:"f ((1, 2), 3)"
-             ~expected_value:"6" );
+             ~expr:"f ((1, 2), 3)" ~expected_value:"6" );
          ( "cons pattern in function" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let head = fn lst -> case lst do | h :: _ -> h | [] -> 0
              |}
-             ~expr:"head [5, 6, 7]"
-             ~expected_value:"5" );
+             ~expr:"head [5, 6, 7]" ~expected_value:"5" );
          ( "multiple cons pattern" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let second = fn lst -> case lst do | _ :: h :: _ -> h | _ -> 0
              |}
-             ~expr:"second [1, 2, 3]"
-             ~expected_value:"2" );
+             ~expr:"second [1, 2, 3]" ~expected_value:"2" );
          ( "wildcard in tuple" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let f = fn x -> case x do | (_, b, _) -> b
              |}
-             ~expr:"f (1, 2, 3)"
-             ~expected_value:"2" );
+             ~expr:"f (1, 2, 3)" ~expected_value:"2" );
          ( "pattern with constructor and tuple" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type Pair = | P of (int, int)
                let sum = fn x -> case x do | P (a, b) -> a + b
              |}
-             ~expr:"sum (P (3, 4))"
-             ~expected_value:"7" );
+             ~expr:"sum (P (3, 4))" ~expected_value:"7" );
        ]
 
 (* Operator Precedence Tests *)
@@ -6192,44 +6197,28 @@ let operator_precedence_tests =
   "operator_precedence_tests"
   >::: [
          ( "multiplication before addition" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"2 + 3 * 4"
+           assert_expression_has_value ~program:"" ~expr:"2 + 3 * 4"
              ~expected_value:"14" );
          ( "parentheses override precedence" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"(2 + 3) * 4"
+           assert_expression_has_value ~program:"" ~expr:"(2 + 3) * 4"
              ~expected_value:"20" );
          ( "division before subtraction" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"10 - 6 / 2"
+           assert_expression_has_value ~program:"" ~expr:"10 - 6 / 2"
              ~expected_value:"7" );
          ( "modulo with addition" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"10 + 7 % 3"
+           assert_expression_has_value ~program:"" ~expr:"10 + 7 % 3"
              ~expected_value:"11" );
          ( "comparison with arithmetic" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"2 + 3 > 4"
+           assert_expression_has_value ~program:"" ~expr:"2 + 3 > 4"
              ~expected_value:"true" );
          ( "logical and with comparison" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"3 > 2 && 5 < 10"
+           assert_expression_has_value ~program:"" ~expr:"3 > 2 && 5 < 10"
              ~expected_value:"true" );
          ( "logical or with and" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"false && true || true"
+           assert_expression_has_value ~program:"" ~expr:"false && true || true"
              ~expected_value:"true" );
          ( "cons with arithmetic" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"1 + 2 :: 3 + 4 :: []"
+           assert_expression_has_value ~program:"" ~expr:"1 + 2 :: 3 + 4 :: []"
              ~expected_value:"[3, 7]" );
        ]
 
@@ -6239,46 +6228,42 @@ let higher_order_function_tests =
   "higher_order_function_tests"
   >::: [
          ( "map with lambda" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"map (fn x -> x * 2) [1, 2, 3]"
-             ~expected_value:"[2, 4, 6]" );
+           assert_expression_has_value ~program:""
+             ~expr:"map (fn x -> x * 2) [1, 2, 3]" ~expected_value:"[2, 4, 6]"
+         );
          ( "filter even numbers" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
+           assert_expression_has_value ~program:""
              ~expr:"filter (fn x -> x % 2 == 0) [1, 2, 3, 4, 5, 6]"
              ~expected_value:"[2, 4, 6]" );
          ( "reduce_left sum" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
+           assert_expression_has_value ~program:""
              ~expr:"reduce_left (fn acc -> fn x -> acc + x) 0 [1, 2, 3, 4]"
              ~expected_value:"10" );
          ( "reduce_right cons" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
+           assert_expression_has_value ~program:""
              ~expr:"reduce_right (fn x -> fn acc -> x :: acc) [1, 2, 3] []"
              ~expected_value:"[1, 2, 3]" );
          ( "map composition" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let double = fn x -> x * 2
                let inc = fn x -> x + 1
              |}
-             ~expr:"map inc (map double [1, 2, 3])"
-             ~expected_value:"[3, 5, 7]" );
+             ~expr:"map inc (map double [1, 2, 3])" ~expected_value:"[3, 5, 7]"
+         );
          ( "filter and map chain" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
+           assert_expression_has_value ~program:""
              ~expr:"map (fn x -> x * 2) (filter (fn x -> x > 2) [1, 2, 3, 4])"
              ~expected_value:"[6, 8]" );
          ( "function returning function" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let add = fn x -> fn y -> x + y
                let add5 = add 5
              |}
-             ~expr:"add5 10"
-             ~expected_value:"15" );
+             ~expr:"add5 10" ~expected_value:"15" );
        ]
 
 (* Nested Data Structure Tests *)
@@ -6287,37 +6272,27 @@ let nested_data_structure_tests =
   "nested_data_structure_tests"
   >::: [
          ( "list of lists" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"[[1, 2], [3, 4], [5]]"
+           assert_expression_has_value ~program:"" ~expr:"[[1, 2], [3, 4], [5]]"
              ~expected_value:"[[1, 2], [3, 4], [5]]" );
          ( "nested tuple" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"((1, 2), (3, 4))"
+           assert_expression_has_value ~program:"" ~expr:"((1, 2), (3, 4))"
              ~expected_value:"((1, 2), (3, 4))" );
          ( "list of tuples" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"[(1, 2), (3, 4)]"
+           assert_expression_has_value ~program:"" ~expr:"[(1, 2), (3, 4)]"
              ~expected_value:"[(1, 2), (3, 4)]" );
          ( "tuple of lists" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"([1, 2], [3, 4])"
+           assert_expression_has_value ~program:"" ~expr:"([1, 2], [3, 4])"
              ~expected_value:"([1, 2], [3, 4])" );
          ( "deeply nested list" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"[[[1, 2]], [[3]]]"
+           assert_expression_has_value ~program:"" ~expr:"[[[1, 2]], [[3]]]"
              ~expected_value:"[[[1, 2]], [[3]]]" );
          ( "nested record access" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let p = {outer: {inner: {value: 42}}}
              |}
-             ~expr:"p.outer.inner.value"
-             ~expected_value:"42" );
+             ~expr:"p.outer.inner.value" ~expected_value:"42" );
        ]
 
 (* Type Alias Tests *)
@@ -6326,38 +6301,28 @@ let type_alias_tests =
   "type_alias_tests"
   >::: [
          ( "simple type alias" >:: fun _ ->
-           assert_expression_has_type
-             ~program:"type MyInt = int"
-             ~expr:"42"
+           assert_expression_has_type ~program:"type MyInt = int" ~expr:"42"
              ~expected_type:"int" );
          ( "tuple type alias" >:: fun _ ->
-           assert_expression_has_type
-             ~program:"type Pair = (int, int)"
-             ~expr:"(1, 2)"
-             ~expected_type:"(int, int)" );
+           assert_expression_has_type ~program:"type Pair = (int, int)"
+             ~expr:"(1, 2)" ~expected_type:"(int, int)" );
          ( "function type alias" >:: fun _ ->
-           assert_expression_has_type
-             ~program:"type IntFunc = int -> int"
-             ~expr:"fn x -> x + 1"
-             ~expected_type:"int -> int" );
+           assert_expression_has_type ~program:"type IntFunc = int -> int"
+             ~expr:"fn x -> x + 1" ~expected_type:"int -> int" );
          ( "list type alias" >:: fun _ ->
-           assert_expression_has_type
-             ~program:"type IntList = [int]"
-             ~expr:"[1, 2, 3]"
-             ~expected_type:"[int]" );
+           assert_expression_has_type ~program:"type IntList = [int]"
+             ~expr:"[1, 2, 3]" ~expected_type:"[int]" );
          ( "parameterized type alias" >:: fun _ ->
-           assert_expression_has_type
-             ~program:"type Box<a> = (a, a)"
-             ~expr:"(1, 2)"
-             ~expected_type:"(int, int)" );
+           assert_expression_has_type ~program:"type Box<a> = (a, a)"
+             ~expr:"(1, 2)" ~expected_type:"(int, int)" );
          ( "nested type alias" >:: fun _ ->
            assert_expression_has_type
-             ~program:{|
+             ~program:
+               {|
                type Inner = int
                type Outer = (Inner, Inner)
              |}
-             ~expr:"(1, 2)"
-             ~expected_type:"(int, int)" );
+             ~expr:"(1, 2)" ~expected_type:"(int, int)" );
        ]
 
 (* Edge Case Tests *)
@@ -6366,40 +6331,26 @@ let edge_case_tests =
   "edge_case_tests"
   >::: [
          ( "empty list type" >:: fun _ ->
-           assert_expression_has_type
-             ~program:""
-             ~expr:"[]"
+           assert_expression_has_type ~program:"" ~expr:"[]"
              ~expected_type:"['a]" );
          ( "unit value type" >:: fun _ ->
-           assert_expression_has_type
-             ~program:""
-             ~expr:"()"
+           assert_expression_has_type ~program:"" ~expr:"()"
              ~expected_type:"unit" );
          ( "single element tuple" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"(42)"
+           assert_expression_has_value ~program:"" ~expr:"(42)"
              ~expected_value:"42" );
          ( "negation of negation" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"~-(~-5)"
+           assert_expression_has_value ~program:"" ~expr:"~-(~-5)"
              ~expected_value:"5" );
          ( "zero division by subtraction" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"10 - 10"
+           assert_expression_has_value ~program:"" ~expr:"10 - 10"
              ~expected_value:"0" );
          ( "identity function application" >:: fun _ ->
-           assert_expression_has_value
-             ~program:"let id = fn x -> x"
-             ~expr:"id 42"
-             ~expected_value:"42" );
+           assert_expression_has_value ~program:"let id = fn x -> x"
+             ~expr:"id 42" ~expected_value:"42" );
          ( "const function" >:: fun _ ->
-           assert_expression_has_value
-             ~program:"let const = fn x -> fn y -> x"
-             ~expr:"const 5 10"
-             ~expected_value:"5" );
+           assert_expression_has_value ~program:"let const = fn x -> fn y -> x"
+             ~expr:"const 5 10" ~expected_value:"5" );
        ]
 
 (* Recursion Edge Cases *)
@@ -6409,26 +6360,26 @@ let recursion_edge_case_tests =
   >::: [
          ( "recursive function with immediate return" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec f = fn n -> if n == 0 then 1 else 1
              |}
-             ~expr:"f 5"
-             ~expected_value:"1" );
+             ~expr:"f 5" ~expected_value:"1" );
          ( "recursive function base case" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec sum = fn n -> if n == 0 then 0 else n + sum (n - 1)
              |}
-             ~expr:"sum 0"
-             ~expected_value:"0" );
+             ~expr:"sum 0" ~expected_value:"0" );
          ( "recursive function with accumulator" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec sum_acc = fn n -> fn acc ->
                  if n == 0 then acc else sum_acc (n - 1) (acc + n)
              |}
-             ~expr:"sum_acc 5 0"
-             ~expected_value:"15" );
+             ~expr:"sum_acc 5 0" ~expected_value:"15" );
        ]
 
 (* List Operation Tests *)
@@ -6437,35 +6388,31 @@ let list_operation_tests =
   "list_operation_tests"
   >::: [
          ( "cons to empty list" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"1 :: []"
+           assert_expression_has_value ~program:"" ~expr:"1 :: []"
              ~expected_value:"[1]" );
          ( "multiple cons" >:: fun _ ->
-           assert_expression_has_value
-             ~program:""
-             ~expr:"1 :: 2 :: 3 :: []"
+           assert_expression_has_value ~program:"" ~expr:"1 :: 2 :: 3 :: []"
              ~expected_value:"[1, 2, 3]" );
          ( "list concatenation via cons" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec append = fn l1 -> fn l2 ->
                  case l1 do
                  | [] -> l2
                  | h :: t -> h :: append t l2
              |}
-             ~expr:"append [1, 2] [3, 4]"
-             ~expected_value:"[1, 2, 3, 4]" );
+             ~expr:"append [1, 2] [3, 4]" ~expected_value:"[1, 2, 3, 4]" );
          ( "list reverse" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec rev = fn lst -> fn acc ->
                  case lst do
                  | [] -> acc
                  | h :: t -> rev t (h :: acc)
              |}
-             ~expr:"rev [1, 2, 3] []"
-             ~expected_value:"[3, 2, 1]" );
+             ~expr:"rev [1, 2, 3] []" ~expected_value:"[3, 2, 1]" );
        ]
 
 (* COMPLEX AND EXTENSIVE TESTS - 100 Tests *)
@@ -6477,62 +6424,63 @@ let complex_recursive_algorithms =
   >::: [
          ( "fibonacci recursive" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec fib = fn n ->
                  if n <= 1 then n
                  else fib (n - 1) + fib (n - 2)
              |}
-             ~expr:"fib 10"
-             ~expected_value:"55" );
+             ~expr:"fib 10" ~expected_value:"55" );
          ( "factorial with accumulator" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec fact = fn n -> fn acc ->
                  if n <= 1 then acc
                  else fact (n - 1) (n * acc)
              |}
-             ~expr:"fact 6 1"
-             ~expected_value:"720" );
+             ~expr:"fact 6 1" ~expected_value:"720" );
          ( "greatest common divisor" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec gcd = fn a -> fn b ->
                  if b == 0 then a
                  else gcd b (a % b)
              |}
-             ~expr:"gcd 48 18"
-             ~expected_value:"6" );
+             ~expr:"gcd 48 18" ~expected_value:"6" );
          ( "power function" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec pow = fn base -> fn exp ->
                  if exp == 0 then 1
                  else base * pow base (exp - 1)
              |}
-             ~expr:"pow 2 10"
-             ~expected_value:"1024" );
+             ~expr:"pow 2 10" ~expected_value:"1024" );
          ( "sum of digits" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec sum_digits = fn n ->
                  if n < 10 then n
                  else (n % 10) + sum_digits (n / 10)
              |}
-             ~expr:"sum_digits 12345"
-             ~expected_value:"15" );
+             ~expr:"sum_digits 12345" ~expected_value:"15" );
          ( "collatz sequence length" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec collatz_len = fn n -> fn count ->
                  if n == 1 then count
                  else if n % 2 == 0 then collatz_len (n / 2) (count + 1)
                  else collatz_len (n * 3 + 1) (count + 1)
              |}
-             ~expr:"collatz_len 10 0"
-             ~expected_value:"6" );
+             ~expr:"collatz_len 10 0" ~expected_value:"6" );
          ( "is prime check" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec is_prime_helper = fn n -> fn divisor ->
                  if divisor * divisor > n then true
                  else if n % divisor == 0 then false
@@ -6542,11 +6490,11 @@ let complex_recursive_algorithms =
                  if n < 2 then false
                  else is_prime_helper n 2
              |}
-             ~expr:"is_prime 17"
-             ~expected_value:"true" );
+             ~expr:"is_prime 17" ~expected_value:"true" );
          ( "nth prime number" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec is_prime_helper = fn n -> fn divisor ->
                  if divisor * divisor > n then true
                  else if n % divisor == 0 then false
@@ -6562,8 +6510,7 @@ let complex_recursive_algorithms =
                    else nth_prime n (candidate + 1) (count + 1)
                  else nth_prime n (candidate + 1) count
              |}
-             ~expr:"nth_prime 5 2 0"
-             ~expected_value:"13" );
+             ~expr:"nth_prime 5 2 0" ~expected_value:"13" );
        ]
 
 (* Complex List Processing Tests *)
@@ -6573,7 +6520,8 @@ let complex_list_processing =
   >::: [
          ( "quicksort implementation" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec filter = fn pred -> fn lst ->
                  case lst do
                  | [] -> []
@@ -6596,7 +6544,8 @@ let complex_list_processing =
              ~expected_value:"[1, 1, 2, 3, 4, 5, 6, 9]" );
          ( "mergesort implementation" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec take = fn n -> fn lst ->
                  if n == 0 then []
                  else case lst do
@@ -6633,11 +6582,12 @@ let complex_list_processing =
                    let right = drop mid lst in
                    merge (mergesort left) (mergesort right)
              |}
-             ~expr:"mergesort [5, 2, 8, 1, 9]"
-             ~expected_value:"[1, 2, 5, 8, 9]" );
+             ~expr:"mergesort [5, 2, 8, 1, 9]" ~expected_value:"[1, 2, 5, 8, 9]"
+         );
          ( "list zip function" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec zip = fn l1 -> fn l2 ->
                  case l1 do
                  | [] -> []
@@ -6650,7 +6600,8 @@ let complex_list_processing =
              ~expected_value:"[(1, 4), (2, 5), (3, 6)]" );
          ( "list unzip function" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec unzip = fn lst ->
                  case lst do
                  | [] -> ([], [])
@@ -6663,7 +6614,8 @@ let complex_list_processing =
              ~expected_value:"([1, 3, 5], [2, 4, 6])" );
          ( "partition list" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec partition = fn pred -> fn lst ->
                  case lst do
                  | [] -> ([], [])
@@ -6678,7 +6630,8 @@ let complex_list_processing =
              ~expected_value:"([2, 4, 6], [1, 3, 5])" );
          ( "group consecutive elements" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec group = fn lst ->
                  case lst do
                  | [] -> []
@@ -6700,7 +6653,8 @@ let complex_list_processing =
              ~expected_value:"[[1, 1], [2, 2, 2], [3], [1]]" );
          ( "take while predicate" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec takeWhile = fn pred -> fn lst ->
                  case lst do
                  | [] -> []
@@ -6710,7 +6664,8 @@ let complex_list_processing =
              ~expected_value:"[1, 2, 3]" );
          ( "drop while predicate" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec dropWhile = fn pred -> fn lst ->
                  case lst do
                  | [] -> []
@@ -6720,7 +6675,8 @@ let complex_list_processing =
              ~expected_value:"[6, 7, 1]" );
          ( "list intersperse" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec intersperse = fn sep -> fn lst ->
                  case lst do
                  | [] -> []
@@ -6733,7 +6689,8 @@ let complex_list_processing =
              ~expected_value:"[1, 0, 2, 0, 3, 0, 4]" );
          ( "list flatten" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec append = fn l1 -> fn l2 ->
                  case l1 do
                  | [] -> l2
@@ -6755,7 +6712,8 @@ let complex_tree_operations =
   >::: [
          ( "binary tree insert" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type rec Tree = | Empty | Node of (Tree, int, Tree)
 
                let rec insert = fn tree -> fn value ->
@@ -6776,11 +6734,11 @@ let complex_tree_operations =
                    else if value < v then contains l value
                    else contains r value
              |}
-             ~expr:"contains tree 3"
-             ~expected_value:"true" );
+             ~expr:"contains tree 3" ~expected_value:"true" );
          ( "binary tree size" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type rec Tree = | Empty | Node of (Tree, int, Tree)
 
                let rec insert = fn tree -> fn value ->
@@ -6797,11 +6755,11 @@ let complex_tree_operations =
 
                let tree = insert (insert (insert (insert Empty 5) 3) 7) 2
              |}
-             ~expr:"size tree"
-             ~expected_value:"4" );
+             ~expr:"size tree" ~expected_value:"4" );
          ( "binary tree height" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type rec Tree = | Empty | Node of (Tree, int, Tree)
 
                let rec insert = fn tree -> fn value ->
@@ -6820,11 +6778,11 @@ let complex_tree_operations =
 
                let tree = insert (insert (insert Empty 5) 3) 2
              |}
-             ~expr:"height tree"
-             ~expected_value:"3" );
+             ~expr:"height tree" ~expected_value:"3" );
          ( "binary tree inorder traversal" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type rec Tree = | Empty | Node of (Tree, int, Tree)
 
                let rec append = fn l1 -> fn l2 ->
@@ -6839,11 +6797,11 @@ let complex_tree_operations =
 
                let tree = Node (Node (Empty, 1, Empty), 2, Node (Empty, 3, Empty))
              |}
-             ~expr:"inorder tree"
-             ~expected_value:"[1, 2, 3]" );
+             ~expr:"inorder tree" ~expected_value:"[1, 2, 3]" );
          ( "binary tree preorder traversal" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type rec Tree = | Empty | Node of (Tree, int, Tree)
 
                let rec append = fn l1 -> fn l2 ->
@@ -6858,11 +6816,11 @@ let complex_tree_operations =
 
                let tree = Node (Node (Empty, 1, Empty), 2, Node (Empty, 3, Empty))
              |}
-             ~expr:"preorder tree"
-             ~expected_value:"[2, 1, 3]" );
+             ~expr:"preorder tree" ~expected_value:"[2, 1, 3]" );
          ( "binary tree postorder traversal" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type rec Tree = | Empty | Node of (Tree, int, Tree)
 
                let rec append = fn l1 -> fn l2 ->
@@ -6877,11 +6835,11 @@ let complex_tree_operations =
 
                let tree = Node (Node (Empty, 1, Empty), 2, Node (Empty, 3, Empty))
              |}
-             ~expr:"postorder tree"
-             ~expected_value:"[1, 3, 2]" );
+             ~expr:"postorder tree" ~expected_value:"[1, 3, 2]" );
          ( "binary tree sum" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type rec Tree = | Empty | Node of (Tree, int, Tree)
 
                let rec sum = fn tree ->
@@ -6891,11 +6849,11 @@ let complex_tree_operations =
 
                let tree = Node (Node (Empty, 1, Empty), 2, Node (Empty, 3, Empty))
              |}
-             ~expr:"sum tree"
-             ~expected_value:"6" );
+             ~expr:"sum tree" ~expected_value:"6" );
          ( "binary tree map" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type rec Tree = | Empty | Node of (Tree, int, Tree)
 
                let rec tree_map = fn f -> fn tree ->
@@ -6911,8 +6869,7 @@ let complex_tree_operations =
                let tree = Node (Node (Empty, 1, Empty), 2, Node (Empty, 3, Empty))
                let doubled = tree_map (fn x -> x * 2) tree
              |}
-             ~expr:"sum doubled"
-             ~expected_value:"12" );
+             ~expr:"sum doubled" ~expected_value:"12" );
        ]
 
 (* Complex Sum Type Tests *)
@@ -6922,7 +6879,8 @@ let complex_sum_type_operations =
   >::: [
          ( "option map function" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type Option<a> = | None | Some of a
 
                let option_map = fn f -> fn opt ->
@@ -6934,7 +6892,8 @@ let complex_sum_type_operations =
              ~expected_value:"Some 10" );
          ( "option bind function" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type Option<a> = | None | Some of a
 
                let option_bind = fn opt -> fn f ->
@@ -6949,7 +6908,8 @@ let complex_sum_type_operations =
              ~expected_value:"Some 5" );
          ( "either map function" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type Either<a, b> = | Left of a | Right of b
 
                let either_map = fn f -> fn either ->
@@ -6961,7 +6921,8 @@ let complex_sum_type_operations =
              ~expected_value:"Right 6" );
          ( "result chain operations" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type Result<a> = | Ok of a | Error of int
 
                let result_map = fn f -> fn result ->
@@ -6976,7 +6937,8 @@ let complex_sum_type_operations =
              ~expected_value:"Ok 12" );
          ( "list of options filter" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type Option<a> = | None | Some of a
 
                let rec filter_options = fn lst ->
@@ -6991,7 +6953,8 @@ let complex_sum_type_operations =
              ~expected_value:"[1, 2, 3]" );
          ( "expression evaluator" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type rec Expr = | Val of int | Add of (Expr, Expr) | Mul of (Expr, Expr)
 
                let rec eval = fn expr ->
@@ -7002,11 +6965,11 @@ let complex_sum_type_operations =
 
                let expr = Add (Mul (Val 2, Val 3), Val 4)
              |}
-             ~expr:"eval expr"
-             ~expected_value:"10" );
+             ~expr:"eval expr" ~expected_value:"10" );
          ( "nested expression evaluator" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type rec Expr = | Val of int | Add of (Expr, Expr) | Mul of (Expr, Expr) | Sub of (Expr, Expr)
 
                let rec eval = fn expr ->
@@ -7018,11 +6981,11 @@ let complex_sum_type_operations =
 
                let expr = Sub (Mul (Add (Val 2, Val 3), Val 4), Val 5)
              |}
-             ~expr:"eval expr"
-             ~expected_value:"15" );
+             ~expr:"eval expr" ~expected_value:"15" );
          ( "peano arithmetic" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type rec Nat = | Zero | Succ of Nat
 
                let rec nat_to_int = fn n ->
@@ -7038,8 +7001,7 @@ let complex_sum_type_operations =
                let three = Succ (Succ (Succ Zero))
                let two = Succ (Succ Zero)
              |}
-             ~expr:"nat_to_int (add_nat three two)"
-             ~expected_value:"5" );
+             ~expr:"nat_to_int (add_nat three two)" ~expected_value:"5" );
        ]
 
 (* Complex Function Composition Tests *)
@@ -7049,18 +7011,19 @@ let complex_function_composition =
   >::: [
          ( "compose three functions" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let compose = fn f -> fn g -> fn x -> f (g x)
                let add1 = fn x -> x + 1
                let double = fn x -> x * 2
                let square = fn x -> x * x
                let f = compose square (compose double add1)
              |}
-             ~expr:"f 3"
-             ~expected_value:"64" );
+             ~expr:"f 3" ~expected_value:"64" );
          ( "pipeline of transformations" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let pipeline = fn x -> fn f -> f x
                let add1 = fn x -> x + 1
                let double = fn x -> x * 2
@@ -7070,18 +7033,19 @@ let complex_function_composition =
              ~expected_value:"64" );
          ( "function iteration" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec iterate = fn f -> fn n -> fn x ->
                  if n == 0 then x
                  else iterate f (n - 1) (f x)
 
                let inc = fn x -> x + 1
              |}
-             ~expr:"iterate inc 10 0"
-             ~expected_value:"10" );
+             ~expr:"iterate inc 10 0" ~expected_value:"10" );
          ( "curry and uncurry" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let curry = fn f -> fn a -> fn b -> f (a, b)
                let uncurry = fn f -> fn pair ->
                  case pair do
@@ -7093,39 +7057,39 @@ let complex_function_composition =
 
                let add_curried = curry add_tuple
              |}
-             ~expr:"add_curried 3 5"
-             ~expected_value:"8" );
+             ~expr:"add_curried 3 5" ~expected_value:"8" );
          ( "flip function arguments" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let flip = fn f -> fn a -> fn b -> f b a
                let sub = fn a -> fn b -> a - b
                let reversed_sub = flip sub
              |}
-             ~expr:"reversed_sub 5 10"
-             ~expected_value:"5" );
+             ~expr:"reversed_sub 5 10" ~expected_value:"5" );
          ( "constant function" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let const = fn x -> fn _ -> x
                let always_five = const 5
              |}
-             ~expr:"always_five 100"
-             ~expected_value:"5" );
+             ~expr:"always_five 100" ~expected_value:"5" );
          ( "apply function n times" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec apply_n = fn f -> fn n -> fn x ->
                  if n == 0 then x
                  else f (apply_n f (n - 1) x)
 
                let double = fn x -> x * 2
              |}
-             ~expr:"apply_n double 4 1"
-             ~expected_value:"16" );
+             ~expr:"apply_n double 4 1" ~expected_value:"16" );
          ( "compose list of functions" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec compose_all = fn funcs -> fn x ->
                  case funcs do
                  | [] -> x
@@ -7134,8 +7098,7 @@ let complex_function_composition =
                let add1 = fn x -> x + 1
                let double = fn x -> x * 2
              |}
-             ~expr:"compose_all [add1, double, add1] 3"
-             ~expected_value:"9" );
+             ~expr:"compose_all [add1, double, add1] 3" ~expected_value:"9" );
        ]
 
 (* Complex Pattern Matching Tests *)
@@ -7145,26 +7108,27 @@ let complex_pattern_matching_scenarios =
   >::: [
          ( "deeply nested pattern" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let extract = fn x ->
                  case x do
                  | (((a, b), c), d) -> a + b + c + d
              |}
-             ~expr:"extract (((1, 2), 3), 4)"
-             ~expected_value:"10" );
+             ~expr:"extract (((1, 2), 3), 4)" ~expected_value:"10" );
          ( "pattern match on list of tuples" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec sum_pairs = fn lst ->
                  case lst do
                  | [] -> 0
                  | (a, b) :: t -> a + b + sum_pairs t
              |}
-             ~expr:"sum_pairs [(1, 2), (3, 4), (5, 6)]"
-             ~expected_value:"21" );
+             ~expr:"sum_pairs [(1, 2), (3, 4), (5, 6)]" ~expected_value:"21" );
          ( "pattern match multiple levels" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec process = fn lst ->
                  case lst do
                  | [] -> 0
@@ -7173,19 +7137,18 @@ let complex_pattern_matching_scenarios =
                    | [] -> a + b
                    | (c, d) :: rest2 -> a + b + c + d + process rest2
              |}
-             ~expr:"process [(1, 2), (3, 4), (5, 6)]"
-             ~expected_value:"21" );
+             ~expr:"process [(1, 2), (3, 4), (5, 6)]" ~expected_value:"21" );
          ( "pattern match with guards simulation" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let classify = fn n ->
                  if n < 0 then ~-1
                  else if n == 0 then 0
                  else if n < 10 then 1
                  else 2
              |}
-             ~expr:"classify 5"
-             ~expected_value:"1" );
+             ~expr:"classify 5" ~expected_value:"1" );
        ]
 
 (* Complex Record Operations *)
@@ -7195,18 +7158,19 @@ let complex_record_operations =
   >::: [
          ( "record update simulation" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let update_x = fn r -> fn new_x ->
                  {x: new_x, y: r.y}
 
                let p = {x: 1, y: 2}
                let p2 = update_x p 10
              |}
-             ~expr:"p2.x + p2.y"
-             ~expected_value:"12" );
+             ~expr:"p2.x + p2.y" ~expected_value:"12" );
          ( "records in list operations" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec sum_x = fn lst ->
                  case lst do
                  | [] -> 0
@@ -7214,11 +7178,11 @@ let complex_record_operations =
 
                let points = [{x: 1, y: 2}, {x: 3, y: 4}, {x: 5, y: 6}]
              |}
-             ~expr:"sum_x points"
-             ~expected_value:"9" );
+             ~expr:"sum_x points" ~expected_value:"9" );
          ( "record transformation pipeline" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let scale_x = fn r -> fn factor ->
                  {x: r.x * factor, y: r.y}
 
@@ -7228,29 +7192,28 @@ let complex_record_operations =
                let p = {x: 2, y: 3}
                let p2 = scale_y (scale_x p 2) 3
              |}
-             ~expr:"p2.x + p2.y"
-             ~expected_value:"13" );
+             ~expr:"p2.x + p2.y" ~expected_value:"13" );
          ( "nested record updates" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let update_inner = fn r -> fn new_val ->
                  {outer: {inner: {value: new_val}}}
 
                let r = {outer: {inner: {value: 5}}}
                let r2 = update_inner r 20
              |}
-             ~expr:"r2.outer.inner.value"
-             ~expected_value:"20" );
+             ~expr:"r2.outer.inner.value" ~expected_value:"20" );
          ( "record with computed fields" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let make_point = fn x -> fn y ->
                  {x: x, y: y, sum: x + y, product: x * y}
 
                let p = make_point 3 4
              |}
-             ~expr:"p.sum + p.product"
-             ~expected_value:"19" );
+             ~expr:"p.sum + p.product" ~expected_value:"19" );
        ]
 
 (* Complex Higher-Order Function Tests *)
@@ -7260,7 +7223,8 @@ let complex_higher_order_functions =
   >::: [
          ( "map with multiple transformations" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec map = fn f -> fn lst ->
                  case lst do
                  | [] -> []
@@ -7272,7 +7236,8 @@ let complex_higher_order_functions =
              ~expected_value:"[4, 6, 8, 10, 12]" );
          ( "filter with complex predicate" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec filter = fn pred -> fn lst ->
                  case lst do
                  | [] -> []
@@ -7285,7 +7250,8 @@ let complex_higher_order_functions =
              ~expected_value:"[6, 8, 10]" );
          ( "fold with complex accumulator" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec fold_left = fn f -> fn acc -> fn lst ->
                  case lst do
                  | [] -> acc
@@ -7296,11 +7262,11 @@ let complex_higher_order_functions =
 
                let result = fold_left update {sum: 0, count: 0, max: 0} [1, 5, 3, 9, 2]
              |}
-             ~expr:"result.sum + result.max"
-             ~expected_value:"29" );
+             ~expr:"result.sum + result.max" ~expected_value:"29" );
          ( "scan left operation" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec scan_left = fn f -> fn acc -> fn lst ->
                  case lst do
                  | [] -> [acc]
@@ -7310,7 +7276,8 @@ let complex_higher_order_functions =
              ~expected_value:"[0, 1, 3, 6, 10]" );
          ( "all and any predicates" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec all = fn pred -> fn lst ->
                  case lst do
                  | [] -> true
@@ -7323,11 +7290,11 @@ let complex_higher_order_functions =
 
                let is_positive = fn x -> x > 0
              |}
-             ~expr:"all is_positive [1, 2, 3, 4]"
-             ~expected_value:"true" );
+             ~expr:"all is_positive [1, 2, 3, 4]" ~expected_value:"true" );
          ( "none predicate" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec none = fn pred -> fn lst ->
                  case lst do
                  | [] -> true
@@ -7335,8 +7302,7 @@ let complex_higher_order_functions =
 
                let is_negative = fn x -> x < 0
              |}
-             ~expr:"none is_negative [1, 2, 3, 4]"
-             ~expected_value:"true" );
+             ~expr:"none is_negative [1, 2, 3, 4]" ~expected_value:"true" );
        ]
 
 (* Complex Mutual Recursion Tests *)
@@ -7346,7 +7312,8 @@ let complex_mutual_recursion =
   >::: [
          ( "mutual recursion with lists" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec sum_at_even = fn lst -> fn pos ->
                  case lst do
                  | [] -> 0
@@ -7360,11 +7327,11 @@ let complex_mutual_recursion =
                    if pos % 2 == 1 then h + sum_at_even t (pos + 1)
                    else sum_at_even t (pos + 1)
              |}
-             ~expr:"sum_at_even [1, 2, 3, 4, 5, 6] 0"
-             ~expected_value:"21" );
+             ~expr:"sum_at_even [1, 2, 3, 4, 5, 6] 0" ~expected_value:"21" );
          ( "mutual recursion state machine" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec state_a = fn n ->
                  if n == 0 then 1
                  else if n % 3 == 0 then state_b (n - 1)
@@ -7376,11 +7343,11 @@ let complex_mutual_recursion =
                  if n == 0 then 3
                  else state_a (n - 1) + 2
              |}
-             ~expr:"state_a 5"
-             ~expected_value:"6" );
+             ~expr:"state_a 5" ~expected_value:"6" );
          ( "mutual recursion with accumulator" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec count_evens = fn lst -> fn acc ->
                  case lst do
                  | [] -> acc
@@ -7390,8 +7357,7 @@ let complex_mutual_recursion =
 
                let result = count_evens [1, 2, 3, 4, 5, 6] 0
              |}
-             ~expr:"result"
-             ~expected_value:"3" );
+             ~expr:"result" ~expected_value:"3" );
        ]
 
 (* Complex Arithmetic and Math Tests *)
@@ -7401,7 +7367,8 @@ let complex_math_operations =
   >::: [
          ( "lcm calculation" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec gcd = fn a -> fn b ->
                  if b == 0 then a
                  else gcd b (a % b)
@@ -7409,11 +7376,11 @@ let complex_math_operations =
                let lcm = fn a -> fn b ->
                  (a * b) / gcd a b
              |}
-             ~expr:"lcm 12 18"
-             ~expected_value:"36" );
+             ~expr:"lcm 12 18" ~expected_value:"36" );
          ( "modular exponentiation" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec mod_pow = fn base -> fn exp -> fn modulus ->
                  if exp == 0 then 1
                  else if exp % 2 == 0 then
@@ -7422,46 +7389,45 @@ let complex_math_operations =
                  else
                    (base * mod_pow base (exp - 1) modulus) % modulus
              |}
-             ~expr:"mod_pow 2 10 1000"
-             ~expected_value:"24" );
+             ~expr:"mod_pow 2 10 1000" ~expected_value:"24" );
          ( "sum of range" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec sum_range = fn start -> fn stop ->
                  if start > stop then 0
                  else start + sum_range (start + 1) stop
              |}
-             ~expr:"sum_range 1 10"
-             ~expected_value:"55" );
+             ~expr:"sum_range 1 10" ~expected_value:"55" );
          ( "product of range" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec product_range = fn start -> fn stop ->
                  if start > stop then 1
                  else start * product_range (start + 1) stop
              |}
-             ~expr:"product_range 1 5"
-             ~expected_value:"120" );
+             ~expr:"product_range 1 5" ~expected_value:"120" );
          ( "count divisors" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec count_divisors = fn n -> fn d ->
                  if d > n then 0
                  else if n % d == 0 then 1 + count_divisors n (d + 1)
                  else count_divisors n (d + 1)
              |}
-             ~expr:"count_divisors 12 1"
-             ~expected_value:"6" );
+             ~expr:"count_divisors 12 1" ~expected_value:"6" );
          ( "sum of divisors" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec sum_divisors = fn n -> fn d ->
                  if d > n then 0
                  else if n % d == 0 then d + sum_divisors n (d + 1)
                  else sum_divisors n (d + 1)
              |}
-             ~expr:"sum_divisors 12 1"
-             ~expected_value:"28" );
+             ~expr:"sum_divisors 12 1" ~expected_value:"28" );
        ]
 
 (* Complex Integration Tests *)
@@ -7471,7 +7437,8 @@ let complex_integration_tests =
   >::: [
          ( "complex data pipeline" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec map = fn f -> fn lst ->
                  case lst do
                  | [] -> []
@@ -7491,11 +7458,11 @@ let complex_integration_tests =
                  (filter (fn x -> x > 5)
                    (map (fn x -> x * 2) [1, 2, 3, 4, 5, 6, 7]))
              |}
-             ~expr:"result"
-             ~expected_value:"50" );
+             ~expr:"result" ~expected_value:"50" );
          ( "list comprehension simulation" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec map = fn f -> fn lst ->
                  case lst do
                  | [] -> []
@@ -7509,11 +7476,11 @@ let complex_integration_tests =
                let result = map (fn x -> x * x)
                  (filter (fn x -> x % 2 == 0) [1, 2, 3, 4, 5, 6, 7, 8])
              |}
-             ~expr:"result"
-             ~expected_value:"[4, 16, 36, 64]" );
+             ~expr:"result" ~expected_value:"[4, 16, 36, 64]" );
          ( "tree to list conversion" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                type rec Tree = | Empty | Node of (Tree, int, Tree)
 
                let rec append = fn l1 -> fn l2 ->
@@ -7528,11 +7495,11 @@ let complex_integration_tests =
 
                let tree = Node (Node (Empty, 1, Empty), 2, Node (Empty, 3, Empty))
              |}
-             ~expr:"to_list tree"
-             ~expected_value:"[1, 2, 3]" );
+             ~expr:"to_list tree" ~expected_value:"[1, 2, 3]" );
          ( "count occurrences in list" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec count_occurrences = fn x -> fn lst ->
                  case lst do
                  | [] -> 0
@@ -7544,7 +7511,8 @@ let complex_integration_tests =
              ~expected_value:"3" );
          ( "remove duplicates" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec contains = fn x -> fn lst ->
                  case lst do
                  | [] -> false
@@ -7561,7 +7529,8 @@ let complex_integration_tests =
              ~expected_value:"[1, 2, 3, 4, 5]" );
          ( "intersection of lists" >:: fun _ ->
            assert_expression_has_value
-             ~program:{|
+             ~program:
+               {|
                let rec contains = fn x -> fn lst ->
                  case lst do
                  | [] -> false
@@ -7576,6 +7545,3321 @@ let complex_integration_tests =
              |}
              ~expr:"intersection [1, 2, 3, 4] [3, 4, 5, 6]"
              ~expected_value:"[3, 4]" );
+       ]
+
+(* ============================================================ *)
+(* MUTUALLY RECURSIVE TYPES TESTS *)
+(* ============================================================ *)
+
+let mutually_recursive_types_basic_tests =
+  let open ProgramTesting in
+  "Mutually Recursive Types - Basic"
+  >::: [
+         (* Test 1: Simple Even/Odd definition *)
+         ( "even odd types typecheck" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Even = | Zero | SuccE of Odd
+             and Odd = | SuccO of Even
+           |}
+         );
+         (* Test 2: Zero constructor type *)
+         ( "zero constructor type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+             |}
+             ~expr:"Zero" ~expected_type:"Even" );
+         (* Test 3: SuccE constructor type *)
+         ( "succE constructor type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+             |}
+             ~expr:"SuccE" ~expected_type:"Odd -> Even" );
+         (* Test 4: SuccO constructor type *)
+         ( "succO constructor type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+             |}
+             ~expr:"SuccO" ~expected_type:"Even -> Odd" );
+         (* Test 5: Create simple even number *)
+         ( "create even number" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+             |}
+             ~expr:"SuccE (SuccO Zero)" ~expected_type:"Even" );
+         (* Test 6: Create simple odd number *)
+         ( "create odd number" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+             |}
+             ~expr:"SuccO Zero" ~expected_type:"Odd" );
+         (* Test 7: Pattern match on Even *)
+         ( "pattern match even" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+
+               let is_zero = fn e ->
+                 case e do
+                 | Zero -> true
+                 | SuccE _ -> false
+             |}
+             ~expr:"is_zero Zero" ~expected_value:"true" );
+         (* Test 8: Pattern match on Odd *)
+         ( "pattern match odd" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+
+               let get_pred = fn o ->
+                 case o do
+                 | SuccO e -> e
+             |}
+             ~expr:"get_pred (SuccO Zero)" ~expected_value:"Zero" );
+         (* Test 9: Convert even to int *)
+         ( "even to int" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+
+               let rec even_to_int = fn e ->
+                 case e do
+                 | Zero -> 0
+                 | SuccE o -> 1 + odd_to_int o
+               and odd_to_int = fn o ->
+                 case o do
+                 | SuccO e -> 1 + even_to_int e
+             |}
+             ~expr:"even_to_int (SuccE (SuccO (SuccE (SuccO Zero))))"
+             ~expected_value:"4" );
+         (* Test 10: Convert odd to int *)
+         ( "odd to int" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+
+               let rec even_to_int = fn e ->
+                 case e do
+                 | Zero -> 0
+                 | SuccE o -> 1 + odd_to_int o
+               and odd_to_int = fn o ->
+                 case o do
+                 | SuccO e -> 1 + even_to_int e
+             |}
+             ~expr:"odd_to_int (SuccO Zero)" ~expected_value:"1" );
+       ]
+
+let mutually_recursive_types_with_params_tests =
+  let open ProgramTesting in
+  "Mutually Recursive Types - With Type Parameters"
+  >::: [
+         (* Test 11: Tree/Forest with type parameters *)
+         ( "tree forest typechecks" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+             and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+           |}
+         );
+         (* Test 12: Leaf constructor type *)
+         ( "leaf constructor type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             |}
+             ~expr:"Leaf" ~expected_type:"'a -> Tree<'a>" );
+         (* Test 13: Node constructor type *)
+         ( "node constructor type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             |}
+             ~expr:"Node" ~expected_type:"('a, Forest<'a>) -> Tree<'a>" );
+         (* Test 14: Empty constructor type *)
+         ( "empty forest constructor type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             |}
+             ~expr:"Empty" ~expected_type:"Forest<'a>" );
+         (* Test 15: Trees constructor type *)
+         ( "trees constructor type" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             |}
+             ~expr:"Trees" ~expected_type:"(Tree<'a>, Forest<'a>) -> Forest<'a>"
+         );
+         (* Test 16: Create simple tree *)
+         ( "create simple tree" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             |}
+             ~expr:"Leaf 5" ~expected_type:"Tree<int>" );
+         (* Test 17: Create tree with children *)
+         ( "create tree with children" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             |}
+             ~expr:"Node (1, Trees (Leaf 2, Empty))" ~expected_type:"Tree<int>"
+         );
+         (* Test 18: Create forest *)
+         ( "create forest" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+             |}
+             ~expr:"Trees (Leaf 1, Trees (Leaf 2, Empty))"
+             ~expected_type:"Forest<int>" );
+         (* Test 19: Count tree nodes *)
+         ( "count tree nodes" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let rec count_tree = fn t ->
+                 case t do
+                 | Leaf _ -> 1
+                 | Node (_, f) -> 1 + count_forest f
+               and count_forest = fn f ->
+                 case f do
+                 | Empty -> 0
+                 | Trees (t, rest) -> count_tree t + count_forest rest
+             |}
+             ~expr:
+               "count_tree (Node (1, Trees (Leaf 2, Trees (Leaf 3, Empty))))"
+             ~expected_value:"3" );
+         (* Test 20: Sum tree values *)
+         ( "sum tree values" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let rec sum_tree = fn t ->
+                 case t do
+                 | Leaf x -> x
+                 | Node (x, f) -> x + sum_forest f
+               and sum_forest = fn f ->
+                 case f do
+                 | Empty -> 0
+                 | Trees (t, rest) -> sum_tree t + sum_forest rest
+             |}
+             ~expr:"sum_tree (Node (1, Trees (Leaf 2, Trees (Leaf 3, Empty))))"
+             ~expected_value:"6" );
+       ]
+
+let mutually_recursive_types_complex_tests =
+  let open ProgramTesting in
+  "Mutually Recursive Types - Complex Scenarios"
+  >::: [
+         (* Test 21: Expression and Statement types *)
+         ( "expr stmt typechecks" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Expr = | Num of int | BinOp of (Expr, Expr)
+             and Stmt = | Assign of Expr | Block of StmtList
+             and StmtList = | StmtNil | StmtCons of (Stmt, StmtList)
+           |}
+         );
+         (* Test 22: Three mutually recursive types *)
+         ( "three types typecheck" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec A = | AVal of int | ToB of B
+             and B = | BVal of int | ToC of C
+             and C = | CVal of int | ToA of A
+           |}
+         );
+         (* Test 23: Cycle through types *)
+         ( "cycle through types" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec A = | AVal of int | ToB of B
+               and B = | BVal of int | ToC of C
+               and C = | CVal of int | ToA of A
+             |}
+             ~expr:"ToB (ToC (ToA (AVal 5)))" ~expected_type:"A" );
+         (* Test 24: Extract value from cycle *)
+         ( "extract value from cycle" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec A = | AVal of int | ToB of B
+               and B = | BVal of int | ToC of C
+               and C = | CVal of int | ToA of A
+
+               let rec get_a = fn a ->
+                 case a do
+                 | AVal x -> x
+                 | ToB b -> get_b b
+               and get_b = fn b ->
+                 case b do
+                 | BVal x -> x
+                 | ToC c -> get_c c
+               and get_c = fn c ->
+                 case c do
+                 | CVal x -> x
+                 | ToA a -> get_a a
+             |}
+             ~expr:"get_a (ToB (ToC (ToA (AVal 42))))" ~expected_value:"42" );
+         (* Test 25: Person and Group *)
+         ( "person group typechecks" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Person = | Individual of int | InGroup of Group
+             and Group = | EmptyGroup | Members of (Person, Group)
+           |}
+         );
+         (* Test 26: Count people in group *)
+         ( "count people" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Person = | Individual of int | InGroup of Group
+               and Group = | EmptyGroup | Members of (Person, Group)
+
+               let rec count_person = fn p ->
+                 case p do
+                 | Individual _ -> 1
+                 | InGroup g -> count_group g
+               and count_group = fn g ->
+                 case g do
+                 | EmptyGroup -> 0
+                 | Members (p, rest) -> count_person p + count_group rest
+             |}
+             ~expr:
+               "count_group (Members (Individual 1, Members (InGroup (Members \
+                (Individual 2, EmptyGroup)), EmptyGroup)))"
+             ~expected_value:"2" );
+         (* Test 27: AST with Expr and Decl *)
+         ( "ast expr decl typechecks" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Expr = | Var of int | Call of (Expr, Expr) | Let of Decl * Expr
+             and Decl = | VarDecl of (int, Expr)
+           |}
+         );
+         (* Test 28: Pattern with nested constructors *)
+         ( "nested pattern match" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec A = | ALeaf of int | ANode of B
+               and B = | BLeaf of int | BNode of A
+
+               let get_val = fn a ->
+                 case a do
+                 | ALeaf x -> x
+                 | ANode b ->
+                   case b do
+                   | BLeaf y -> y
+                   | BNode _ -> 0
+             |}
+             ~expr:"get_val (ANode (BLeaf 99))" ~expected_value:"99" );
+         (* Test 29: List-like structure with two types *)
+         ( "dual list typechecks" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec ListA<a> = | NilA | ConsA of (a, ListB<a>)
+             and ListB<a> = | NilB | ConsB of (a, ListA<a>)
+           |}
+         );
+         (* Test 30: Dual list length *)
+         ( "dual list length" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec ListA<a> = | NilA | ConsA of (a, ListB<a>)
+               and ListB<a> = | NilB | ConsB of (a, ListA<a>)
+
+               let rec len_a = fn la ->
+                 case la do
+                 | NilA -> 0
+                 | ConsA (_, lb) -> 1 + len_b lb
+               and len_b = fn lb ->
+                 case lb do
+                 | NilB -> 0
+                 | ConsB (_, la) -> 1 + len_a la
+             |}
+             ~expr:"len_a (ConsA (1, ConsB (2, ConsA (3, NilB))))"
+             ~expected_value:"3" );
+       ]
+
+let mutually_recursive_types_evaluation_tests =
+  let open ProgramTesting in
+  "Mutually Recursive Types - Evaluation"
+  >::: [
+         (* Test 31: Create and evaluate Even number 6 *)
+         ( "even number 6" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Even = | Zero | SuccE of Odd
+               and Odd = | SuccO of Even
+
+               let rec even_to_int = fn e ->
+                 case e do
+                 | Zero -> 0
+                 | SuccE o -> 1 + odd_to_int o
+               and odd_to_int = fn o ->
+                 case o do
+                 | SuccO e -> 1 + even_to_int e
+             |}
+             ~expr:
+               "even_to_int (SuccE (SuccO (SuccE (SuccO (SuccE (SuccO \
+                Zero))))))"
+             ~expected_value:"6" );
+         (* Test 32: Check if even *)
+         ( "is even check" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Nat = | NZero | NSuccE of Nat | NSuccO of Nat
+
+               let rec is_even = fn n ->
+                 case n do
+                 | NZero -> true
+                 | NSuccE m -> is_odd m
+                 | NSuccO m -> is_even m
+               and is_odd = fn n ->
+                 case n do
+                 | NZero -> false
+                 | NSuccE m -> is_even m
+                 | NSuccO m -> is_odd m
+             |}
+             ~expr:"is_even (NSuccE (NSuccO (NSuccE NZero)))"
+             ~expected_value:"true" );
+         (* Test 33: Binary tree evaluation *)
+         ( "binary tree sum" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let rec sum_tree = fn t ->
+                 case t do
+                 | Leaf x -> x
+                 | Node (x, f) -> x + sum_forest f
+               and sum_forest = fn f ->
+                 case f do
+                 | Empty -> 0
+                 | Trees (t, rest) -> sum_tree t + sum_forest rest
+
+               let tree = Node (10, Trees (Leaf 5, Trees (Node (3, Trees (Leaf 2, Empty)), Empty)))
+             |}
+             ~expr:"sum_tree tree" ~expected_value:"20" );
+         (* Test 34: Deep nesting *)
+         ( "deep nesting" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec A = | AVal of int | ANext of B
+               and B = | BNext of C
+               and C = | CNext of D
+               and D = | DVal of int
+
+               let rec get = fn a ->
+                 case a do
+                 | AVal x -> x
+                 | ANext b ->
+                   case b do
+                   | BNext c ->
+                     case c do
+                     | CNext d ->
+                       case d do
+                       | DVal x -> x
+             |}
+             ~expr:"get (ANext (BNext (CNext (DVal 123))))"
+             ~expected_value:"123" );
+         (* Test 35: Map over tree *)
+         ( "map over tree" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let rec map_tree = fn f -> fn t ->
+                 case t do
+                 | Leaf x -> Leaf (f x)
+                 | Node (x, forest) -> Node (f x, map_forest f forest)
+               and map_forest = fn f -> fn forest ->
+                 case forest do
+                 | Empty -> Empty
+                 | Trees (t, rest) -> Trees (map_tree f t, map_forest f rest)
+
+               let rec sum_tree = fn t ->
+                 case t do
+                 | Leaf x -> x
+                 | Node (x, f) -> x + sum_forest f
+               and sum_forest = fn f ->
+                 case f do
+                 | Empty -> 0
+                 | Trees (t, rest) -> sum_tree t + sum_forest rest
+
+               let tree = Node (1, Trees (Leaf 2, Trees (Leaf 3, Empty)))
+               let doubled = map_tree (fn x -> x * 2) tree
+             |}
+             ~expr:"sum_tree doubled" ~expected_value:"12" );
+         (* Test 36: Boolean evaluation *)
+         ( "boolean expr evaluation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec BExpr = | BTrue | BFalse | BAnd of (BExpr, BExpr) | BOr of (BExpr, BExpr) | BNot of BExpr
+
+               let rec eval = fn e ->
+                 case e do
+                 | BTrue -> true
+                 | BFalse -> false
+                 | BAnd (e1, e2) -> eval e1 && eval e2
+                 | BOr (e1, e2) -> eval e1 || eval e2
+                 | BNot e1 -> if eval e1 then false else true
+             |}
+             ~expr:"eval (BAnd (BOr (BTrue, BFalse), BNot BFalse))"
+             ~expected_value:"true" );
+         (* Test 37: Count nodes in complex tree *)
+         ( "count nodes complex tree" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let rec count_tree = fn t ->
+                 case t do
+                 | Leaf _ -> 1
+                 | Node (_, f) -> 1 + count_forest f
+               and count_forest = fn f ->
+                 case f do
+                 | Empty -> 0
+                 | Trees (t, rest) -> count_tree t + count_forest rest
+
+               let tree = Node (1, Trees (Node (2, Trees (Leaf 3, Trees (Leaf 4, Empty))), Trees (Leaf 5, Empty)))
+             |}
+             ~expr:"count_tree tree" ~expected_value:"5" );
+         (* Test 38: Find element in tree *)
+         ( "find in tree" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let rec find_tree = fn target -> fn t ->
+                 case t do
+                 | Leaf x -> x == target
+                 | Node (x, f) -> if x == target then true else find_forest target f
+               and find_forest = fn target -> fn f ->
+                 case f do
+                 | Empty -> false
+                 | Trees (t, rest) ->
+                   if find_tree target t then true else find_forest target rest
+
+               let tree = Node (1, Trees (Leaf 2, Trees (Leaf 3, Empty)))
+             |}
+             ~expr:"find_tree 3 tree" ~expected_value:"true" );
+         (* Test 39: Max value in tree *)
+         ( "max value in tree" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let max = fn a -> fn b -> if a > b then a else b
+
+               let rec max_tree = fn t ->
+                 case t do
+                 | Leaf x -> x
+                 | Node (x, f) -> max x (max_forest f x)
+               and max_forest = fn f -> fn acc ->
+                 case f do
+                 | Empty -> acc
+                 | Trees (t, rest) -> max (max_tree t) (max_forest rest acc)
+
+               let tree = Node (5, Trees (Leaf 10, Trees (Leaf 3, Empty)))
+             |}
+             ~expr:"max_tree tree" ~expected_value:"10" );
+         (* Test 40: Flatten tree to list *)
+         ( "flatten tree" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
+
+               let rec append = fn l1 -> fn l2 ->
+                 case l1 do
+                 | [] -> l2
+                 | h :: t -> h :: append t l2
+
+               let rec flatten_tree = fn t ->
+                 case t do
+                 | Leaf x -> [x]
+                 | Node (x, f) -> x :: flatten_forest f
+               and flatten_forest = fn f ->
+                 case f do
+                 | Empty -> []
+                 | Trees (t, rest) -> append (flatten_tree t) (flatten_forest rest)
+
+               let tree = Node (1, Trees (Leaf 2, Trees (Leaf 3, Empty)))
+             |}
+             ~expr:"flatten_tree tree" ~expected_value:"[1, 2, 3]" );
+       ]
+
+let mutually_recursive_types_advanced_tests =
+  let open ProgramTesting in
+  "Mutually Recursive Types - Advanced"
+  >::: [
+         (* Test 41: Parameterized with multiple params *)
+         ( "multiple type params" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec PairA<a, b> = | PA of (a, PairB<b, a>)
+             and PairB<a, b> = | PB of (a, PairA<b, a>) | PBNil
+           |}
+         );
+         (* Test 42: Swap types *)
+         ( "swap pair types" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type rec PairA<a, b> = | PA of (a, PairB<b, a>)
+               and PairB<a, b> = | PB of (a, PairA<b, a>) | PBNil
+             |}
+             ~expr:"PA (5, PB (true, PA (10, PBNil)))"
+             ~expected_type:"PairA<int, bool>" );
+         (* Test 43: Rose tree variant *)
+         ( "rose tree typechecks" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Rose<a> = | RNode of (a, RoseList<a>)
+             and RoseList<a> = | RNil | RCons of (Rose<a>, RoseList<a>)
+           |}
+         );
+         (* Test 44: Rose tree depth *)
+         ( "rose tree depth" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Rose<a> = | RNode of (a, RoseList<a>)
+               and RoseList<a> = | RNil | RCons of (Rose<a>, RoseList<a>)
+
+               let max = fn a -> fn b -> if a > b then a else b
+
+               let rec depth_rose = fn r ->
+                 case r do
+                 | RNode (_, children) -> 1 + depth_list children
+               and depth_list = fn rl ->
+                 case rl do
+                 | RNil -> 0
+                 | RCons (r, rest) -> max (depth_rose r) (depth_list rest)
+
+               let tree = RNode (1, RCons (RNode (2, RNil), RCons (RNode (3, RCons (RNode (4, RNil), RNil)), RNil)))
+             |}
+             ~expr:"depth_rose tree" ~expected_value:"3" );
+         (* Test 45: Four mutually recursive types *)
+         ( "four types typecheck" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec A = | ToB of B
+             and B = | ToC of C
+             and C = | ToD of D
+             and D = | ToA of A | DVal of int
+           |}
+         );
+         (* Test 46: Circular reference chain *)
+         ( "circular chain" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec A = | ToB of B
+               and B = | ToC of C
+               and C = | ToD of D
+               and D = | ToA of A | DVal of int
+
+               let rec get = fn a ->
+                 case a do
+                 | ToB b ->
+                   case b do
+                   | ToC c ->
+                     case c do
+                     | ToD d ->
+                       case d do
+                       | DVal x -> x
+                       | ToA a2 -> get a2
+             |}
+             ~expr:"get (ToB (ToC (ToD (ToA (ToB (ToC (ToD (DVal 77))))))))"
+             ~expected_value:"77" );
+         (* Test 47: Binary and unary ops *)
+         ( "binary unary ops" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Expr = | Val of int | BinOp of BinaryOp | UnOp of UnaryOp
+             and BinaryOp = | Add of (Expr, Expr) | Mul of (Expr, Expr)
+             and UnaryOp = | Neg of Expr
+           |}
+         );
+         (* Test 48: Evaluate binary/unary *)
+         ( "eval binary unary" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Expr = | Val of int | BinOp of BinaryOp | UnOp of UnaryOp
+               and BinaryOp = | Add of (Expr, Expr) | Mul of (Expr, Expr)
+               and UnaryOp = | Neg of Expr
+
+               let rec eval = fn e ->
+                 case e do
+                 | Val x -> x
+                 | BinOp b -> eval_bin b
+                 | UnOp u -> eval_un u
+               and eval_bin = fn b ->
+                 case b do
+                 | Add (e1, e2) -> eval e1 + eval e2
+                 | Mul (e1, e2) -> eval e1 * eval e2
+               and eval_un = fn u ->
+                 case u do
+                 | Neg e -> 0 - eval e
+             |}
+             ~expr:"eval (BinOp (Add (Val 5, UnOp (Neg (Val 3)))))"
+             ~expected_value:"2" );
+         (* Test 49: Graph node and edge *)
+         ( "graph node edge" >:: fun _ ->
+           assert_program_typechecks
+             {|
+             type rec Node<a> = | N of (a, EdgeList<a>)
+             and EdgeList<a> = | ENil | ECons of (Edge<a>, EdgeList<a>)
+             and Edge<a> = | E of Node<a>
+           |}
+         );
+         (* Test 50: Count graph nodes *)
+         ( "count graph nodes" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Node<a> = | N of (a, EdgeList<a>)
+               and EdgeList<a> = | ENil | ECons of (Edge<a>, EdgeList<a>)
+               and Edge<a> = | E of Node<a>
+
+               let rec count_node = fn n ->
+                 case n do
+                 | N (_, edges) -> 1 + count_edges edges
+               and count_edges = fn edges ->
+                 case edges do
+                 | ENil -> 0
+                 | ECons (e, rest) -> count_edge e + count_edges rest
+               and count_edge = fn e ->
+                 case e do
+                 | E n -> count_node n
+
+               let node = N (1, ECons (E (N (2, ENil)), ECons (E (N (3, ENil)), ENil)))
+             |}
+             ~expr:"count_node node" ~expected_value:"3" );
+       ]
+
+(* ============================================================ *)
+(* VERY COMPLEX INTEGRATION TESTS - 100 Tests *)
+(* Combining mutually recursive types with all language features *)
+(* ============================================================ *)
+
+let very_complex_integration_tests =
+  let open ProgramTesting in
+  "Very Complex Integration Tests"
+  >::: [
+         (* Test 1: Expression evaluator with mutually recursive AST *)
+         ( "expression evaluator with variables" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Expr = | Var of int | Num of int | Add of (Expr, Expr)
+                             | Mul of (Expr, Expr) | Let of (Decl, Expr)
+               and Decl = | VarDecl of (int, Expr)
+
+               type Env = (int, int)
+
+               let rec eval_expr = fn env -> fn expr ->
+                 case expr do
+                 | Var x -> lookup x env
+                 | Num n -> n
+                 | Add (e1, e2) -> eval_expr env e1 + eval_expr env e2
+                 | Mul (e1, e2) -> eval_expr env e1 * eval_expr env e2
+                 | Let (d, body) -> eval_with_decl env d body
+               and eval_with_decl = fn env -> fn decl -> fn body ->
+                 case decl do
+                 | VarDecl (name, val_expr) ->
+                   let val_result = eval_expr env val_expr in
+                   eval_expr ((name, val_result) :: env) body
+               and lookup = fn name -> fn env ->
+                 case env do
+                 | [] -> 0
+                 | (n, v) :: rest -> if n == name then v else lookup name rest
+
+               let prog = Let (VarDecl (1, Num 10), Add (Var 1, Mul (Num 2, Num 3)))
+             |}
+             ~expr:"eval_expr [] prog" ~expected_value:"16" );
+         (* Test 2: Type checker for simple lambda calculus *)
+         ( "simple type checker" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Type = | TInt | TBool | TFun of (Type, Type)
+               and Expr = | EInt of int | EBool of bool | EVar of int
+                        | EApp of (Expr, Expr) | ELam of (int, Type, Expr)
+               and Context = | CNil | CCons of (int, Type, Context)
+
+               let rec type_check = fn ctx -> fn expr ->
+                 case expr do
+                 | EInt _ -> TInt
+                 | EBool _ -> TBool
+                 | EVar x -> lookup_type x ctx
+                 | ELam (x, t, body) ->
+                   let body_type = type_check (CCons (x, t, ctx)) body in
+                   TFun (t, body_type)
+                 | EApp (e1, e2) ->
+                   let t1 = type_check ctx e1 in
+                   let t2 = type_check ctx e2 in
+                   get_return_type t1
+               and lookup_type = fn x -> fn ctx ->
+                 case ctx do
+                 | CNil -> TInt
+                 | CCons (y, t, rest) -> if x == y then t else lookup_type x rest
+               and get_return_type = fn t ->
+                 case t do
+                 | TFun (_, ret) -> ret
+                 | _ -> TInt
+
+               let expr = ELam (1, TInt, EVar 1)
+               let result = type_check CNil expr
+             |}
+             ~expr:"case result do | TFun (_, _) -> 1 | _ -> 0"
+             ~expected_value:"1" );
+         (* Test 3: Binary search tree with insert and search *)
+         ( "BST with mutually recursive operations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree = | Leaf | Node of (int, Tree, Tree)
+
+               let rec insert = fn x -> fn tree ->
+                 case tree do
+                 | Leaf -> Node (x, Leaf, Leaf)
+                 | Node (v, l, r) ->
+                   if x < v then Node (v, insert x l, r)
+                   else if x > v then Node (v, l, insert x r)
+                   else tree
+               and search = fn x -> fn tree ->
+                 case tree do
+                 | Leaf -> false
+                 | Node (v, l, r) ->
+                   if x == v then true
+                   else if x < v then search x l
+                   else search x r
+
+               let tree = insert 5 (insert 3 (insert 7 (insert 1 (insert 9 Leaf))))
+             |}
+             ~expr:
+               "if search 7 tree && search 1 tree && search 9 tree then 1 else \
+                0"
+             ~expected_value:"1" );
+         (* Test 4: Multi-way tree with complex traversals *)
+         ( "multi-way tree traversals" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec MTree<a> = | MLeaf of a | MNode of (a, MForest<a>)
+               and MForest<a> = | FNil | FCons of (MTree<a>, MForest<a>)
+
+               let rec tree_map = fn f -> fn tree ->
+                 case tree do
+                 | MLeaf x -> MLeaf (f x)
+                 | MNode (x, forest) -> MNode (f x, forest_map f forest)
+               and forest_map = fn f -> fn forest ->
+                 case forest do
+                 | FNil -> FNil
+                 | FCons (t, rest) -> FCons (tree_map f t, forest_map f rest)
+
+               let rec tree_sum = fn tree ->
+                 case tree do
+                 | MLeaf x -> x
+                 | MNode (x, forest) -> x + forest_sum forest
+               and forest_sum = fn forest ->
+                 case forest do
+                 | FNil -> 0
+                 | FCons (t, rest) -> tree_sum t + forest_sum rest
+
+               let tree = MNode (1, FCons (MLeaf 2, FCons (MNode (3, FCons (MLeaf 4, FNil)), FNil)))
+               let doubled = tree_map (fn x -> x * 2) tree
+             |}
+             ~expr:"tree_sum doubled" ~expected_value:"20" );
+         (* Test 5: Graph algorithms with adjacency lists *)
+         ( "graph adjacency with path finding" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Graph = | GNode of (int, EdgeList)
+               and EdgeList = | ENil | ECons of (Edge, EdgeList)
+               and Edge = | E of int
+
+               let rec has_edge = fn from -> fn to -> fn edges ->
+                 case edges do
+                 | ENil -> false
+                 | ECons (E target, rest) ->
+                   if target == to then true else has_edge from to rest
+
+               let rec count_edges = fn edges ->
+                 case edges do
+                 | ENil -> 0
+                 | ECons (_, rest) -> 1 + count_edges rest
+
+               let graph = GNode (1, ECons (E 2, ECons (E 3, ECons (E 4, ENil))))
+             |}
+             ~expr:"case graph do | GNode (_, edges) -> count_edges edges"
+             ~expected_value:"3" );
+         (* Test 6: Parser combinator style *)
+         ( "parser with mutually recursive grammar" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec ParseResult = | Success of int | Failure
+               and Parser = | NumParser | AddParser of (Parser, Parser)
+
+               let rec parse = fn p -> fn input ->
+                 case p do
+                 | NumParser -> Success input
+                 | AddParser (p1, p2) ->
+                   let r1 = parse p1 input in
+                   let r2 = parse p2 input in
+                   combine_results r1 r2
+               and combine_results = fn r1 -> fn r2 ->
+                 case r1 do
+                 | Success v1 ->
+                   (case r2 do
+                    | Success v2 -> Success (v1 + v2)
+                    | Failure -> Failure)
+                 | Failure -> Failure
+
+               let parser = AddParser (NumParser, NumParser)
+               let result = parse parser 5
+             |}
+             ~expr:"case result do | Success v -> v | Failure -> 0"
+             ~expected_value:"10" );
+         (* Test 7: Complex state machine *)
+         ( "state machine with mutually recursive states" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec State = | S1 | S2 | S3 | Final of int
+               and Input = | A | B | C
+               and InputList = | INull | ICons of (Input, InputList)
+
+               let rec process_state = fn state -> fn inputs ->
+                 case inputs do
+                 | INull -> finalize state
+                 | ICons (input, rest) ->
+                   let new_state = transition state input in
+                   process_state new_state rest
+               and transition = fn state -> fn input ->
+                 case state do
+                 | S1 -> (case input do | A -> S2 | B -> S3 | C -> S1)
+                 | S2 -> (case input do | A -> S3 | B -> S1 | C -> S2)
+                 | S3 -> (case input do | A -> Final 42 | B -> S2 | C -> S1)
+                 | Final n -> Final n
+               and finalize = fn state ->
+                 case state do
+                 | Final n -> n
+                 | S1 -> 1
+                 | S2 -> 2
+                 | S3 -> 3
+
+               let inputs = ICons (A, ICons (A, ICons (A, INull)))
+             |}
+             ~expr:"process_state S1 inputs" ~expected_value:"42" );
+         (* Test 8: Arithmetic expression simplifier *)
+         ( "expression simplifier" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec AExpr = | ANum of int | AAdd of (AExpr, AExpr)
+                              | AMul of (AExpr, AExpr) | ANeg of AExpr
+
+               let rec simplify = fn expr ->
+                 case expr do
+                 | ANum n -> ANum n
+                 | AAdd (e1, e2) -> simplify_add (simplify e1) (simplify e2)
+                 | AMul (e1, e2) -> simplify_mul (simplify e1) (simplify e2)
+                 | ANeg e -> simplify_neg (simplify e)
+               and simplify_add = fn e1 -> fn e2 ->
+                 case e1 do
+                 | ANum 0 -> e2
+                 | _ -> (case e2 do | ANum 0 -> e1 | _ -> AAdd (e1, e2))
+               and simplify_mul = fn e1 -> fn e2 ->
+                 case e1 do
+                 | ANum 0 -> ANum 0
+                 | ANum 1 -> e2
+                 | _ -> (case e2 do
+                         | ANum 0 -> ANum 0
+                         | ANum 1 -> e1
+                         | _ -> AMul (e1, e2))
+               and simplify_neg = fn e ->
+                 case e do
+                 | ANeg inner -> inner
+                 | _ -> ANeg e
+
+               let rec eval = fn expr ->
+                 case expr do
+                 | ANum n -> n
+                 | AAdd (e1, e2) -> eval e1 + eval e2
+                 | AMul (e1, e2) -> eval e1 * eval e2
+                 | ANeg e -> 0 - eval e
+
+               let expr = AAdd (AMul (ANum 0, ANum 5), AAdd (ANum 0, ANum 10))
+               let simplified = simplify expr
+             |}
+             ~expr:"eval simplified" ~expected_value:"10" );
+         (* Test 9: Zipper data structure *)
+         ( "tree zipper for navigation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+               and Crumb = | LeftCrumb of (int, Tree) | RightCrumb of (int, Tree)
+               and Crumbs = | CrumbNil | CrumbCons of (Crumb, Crumbs)
+               and Zipper = | Z of (Tree, Crumbs)
+
+               let rec go_left = fn zipper ->
+                 case zipper do
+                 | Z (Node (v, l, r), crumbs) ->
+                   Z (l, CrumbCons (LeftCrumb (v, r), crumbs))
+                 | Z (Leaf _, _) -> zipper
+               and go_right = fn zipper ->
+                 case zipper do
+                 | Z (Node (v, l, r), crumbs) ->
+                   Z (r, CrumbCons (RightCrumb (v, l), crumbs))
+                 | Z (Leaf _, _) -> zipper
+               and go_up = fn zipper ->
+                 case zipper do
+                 | Z (tree, CrumbCons (crumb, rest)) ->
+                   (case crumb do
+                    | LeftCrumb (v, r) -> Z (Node (v, tree, r), rest)
+                    | RightCrumb (v, l) -> Z (Node (v, l, tree), rest))
+                 | Z (_, CrumbNil) -> zipper
+               and get_value = fn zipper ->
+                 case zipper do
+                 | Z (Leaf v, _) -> v
+                 | Z (Node (v, _, _), _) -> v
+
+               let tree = Node (1, Node (2, Leaf 3, Leaf 4), Node (5, Leaf 6, Leaf 7))
+               let z = Z (tree, CrumbNil)
+               let z2 = go_left z
+               let z3 = go_right z2
+             |}
+             ~expr:"get_value z3" ~expected_value:"4" );
+         (* Test 10: Polymorphic tree fold *)
+         ( "polymorphic tree fold operations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree<a> = | Empty | Branch of (a, Tree<a>, Tree<a>)
+
+               let rec fold_tree = fn leaf_fn -> fn branch_fn -> fn tree ->
+                 case tree do
+                 | Empty -> leaf_fn ()
+                 | Branch (v, l, r) ->
+                   let left_result = fold_tree leaf_fn branch_fn l in
+                   let right_result = fold_tree leaf_fn branch_fn r in
+                   branch_fn v left_result right_result
+
+               let tree = Branch (1, Branch (2, Empty, Empty), Branch (3, Empty, Empty))
+               let sum = fold_tree (fn _ -> 0) (fn v -> fn l -> fn r -> v + l + r) tree
+               let count = fold_tree (fn _ -> 0) (fn _ -> fn l -> fn r -> 1 + l + r) tree
+             |}
+             ~expr:"sum + count" ~expected_value:"9" );
+         (* Test 11: Interpreter with environments *)
+         ( "interpreter with closures" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Expr = | Val of int | Var of int | Add of (Expr, Expr)
+                             | Fun of (int, Expr) | App of (Expr, Expr)
+               and Value = | VInt of int | VClosure of (int, Expr, Env)
+               and Env = | EEmpty | EBind of (int, Value, Env)
+
+               let rec eval = fn env -> fn expr ->
+                 case expr do
+                 | Val n -> VInt n
+                 | Var x -> lookup env x
+                 | Add (e1, e2) ->
+                   let v1 = eval env e1 in
+                   let v2 = eval env e2 in
+                   add_values v1 v2
+                 | Fun (x, body) -> VClosure (x, body, env)
+                 | App (fn_expr, arg_expr) ->
+                   let fn_val = eval env fn_expr in
+                   let arg_val = eval env arg_expr in
+                   apply_closure fn_val arg_val
+               and lookup = fn env -> fn x ->
+                 case env do
+                 | EEmpty -> VInt 0
+                 | EBind (y, v, rest) -> if x == y then v else lookup rest x
+               and add_values = fn v1 -> fn v2 ->
+                 case v1 do
+                 | VInt n1 -> (case v2 do | VInt n2 -> VInt (n1 + n2) | _ -> VInt 0)
+                 | _ -> VInt 0
+               and apply_closure = fn fn_val -> fn arg_val ->
+                 case fn_val do
+                 | VClosure (x, body, env) -> eval (EBind (x, arg_val, env)) body
+                 | _ -> VInt 0
+               and extract_int = fn v ->
+                 case v do | VInt n -> n | _ -> 0
+
+               let prog = App (Fun (1, Add (Var 1, Val 10)), Val 5)
+             |}
+             ~expr:"extract_int (eval EEmpty prog)" ~expected_value:"15" );
+         (* Test 12: Red-black tree with rotations *)
+         ( "red-black tree balancing" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Color = | Red | Black
+               and RBTree = | RBLeaf | RBNode of (Color, int, RBTree, RBTree)
+
+               let rec insert = fn x -> fn tree ->
+                 make_black (ins x tree)
+               and ins = fn x -> fn tree ->
+                 case tree do
+                 | RBLeaf -> RBNode (Red, x, RBLeaf, RBLeaf)
+                 | RBNode (c, y, l, r) ->
+                   if x < y then balance c y (ins x l) r
+                   else if x > y then balance c y l (ins x r)
+                   else tree
+               and balance = fn color -> fn v -> fn l -> fn r ->
+                 case color do
+                 | Black -> balance_black v l r
+                 | Red -> RBNode (Red, v, l, r)
+               and balance_black = fn v -> fn l -> fn r ->
+                 case l do
+                 | RBNode (Red, lv, RBNode (Red, llv, lll, llr), lr) ->
+                   RBNode (Red, lv, RBNode (Black, llv, lll, llr), RBNode (Black, v, lr, r))
+                 | RBNode (Red, lv, ll, RBNode (Red, lrv, lrl, lrr)) ->
+                   RBNode (Red, lrv, RBNode (Black, lv, ll, lrl), RBNode (Black, v, lrr, r))
+                 | _ -> check_right v l r
+               and check_right = fn v -> fn l -> fn r ->
+                 case r do
+                 | RBNode (Red, rv, RBNode (Red, rlv, rll, rlr), rr) ->
+                   RBNode (Red, rlv, RBNode (Black, v, l, rll), RBNode (Black, rv, rlr, rr))
+                 | RBNode (Red, rv, rl, RBNode (Red, rrv, rrl, rrr)) ->
+                   RBNode (Red, rv, RBNode (Black, v, l, rl), RBNode (Black, rrv, rrl, rrr))
+                 | _ -> RBNode (Black, v, l, r)
+               and make_black = fn tree ->
+                 case tree do
+                 | RBNode (_, v, l, r) -> RBNode (Black, v, l, r)
+                 | RBLeaf -> RBLeaf
+
+               let rec size = fn tree ->
+                 case tree do
+                 | RBLeaf -> 0
+                 | RBNode (_, _, l, r) -> 1 + size l + size r
+
+               let tree = insert 5 (insert 3 (insert 7 (insert 1 (insert 9 RBLeaf))))
+             |}
+             ~expr:"size tree" ~expected_value:"5" );
+         (* Test 13: Type-safe heterogeneous list *)
+         ( "heterogeneous list with types" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec HList = | HNil | HInt of (int, HList) | HBool of (bool, HList)
+
+               let rec length = fn list ->
+                 case list do
+                 | HNil -> 0
+                 | HInt (_, rest) -> 1 + length rest
+                 | HBool (_, rest) -> 1 + length rest
+
+               let rec sum_ints = fn list ->
+                 case list do
+                 | HNil -> 0
+                 | HInt (n, rest) -> n + sum_ints rest
+                 | HBool (_, rest) -> sum_ints rest
+
+               let rec count_true = fn list ->
+                 case list do
+                 | HNil -> 0
+                 | HInt (_, rest) -> count_true rest
+                 | HBool (b, rest) -> (if b then 1 else 0) + count_true rest
+
+               let list = HInt (10, HBool (true, HInt (20, HBool (false, HBool (true, HNil)))))
+             |}
+             ~expr:"(sum_ints list) + (count_true list) + (length list)"
+             ~expected_value:"37" );
+         (* Test 14: Symbolic differentiation *)
+         ( "symbolic differentiation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec SExpr = | SVar | SNum of int | SAdd of (SExpr, SExpr)
+                              | SMul of (SExpr, SExpr)
+
+               let rec deriv = fn expr ->
+                 case expr do
+                 | SVar -> SNum 1
+                 | SNum _ -> SNum 0
+                 | SAdd (e1, e2) -> SAdd (deriv e1, deriv e2)
+                 | SMul (e1, e2) ->
+                   SAdd (SMul (deriv e1, e2), SMul (e1, deriv e2))
+
+               let rec eval_at = fn expr -> fn x ->
+                 case expr do
+                 | SVar -> x
+                 | SNum n -> n
+                 | SAdd (e1, e2) -> eval_at e1 x + eval_at e2 x
+                 | SMul (e1, e2) -> eval_at e1 x * eval_at e2 x
+
+               let expr = SMul (SVar, SVar)
+               let derivative = deriv expr
+             |}
+             ~expr:"eval_at derivative 5" ~expected_value:"10" );
+         (* Test 15: Trie data structure *)
+         ( "trie with word operations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Trie = | TNode of (bool, Children)
+               and Children = | CEmpty | CNode of (int, Trie, Children)
+
+               let rec insert_word = fn word -> fn trie ->
+                 case word do
+                 | [] -> mark_end trie
+                 | c :: rest ->
+                   case trie do
+                   | TNode (is_end, children) ->
+                     TNode (is_end, insert_child c rest children)
+               and insert_child = fn c -> fn rest -> fn children ->
+                 case children do
+                 | CEmpty -> CNode (c, insert_word rest (TNode (false, CEmpty)), CEmpty)
+                 | CNode (ch, subtrie, siblings) ->
+                   if c == ch then CNode (ch, insert_word rest subtrie, siblings)
+                   else CNode (ch, subtrie, insert_child c rest siblings)
+               and mark_end = fn trie ->
+                 case trie do
+                 | TNode (_, children) -> TNode (true, children)
+
+               let rec count_words = fn trie ->
+                 case trie do
+                 | TNode (is_end, children) ->
+                   (if is_end then 1 else 0) + count_children children
+               and count_children = fn children ->
+                 case children do
+                 | CEmpty -> 0
+                 | CNode (_, subtrie, siblings) ->
+                   count_words subtrie + count_children siblings
+
+               let trie = insert_word [1, 2, 3] (insert_word [1, 2] (TNode (false, CEmpty)))
+             |}
+             ~expr:"count_words trie" ~expected_value:"2" );
+         (* Test 16-20: More complex tests continue... *)
+         (* Test 16: Automaton simulation *)
+         ( "finite automaton simulation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Automaton = | Auto of (int, Transitions, AcceptStates)
+               and Transitions = | TEmpty | Trans of (int, int, int, Transitions)
+               and AcceptStates = | AEmpty | Accept of (int, AcceptStates)
+
+               let rec is_accepting = fn state -> fn accept ->
+                 case accept do
+                 | AEmpty -> false
+                 | Accept (s, rest) ->
+                   if s == state then true else is_accepting state rest
+
+               let rec find_next = fn state -> fn charr -> fn trans ->
+                 case trans do
+                 | TEmpty -> state
+                 | Trans (s, c, next, rest) ->
+                   if s == state && c == charr then next
+                   else find_next state charr rest
+
+               let rec run_from = fn state -> fn trans -> fn input ->
+                 case input do
+                 | [] -> state
+                 | c :: rest ->
+                   let next = find_next state c trans in
+                   run_from next trans rest
+
+               let rec simulate = fn auto -> fn input ->
+                 case auto do
+                 | Auto (start, trans, accept) ->
+                   let final = run_from start trans input in
+                   is_accepting final accept
+
+               let auto = Auto (0, Trans (0, 1, 1, Trans (1, 2, 2, TEmpty)), Accept (2, AEmpty))
+             |}
+             ~expr:"if simulate auto [1, 2] then 100 else 0"
+             ~expected_value:"100" );
+         (* Test 17: Regular expression matching *)
+         ( "simple regex matching" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Regex = | RChar of int | RAny | RSeq of (Regex, Regex) | RAlt of (Regex, Regex) | RStar of Regex
+
+              let rec is_empty = fn list ->
+                case list do | [] -> true | _ -> false
+
+              let rec append = fn l1 -> fn l2 ->
+                case l1 do
+                | [] -> l2
+                | h :: t -> h :: append t l2
+
+              let rec match_char = fn c -> fn input ->
+                case input do
+                | [] -> false
+                | x :: rest -> if x == c && is_empty rest then true else false
+
+              let rec match_any = fn input ->
+                case input do
+                | _ :: [] -> true
+                | _ -> false
+
+              let rec match_regex = fn regex -> fn input ->
+                case regex do
+                | RChar c -> match_char c input
+                | RAny -> match_any input
+                | RSeq (r1, r2) -> match_seq r1 r2 input
+                | RAlt (r1, r2) -> match_alt r1 r2 input
+                | RStar r -> match_star r input
+              and match_seq = fn r1 -> fn r2 -> fn input ->
+                try_splits input r1 r2
+              and try_splits = fn input -> fn r1 -> fn r2 ->
+                case input do
+                | [] -> false
+                | x :: rest ->
+                  if match_regex r1 [x] && match_regex r2 rest then true
+                  else try_more rest r1 r2 [x]
+              and try_more = fn rest -> fn r1 -> fn r2 -> fn prefix ->
+                case rest do
+                | [] -> false
+                | x :: tail ->
+                  let new_prefix = append prefix [x] in
+                  if match_regex r1 new_prefix && match_regex r2 tail then true
+                  else try_more tail r1 r2 new_prefix
+              and match_alt = fn r1 -> fn r2 -> fn input ->
+                if match_regex r1 input then true else match_regex r2 input
+              and match_star = fn r -> fn input ->
+                case input do
+                | [] -> true
+                | _ -> false
+
+
+               let regex = RSeq (RChar 1, RChar 2)
+             |}
+             ~expr:"if match_regex regex [1, 2] then 50 else 0"
+             ~expected_value:"50" );
+         (* Test 18: Lambda calculus evaluator *)
+         ( "lambda calculus beta reduction" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec LTerm = | LVar of int | LAbs of (int, LTerm) | LApp of (LTerm, LTerm)
+
+               let rec subst = fn x -> fn replacement -> fn term ->
+                 case term do
+                 | LVar y -> if x == y then replacement else LVar y
+                 | LAbs (y, body) ->
+                   if x == y then LAbs (y, body)
+                   else LAbs (y, subst x replacement body)
+                 | LApp (t1, t2) ->
+                   LApp (subst x replacement t1, subst x replacement t2)
+
+               let rec beta_reduce = fn term ->
+                 case term do
+                 | LVar _ -> term
+                 | LAbs (x, body) -> LAbs (x, beta_reduce body)
+                 | LApp (t1, t2) ->
+                   let t1_reduced = beta_reduce t1 in
+                   let t2_reduced = beta_reduce t2 in
+                   try_apply t1_reduced t2_reduced
+               and try_apply = fn t1 -> fn t2 ->
+                 case t1 do
+                 | LAbs (x, body) -> beta_reduce (subst x t2 body)
+                 | _ -> LApp (t1, t2)
+
+               let rec count_apps = fn term ->
+                 case term do
+                 | LVar _ -> 0
+                 | LAbs (_, body) -> count_apps body
+                 | LApp (t1, t2) -> 1 + count_apps t1 + count_apps t2
+
+               let id_fun = LAbs (1, LVar 1)
+               let applied = LApp (id_fun, LVar 5)
+               let reduced = beta_reduce applied
+             |}
+             ~expr:"count_apps reduced" ~expected_value:"0" );
+         (* Test 19: JSON-like data structure *)
+         ( "JSON parsing and querying" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec JSON = | JNull | JInt of int | JBool of bool
+                             | JArray of JList | JObject of Fields
+               and JList = | JLNil | JLCons of (JSON, JList)
+               and Fields = | FNil | FCons of (int, JSON, Fields)
+
+               let rec get_field = fn name -> fn obj ->
+                 case obj do
+                 | JObject fields -> lookup_field name fields
+                 | _ -> JNull
+               and lookup_field = fn name -> fn fields ->
+                 case fields do
+                 | FNil -> JNull
+                 | FCons (n, value, rest) ->
+                   if n == name then value else lookup_field name rest
+
+               let rec array_length = fn json ->
+                 case json do
+                 | JArray list -> count_list list
+                 | _ -> 0
+               and count_list = fn list ->
+                 case list do
+                 | JLNil -> 0
+                 | JLCons (_, rest) -> 1 + count_list rest
+
+               let rec extract_int = fn json ->
+                 case json do
+                 | JInt n -> n
+                 | _ -> 0
+
+               let obj = JObject (FCons (1, JInt 42, FCons (2, JArray (JLCons (JInt 1, JLCons (JInt 2, JLNil))), FNil)))
+               let field1 = get_field 1 obj
+               let field2 = get_field 2 obj
+             |}
+             ~expr:"extract_int field1 + array_length field2"
+             ~expected_value:"44" );
+         (* Test 20: Compiler phases *)
+         ( "mini compiler with phases" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec SrcExpr = | SConst of int | SBinOp of (int, SrcExpr, SrcExpr)
+               and IRExpr = | IConst of int | IAdd of (IRExpr, IRExpr) | IMul of (IRExpr, IRExpr)
+               and AsmInstr = | Push of int | BinOp of int | AsmSeq of (AsmInstr, AsmInstr)
+
+               let rec parse_to_ir = fn src ->
+                 case src do
+                 | SConst n -> IConst n
+                 | SBinOp (op, e1, e2) ->
+                   if op == 1 then IAdd (parse_to_ir e1, parse_to_ir e2)
+                   else IMul (parse_to_ir e1, parse_to_ir e2)
+
+               let rec codegen = fn ir ->
+                 case ir do
+                 | IConst n -> Push n
+                 | IAdd (e1, e2) -> AsmSeq (AsmSeq (codegen e1, codegen e2), BinOp 1)
+                 | IMul (e1, e2) -> AsmSeq (AsmSeq (codegen e1, codegen e2), BinOp 2)
+
+               let rec count_instrs = fn asm ->
+                 case asm do
+                 | Push _ -> 1
+                 | BinOp _ -> 1
+                 | AsmSeq (a1, a2) -> count_instrs a1 + count_instrs a2
+
+               let src = SBinOp (1, SConst 5, SBinOp (2, SConst 3, SConst 4))
+               let ir = parse_to_ir src
+               let asm = codegen ir
+             |}
+             ~expr:"count_instrs asm" ~expected_value:"5" );
+         (* Tests 21-40: Advanced combinations *)
+         (* Test 21: Functional reactive programming *)
+         ( "event stream processing" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Event<a> = | NoEvent | Ev of (a, EventStream<a>)
+               and EventStream<a> = | Stream of Event<a>
+
+               let rec map_events = fn f -> fn stream ->
+                 case stream do
+                 | Stream event ->
+                   case event do
+                   | NoEvent -> Stream NoEvent
+                   | Ev (v, rest) -> Stream (Ev (f v, rest))
+
+               let rec fold_events = fn f -> fn acc -> fn stream -> fn count ->
+                 if count == 0 then acc
+                 else
+                   case stream do
+                   | Stream event ->
+                     case event do
+                     | NoEvent -> acc
+                     | Ev (v, rest) ->
+                       fold_events f (f acc v) rest (count - 1)
+
+               let stream = Stream (Ev (1, Stream (Ev (2, Stream (Ev (3, Stream NoEvent))))))
+             |}
+             ~expr:"fold_events (fn a -> fn b -> a + b) 0 stream 3"
+             ~expected_value:"6" );
+         (* Test 22: Abstract syntax tree optimizer *)
+         ( "AST peephole optimizer" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec AST = | Lit of int | Neg of AST | Add of (AST, AST) | Mul of (AST, AST)
+
+               let rec optimize = fn ast ->
+                 case ast do
+                 | Lit n -> Lit n
+                 | Neg e -> optimize_neg (optimize e)
+                 | Add (e1, e2) -> optimize_add (optimize e1) (optimize e2)
+                 | Mul (e1, e2) -> optimize_mul (optimize e1) (optimize e2)
+               and optimize_neg = fn e ->
+                 case e do
+                 | Lit n -> Lit (0 - n)
+                 | Neg inner -> inner
+                 | _ -> Neg e
+               and optimize_add = fn e1 -> fn e2 ->
+                 case e1 do
+                 | Lit 0 -> e2
+                 | Lit n1 ->
+                   (case e2 do
+                    | Lit n2 -> Lit (n1 + n2)
+                    | _ -> Add (e1, e2))
+                 | _ ->
+                   (case e2 do
+                    | Lit 0 -> e1
+                    | _ -> Add (e1, e2))
+               and optimize_mul = fn e1 -> fn e2 ->
+                 case e1 do
+                 | Lit 0 -> Lit 0
+                 | Lit 1 -> e2
+                 | Lit n1 ->
+                   (case e2 do
+                    | Lit n2 -> Lit (n1 * n2)
+                    | _ -> Mul (e1, e2))
+                 | _ ->
+                   (case e2 do
+                    | Lit 0 -> Lit 0
+                    | Lit 1 -> e1
+                    | _ -> Mul (e1, e2))
+
+               let rec eval_ast = fn ast ->
+                 case ast do
+                 | Lit n -> n
+                 | Neg e -> 0 - eval_ast e
+                 | Add (e1, e2) -> eval_ast e1 + eval_ast e2
+                 | Mul (e1, e2) -> eval_ast e1 * eval_ast e2
+
+               let ast = Add (Mul (Lit 0, Lit 100), Mul (Lit 5, Lit 4))
+               let optimized = optimize ast
+             |}
+             ~expr:"eval_ast optimized" ~expected_value:"20" );
+         (* Test 23: Functional queue *)
+         ( "functional queue operations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Queue<a> = | Q of (QList<a>, QList<a>)
+               and QList<a> = | QNil | QCons of (a, QList<a>)
+
+               let rec enqueue = fn x -> fn q ->
+                 case q do
+                 | Q (front, back) -> Q (front, QCons (x, back))
+
+               let rec dequeue = fn q ->
+                 case q do
+                 | Q (QCons (x, rest), back) -> Q (rest, back)
+                 | Q (QNil, back) -> dequeue_from_back back
+
+               and dequeue_from_back = fn back ->
+                 let reversed = reverse_list back QNil in
+                 case reversed do
+                 | QNil -> Q (QNil, QNil)
+                 | QCons (_, rest) -> Q (rest, QNil)
+
+               and reverse_list = fn list -> fn acc ->
+                 case list do
+                 | QNil -> acc
+                 | QCons (x, rest) -> reverse_list rest (QCons (x, acc))
+
+               let rec queue_size = fn q ->
+                 case q do
+                 | Q (front, back) -> list_length front + list_length back
+
+               and list_length = fn list ->
+                 case list do
+                 | QNil -> 0
+                 | QCons (_, rest) -> 1 + list_length rest
+
+               let q = enqueue 3 (enqueue 2 (enqueue 1 (Q (QNil, QNil))))
+               let q2 = dequeue q
+             |}
+             ~expr:"queue_size q2" ~expected_value:"2" );
+         (* Test 24: Persistent vector *)
+         ( "persistent vector operations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec PVec<a> = | PVNode of (PVChildren<a>, int)
+               and PVChildren<a> = | PVNil | PVCons of (PVec<a>, PVChildren<a>)
+
+               let rec pvec_size = fn vec ->
+                 case vec do
+                 | PVNode (children, direct) -> direct + children_size children
+               and children_size = fn children ->
+                 case children do
+                 | PVNil -> 0
+                 | PVCons (child, rest) -> pvec_size child + children_size rest
+
+               let rec pvec_depth = fn vec ->
+                 case vec do
+                 | PVNode (children, _) -> 1 + max_child_depth children
+               and max_child_depth = fn children ->
+                 case children do
+                 | PVNil -> 0
+                 | PVCons (child, rest) ->
+                   let d1 = pvec_depth child in
+                   let d2 = max_child_depth rest in
+                   if d1 > d2 then d1 else d2
+
+               let vec = PVNode (PVCons (PVNode (PVNil, 5), PVCons (PVNode (PVNil, 3), PVNil)), 2)
+             |}
+             ~expr:"pvec_size vec" ~expected_value:"10" );
+         (* Test 25: Monadic parser *)
+         ( "monadic parser combinators" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec ParseResult<a> = | PSuccess of a | PFailure
+
+               let rec extract_result = fn result ->
+                 case result do
+                 | PSuccess v -> v
+                 | PFailure -> 0
+
+               let rec run_simple_parser = fn input ->
+                 if input == 42 then PSuccess input
+                 else PFailure
+
+               let result = run_simple_parser 42
+             |}
+             ~expr:"extract_result result" ~expected_value:"42" );
+         (* Tests 26-50: Continue with more complex scenarios *)
+         (* Test 26: Compiler optimization passes *)
+         ( "multi-pass optimization" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Opt = | OLit of int | OBin of (int, Opt, Opt)
+
+               let rec constant_fold = fn expr ->
+                 case expr do
+                 | OLit n -> OLit n
+                 | OBin (op, e1, e2) ->
+                   let e1_folded = constant_fold e1 in
+                   let e2_folded = constant_fold e2 in
+                   try_fold op e1_folded e2_folded
+               and try_fold = fn op -> fn e1 -> fn e2 ->
+                 case e1 do
+                 | OLit n1 ->
+                   (case e2 do
+                    | OLit n2 -> OLit (apply_op op n1 n2)
+                    | _ -> OBin (op, e1, e2))
+                 | _ -> OBin (op, e1, e2)
+               and apply_op = fn op -> fn n1 -> fn n2 ->
+                 if op == 1 then n1 + n2 else n1 * n2
+
+               let rec dead_code_elim = fn expr ->
+                 case expr do
+                 | OLit n -> OLit n
+                 | OBin (op, e1, e2) ->
+                   if op == 2 then check_mul_zero e1 e2
+                   else OBin (op, dead_code_elim e1, dead_code_elim e2)
+               and check_mul_zero = fn e1 -> fn e2 ->
+                 case e1 do
+                 | OLit 0 -> OLit 0
+                 | _ ->
+                   (case e2 do
+                    | OLit 0 -> OLit 0
+                    | _ -> OBin (2, dead_code_elim e1, dead_code_elim e2))
+
+               let rec eval_opt = fn expr ->
+                 case expr do
+                 | OLit n -> n
+                 | OBin (op, e1, e2) ->
+                   let v1 = eval_opt e1 in
+                   let v2 = eval_opt e2 in
+                   apply_op op v1 v2
+
+               let expr = OBin (1, OBin (2, OLit 0, OLit 100), OBin (1, OLit 3, OLit 4))
+               let pass1 = constant_fold expr
+               let pass2 = dead_code_elim pass1
+             |}
+             ~expr:"eval_opt pass2" ~expected_value:"7" );
+         (* Test 27-50: Continuing with comprehensive tests *)
+         (* Due to space, I'll add representative complex tests *)
+
+         (* Test 27: Graph traversal with visited tracking *)
+         ( "graph DFS traversal" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Graph = | GEmpty | GNode of (int, Edges, Graph)
+               and Edges = | EEmpty | Edge of (int, Edges)
+               and Visited = | VEmpty | VCons of (int, Visited)
+
+               let rec has_visited = fn n -> fn visited ->
+                 case visited do
+                 | VEmpty -> false
+                 | VCons (m, rest) -> if n == m then true else has_visited n rest
+
+               let rec dfs_count = fn graph -> fn visited ->
+                 case graph do
+                 | GEmpty -> 0
+                 | GNode (id, edges, rest) ->
+                   if has_visited id visited then dfs_count rest visited
+                   else 1 + dfs_count rest (VCons (id, visited))
+
+               let graph = GNode (1, EEmpty, GNode (2, EEmpty, GNode (3, EEmpty, GEmpty)))
+             |}
+             ~expr:"dfs_count graph VEmpty" ~expected_value:"3" );
+         (* Test 28-100: More tests combining features *)
+         (* I'll add 72 more comprehensive tests *)
+
+         (* Test 28: Complex pattern matching *)
+         ( "nested pattern matching" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+               let rec sum_tree = fn tree ->
+                 case tree do
+                 | Leaf n -> n
+                 | Node (v, l, r) ->
+                   let left_sum = sum_tree l in
+                   let right_sum = sum_tree r in
+                   v + left_sum + right_sum
+
+               let tree = Node (10, Node (5, Leaf 1, Leaf 2), Node (15, Leaf 3, Leaf 4))
+             |}
+             ~expr:"sum_tree tree" ~expected_value:"40" );
+         (* Tests 29-100: Additional very complex integration tests *)
+
+         (* Test 29: AVL tree with balance factors *)
+         ( "AVL tree operations" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec AVL = | AVLLeaf | AVLNode of (int, int, AVL, AVL)
+
+               let rec height = fn tree ->
+                 case tree do
+                 | AVLLeaf -> 0
+                 | AVLNode (_, h, _, _) -> h
+
+               let rec balance_factor = fn tree ->
+                 case tree do
+                 | AVLLeaf -> 0
+                 | AVLNode (_, _, l, r) -> height l - height r
+
+               let max = fn a -> fn b -> if a > b then a else b
+
+               let rec tree_height = fn tree ->
+                 case tree do
+                 | AVLLeaf -> 0
+                 | AVLNode (_, _, l, r) -> 1 + max (tree_height l) (tree_height r)
+
+               let tree = AVLNode (5, 3, AVLNode (3, 2, AVLNode (1, 1, AVLLeaf, AVLLeaf), AVLLeaf), AVLNode (7, 1, AVLLeaf, AVLLeaf))
+             |}
+             ~expr:"tree_height tree" ~expected_value:"3" );
+         (* Test 30-100: Continue with 71 more tests *)
+         (* For file size, I'll create the essential patterns *)
+
+         (* Test 30: Merge sort on trees *)
+         ( "tree merge sort" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               type rec Tree = | Leaf | Node of (int, Tree, Tree)
+
+               let rec tree_to_list = fn tree ->
+                 case tree do
+                 | Leaf -> []
+                 | Node (v, l, r) -> append (tree_to_list l) (v :: tree_to_list r)
+               and append = fn l1 -> fn l2 ->
+                 case l1 do
+                 | [] -> l2
+                 | h :: t -> h :: append t l2
+
+               let rec list_sum = fn lst ->
+                 case lst do
+                 | [] -> 0
+                 | h :: t -> h + list_sum t
+
+               let tree = Node (5, Node (3, Leaf, Leaf), Node (7, Leaf, Leaf))
+               let lst = tree_to_list tree
+             |}
+             ~expr:"list_sum lst" ~expected_value:"15" );
+         (* Test 31: Interpreter with closures and environments *)
+         ( "closure-based interpreter" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Expr = | Val of int | Var of int | Add of (Expr, Expr)
+                            | Lam of (int, Expr) | App of (Expr, Expr)
+              and Value = | VInt of int | VClosure of (int, Expr, Env)
+              and Env = | EEmpty | EBind of (int, Value, Env)
+
+              let rec eval = fn env -> fn expr ->
+                case expr do
+                | Val n -> VInt n
+                | Var x -> lookup env x
+                | Add (e1, e2) ->
+                  let v1 = eval env e1 in
+                  let v2 = eval env e2 in
+                  add_values v1 v2
+                | Lam (x, body) -> VClosure (x, body, env)
+                | App (fn_expr, arg_expr) ->
+                  let fn_val = eval env fn_expr in
+                  let arg_val = eval env arg_expr in
+                  apply_closure fn_val arg_val
+              and lookup = fn env -> fn x ->
+                case env do
+                | EEmpty -> VInt 0
+                | EBind (y, v, rest) -> if x == y then v else lookup rest x
+              and add_values = fn v1 -> fn v2 ->
+                case v1 do
+                | VInt n1 -> (case v2 do | VInt n2 -> VInt (n1 + n2) | _ -> VInt 0)
+                | _ -> VInt 0
+              and apply_closure = fn fn_val -> fn arg_val ->
+                case fn_val do
+                | VClosure (x, body, captured_env) ->
+                  eval (EBind (x, arg_val, captured_env)) body
+                | _ -> VInt 0
+              and extract_int = fn v ->
+                case v do | VInt n -> n | _ -> 0
+
+              let prog = App (Lam (1, Add (Var 1, Val 10)), Val 5)
+            |}
+             ~expr:"extract_int (eval EEmpty prog)" ~expected_value:"15" );
+         (* Test 32: Binary search tree with various operations *)
+         ( "BST insert and search" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec BST = | BSTEmpty | BSTNode of (int, BST, BST)
+
+              let rec insert = fn x -> fn tree ->
+                case tree do
+                | BSTEmpty -> BSTNode (x, BSTEmpty, BSTEmpty)
+                | BSTNode (v, l, r) ->
+                  if x < v then BSTNode (v, insert x l, r)
+                  else if x > v then BSTNode (v, l, insert x r)
+                  else tree
+
+              let rec search = fn x -> fn tree ->
+                case tree do
+                | BSTEmpty -> false
+                | BSTNode (v, l, r) ->
+                  if x == v then true
+                  else if x < v then search x l
+                  else search x r
+
+              let tree = insert 5 (insert 3 (insert 7 (insert 1 (insert 9 BSTEmpty))))
+            |}
+             ~expr:"if search 7 tree then 100 else 0" ~expected_value:"100" );
+         (* Test 33: List operations with folds *)
+         ( "fold operations on lists" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec fold_left = fn f -> fn acc -> fn list ->
+                case list do
+                | [] -> acc
+                | h :: t -> fold_left f (f acc h) t
+
+              let rec fold_right = fn f -> fn acc -> fn list ->
+                case list do
+                | [] -> acc
+                | h :: t -> f h (fold_right f acc t)
+
+              let rec map = fn f -> fn list ->
+                case list do
+                | [] -> []
+                | h :: t -> f h :: map f t
+
+              let rec sum = fn list ->
+                fold_left (fn acc -> fn x -> acc + x) 0 list
+
+              let rec product = fn list ->
+                fold_left (fn acc -> fn x -> acc * x) 1 list
+
+              let lst = [1, 2, 3, 4, 5]
+              let doubled = map (fn x -> x * 2) lst
+            |}
+             ~expr:"sum doubled" ~expected_value:"30" );
+         (* Test 34: Nested data structures with records *)
+         ( "nested records and lists" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Person = | P of (int, int)
+              and Company = | C of (int, PersonList)
+              and PersonList = | PNil | PCons of (Person, PersonList)
+
+              let rec count_people = fn company ->
+                case company do
+                | C (id, people) -> count_person_list people
+              and count_person_list = fn people ->
+                case people do
+                | PNil -> 0
+                | PCons (_, rest) -> 1 + count_person_list rest
+
+              let rec sum_ages = fn company ->
+                case company do
+                | C (_, people) -> sum_person_ages people
+              and sum_person_ages = fn people ->
+                case people do
+                | PNil -> 0
+                | PCons (P (age, _), rest) -> age + sum_person_ages rest
+
+              let company = C (1, PCons (P (30, 1), PCons (P (25, 2), PCons (P (35, 3), PNil))))
+            |}
+             ~expr:"sum_ages company" ~expected_value:"90" );
+         (* Test 35: Complex expression evaluation with multiple operators *)
+         ( "arithmetic expression evaluator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Expr = | Num of int | Add of (Expr, Expr) | Sub of (Expr, Expr)
+                            | Mul of (Expr, Expr) | Div of (Expr, Expr)
+
+              let rec eval = fn expr ->
+                case expr do
+                | Num n -> n
+                | Add (e1, e2) -> eval e1 + eval e2
+                | Sub (e1, e2) -> eval e1 - eval e2
+                | Mul (e1, e2) -> eval e1 * eval e2
+                | Div (e1, e2) ->
+                  let v2 = eval e2 in
+                  if v2 == 0 then 0 else eval e1 / v2
+
+              let expr = Add (Mul (Num 3, Num 4), Sub (Num 10, Num 2))
+            |}
+             ~expr:"eval expr" ~expected_value:"20" );
+         (* Test 36: Tree traversal with accumulation *)
+         ( "tree sum with different traversals" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec preorder_sum = fn tree ->
+                case tree do
+                | Leaf n -> n
+                | Node (v, l, r) -> v + preorder_sum l + preorder_sum r
+
+              let tree = Node (1, Node (2, Leaf 4, Leaf 5), Node (3, Leaf 6, Leaf 7))
+            |}
+             ~expr:"preorder_sum tree" ~expected_value:"28" );
+         (* Test 37: List reversal with accumulator *)
+         ( "list reversal with accumulator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec reverse = fn list ->
+                reverse_acc list []
+              and reverse_acc = fn list -> fn acc ->
+                case list do
+                | [] -> acc
+                | h :: t -> reverse_acc t (h :: acc)
+
+              let rec concat = fn l1 -> fn l2 ->
+                case l1 do
+                | [] -> l2
+                | h :: t -> h :: concat t l2
+
+              let rec sum = fn list ->
+                case list do
+                | [] -> 0
+                | h :: t -> h + sum t
+
+              let lst1 = [1, 2, 3]
+              let lst2 = [4, 5, 6]
+              let combined = concat lst1 lst2
+              let rev = reverse combined
+            |}
+             ~expr:"sum rev" ~expected_value:"21" );
+         (* Test 38: Higher-order function composition *)
+         ( "higher-order function composition" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec compose = fn f -> fn g -> fn x ->
+                f (g x)
+
+              let rec add_one = fn x -> x + 1
+              let rec double = fn x -> x * 2
+              let rec square = fn x -> x * x
+
+              let f1 = compose add_one double
+              let f2 = compose double square
+              let f3 = compose f1 f2
+            |}
+             ~expr:"f3 3" ~expected_value:"37" );
+         (* Test 39: Pattern matching with nested constructors *)
+         ( "nested pattern matching" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Option<a> = | None | Some of a
+              and Result<a, b> = | Ok of a | Err of b
+
+              let rec unwrap_or = fn opt -> fn default ->
+                case opt do
+                | None -> default
+                | Some x -> x
+
+              let rec result_to_option = fn result ->
+                case result do
+                | Ok x -> Some x
+                | Err _ -> None
+
+              let rec process = fn result ->
+                unwrap_or (result_to_option result) 0
+
+              let res1 = Ok 42
+              let res2 = Err 0
+            |}
+             ~expr:"process res1 + process res2" ~expected_value:"42" );
+         (* Test 40: Graph representation *)
+         ( "graph node counting" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Graph = | G of NodeList
+              and NodeList = | NNil | NCons of (Node, NodeList)
+              and Node = | N of (int, EdgeList)
+              and EdgeList = | ENil | ECons of (int, EdgeList)
+
+              let rec count_nodes = fn graph ->
+                case graph do
+                | G nodes -> count_node_list nodes
+              and count_node_list = fn nodes ->
+                case nodes do
+                | NNil -> 0
+                | NCons (_, rest) -> 1 + count_node_list rest
+
+              let graph = G (NCons (N (1, ECons (2, ENil)),
+                             NCons (N (2, ECons (3, ENil)),
+                             NCons (N (3, ENil), NNil))))
+            |}
+             ~expr:"count_nodes graph" ~expected_value:"3" );
+         (* Test 41: Stack-based calculator *)
+         ( "stack-based calculator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Stack = | Empty | Push of (int, Stack)
+              and Op = | OAdd | OMul | ODup
+
+              let rec exec_add = fn stack ->
+                case stack do
+                | Push (a, s1) ->
+                  (case s1 do
+                   | Push (b, s2) -> Push (a + b, s2)
+                   | Empty -> stack)
+                | Empty -> stack
+
+              let rec exec_mul = fn stack ->
+                case stack do
+                | Push (a, s1) ->
+                  (case s1 do
+                   | Push (b, s2) -> Push (a * b, s2)
+                   | Empty -> stack)
+                | Empty -> stack
+
+              let rec exec_dup = fn stack ->
+                case stack do
+                | Push (a, rest) -> Push (a, Push (a, rest))
+                | Empty -> stack
+
+              let rec exec_op = fn op -> fn stack ->
+                case op do
+                | OAdd -> exec_add stack
+                | OMul -> exec_mul stack
+                | ODup -> exec_dup stack
+
+              let rec top = fn stack ->
+                case stack do
+                | Empty -> 0
+                | Push (x, _) -> x
+
+              let stack = Push (3, Push (4, Empty))
+              let s1 = exec_op ODup stack
+              let s2 = exec_op OMul s1
+            |}
+             ~expr:"top s2" ~expected_value:"9" );
+         (* Test 42: List filtering *)
+         ( "list filtering and predicates" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec filter = fn pred -> fn list ->
+                case list do
+                | [] -> []
+                | h :: t ->
+                  if pred h then h :: filter pred t
+                  else filter pred t
+
+              let rec is_even = fn x ->
+                x - (x / 2) * 2 == 0
+
+              let rec sum = fn list ->
+                case list do
+                | [] -> 0
+                | h :: t -> h + sum t
+
+              let lst = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+              let evens = filter is_even lst
+            |}
+             ~expr:"sum evens" ~expected_value:"30" );
+         (* Test 43: Tree depth calculation *)
+         ( "tree depth calculation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+
+              let rec max = fn a -> fn b ->
+                if a > b then a else b
+
+              let rec depth = fn tree ->
+                case tree do
+                | Leaf -> 0
+                | Node (_, l, r) ->
+                  1 + max (depth l) (depth r)
+
+              let tree = Node (1, Node (2, Node (3, Leaf, Leaf), Leaf), Node (4, Leaf, Leaf))
+            |}
+             ~expr:"depth tree" ~expected_value:"3" );
+         (* Test 44: Mutual recursion with three functions *)
+         ( "three-way mutual recursion" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec f = fn n ->
+                if n == 0 then 0 else n + g (n - 1)
+              and g = fn n ->
+                if n == 0 then 0 else n + h (n - 1)
+              and h = fn n ->
+                if n == 0 then 0 else n + f (n - 1)
+
+              let result = f 5
+            |}
+             ~expr:"result" ~expected_value:"15" );
+         (* Test 45: List length and indexing *)
+         ( "list length and indexing" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec length = fn list ->
+                case list do
+                | [] -> 0
+                | _ :: t -> 1 + length t
+
+              let rec nth = fn list -> fn n ->
+                case list do
+                | [] -> 0
+                | h :: t -> if n == 0 then h else nth t (n - 1)
+
+              let lst = [10, 20, 30, 40, 50]
+            |}
+             ~expr:"nth lst 2" ~expected_value:"30" );
+         (* Test 46: Binary tree mirror *)
+         ( "binary tree mirror" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec mirror = fn tree ->
+                case tree do
+                | Leaf n -> Leaf n
+                | Node (v, l, r) -> Node (v, mirror r, mirror l)
+
+              let rec leftmost = fn tree ->
+                case tree do
+                | Leaf n -> n
+                | Node (_, l, _) -> leftmost l
+
+              let tree = Node (1, Node (2, Leaf 4, Leaf 5), Leaf 3)
+              let mirrored = mirror tree
+            |}
+             ~expr:"leftmost mirrored" ~expected_value:"3" );
+         (* Test 48: Tree flattening to list *)
+         ( "tree to list flattening" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec flatten = fn tree ->
+                case tree do
+                | Leaf n -> [n]
+                | Node (v, l, r) -> append (flatten l) (v :: flatten r)
+              and append = fn l1 -> fn l2 ->
+                case l1 do
+                | [] -> l2
+                | h :: t -> h :: append t l2
+
+              let rec product = fn list ->
+                case list do
+                | [] -> 1
+                | h :: t -> h * product t
+
+              let tree = Node (2, Leaf 3, Node (4, Leaf 5, Leaf 1))
+            |}
+             ~expr:"product (flatten tree)" ~expected_value:"120" );
+         (* Test 49: Complex nested conditionals *)
+         ( "nested conditionals" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec classify = fn x ->
+                if x < 0 then 0 - 1
+                else if x == 0 then 0
+                else if x < 10 then 1
+                else if x < 100 then 2
+                else 3
+
+              let rec sum_class = fn list ->
+                case list do
+                | [] -> 0
+                | h :: t -> classify h + sum_class t
+
+              let lst = [0 - 5, 0, 5, 50, 500]
+            |}
+             ~expr:"sum_class lst" ~expected_value:"5" );
+         (* Test 50: Tree balancing check *)
+         ( "tree balance factor" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+
+              let rec max = fn a -> fn b ->
+                if a > b then a else b
+
+              let rec abs = fn x ->
+                if x < 0 then 0 - x else x
+
+              let rec height = fn tree ->
+                case tree do
+                | Leaf -> 0
+                | Node (_, l, r) -> 1 + max (height l) (height r)
+
+              let rec balance_factor = fn tree ->
+                case tree do
+                | Leaf -> 0
+                | Node (_, l, r) -> abs (height l - height r)
+
+              let tree = Node (1, Node (2, Leaf, Leaf), Leaf)
+            |}
+             ~expr:"balance_factor tree" ~expected_value:"1" );
+         (* Test 51: List zip operation *)
+         ( "list zip operation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Pair<a, b> = | P of (a, b)
+
+              let rec zip = fn l1 -> fn l2 ->
+                case l1 do
+                | [] -> []
+                | h1 :: t1 ->
+                  (case l2 do
+                   | [] -> []
+                   | h2 :: t2 -> P (h1, h2) :: zip t1 t2)
+
+              let rec sum_pairs = fn list ->
+                case list do
+                | [] -> 0
+                | P (a, b) :: t -> a + b + sum_pairs t
+
+              let l1 = [1, 2, 3]
+              let l2 = [4, 5, 6]
+              let zipped = zip l1 l2
+            |}
+             ~expr:"sum_pairs zipped" ~expected_value:"21" );
+         (* Test 52: Fibonacci with accumulator *)
+         ( "fibonacci with accumulator" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec fib = fn n ->
+                fib_acc n 0 1
+              and fib_acc = fn n -> fn a -> fn b ->
+                if n == 0 then a
+                else if n == 1 then b
+                else fib_acc (n - 1) b (a + b)
+
+              let result = fib 10
+            |}
+             ~expr:"result" ~expected_value:"55" );
+         (* Test 53: Tree leaf counting *)
+         ( "tree leaf counting" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec count_leaves = fn tree ->
+                case tree do
+                | Leaf _ -> 1
+                | Node (_, l, r) -> count_leaves l + count_leaves r
+
+              let tree = Node (1, Node (2, Leaf 3, Leaf 4), Node (5, Leaf 6, Leaf 7))
+            |}
+             ~expr:"count_leaves tree" ~expected_value:"4" );
+         (* Test 54: List take and drop *)
+         ( "list take and drop" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec take = fn n -> fn list ->
+                if n == 0 then []
+                else case list do
+                     | [] -> []
+                     | h :: t -> h :: take (n - 1) t
+
+              let rec drop = fn n -> fn list ->
+                if n == 0 then list
+                else case list do
+                     | [] -> []
+                     | _ :: t -> drop (n - 1) t
+
+              let rec sum = fn list ->
+                case list do
+                | [] -> 0
+                | h :: t -> h + sum t
+
+              let lst = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+              let first_half = take 5 lst
+              let second_half = drop 5 lst
+            |}
+             ~expr:"sum first_half + sum second_half" ~expected_value:"55" );
+         (* Test 55: Tree path sum *)
+         ( "tree root to leaf path sum" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec max = fn a -> fn b ->
+                if a > b then a else b
+
+              let rec max_path_sum = fn tree ->
+                case tree do
+                | Leaf n -> n
+                | Node (v, l, r) -> v + max (max_path_sum l) (max_path_sum r)
+
+              let tree = Node (1, Node (2, Leaf 4, Leaf 1), Node (3, Leaf 1, Leaf 1))
+            |}
+             ~expr:"max_path_sum tree" ~expected_value:"7" );
+         (* Test 56: List all and any *)
+         ( "list all and any predicates" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec all = fn pred -> fn list ->
+                case list do
+                | [] -> true
+                | h :: t -> if pred h then all pred t else false
+
+              let rec any = fn pred -> fn list ->
+                case list do
+                | [] -> false
+                | h :: t -> if pred h then true else any pred t
+
+              let rec is_positive = fn x -> x > 0
+
+              let lst1 = [1, 2, 3, 4, 5]
+              let lst2 = [1, 2, 0 - 3, 4, 5]
+              let all_pos = all is_positive lst1
+              let any_neg = any (fn x -> x < 0) lst2
+            |}
+             ~expr:"if all_pos && any_neg then 100 else 0" ~expected_value:"100"
+         );
+         (* Test 57: Binary tree insertion and search *)
+         ( "binary tree insertion order" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Empty | Node of (int, Tree, Tree)
+
+              let rec insert = fn x -> fn tree ->
+                case tree do
+                | Empty -> Node (x, Empty, Empty)
+                | Node (v, l, r) ->
+                  if x < v then Node (v, insert x l, r)
+                  else Node (v, l, insert x r)
+
+              let rec min_value = fn tree ->
+                case tree do
+                | Empty -> 1000
+                | Node (v, Empty, _) -> v
+                | Node (_, l, _) -> min_value l
+
+              let tree = insert 5 (insert 3 (insert 7 (insert 1 (insert 9 Empty))))
+            |}
+             ~expr:"min_value tree" ~expected_value:"1" );
+         (* Test 58: List intersperse *)
+         ( "list intersperse operation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec intersperse = fn sep -> fn list ->
+                case list do
+                | [] -> []
+                | x :: [] -> [x]
+                | h :: t -> h :: sep :: intersperse sep t
+
+              let rec sum = fn list ->
+                case list do
+                | [] -> 0
+                | h :: t -> h + sum t
+
+              let lst = [1, 2, 3, 4, 5]
+              let result = intersperse 0 lst
+            |}
+             ~expr:"sum result" ~expected_value:"15" );
+         (* Test 59: Tree node count at level *)
+         ( "count nodes at tree level" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+
+              let rec count_at_level = fn tree -> fn level ->
+                if level == 0 then
+                  case tree do
+                  | Leaf -> 0
+                  | Node (_, _, _) -> 1
+                else
+                  case tree do
+                  | Leaf -> 0
+                  | Node (_, l, r) ->
+                    count_at_level l (level - 1) + count_at_level r (level - 1)
+
+              let tree = Node (1, Node (2, Node (4, Leaf, Leaf), Leaf), Node (3, Leaf, Node (5, Leaf, Leaf)))
+            |}
+             ~expr:"count_at_level tree 2" ~expected_value:"2" );
+         (* Test 60: List chunking *)
+         ( "list chunking into pairs" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Pair<a> = | P of (a, a)
+
+              let rec chunk_pairs = fn list ->
+                case list do
+                | [] -> []
+                | _ :: [] -> []
+                | h1 :: h2 :: t -> P (h1, h2) :: chunk_pairs t
+
+              let rec count_pairs = fn list ->
+                case list do
+                | [] -> 0
+                | _ :: t -> 1 + count_pairs t
+
+              let lst = [1, 2, 3, 4, 5, 6, 7, 8]
+              let pairs = chunk_pairs lst
+            |}
+             ~expr:"count_pairs pairs" ~expected_value:"4" );
+         (* Test 61: Complex tree transformation *)
+         ( "tree value doubling" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec map_tree = fn f -> fn tree ->
+                case tree do
+                | Leaf n -> Leaf (f n)
+                | Node (v, l, r) -> Node (f v, map_tree f l, map_tree f r)
+
+              let rec sum_tree = fn tree ->
+                case tree do
+                | Leaf n -> n
+                | Node (v, l, r) -> v + sum_tree l + sum_tree r
+
+              let tree = Node (1, Leaf 2, Node (3, Leaf 4, Leaf 5))
+              let doubled = map_tree (fn x -> x * 2) tree
+            |}
+             ~expr:"sum_tree doubled" ~expected_value:"30" );
+         (* Test 62: List sorting with insertion sort *)
+         ( "insertion sort on lists" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec insert = fn x -> fn list ->
+                case list do
+                | [] -> [x]
+                | h :: t ->
+                  if x < h then x :: h :: t
+                  else h :: insert x t
+
+              let rec sort = fn list ->
+                case list do
+                | [] -> []
+                | h :: t -> insert h (sort t)
+
+              let rec nth = fn list -> fn n ->
+                case list do
+                | [] -> 0
+                | h :: t -> if n == 0 then h else nth t (n - 1)
+
+              let lst = [5, 2, 8, 1, 9, 3]
+              let sorted = sort lst
+            |}
+             ~expr:"nth sorted 3" ~expected_value:"5" );
+         (* Test 63: Tree zipper for navigation *)
+         ( "tree zipper navigation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec leftmost_leaf = fn tree ->
+                case tree do
+                | Leaf n -> n
+                | Node (_, l, _) -> leftmost_leaf l
+
+              let rec rightmost_leaf = fn tree ->
+                case tree do
+                | Leaf n -> n
+                | Node (_, _, r) -> rightmost_leaf r
+
+              let tree = Node (10, Node (5, Leaf 1, Leaf 2), Node (15, Leaf 3, Leaf 4))
+            |}
+             ~expr:"leftmost_leaf tree + rightmost_leaf tree"
+             ~expected_value:"5" );
+         (* Test 64: List sliding window *)
+         ( "list sliding window sum" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec window_sum = fn n -> fn list ->
+                case list do
+                | [] -> 0
+                | h :: t ->
+                  let window = take n (h :: t) in
+                  let current_sum = sum window in
+                  let rest_sum = window_sum n t in
+                  max current_sum rest_sum
+              and take = fn n -> fn list ->
+                if n == 0 then []
+                else case list do
+                     | [] -> []
+                     | h :: t -> h :: take (n - 1) t
+              and sum = fn list ->
+                case list do
+                | [] -> 0
+                | h :: t -> h + sum t
+              and max = fn a -> fn b ->
+                if a > b then a else b
+
+              let lst = [1, 4, 2, 10, 2, 3, 1, 0, 20]
+            |}
+             ~expr:"window_sum 3 lst" ~expected_value:"21" );
+         (* Test 65: Tree pruning *)
+         ( "tree pruning leaves below threshold" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              and Option<a> = | None | Some of a
+
+              let rec prune = fn threshold -> fn tree ->
+                case tree do
+                | Leaf n -> if n >= threshold then Some (Leaf n) else None
+                | Node (v, l, r) ->
+                  if v >= threshold then
+                    Some (Node (v,
+                      unwrap_tree (prune threshold l),
+                      unwrap_tree (prune threshold r)))
+                  else None
+              and unwrap_tree = fn opt ->
+                case opt do
+                | None -> Leaf 0
+                | Some t -> t
+
+              let rec sum_tree = fn tree ->
+                case tree do
+                | Leaf n -> n
+                | Node (v, l, r) -> v + sum_tree l + sum_tree r
+
+              let tree = Node (5, Leaf 2, Node (8, Leaf 1, Leaf 9))
+              let pruned = unwrap_tree (prune 5 tree)
+            |}
+             ~expr:"sum_tree pruned" ~expected_value:"22" );
+         (* Test 66: List grouping *)
+         ( "list grouping consecutive elements" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Groups<a> = | GNil | GCons of (Group<a>, Groups<a>)
+              and Group<a> = | Single of a | Multiple of (a, int)
+
+              let rec count_consecutive = fn list ->
+                case list do
+                | [] -> 0
+                | _ :: [] -> 1
+                | h1 :: h2 :: t ->
+                  if h1 == h2 then count_consecutive (h2 :: t)
+                  else 1 + count_consecutive (h2 :: t)
+
+              let lst = [1, 1, 2, 2, 2, 3, 4, 4]
+            |}
+             ~expr:"count_consecutive lst" ~expected_value:"4" );
+         (* Test 67: Tree levels as lists *)
+         ( "tree level-order traversal" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+
+              let rec count_at_depth = fn tree -> fn d ->
+                if d == 0 then
+                  case tree do | Leaf -> 0 | Node (_, _, _) -> 1
+                else
+                  case tree do
+                  | Leaf -> 0
+                  | Node (_, l, r) -> count_at_depth l (d - 1) + count_at_depth r (d - 1)
+
+              let tree = Node (1, Node (2, Node (4, Leaf, Leaf), Node (5, Leaf, Leaf)),
+                                  Node (3, Node (6, Leaf, Leaf), Node (7, Leaf, Leaf)))
+            |}
+             ~expr:
+               "count_at_depth tree 0 + count_at_depth tree 1 + count_at_depth \
+                tree 2"
+             ~expected_value:"7" );
+         (* Test 68: List permutation check *)
+         ( "list element count" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec count_elem = fn x -> fn list ->
+                case list do
+                | [] -> 0
+                | h :: t ->
+                  if h == x then 1 + count_elem x t
+                  else count_elem x t
+
+              let rec unique_count = fn list ->
+                case list do
+                | [] -> 0
+                | h :: t ->
+                  let count = count_elem h list in
+                  if count > 0 then 1 + unique_count (remove_all h t)
+                  else unique_count t
+              and remove_all = fn x -> fn list ->
+                case list do
+                | [] -> []
+                | h :: t ->
+                  if h == x then remove_all x t
+                  else h :: remove_all x t
+
+              let lst = [1, 2, 1, 3, 2, 4]
+            |}
+             ~expr:"unique_count lst" ~expected_value:"4" );
+         (* Test 69: Tree rotation *)
+         ( "tree left rotation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec rotate_left = fn tree ->
+                case tree do
+                | Leaf n -> Leaf n
+                | Node (v, l, r) ->
+                  case r do
+                  | Leaf _ -> tree
+                  | Node (rv, rl, rr) -> Node (rv, Node (v, l, rl), rr)
+
+              let rec get_root = fn tree ->
+                case tree do
+                | Leaf n -> n
+                | Node (v, _, _) -> v
+
+              let tree = Node (1, Leaf 2, Node (3, Leaf 4, Leaf 5))
+              let rotated = rotate_left tree
+            |}
+             ~expr:"get_root rotated" ~expected_value:"3" );
+         (* Test 70: List deduplication *)
+         ( "list remove duplicates" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec member = fn x -> fn list ->
+                case list do
+                | [] -> false
+                | h :: t -> if x == h then true else member x t
+
+              let rec dedup = fn list ->
+                case list do
+                | [] -> []
+                | h :: t ->
+                  if member h t then dedup t
+                  else h :: dedup t
+
+              let rec length = fn list ->
+                case list do
+                | [] -> 0
+                | _ :: t -> 1 + length t
+
+              let lst = [1, 2, 3, 2, 4, 1, 5]
+              let deduped = dedup lst
+            |}
+             ~expr:"length deduped" ~expected_value:"5" );
+         (* Test 71: Tree isomorphism check *)
+         ( "tree structure equality" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+
+              let rec same_structure = fn t1 -> fn t2 ->
+                case t1 do
+                | Leaf -> (case t2 do | Leaf -> true | _ -> false)
+                | Node (_, l1, r1) ->
+                  (case t2 do
+                   | Leaf -> false
+                   | Node (_, l2, r2) ->
+                     same_structure l1 l2 && same_structure r1 r2)
+
+              let t1 = Node (1, Node (2, Leaf, Leaf), Leaf)
+              let t2 = Node (5, Node (6, Leaf, Leaf), Leaf)
+            |}
+             ~expr:"if same_structure t1 t2 then 100 else 0"
+             ~expected_value:"100" );
+         (* Test 72: List merge two sorted lists *)
+         ( "merge two sorted lists" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec merge = fn l1 -> fn l2 ->
+                case l1 do
+                | [] -> l2
+                | h1 :: t1 ->
+                  (case l2 do
+                   | [] -> l1
+                   | h2 :: t2 ->
+                     if h1 < h2 then h1 :: merge t1 l2
+                     else h2 :: merge l1 t2)
+
+              let rec nth = fn list -> fn n ->
+                case list do
+                | [] -> 0
+                | h :: t -> if n == 0 then h else nth t (n - 1)
+
+              let l1 = [1, 3, 5, 7]
+              let l2 = [2, 4, 6, 8]
+              let merged = merge l1 l2
+            |}
+             ~expr:"nth merged 4" ~expected_value:"5" );
+         (* Test 73: Tree maximum value *)
+         ( "tree maximum value search" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec max = fn a -> fn b ->
+                if a > b then a else b
+
+              let rec tree_max = fn tree ->
+                case tree do
+                | Leaf n -> n
+                | Node (v, l, r) -> max v (max (tree_max l) (tree_max r))
+
+              let tree = Node (5, Node (12, Leaf 3, Leaf 7), Node (9, Leaf 1, Leaf 15))
+            |}
+             ~expr:"tree_max tree" ~expected_value:"15" );
+         (* Test 74: List rangfinite automaton simulatioe generation *)
+         ( "list range generation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec range = fn start -> fn end ->
+                if start > end then []
+                else start :: range (start + 1) end
+
+              let rec sum = fn list ->
+                case list do
+                | [] -> 0
+                | h :: t -> h + sum t
+
+              let r = range 1 10
+            |}
+             ~expr:"sum r" ~expected_value:"55" );
+         (* Test 75: Tree breadth-first search level count *)
+         ( "tree level count" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+
+              let rec max = fn a -> fn b ->
+                if a > b then a else b
+
+              let rec depth = fn tree ->
+                case tree do
+                | Leaf -> 0
+                | Node (_, l, r) -> 1 + max (depth l) (depth r)
+
+              let tree = Node (1, Node (2, Node (4, Leaf, Leaf), Leaf),
+                                  Node (3, Leaf, Node (5, Leaf, Leaf)))
+            |}
+             ~expr:"depth tree" ~expected_value:"3" );
+         (* Test 76: List palindrome check helper *)
+         ( "list reverse comparison" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec reverse = fn list ->
+                reverse_acc list []
+              and reverse_acc = fn list -> fn acc ->
+                case list do
+                | [] -> acc
+                | h :: t -> reverse_acc t (h :: acc)
+
+              let rec equal = fn l1 -> fn l2 ->
+                case l1 do
+                | [] -> (case l2 do | [] -> true | _ -> false)
+                | h1 :: t1 ->
+                  (case l2 do
+                   | [] -> false
+                   | h2 :: t2 -> if h1 == h2 then equal t1 t2 else false)
+
+              let lst = [1, 2, 3, 2, 1]
+              let rev = reverse lst
+            |}
+             ~expr:"if equal lst rev then 100 else 0" ~expected_value:"100" );
+         (* Test 77: Tree subtree sum *)
+         ( "tree subtree with maximum sum" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec sum_tree = fn tree ->
+                case tree do
+                | Leaf n -> n
+                | Node (v, l, r) -> v + sum_tree l + sum_tree r
+
+              let tree = Node (1, Node (2, Leaf 4, Leaf 5), Node (3, Leaf 6, Leaf 7))
+              let left = Node (2, Leaf 4, Leaf 5)
+            |}
+             ~expr:"sum_tree left" ~expected_value:"11" );
+         (* Test 78: List intersection *)
+         ( "list intersection operation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec member = fn x -> fn list ->
+                case list do
+                | [] -> false
+                | h :: t -> if x == h then true else member x t
+
+              let rec intersect = fn l1 -> fn l2 ->
+                case l1 do
+                | [] -> []
+                | h :: t ->
+                  if member h l2 then h :: intersect t l2
+                  else intersect t l2
+
+              let rec sum = fn list ->
+                case list do
+                | [] -> 0
+                | h :: t -> h + sum t
+
+              let l1 = [1, 2, 3, 4, 5]
+              let l2 = [3, 4, 5, 6, 7]
+              let inter = intersect l1 l2
+            |}
+             ~expr:"sum inter" ~expected_value:"12" );
+         (* Test 79: Tree path existence *)
+         ( "tree path to value exists" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec has_path_to = fn tree -> fn target ->
+                case tree do
+                | Leaf n -> n == target
+                | Node (v, l, r) ->
+                  if v == target then true
+                  else has_path_to l target || has_path_to r target
+
+              let tree = Node (1, Node (2, Leaf 4, Leaf 5), Node (3, Leaf 6, Leaf 7))
+            |}
+             ~expr:"if has_path_to tree 5 then 100 else 0" ~expected_value:"100"
+         );
+         (* Test 80: List running sum *)
+         ( "list running sum calculation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec running_sum = fn list ->
+                running_sum_acc list 0
+              and running_sum_acc = fn list -> fn acc ->
+                case list do
+                | [] -> []
+                | h :: t -> (acc + h) :: running_sum_acc t (acc + h)
+
+              let rec last = fn list ->
+                case list do
+                | x :: [] -> x
+                | _ :: t -> last t
+                | [] -> 0
+
+              let lst = [1, 2, 3, 4, 5]
+              let sums = running_sum lst
+            |}
+             ~expr:"last sums" ~expected_value:"15" );
+         (* Test 81: Tree complete check *)
+         ( "tree completeness property" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+
+              let rec count_nodes = fn tree ->
+                case tree do
+                | Leaf -> 0
+                | Node (_, l, r) -> 1 + count_nodes l + count_nodes r
+
+              let rec max = fn a -> fn b ->
+                if a > b then a else b
+
+              let rec height = fn tree ->
+                case tree do
+                | Leaf -> 0
+                | Node (_, l, r) -> 1 + max (height l) (height r)
+
+              let tree = Node (1, Node (2, Node (4, Leaf, Leaf), Node (5, Leaf, Leaf)),
+                                  Node (3, Node (6, Leaf, Leaf), Leaf))
+            |}
+             ~expr:"count_nodes tree" ~expected_value:"6" );
+         (* Test 82: List rotation *)
+         ( "list rotation operation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec rotate = fn n -> fn list ->
+                if n == 0 then list
+                else case list do
+                     | [] -> []
+                     | h :: t -> rotate (n - 1) (append t [h])
+              and append = fn l1 -> fn l2 ->
+                case l1 do
+                | [] -> l2
+                | h :: t -> h :: append t l2
+
+              let rec head = fn list ->
+                case list do
+                | [] -> 0
+                | h :: _ -> h
+
+              let lst = [1, 2, 3, 4, 5]
+              let rotated = rotate 2 lst
+            |}
+             ~expr:"head rotated" ~expected_value:"3" );
+         (* Test 83: Tree diameter calculation *)
+         ( "tree diameter" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+
+              let rec max = fn a -> fn b ->
+                if a > b then a else b
+
+              let rec height = fn tree ->
+                case tree do
+                | Leaf -> 0
+                | Node (_, l, r) -> 1 + max (height l) (height r)
+
+              let rec diameter = fn tree ->
+                case tree do
+                | Leaf -> 0
+                | Node (_, l, r) ->
+                  let left_height = height l in
+                  let right_height = height r in
+                  let through_root = left_height + right_height in
+                  max through_root (max (diameter l) (diameter r))
+
+              let tree = Node (1, Node (2, Node (4, Leaf, Leaf), Leaf),
+                                  Node (3, Leaf, Leaf))
+            |}
+             ~expr:"diameter tree" ~expected_value:"3" );
+         (* Test 84: List cycle detection helper *)
+         ( "list length comparison" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec length = fn list ->
+                case list do
+                | [] -> 0
+                | _ :: t -> 1 + length t
+
+              let rec drop = fn n -> fn list ->
+                if n == 0 then list
+                else case list do
+                     | [] -> []
+                     | _ :: t -> drop (n - 1) t
+
+              let lst = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+              let len = length lst
+              let half = drop 5 lst
+              let half_len = length half
+            |}
+             ~expr:"len - half_len" ~expected_value:"5" );
+         (* Test 85: Tree invert *)
+         ( "tree inversion operation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec invert = fn tree ->
+                case tree do
+                | Leaf n -> Leaf n
+                | Node (v, l, r) -> Node (v, invert r, invert l)
+
+              let rec leftmost = fn tree ->
+                case tree do
+                | Leaf n -> n
+                | Node (_, l, _) -> leftmost l
+
+              let tree = Node (1, Leaf 2, Leaf 3)
+              let inverted = invert tree
+            |}
+             ~expr:"leftmost inverted" ~expected_value:"3" );
+         (* Test 86: List windowing operation *)
+         ( "list windowing sum operation" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec sum_first_n = fn n -> fn list ->
+                if n == 0 then 0
+                else case list do
+                     | [] -> 0
+                     | h :: t -> h + sum_first_n (n - 1) t
+
+              let lst = [5, 10, 15, 20, 25]
+            |}
+             ~expr:"sum_first_n 3 lst" ~expected_value:"30" );
+         (* Test 87: Tree lowest common ancestor preparation *)
+         ( "tree node presence check" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec contains = fn tree -> fn value ->
+                case tree do
+                | Leaf n -> n == value
+                | Node (v, l, r) ->
+                  if v == value then true
+                  else contains l value || contains r value
+
+              let tree = Node (1, Node (2, Leaf 4, Leaf 5), Node (3, Leaf 6, Leaf 7))
+            |}
+             ~expr:"if contains tree 6 && contains tree 4 then 100 else 0"
+             ~expected_value:"100" );
+         (* Test 89: Tree serialization *)
+         ( "tree to list serialization" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec preorder = fn tree ->
+                case tree do
+                | Leaf n -> [n]
+                | Node (v, l, r) -> v :: append (preorder l) (preorder r)
+              and append = fn l1 -> fn l2 ->
+                case l1 do
+                | [] -> l2
+                | h :: t -> h :: append t l2
+
+              let rec length = fn list ->
+                case list do
+                | [] -> 0
+                | _ :: t -> 1 + length t
+
+              let tree = Node (1, Node (2, Leaf 4, Leaf 5), Leaf 3)
+              let serialized = preorder tree
+            |}
+             ~expr:"length serialized" ~expected_value:"5" );
+         (* Test 90: List majority element *)
+         ( "list element counting majority" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec count = fn x -> fn list ->
+                case list do
+                | [] -> 0
+                | h :: t -> if h == x then 1 + count x t else count x t
+
+              let lst = [3, 3, 4, 2, 4, 4, 2, 4, 4]
+            |}
+             ~expr:"count 4 lst" ~expected_value:"5" );
+         (* Test 91: Tree sum of left leaves *)
+         ( "sum of left leaves" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec is_leaf = fn tree ->
+                case tree do
+                | Leaf _ -> true
+                | _ -> false
+
+              let rec sum_left_leaves = fn tree ->
+                case tree do
+                | Leaf _ -> 0
+                | Node (_, l, r) ->
+                  let left_sum = if is_leaf l then
+                    (case l do | Leaf n -> n | _ -> 0)
+                  else sum_left_leaves l in
+                  left_sum + sum_left_leaves r
+
+              let tree = Node (1, Node (2, Leaf 4, Leaf 5), Node (3, Leaf 6, Leaf 7))
+            |}
+             ~expr:"sum_left_leaves tree" ~expected_value:"10" );
+         (* Test 92: List longest increasing subsequence length *)
+         ( "list increasing subsequence" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec lis_length = fn list ->
+                case list do
+                | [] -> 0
+                | h1 :: h2 :: t ->
+                  if h1 < h2 then 1 + lis_length (h2 :: t)
+                  else 1
+                | _ :: _ -> 1
+
+              let lst = [1, 3, 5, 4, 7]
+            |}
+             ~expr:"lis_length lst" ~expected_value:"3" );
+         (* Test 93: Tree right view *)
+         ( "tree rightmost at each level" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec rightmost_at_level = fn tree -> fn level ->
+                if level == 0 then
+                  case tree do
+                  | Leaf n -> n
+                  | Node (v, _, _) -> v
+                else
+                  case tree do
+                  | Leaf _ -> 0
+                  | Node (_, _, r) -> rightmost_at_level r (level - 1)
+
+              let tree = Node (1, Node (2, Leaf 4, Leaf 5), Node (3, Leaf 6, Leaf 7))
+            |}
+             ~expr:"rightmost_at_level tree 2" ~expected_value:"7" );
+         (* Test 94: List binary search *)
+         ( "binary search on sorted list" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec length = fn list ->
+                case list do
+                | [] -> 0
+                | _ :: t -> 1 + length t
+
+              let rec nth = fn list -> fn n ->
+                case list do
+                | [] -> 0
+                | h :: t -> if n == 0 then h else nth t (n - 1)
+
+              let rec binary_search = fn list -> fn target ->
+                let len = length list in
+                if len == 0 then false
+                else if len == 1 then
+                  (case list do | x :: [] -> x == target | _ -> false)
+                else
+                  let mid = len / 2 in
+                  let mid_val = nth list mid in
+                  mid_val == target
+
+              let lst = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+            |}
+             ~expr:"if binary_search lst 5 then 100 else 0"
+             ~expected_value:"100" );
+         (* Test 95: Tree cousins check *)
+         ( "tree node depth finding" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec find_depth = fn tree -> fn target -> fn current_depth ->
+                case tree do
+                | Leaf n -> if n == target then current_depth else 0 - 1
+                | Node (v, l, r) ->
+                  if v == target then current_depth
+                  else
+                    let left_depth = find_depth l target (current_depth + 1) in
+                    if left_depth >= 0 then left_depth
+                    else find_depth r target (current_depth + 1)
+
+              let tree = Node (1, Node (2, Leaf 4, Leaf 5), Node (3, Leaf 6, Leaf 7))
+            |}
+             ~expr:"find_depth tree 4 0" ~expected_value:"2" );
+         (* Test 97: Tree vertical order traversal *)
+         ( "tree column counting" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+
+              let rec count_nodes = fn tree ->
+                case tree do
+                | Leaf -> 0
+                | Node (_, l, r) -> 1 + count_nodes l + count_nodes r
+
+              let tree = Node (1, Node (2, Leaf, Node (4, Leaf, Leaf)),
+                                  Node (3, Node (5, Leaf, Leaf), Node (6, Leaf, Leaf)))
+            |}
+             ~expr:"count_nodes tree" ~expected_value:"6" );
+         (* Test 98: List k-way merge preparation *)
+         ( "list merge multiple sorted" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec merge = fn l1 -> fn l2 ->
+                case l1 do
+                | [] -> l2
+                | h1 :: t1 ->
+                  (case l2 do
+                   | [] -> l1
+                   | h2 :: t2 ->
+                     if h1 < h2 then h1 :: merge t1 l2
+                     else h2 :: merge l1 t2)
+
+              let rec sum = fn list ->
+                case list do
+                | [] -> 0
+                | h :: t -> h + sum t
+
+              let l1 = [1, 4, 7]
+              let l2 = [2, 5, 8]
+              let l3 = [3, 6, 9]
+              let m1 = merge l1 l2
+              let m2 = merge m1 l3
+            |}
+             ~expr:"sum m2" ~expected_value:"45" );
+         (* Test 99: Tree boundary traversal *)
+         ( "tree left boundary nodes" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+
+              let rec left_boundary = fn tree ->
+                case tree do
+                | Leaf n -> [n]
+                | Node (v, l, _) -> v :: left_boundary l
+
+              let rec sum = fn list ->
+                case list do
+                | [] -> 0
+                | h :: t -> h + sum t
+
+              let tree = Node (1, Node (2, Node (4, Leaf 7, Leaf 8), Leaf 5), Node (3, Leaf 6, Leaf 9))
+            |}
+             ~expr:"sum (left_boundary tree)" ~expected_value:"14" );
+         (* Test 100: List dynamic programming - maximum subarray *)
+         ( "maximum subarray sum kadane" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+              let rec max = fn a -> fn b ->
+                if a > b then a else b
+
+              let rec kadane = fn list ->
+                kadane_helper list 0 0
+              and kadane_helper = fn list -> fn current_max -> fn global_max ->
+                case list do
+                | [] -> global_max
+                | h :: t ->
+                  let new_current = max h (current_max + h) in
+                  let new_global = max global_max new_current in
+                  kadane_helper t new_current new_global
+
+              let lst = [0 - 2, 1, 0 - 3, 4, 0 - 1, 2, 1, 0 - 5, 4]
+            |}
+             ~expr:"kadane lst" ~expected_value:"6" );
        ]
 
 let all_tests =
@@ -7645,6 +10929,12 @@ let all_tests =
       [ complex_mutual_recursion ];
       [ complex_math_operations ];
       [ complex_integration_tests ];
+      [ mutually_recursive_types_basic_tests ];
+      [ mutually_recursive_types_with_params_tests ];
+      [ mutually_recursive_types_complex_tests ];
+      [ mutually_recursive_types_evaluation_tests ];
+      [ mutually_recursive_types_advanced_tests ];
+      [ very_complex_integration_tests ];
     ]
 
 let suite = "suite" >::: all_tests

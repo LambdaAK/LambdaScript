@@ -1248,43 +1248,75 @@ end = struct
       let* ct = CompoundTypeParser.compound_type_parser in
       return (TypeDef (name, [], ct))
 
-  let rec_sum_type_defn_parser_with_args () : defn parser =
-    let* () = expect_token Type in
-    let* () = expect_token Rec in
+  (* Helper to parse a single sum type component (name, args, constructors) *)
+  let parse_single_sum_type_component () : (string * string list * (string * compound_type option) list) parser =
     let* name =
       expect_token_get_data (function
         | Id s -> Some s
         | _ -> None)
     in
-    let* () =
-      expect_token_get_data (function
-        | Relop "<" -> Some ()
-        | _ -> None)
-    in
-    (* Parse a list of identifiers and store the strings *)
-    let* args : string list = parse_sep_delim string_parser Comma in
-    let* () =
-      expect_token_get_data (function
-        | Relop ">" -> Some ()
-        | _ -> None)
+    (* Try to parse type parameters <a, b, ...> *)
+    let* args : string list =
+      (let* () =
+         expect_token_get_data (function
+           | Relop "<" -> Some ()
+           | _ -> None)
+       in
+       let* type_params = parse_sep_delim string_parser Comma in
+       let* () =
+         expect_token_get_data (function
+           | Relop ">" -> Some ()
+           | _ -> None)
+       in
+       return type_params)
+      <|> return []
     in
     let* () = expect_token Equals in
     (* Parse constructors *)
     let* constructors = parse_several constructor_parser in
-    return (SumTypeDefRec (name, args, constructors))
+    return (name, args, constructors)
+
+  let rec_sum_type_defn_parser_with_args () : defn parser =
+    let* () = expect_token Type in
+    let* () = expect_token Rec in
+    let* first_type = parse_single_sum_type_component () in
+
+    (* Try to parse 'and' clauses for mutual recursion *)
+    let* and_types =
+      parse_several (
+        let* () = expect_token And in
+        parse_single_sum_type_component ()
+      )
+    in
+
+    (* If we have and clauses, return SumTypeDefMutRec, otherwise SumTypeDefRec *)
+    match and_types with
+    | [] ->
+        let (name, args, constructors) = first_type in
+        return (SumTypeDefRec (name, args, constructors))
+    | _ ->
+        return (SumTypeDefMutRec (first_type :: and_types))
 
   let rec_sum_type_defn_parser_no_args () : defn parser =
     let* () = expect_token Type in
     let* () = expect_token Rec in
-    let* name =
-      expect_token_get_data (function
-        | Id s -> Some s
-        | _ -> None)
+    let* first_type = parse_single_sum_type_component () in
+
+    (* Try to parse 'and' clauses for mutual recursion *)
+    let* and_types =
+      parse_several (
+        let* () = expect_token And in
+        parse_single_sum_type_component ()
+      )
     in
-    let* () = expect_token Equals in
-    (* Parse constructors *)
-    let* constructors = parse_several constructor_parser in
-    return (SumTypeDefRec (name, [], constructors))
+
+    (* If we have and clauses, return SumTypeDefMutRec, otherwise SumTypeDefRec *)
+    match and_types with
+    | [] ->
+        let (name, args, constructors) = first_type in
+        return (SumTypeDefRec (name, args, constructors))
+    | _ ->
+        return (SumTypeDefMutRec (first_type :: and_types))
 
   let sum_type_defn_parser_with_args () : defn parser =
     let* () = expect_token Type in
