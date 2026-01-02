@@ -51,8 +51,9 @@ let interpret (filename : string) =
       let static_env, dynamic_env, type_env =
         List.fold_left
           (fun (static_env, dynamic_env, type_env) defn ->
-            match generate_defn static_env type_env defn with
-            | Ok (new_bindings, new_type_env) ->
+            (* TODO: Thread interface environments through interpreter *)
+            match generate_defn static_env type_env [] [] defn with
+            | Ok (new_bindings, new_type_env, _, _) ->
                 (* TODO: propagate the monadic errors *)
                 let new_dynamic_bindings =
                   match eval_defn defn dynamic_env with

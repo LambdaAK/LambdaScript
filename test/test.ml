@@ -275,7 +275,8 @@ let type_test (expr : string) (expected_output : string) : test =
             let c_e : Language.Cexpr.c_expr = condense_expr e in
 
             let t =
-              match type_of_c_expr built_ins_types [] c_e with
+              (* TODO: Thread interface environments through tests *)
+              match type_of_c_expr built_ins_types [] [] [] c_e with
               | Ok t -> t
               | Error e -> failwith (string_of_type_check_error e)
             in
@@ -296,7 +297,8 @@ let type_test (expr : string) (expected_output : string) : test =
   in
   let condensed_expr = condense_expr parsed_expr in
   let type_result =
-    match type_of_c_expr static_env [] condensed_expr with
+    (* TODO: Thread interface environments through tests *)
+    match type_of_c_expr static_env [] [] [] condensed_expr with
     | Ok t -> t
     | _ -> failwith "type failureeeeeeeeee"
   in
@@ -1319,9 +1321,10 @@ module ProgramTesting = struct
     let rec process_defns static_env type_env = function
       | [] -> { static_env; dynamic_env = []; type_env }
       | defn :: rest -> (
-          match generate_defn static_env type_env defn with
+          (* TODO: Thread interface environments through tests *)
+          match generate_defn static_env type_env [] [] defn with
           | Error e -> failwith ("Type error: " ^ string_of_type_check_error e)
-          | Ok (new_static_bindings, new_type_bindings) ->
+          | Ok (new_static_bindings, new_type_bindings, _, _) ->
               process_defns
                 (new_static_bindings @ static_env)
                 (new_type_bindings @ type_env)
@@ -1374,7 +1377,8 @@ module ProgramTesting = struct
     let result = typecheck_program program in
 
     let c_expr = condense_expr expr in
-    match type_of_c_expr result.static_env result.type_env c_expr with
+    (* TODO: Thread interface environments through tests *)
+    match type_of_c_expr result.static_env result.type_env [] [] c_expr with
     | Error e ->
         failwith ("Type inference error: " ^ string_of_type_check_error e)
     | Ok t -> t

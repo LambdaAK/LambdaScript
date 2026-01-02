@@ -78,7 +78,8 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env) :
        (* condense the expression *)
        let c_expr = condense_expr expr in
        (* type check the expression *)
-       match type_of_c_expr static_env type_env c_expr with
+       (* TODO: Thread interface environments through typecheck_tester *)
+       match type_of_c_expr static_env type_env [] [] c_expr with
        | Ok t ->
            print_separator ();
            print_type_info t;
@@ -89,11 +90,12 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env) :
       (* condense the definition *)
       let c_defn = condense_defn defn in
 
-      match generate_defn static_env type_env c_defn with
+      (* TODO: Thread interface environments through typecheck_tester *)
+      match generate_defn static_env type_env [] [] c_defn with
       | Error e ->
           print_error (string_of_type_check_error e);
           NoChange
-      | Ok (new_static_bindings, new_type_env) ->
+      | Ok (new_static_bindings, new_type_env, _, _) ->
           (* pretty print all of the new bindings *)
           List.iter
             (fun (name, typ) ->

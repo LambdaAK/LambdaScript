@@ -139,7 +139,8 @@ let handle_command cmd static_env dynamic_env type_env history =
             NoChange
         | Some (Expr expr, _) ->
             let c_expr = condense_expr expr in
-            (match type_of_c_expr static_env type_env c_expr with
+            (* TODO: Thread interface environments through REPL *)
+            (match type_of_c_expr static_env type_env [] [] c_expr with
             | Ok t ->
                 print_colored color_blue "Type: ";
                 print_colored_line color_cyan (string_of_c_type t)
@@ -178,11 +179,12 @@ let handle_command cmd static_env dynamic_env type_env history =
             NoChange
         | Some (Definition defn, _) -> (
             let c_defn = condense_defn defn in
-            match generate_defn static_env type_env c_defn with
+            (* TODO: Thread interface environments through REPL *)
+            match generate_defn static_env type_env [] [] c_defn with
             | Error e ->
                 print_error (string_of_type_check_error e);
                 NoChange
-            | Ok (new_static_bindings, new_type_env) ->
+            | Ok (new_static_bindings, new_type_env, _, _) ->
                 let new_dynamic_bindings =
                   unwrap_eval_result (eval_defn c_defn dynamic_env)
                 in
@@ -245,7 +247,8 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env)
         (NoChange, new_history)
     | Some (Expr expr, _) -> (
         let c_expr = condense_expr expr in
-        let result = type_of_c_expr static_env type_env c_expr in
+        (* TODO: Thread interface environments through REPL *)
+        let result = type_of_c_expr static_env type_env [] [] c_expr in
         match result with
         | Ok t ->
             (match eval_c_expr c_expr dynamic_env with
@@ -260,12 +263,13 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env)
             (NoChange, new_history))
     | Some (Definition defn, _) -> (
         let c_defn = condense_defn defn in
-        let result = generate_defn static_env type_env c_defn in
+        (* TODO: Thread interface environments through REPL *)
+        let result = generate_defn static_env type_env [] [] c_defn in
         match result with
         | Error e ->
             print_error (string_of_type_check_error e);
             (NoChange, new_history)
-        | Ok (new_static_bindings, new_type_env) ->
+        | Ok (new_static_bindings, new_type_env, _, _) ->
             let new_dynamic_bindings =
               unwrap_eval_result (eval_defn c_defn dynamic_env)
             in
@@ -320,8 +324,9 @@ let load_file_into_env filename static_env dynamic_env type_env =
         let rec process_defns static_env dynamic_env type_env = function
           | [] -> (static_env, dynamic_env, type_env)
           | defn :: rest ->
-              match generate_defn static_env type_env defn with
-              | Ok (new_static_bindings, new_type_env) ->
+              (* TODO: Thread interface environments through REPL *)
+              match generate_defn static_env type_env [] [] defn with
+              | Ok (new_static_bindings, new_type_env, _, _) ->
                   let new_dynamic_bindings =
                     unwrap_eval_result (eval_defn defn dynamic_env)
                   in
