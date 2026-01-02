@@ -1383,8 +1383,72 @@ end = struct
       let* ct = CompoundTypeParser.compound_type_parser in
       return (TypeDef (name, args, ct))
 
+  let interface_parser () : defn parser =
+    let* () = expect_token Inter in
+    let* name =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    (* Parse optional type parameters [T] or [T, U] *)
+    let* type_params =
+      (let* () = expect_token LBracket in
+       let* params =
+         parse_sep_delim
+           (expect_token_get_data (function
+             | Id s -> Some s
+             | _ -> None))
+           Comma
+       in
+       let* () = expect_token RBracket in
+       return params)
+      <|> return []
+    in
+    (* Parse method signatures: method_name : type *)
+    let method_sig_parser : (string * compound_type) parser =
+      let* method_name =
+        expect_token_get_data (function
+          | Id s -> Some s
+          | _ -> None)
+      in
+      let* () = expect_token Colon in
+      let* method_type = CompoundTypeParser.compound_type_parser in
+      return (method_name, method_type)
+    in
+    let* methods = parse_several method_sig_parser in
+    let* () = expect_token End in
+    return (InterfaceDef (name, type_params, methods))
+
+  let impl_parser () : defn parser =
+    let* () = expect_token Impl in
+    let* iface_name =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* () = expect_token LBracket in
+    let* impl_type = CompoundTypeParser.compound_type_parser in
+    let* () = expect_token RBracket in
+    (* Parse method implementations: let method_name = expr *)
+    let method_impl_parser : (string * expr) parser =
+      let* () = expect_token Let in
+      let* name =
+        expect_token_get_data (function
+          | Id s -> Some s
+          | _ -> None)
+      in
+      let* () = expect_token Equals in
+      let* body = ExprParser.expr_parser in
+      return (name, body)
+    in
+    let* methods = parse_several method_impl_parser in
+    let* () = expect_token End in
+    return (InterfaceImpl (iface_name, impl_type, methods))
+
   let defn_parser : defn parser =
-    type_alias_defn_parser_with_args ()
+    interface_parser ()
+    <|> impl_parser ()
+    <|> type_alias_defn_parser_with_args ()
     <|> type_alias_defn_parser_no_args ()
     <|> rec_sum_type_defn_parser_with_args ()
     <|> rec_sum_type_defn_parser_no_args ()

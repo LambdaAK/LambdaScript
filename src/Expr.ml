@@ -53,6 +53,7 @@ and factor_type =
   | ListType of compound_type
   | TypeApp of string * compound_type list
   | RecordTypeWritten of (string * compound_type) list (* {x: int, y: bool} *)
+  | ConstrainedType of (string * string) list * compound_type (* (Interface1[var1], Interface2[var2], ...) => type *)
 
 type defn =
   | Defn of pat * compound_type option * expr * compound_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
@@ -62,6 +63,8 @@ type defn =
   | SumTypeDef of string * string list * (string * compound_type option) list
   | SumTypeDefRec of string * string list * (string * compound_type option) list
   | SumTypeDefMutRec of (string * string list * (string * compound_type option) list) list (* mutually recursive sum types *)
+  | InterfaceDef of string * string list * (string * compound_type) list (* interface_name, type_params, method_signatures *)
+  | InterfaceImpl of string * compound_type * (string * expr) list (* interface_name, impl_type, method_implementations *)
 
 and switch_branch = pat * expr
 

@@ -176,6 +176,7 @@ and bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
     match t with
     | Mono m -> Some m
     | PolyType (_, t') -> get_mono_type t'
+    | QualType (_, t') -> get_mono_type t'
   in
   match p with
   | CUnitPat -> (
@@ -586,9 +587,9 @@ and create_generic_type : c_pat -> c_type = function
               (fun p ->
                 match create_generic_type p with
                 | Mono t -> t
-                | PolyType (_, _) ->
+                | PolyType (_, _) | QualType (_, _) ->
                     failwith
-                      "Polymorphic types not supported in create_generic_type \
+                      "Polymorphic/constrained types not supported in create_generic_type \
                        for vectors")
               patterns))
   | CVariantPat (_cons_name, payload_pat_opt) -> (
@@ -777,6 +778,13 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
           types
       in
       return all_constructor_bindings
+  | CInterfaceDef (_, _, _) ->
+      (* Interface declarations don't introduce runtime bindings *)
+      return []
+  | CInterfaceImpl (_, _, _) ->
+      (* Interface implementations don't introduce runtime bindings *)
+      (* Method dispatch will be handled during type checking *)
+      return []
 
 and string_of_bop = function
   | CPlus -> "+"

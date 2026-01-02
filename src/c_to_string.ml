@@ -35,6 +35,7 @@ let rec string_of_mono_type : mono_type -> string = function
 let string_of_c_type (ct : c_type) : string =
   let rec collect_vars acc = function
     | PolyType (v, body) -> collect_vars (acc @ [ v ]) body
+    | QualType (_, body) -> collect_vars acc body
     | Mono t -> (acc, t)
   in
   match ct with
@@ -42,6 +43,9 @@ let string_of_c_type (ct : c_type) : string =
   | PolyType _ ->
       let _, t = collect_vars [] ct in
       string_of_mono_type t
+  | QualType (constraints, body) ->
+      let constraints_str = String.concat ", " (List.map string_of_constraint constraints) in
+      "(" ^ constraints_str ^ ") => " ^ string_of_type body
 
 (** Formats an optional type annotation. Returns " : type" if Some type, or
     empty string if None. *)
@@ -263,6 +267,28 @@ and string_of_defn : c_defn -> string = function
           types
       in
       String.concat "\n" type_strs
+  | CInterfaceDef (name, params, methods) ->
+      let params_str =
+        match params with
+        | [] -> ""
+        | _ -> "[" ^ String.concat ", " params ^ "]"
+      in
+      let methods_str =
+        List.map
+          (fun (method_name, method_type) ->
+            "  " ^ method_name ^ " : " ^ string_of_type method_type)
+          methods
+      in
+      "inter " ^ name ^ params_str ^ "\n" ^ String.concat "\n" methods_str ^ "\nend"
+  | CInterfaceImpl (iface, impl_type, methods) ->
+      let methods_str =
+        List.map
+          (fun (method_name, method_expr) ->
+            "  let " ^ method_name ^ " = " ^ string_of_expr method_expr)
+          methods
+      in
+      "impl " ^ iface ^ "[" ^ string_of_mono_type impl_type ^ "]\n" ^
+      String.concat "\n" methods_str ^ "\nend"
 
 let rec string_of_program : c_program -> string = function
   | [] -> ""

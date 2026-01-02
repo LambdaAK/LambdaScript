@@ -87,6 +87,11 @@ let rec string_of_basic_type (ft : factor_type) (level : int) : string =
           (List.map (fun (name, t) -> name ^ ": " ^ string_of_compound_type t (level + 1)) fields)
       ^ indentations_with_newline level
       ^ "})"
+  | ConstrainedType (constraints, base_type) ->
+      let constraints_str = String.concat ", "
+        (List.map (fun (iface, var) -> iface ^ "[" ^ var ^ "]") constraints) in
+      "ConstrainedType((" ^ constraints_str ^ ") => " ^
+      string_of_compound_type base_type level ^ ")"
 
 and string_of_compound_type (ct : compound_type) (level : int) =
   match ct with
@@ -561,5 +566,23 @@ and string_of_defn (d : defn) (level : int) =
                ^ "])")
              types)
       ^ "])"
+  | InterfaceDef (name, type_params, methods) ->
+      let params_str = String.concat ", " type_params in
+      let methods_str = String.concat "\n"
+        (List.map (fun (mname, mtype) ->
+          indentations_with_newline (level + 1) ^ mname ^ " : " ^
+          string_of_compound_type mtype (level + 1)
+        ) methods) in
+      "InterfaceDef(" ^ name ^ ", [" ^ params_str ^ "], [\n" ^
+      methods_str ^ "\n" ^ indentations_with_newline level ^ "])"
+  | InterfaceImpl (iface_name, impl_type, method_impls) ->
+      let methods_str = String.concat "\n"
+        (List.map (fun (mname, mexpr) ->
+          indentations_with_newline (level + 1) ^ mname ^ " = " ^
+          string_of_expr mexpr (level + 1)
+        ) method_impls) in
+      "InterfaceImpl(" ^ iface_name ^ ", " ^
+      string_of_compound_type impl_type level ^ ", [\n" ^
+      methods_str ^ "\n" ^ indentations_with_newline level ^ "])"
 
 let string_of_expr (e : expr) = string_of_expr e 0

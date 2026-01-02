@@ -58,6 +58,25 @@ type mono_type =
 type c_type =
   | Mono of mono_type
   | PolyType of type_var * c_type (* Represents ∀x.τ *)
+  | QualType of constraint_type list * c_type (* Constrained type: (C1, C2, ...) => τ *)
+
+(* Typeclass constraints *)
+and constraint_type =
+  | ClassConstraint of string * mono_type (* InterfaceName[Type] *)
+
+(* Interface declaration: interface_name, type_params, method_signatures *)
+and interface_decl = {
+  iface_name: string;
+  iface_params: string list;
+  iface_methods: (string * c_type) list;
+}
+
+(* Interface implementation: interface_name, concrete_type, method_implementations *)
+and interface_impl = {
+  impl_iface: string;
+  impl_type: mono_type;
+  impl_methods: (string * c_expr) list;
+}
 
 and c_defn =
   | CDefn of c_pat * c_type option * c_expr * c_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
@@ -67,6 +86,8 @@ and c_defn =
   | CSumType of string * string list * (string * c_type option) list
   | CSumTypeRec of string * string list * (string * c_type option) list
   | CSumTypeRecMutRec of (string * string list * (string * c_type option) list) list (* mutually recursive sum types *)
+  | CInterfaceDef of string * string list * (string * c_type) list (* interface_name, type_params, method_signatures *)
+  | CInterfaceImpl of string * mono_type * (string * c_expr) list (* interface_name, impl_type, method_implementations *)
 
 and c_switch_branch = c_pat * c_expr
 
@@ -130,6 +151,8 @@ and builtin_function =
 and env = (string * value) list
 
 type static_env = (string * c_type) list
+type interface_env = interface_decl list
+type impl_env = interface_impl list
 type c_program = c_defn list
 
 let ( => ) (t1 : mono_type) (t2 : mono_type) : mono_type = FunctionType (t1, t2)
@@ -144,6 +167,7 @@ let fresh_type_var : unit -> mono_type =
 let rec apply_type (func : c_type) (arg : mono_type) : c_type =
   match func with
   | PolyType (var, body) -> substitute_type body var arg
+  | QualType (constraints, body) -> QualType (constraints, apply_type body arg)
   | Mono _ -> failwith "Cannot apply monomorphic type"
 
 (* Type substitution: replaces type variables with types *)
@@ -171,6 +195,12 @@ and substitute_type (t : c_type) (var : type_var) (replacement : mono_type) :
   | Mono t -> Mono t
   | PolyType (v, body) ->
       if v = var then t else PolyType (v, substitute_type body var replacement)
+  | QualType (constraints, body) ->
+      let subst_constraint = function
+        | ClassConstraint (iface, typ) ->
+            ClassConstraint (iface, substitute_mono typ var replacement)
+      in
+      QualType (List.map subst_constraint constraints, substitute_type body var replacement)
 
 and substitute_mono (t : mono_type) (var : type_var) (replacement : mono_type) :
     mono_type =
@@ -220,9 +250,16 @@ let rec string_of_mono_type : mono_type -> string = function
       ) fields in
       "{" ^ String.concat ", " field_strs ^ "}"
 
+let string_of_constraint : constraint_type -> string = function
+  | ClassConstraint (iface, typ) ->
+      iface ^ "[" ^ string_of_mono_type typ ^ "]"
+
 let rec string_of_type : c_type -> string = function
   | Mono t -> string_of_mono_type t
   | PolyType (var, body) -> "∀" ^ var ^ ". " ^ string_of_type body
+  | QualType (constraints, body) ->
+      let constraints_str = String.concat ", " (List.map string_of_constraint constraints) in
+      "(" ^ constraints_str ^ ") => " ^ string_of_type body
 
 (* Types form a lambda calculus. Here are functions that help us manipulate
    types in this lambda calculus. *)

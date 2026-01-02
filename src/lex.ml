@@ -67,6 +67,9 @@ type token_type =
   | RAngle
   | Of
   | Dot
+  | Inter
+  | Impl
+  | End
 
 type token = {
   token_type : token_type;
@@ -148,6 +151,9 @@ let string_of_token_type : token_type -> string = function
   | RAngle -> ">"
   | Of -> "<of>"
   | Dot -> "<dot>"
+  | Inter -> "<inter>"
+  | Impl -> "<impl>"
+  | End -> "<end>"
 [@@coverage off]
 
 let string_of_token : token -> string =
@@ -305,6 +311,9 @@ let keywords =
     ("float", FloatType);
     ("of", Of);
     ("type", Type);
+    ("inter", Inter);
+    ("impl", Impl);
+    ("end", End);
   ]
   |> List.map (fun (s, t) -> (list_of_string s, t))
 

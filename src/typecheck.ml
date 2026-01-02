@@ -1086,6 +1086,10 @@ and instantiate (t : c_type) : mono_type =
       let applied_once = apply_type t fresh_var in
       (* call instantiate again on applied_once *)
       instantiate applied_once
+  | QualType (_, body) ->
+      (* For constrained types, instantiate the body *)
+      (* Constraints will be handled during type checking *)
+      instantiate body
 
 (** [instantiate_and_simplify t type_env] converts a polymorphic type to a
     monomorphic type and simplifies any type names (aliases) in it.
@@ -1490,8 +1494,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                 let payload_mono =
                   match payload_type with
                   | Mono m -> m
-                  | PolyType _ ->
-                      failwith "Constructor payload cannot be polymorphic"
+                  | PolyType _ | QualType _ ->
+                      failwith "Constructor payload cannot be polymorphic or constrained"
                 in
                 (* First, simplify the payload type to expand type aliases *)
                 let payload_simplified =
@@ -1578,8 +1582,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                 let payload_mono =
                   match payload_type with
                   | Mono m -> m
-                  | PolyType _ ->
-                      failwith "Constructor payload cannot be polymorphic"
+                  | PolyType _ | QualType _ ->
+                      failwith "Constructor payload cannot be polymorphic or constrained"
                 in
                 (* First, simplify the payload type to expand type aliases *)
                 (* Use extended_type_env so the recursive type can be referenced *)
@@ -1677,8 +1681,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                     let payload_mono =
                       match payload_type with
                       | Mono m -> m
-                      | PolyType _ ->
-                          failwith "Constructor payload cannot be polymorphic"
+                      | PolyType _ | QualType _ ->
+                          failwith "Constructor payload cannot be polymorphic or constrained"
                     in
                     (* Simplify the payload type using extended environment *)
                     let payload_simplified =
@@ -1733,6 +1737,14 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
           types
       in
       return (all_constructor_bindings, type_env_entries)
+  | CInterfaceDef (_, _, _) ->
+      (* Interface declarations will be handled in later phases *)
+      (* For now, return empty bindings *)
+      return ([], [])
+  | CInterfaceImpl (_, _, _) ->
+      (* Interface implementations will be handled in later phases *)
+      (* For now, return empty bindings *)
+      return ([], [])
 
 (* Given a type with type names, simplify it by replacing the type names with
    the actual types
@@ -1748,6 +1760,9 @@ and simplify_type (t : c_type) (type_env : type_env) : c_type type_check_result
   | PolyType (var, t) ->
       let- t_simplified = simplify_type t type_env in
       return (PolyType (var, t_simplified))
+  | QualType (constraints, t) ->
+      let- t_simplified = simplify_type t type_env in
+      return (QualType (constraints, t_simplified))
 
 and simplify_mono_type (t : mono_type) (type_env : type_env) :
     mono_type type_check_result =
@@ -1906,3 +1921,4 @@ let rec get_mono_type (t : c_type) : mono_type =
   match t with
   | Mono t -> t
   | PolyType (_, t) -> get_mono_type t
+  | QualType (_, t) -> get_mono_type t

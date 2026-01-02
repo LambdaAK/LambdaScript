@@ -118,6 +118,17 @@ let rec condense_defn : defn -> c_defn = function
           types
       in
       CSumTypeRecMutRec condensed_types
+  | InterfaceDef (name, type_params, methods) ->
+      let condensed_methods = List.map (fun (method_name, method_type) ->
+        (method_name, condense_type method_type)
+      ) methods in
+      CInterfaceDef (name, type_params, condensed_methods)
+  | InterfaceImpl (iface_name, impl_type, method_impls) ->
+      let condensed_type = condense_compound_type impl_type in
+      let condensed_methods = List.map (fun (method_name, method_expr) ->
+        (method_name, condense_expr method_expr)
+      ) method_impls in
+      CInterfaceImpl (iface_name, condensed_type, condensed_methods)
 
 and condense_expr : expr -> c_expr = function
   | Function (pat, ct_opt, expr) ->
@@ -289,6 +300,10 @@ and condense_factor_type : factor_type -> mono_type = function
   | TypeApp (name, args) -> CTypeApp (name, List.map condense_compound_type args)
   | RecordTypeWritten fields ->
       RecordType (List.map (fun (name, ct) -> (name, condense_compound_type ct)) fields)
+  | ConstrainedType (_, base_type) ->
+      (* For now, extract the base type and ignore constraints *)
+      (* Constraints will be handled during type checking *)
+      condense_compound_type base_type
 
 and condense_compound_type : compound_type -> mono_type = function
   | BasicType bt -> condense_factor_type bt
