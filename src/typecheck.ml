@@ -2,6 +2,7 @@ open Cexpr
 open C_to_string
 open Ceval
 open Typefixer
+open Exhaustiveness
 
 type type_equation = mono_type * mono_type
 type type_equations = type_equation list
@@ -10,6 +11,7 @@ type type_error =
   | UnboundVariable of string
   | TypeMismatch of mono_type * mono_type
   | PatternMismatch of c_pat * mono_type
+  | NonExhaustiveMatch of string
   | OtherError of string
 
 type 'a type_check_result =
@@ -24,6 +26,8 @@ let string_of_type_check_error (e : type_error) : string =
       ^ string_of_mono_type t2
   | PatternMismatch (p, t) ->
       "Pattern mismatch: " ^ string_of_pat p ^ " != " ^ string_of_mono_type t
+  | NonExhaustiveMatch missing ->
+      "Non-exhaustive pattern match. Missing case: " ^ missing
   | OtherError s -> "Other error: " ^ s
 
 let return (x : 'a) : 'a type_check_result = Ok x
@@ -731,9 +735,25 @@ and generate_e_switch (env : static_env) (type_env : type_env) (e1 : c_expr)
     in
     aux [] branches
   in
+
+  (* Solve constraints to get the actual scrutinee type *)
+  let all_constraints = c1 @ List.flatten branch_constraints in
+  let solution = reduce_eq all_constraints type_env in
+  let- resolved_scrutinee_type = get_type t1 solution type_env in
+
+  (* Build constructor environment from static env and type env *)
+  let constructor_env = build_constructor_env env type_env in
+
+  (* Check exhaustiveness of pattern matching with the resolved type *)
+  let- () = match check_switch_exhaustiveness resolved_scrutinee_type branches constructor_env env with
+   | Exhaustive -> return ()
+   | NonExhaustive missing ->
+       Error (NonExhaustiveMatch missing)
+  in
+
   return
     ( type_that_all_branch_expressions_must_be,
-      c1 @ List.flatten branch_constraints,
+      all_constraints,
       [] )
 
 and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
@@ -1100,6 +1120,43 @@ and instantiate_and_simplify (t : c_type) (type_env : type_env) :
     mono_type type_check_result =
   let instantiated = instantiate t in
   simplify_mono_type instantiated type_env
+
+(* Build constructor environment from type environment and static environment *)
+and build_constructor_env (static_env : static_env) (_type_env : type_env) : constructor_env =
+  (* Extract constructors from static environment *)
+  (* A constructor is a binding whose type is either:
+     - A CTypeApp or TypeName (nullary constructor)
+     - A function returning a CTypeApp or TypeName (constructor with payload)
+     - A FixedPoint type (recursive sum type constructor) *)
+
+  let extract_type_name (t : mono_type) : string option =
+    match t with
+    | CTypeApp (name, _) -> Some name
+    | TypeName name -> Some name
+    | FixedPoint (name, _) -> Some name
+    | _ -> None
+  in
+
+  let extract_constructor_info (name : string) (ctype : c_type) : (string * string * string list * c_type option) option =
+    let mono = instantiate ctype in
+    match mono with
+    | CTypeApp (type_name, _) | TypeName type_name | FixedPoint (type_name, _) ->
+        (* Nullary constructor *)
+        Some (name, type_name, [], None)
+    | FunctionType (payload, ret_type) ->
+        (* Constructor with payload *)
+        (match extract_type_name ret_type with
+         | Some type_name -> Some (name, type_name, [], Some (Mono payload))
+         | None -> None)
+    | _ -> None
+  in
+
+  (* Build constructor list from static environment *)
+  let constructors_from_env =
+    List.filter_map (fun (name, ctype) -> extract_constructor_info name ctype) static_env
+  in
+
+  constructors_from_env
 
 (** [generalize constraints env t] converts a monomorphic type to a polymorphic
     type.
