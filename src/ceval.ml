@@ -781,10 +781,19 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
   | CInterfaceDef (_, _, _) ->
       (* Interface declarations don't introduce runtime bindings *)
       return []
-  | CInterfaceImpl (_, _, _) ->
-      (* Interface implementations don't introduce runtime bindings *)
-      (* Method dispatch will be handled during type checking *)
-      return []
+  | CInterfaceImpl (_, _, method_impls) ->
+      (* Interface implementations introduce runtime bindings for methods *)
+      (* Each method implementation is evaluated and added to the environment *)
+      let* method_bindings =
+        let rec eval_methods acc = function
+          | [] -> return (List.rev acc)
+          | (method_name, method_body) :: rest ->
+              let* method_value = eval_c_expr method_body env in
+              eval_methods ((method_name, method_value) :: acc) rest
+        in
+        eval_methods [] method_impls
+      in
+      return method_bindings
 
 and string_of_bop = function
   | CPlus -> "+"

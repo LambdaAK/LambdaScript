@@ -1,1 +1,9 @@
+inter Monoid[T]
+  mempty : T
+  mappend : T -> T -> T
+end
 
+impl Monoid[int]
+  let mempty = 0
+  let mappend x y = x + y
+end

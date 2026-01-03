@@ -46,3 +46,10 @@
  (libraries Language)
  (instrumentation
   (backend bisect_ppx)))
+
+(executable
+ (name debug_tokens)
+ (modules debug_tokens)
+ (libraries Language)
+ (instrumentation
+  (backend bisect_ppx)))

@@ -46,32 +46,37 @@ let interpret (filename : string) =
       let static_env : static_env = built_ins_types in
       let dynamic_env : env = initial_env () |> unwrap_eval_result in
       let type_env : type_env = [] in
+      let iface_env : interface_env = [] in
+      let impl_env : impl_env = [] in
 
       (* use fold_left to iterate through the definitions and evaluate them *)
-      let static_env, dynamic_env, type_env =
+      let static_env, dynamic_env, type_env, iface_env, impl_env =
         List.fold_left
-          (fun (static_env, dynamic_env, type_env) defn ->
-            (* TODO: Thread interface environments through interpreter *)
-            match generate_defn static_env type_env [] [] defn with
-            | Ok (new_bindings, new_type_env, _, _) ->
+          (fun (static_env, dynamic_env, type_env, iface_env, impl_env) defn ->
+            match generate_defn static_env type_env iface_env impl_env defn with
+            | Ok (new_bindings, new_type_env, new_iface_env, new_impl_env) ->
                 (* TODO: propagate the monadic errors *)
                 let new_dynamic_bindings =
                   match eval_defn defn dynamic_env with
                   | Ok v -> v
-                  | Error _ -> failwith "Evaluation failed"
+                  | Error e ->
+                      print_endline ("Evaluation error: " ^ string_of_eval_error e);
+                      exit 1
                 in
-                (new_bindings @ static_env, new_dynamic_bindings @ dynamic_env, new_type_env @ type_env)
+                (new_bindings @ static_env, new_dynamic_bindings @ dynamic_env, new_type_env @ type_env, new_iface_env, new_impl_env)
             | Error e ->
-                print_endline (string_of_type_check_error e);
+                print_endline ("Type checking error: " ^ string_of_type_check_error e);
                 exit 1)
-          (static_env, dynamic_env, type_env) condensed_program
+          (static_env, dynamic_env, type_env, iface_env, impl_env) condensed_program
       in
 
       (* As of now, we don't really need to do anything with the resulting
          environments *)
       ignore static_env;
       ignore dynamic_env;
-      ignore type_env
+      ignore type_env;
+      ignore iface_env;
+      ignore impl_env
 
 let () =
   if Array.length Sys.argv <> 2 then (
@@ -82,4 +87,5 @@ let () =
     try interpret filename
     with e ->
       print_endline (Printexc.to_string e);
+      Printexc.print_backtrace stdout;
       exit 1

@@ -338,7 +338,7 @@ let rec find_leading_keyword_if_it_exists (lst : char list) kw :
       if is_prefix then
         match remainder with
         | [] -> (Some token_type, [])
-        | h :: _ when is_alpha_num h -> (None, [])
+        | h :: _ when is_alpha_num h -> find_leading_keyword_if_it_exists lst t
         | _ -> (Some token_type, remainder)
       else find_leading_keyword_if_it_exists lst t
 

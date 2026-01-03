@@ -1013,7 +1013,11 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
               in
               let (common_eqs, _, _) = unify_common_fields [] fields1 fields2 in
               reduce_eq_acc acc (common_eqs @ c')
-          | _ -> raise TypeFailure)
+          | _ ->
+              Printf.eprintf "Type unification failed:\n";
+              Printf.eprintf "  Type 1: %s\n" (string_of_mono_type t1);
+              Printf.eprintf "  Type 2: %s\n" (string_of_mono_type t2);
+              raise TypeFailure)
   in
   reduce_eq_acc [] c
 
@@ -1934,17 +1938,41 @@ and generate_defn (env : static_env) (type_env : type_env)
         iface_methods = methods;
       } in
 
+      (* Convert type parameter names to type variables in method types *)
+      let convert_params_to_vars params method_type =
+        let rec subst_mono t =
+          match t with
+          | TypeName n when List.mem n params -> TypeVar n
+          | FunctionType (i, o) -> FunctionType (subst_mono i, subst_mono o)
+          | CListType t -> CListType (subst_mono t)
+          | VectorType ts -> VectorType (List.map subst_mono ts)
+          | CTypeApp (name, args) -> CTypeApp (name, List.map subst_mono args)
+          | FixedPoint (name, body) -> FixedPoint (name, subst_mono body)
+          | RecordType fields -> RecordType (List.map (fun (n, t) -> (n, subst_mono t)) fields)
+          | _ -> t
+        in
+        let rec subst_ctype t =
+          match t with
+          | Mono mt -> Mono (subst_mono mt)
+          | PolyType (v, body) -> PolyType (v, subst_ctype body)
+          | QualType (cs, body) -> QualType (cs, subst_ctype body)
+        in
+        subst_ctype method_type
+      in
+
       (* Add methods to static environment with constrained types *)
       (* Each method gets a type like: forall a. (Iface[a] => method_type) *)
       let method_bindings =
         List.map (fun (method_name, method_type) ->
+          (* Convert TypeName params to TypeVar in the method type *)
+          let method_type_with_vars = convert_params_to_vars type_params method_type in
           (* Create a constraint for this interface *)
           (* The constraint is: Iface[type_param] where type_param is the interface's param *)
           let constraint_types =
             List.map (fun param -> ClassConstraint (iface_name, TypeVar param)) type_params
           in
           (* Wrap the method type in a QualType with the constraints *)
-          let qualified_type = QualType (constraint_types, method_type) in
+          let qualified_type = QualType (constraint_types, method_type_with_vars) in
           (method_name, qualified_type)
         ) methods
       in
@@ -1989,18 +2017,25 @@ and generate_defn (env : static_env) (type_env : type_env)
 
               (* Substitute interface type parameters with implementation type *)
               (* For now, assume single type parameter - TODO: handle multiple *)
-              let _subst_type =
+              let subst_type =
                 match iface_decl.iface_params with
                 | [param] ->
                     (* Substitute param with impl_type in expected_type *)
+                    let rec subst_mono t =
+                      match t with
+                      | TypeVar v when v = param -> impl_type
+                      | TypeName n when n = param -> impl_type
+                      | FunctionType (i, o) -> FunctionType (subst_mono i, subst_mono o)
+                      | CListType t -> CListType (subst_mono t)
+                      | VectorType ts -> VectorType (List.map subst_mono ts)
+                      | CTypeApp (name, args) -> CTypeApp (name, List.map subst_mono args)
+                      | FixedPoint (name, body) -> FixedPoint (name, subst_mono body)
+                      | RecordType fields -> RecordType (List.map (fun (n, t) -> (n, subst_mono t)) fields)
+                      | _ -> t
+                    in
                     let rec subst t =
                       match t with
-                      | Mono (TypeVar v) when v = param -> Mono impl_type
-                      | Mono (FunctionType (i, o)) ->
-                          (match (subst (Mono i), subst (Mono o)) with
-                           | (Mono i', Mono o') -> Mono (FunctionType (i', o'))
-                           | _ -> t)  (* Fallback if subst returns PolyType/QualType *)
-                      | Mono _ -> t
+                      | Mono mt -> Mono (subst_mono mt)
                       | PolyType (v, body) -> PolyType (v, subst body)
                       | QualType (cs, body) -> QualType (cs, subst body)
                     in
@@ -2009,9 +2044,30 @@ and generate_defn (env : static_env) (type_env : type_env)
               in
 
               (* Typecheck the method implementation *)
-              (* For now, just ensure it typechecks - TODO: implement proper type matching *)
-              let- _impl_type_result = type_of_c_expr env type_env iface_env impl_env method_impl in
-              (* TODO: Check if _impl_type_result matches _subst_type *)
+              let- impl_type_result = type_of_c_expr env type_env iface_env impl_env method_impl in
+
+              (* Check if implementation type matches expected type after substitution *)
+              (* Extract the mono type from the c_type for comparison *)
+              let rec extract_mono = function
+                | Mono t -> t
+                | PolyType (_, body) -> extract_mono body
+                | QualType (_, body) -> extract_mono body
+              in
+              let impl_mono = extract_mono impl_type_result in
+              let expected_mono = extract_mono subst_type in
+
+              (* Unify the types to check compatibility *)
+              let- () =
+                try
+                  let _ = reduce_eq [(impl_mono, expected_mono)] type_env in
+                  return ()  (* Unification succeeded *)
+                with TypeFailure ->
+                  Error (OtherError (
+                    "Method " ^ method_name ^ " has type " ^
+                    string_of_mono_type impl_mono ^ " but expected " ^
+                    string_of_mono_type expected_mono
+                  ))
+              in
 
               check_methods rest
         in
