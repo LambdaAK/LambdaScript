@@ -46,3 +46,10 @@
  (libraries Language)
  (instrumentation
   (backend bisect_ppx)))
+
+(executable
+ (name js_compiler)
+ (modules js_compiler)
+ (libraries Language)
+ (instrumentation
+  (backend bisect_ppx)))
