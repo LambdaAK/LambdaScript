@@ -1,22 +1,36 @@
-let rec map f lst =
-  case lst do
-    | [] -> []
-    | h :: t -> f h :: map f t
+type rec List<'a> =
+  | Nil
+  | Cons of ('a, List<'a>)
 
-let rec filter p lst =
-  case lst do
-    | [] -> []
-    | h :: t -> if p h then h :: filter p t else filter p t
+type rec Tree<'a> =
+  | Leaf
+  | Node of ('a, Tree<'a>, Tree<'a>)
 
-let rec fold f acc lst =
-  case lst do
-    | [] -> acc
-    | h :: t -> fold f (f acc h) t
+let rec fold_tree f acc t =
+  case t do
+  | Leaf -> acc
+  | Node (v, l, r) ->
+      let acc_l = fold_tree f acc l in
+      let acc_r = fold_tree f acc r in
+      f v acc_l acc_r
 
-let my_list = [1, 2, 3, 4, 5]
+let rec map_tree f t =
+  case t do
+    | Leaf -> Leaf
+    | Node (v, l, r) -> Node (f v, map_tree f l, map_tree f r)
 
-let doubled_list = map (fn x -> x * 2) my_list
+let sum_tree t = fold_tree (fn a -> fn b -> fn c -> a + b + c) 0 t
 
-let sum_of_doubled_list = fold (fn acc -> fn x -> acc + x) 0 doubled_list
+let my_tree =
+  map_tree (fn x -> x * 2 + 1) (Node (1, 
+    Node (2, 
+      Node (4, Leaf, Leaf), 
+      Node (5, Leaf, Leaf)
+    ), 
+    Node (3, 
+      Node (6, Leaf, Leaf), 
+      Node (7, Leaf, Leaf)
+    )
+  ))
 
-let () = println (int_to_str sum_of_doubled_list)
+let () = println (int_to_str (sum_tree my_tree))
