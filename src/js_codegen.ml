@@ -10,6 +10,35 @@ function int_to_str(n) { return String(n); }
 class PatternMatchError extends Error {
   constructor(msg) { super(msg); }
 }
+
+// List representation
+class Cons {
+  constructor(head, tail) {
+    this.head = head;
+    this.tail = tail;
+  }
+}
+
+const nil = { type: 'nil' };
+
+// List helpers
+function listToString(lst) {
+  const arr = [];
+  let current = lst;
+  while (current instanceof Cons) {
+    arr.push(current.head);
+    current = current.tail;
+  }
+  return '[' + arr.join(', ') + ']';
+}
+
+function listEnum(start, end) {
+  let result = nil;
+  for (let i = end; i >= start; i--) {
+    result = new Cons(i, result);
+  }
+  return result;
+}
 |js}
 
 let var_counter = ref 0
@@ -93,18 +122,23 @@ let js_bop = function
   | CGT -> ">"
   | CLE -> "<="
   | CGE -> ">="
-  | _ -> failwith "TODO: Binary operator not implemented"
+  | CCons -> "cons" (* Special handling *)
+  | CConcat -> "+"
 
 let rec gen_expr (e : c_expr) : string =
   match e with
   | EInt n -> string_of_int n
   | EId id -> id
+  | EBop (CCons, e1, e2) ->
+      (* Special handling for cons operator *)
+      Printf.sprintf "(new Cons(%s, %s))" (gen_expr e1) (gen_expr e2)
   | EBop (op, e1, e2) ->
       let js_op = js_bop op in
       Printf.sprintf "(%s %s %s)" (gen_expr e1) js_op (gen_expr e2)
   | EApp (e1, e2) -> Printf.sprintf "%s(%s)" (gen_expr e1) (gen_expr e2)
   | EUnit -> "undefined"
   | EChar c -> Printf.sprintf "%d" (Char.code c)
+  | ENil -> "nil"
   | EFunction (pat, _, body) -> (
       match pat with
       | CIdPat id ->
@@ -157,6 +191,9 @@ let rec gen_expr (e : c_expr) : string =
       in
       Printf.sprintf "(() => { const %s = %s; %s })()" scrutinee_var
         (gen_expr scrutinee) (gen_branches branches)
+  | EListEnumeration (start_e, end_e) ->
+      Printf.sprintf "listEnum(%s, %s)" (gen_expr start_e) (gen_expr end_e)
+  | EListComprehension _ -> failwith "TODO: List comprehensions not implemented"
   | _ -> failwith "TODO: Expression not implemented"
 
 let gen_defn (d : c_defn) : string =
@@ -164,7 +201,37 @@ let gen_defn (d : c_defn) : string =
   | CDefn (CIdPat id, _, expr, _, _) ->
       Printf.sprintf "const %s = %s;" id (gen_expr expr)
   | CDefn (CUnitPat, _, expr, _, _) -> Printf.sprintf "%s;" (gen_expr expr)
-  | _ -> failwith "TODO: Not implemented"
+  | CDefnRec (CIdPat id, _, expr, _, _) ->
+      (* Recursive definition - use let to allow forward reference *)
+      Printf.sprintf "let %s;\n%s = %s;" id id (gen_expr expr)
+  | CDefnRec _ -> failwith "TODO: Pattern matching in recursive definitions"
+  | CDefnMutRec bindings ->
+      (* Mutually recursive definitions *)
+      let declarations =
+        List.map
+          (fun (pat, _, _, _, _) ->
+            match pat with
+            | CIdPat id -> Printf.sprintf "let %s;" id
+            | _ ->
+                failwith
+                  "TODO: Pattern matching in mutually recursive definitions")
+          bindings
+        |> String.concat "\n"
+      in
+      let assignments =
+        List.map
+          (fun (pat, _, expr, _, _) ->
+            match pat with
+            | CIdPat id -> Printf.sprintf "%s = %s;" id (gen_expr expr)
+            | _ ->
+                failwith
+                  "TODO: Pattern matching in mutually recursive definitions")
+          bindings
+        |> String.concat "\n"
+      in
+      Printf.sprintf "%s\n%s" declarations assignments
+  | CDefn _ -> failwith "TODO: Pattern matching in definitions"
+  | _ -> failwith "TODO: Type definitions not implemented"
 
 let gen_program (program : c_program) : string =
   runtime_helpers ^ "\n"
