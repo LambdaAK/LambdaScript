@@ -50,3 +50,12 @@ typecheck:
 parsetest:
 	dune build bin/parse_file.exe
 	dune exec ./bin/parse_file.exe "$(FILE)"
+
+js:
+	dune build bin/js_compiler.exe
+	dune exec ./bin/js_compiler.exe "$(INPUT)" "$(OUTPUT)"
+
+js-run:
+	dune build bin/js_compiler.exe
+	dune exec ./bin/js_compiler.exe "$(INPUT)" "$(OUTPUT)"
+	node "$(OUTPUT)"
