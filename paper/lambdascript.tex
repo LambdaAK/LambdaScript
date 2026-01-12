@@ -344,6 +344,76 @@ let g (x: int) : int = x * 2
 
 Type annotations are checked for consistency with inferred types. If an annotation conflicts with the inferred type, the type checker reports an error.
 
+\section{Syntax}
+
+We present the complete syntax of LambdaScript in Extended Backus-Naur Form (EBNF). Non-terminals are written in italics, terminals in \texttt{typewriter font}, and metavariables are defined below.
+
+\textbf{Expressions:}
+\begin{align*}
+e ::= &\; n \mid b \mid s \mid c \mid () \mid x \\
+    | &\; e_1 \; \texttt{op} \; e_2 \\
+    | &\; \texttt{fn} \; p \; \texttt{->} \; e \\
+    | &\; e_1 \; e_2 \\
+    | &\; \texttt{let} \; p \; \texttt{=} \; e_1 \; \texttt{in} \; e_2 \\
+    | &\; \texttt{let} \; \texttt{rec} \; x \; p^* \; \texttt{=} \; e_1 \; \texttt{in} \; e_2 \\
+    | &\; \texttt{if} \; e_1 \; \texttt{then} \; e_2 \; \texttt{else} \; e_3 \\
+    | &\; \texttt{case} \; e \; \texttt{do} \; (\texttt{|} \; p \; \texttt{->} \; e)^+ \\
+    | &\; [ \; ] \mid e_1 \; \texttt{::} \; e_2 \mid [ \; e_1, \ldots, e_n \; ] \\
+    | &\; ( e_1, \ldots, e_n ) \\
+    | &\; C \mid C \; e
+\end{align*}
+
+\textbf{Patterns:}
+\begin{align*}
+p ::= &\; \_ \mid x \mid n \mid b \mid s \mid c \mid () \\
+    | &\; [ \; ] \mid p_1 \; \texttt{::} \; p_2 \\
+    | &\; ( p_1, \ldots, p_n ) \\
+    | &\; C \mid C \; p
+\end{align*}
+
+\textbf{Types:}
+\begin{align*}
+\tau ::= &\; \texttt{int} \mid \texttt{float} \mid \texttt{bool} \mid \texttt{string} \mid \texttt{char} \mid \texttt{unit} \\
+       | &\; \alpha \mid \tau_1 \; \texttt{->} \; \tau_2 \mid [ \; \tau \; ] \\
+       | &\; ( \tau_1, \ldots, \tau_n ) \\
+       | &\; T \mid T \; \texttt{<} \tau_1, \ldots, \tau_n \texttt{>}
+\end{align*}
+
+\textbf{Type Definitions:}
+\begin{align*}
+\textit{typedef} ::= &\; \texttt{type} \; T \; \texttt{<} \alpha_1, \ldots, \alpha_n \texttt{>} \; \texttt{=} \; \tau \\
+                   | &\; \texttt{type} \; T \; \texttt{<} \alpha_1, \ldots, \alpha_n \texttt{>} \; \texttt{=} \; (\texttt{|} \; C \; [\texttt{of} \; \tau])^+ \\
+                   | &\; \texttt{type} \; \texttt{rec} \; T \; \texttt{<} \alpha_1, \ldots, \alpha_n \texttt{>} \; \texttt{=} \; (\texttt{|} \; C \; [\texttt{of} \; \tau])^+ \\
+                   | &\; \texttt{type} \; \texttt{rec} \; T_1 \; \texttt{<} \alpha^* \texttt{>} \; \texttt{=} \; (\texttt{|} \; C \; [\texttt{of} \; \tau])^+ \\
+                   & \; (\texttt{and} \; T_i \; \texttt{<} \alpha^* \texttt{>} \; \texttt{=} \; (\texttt{|} \; C \; [\texttt{of} \; \tau])^+)^+
+\end{align*}
+
+\textbf{Programs:}
+\begin{align*}
+\textit{program} ::= &\; (\textit{typedef} \mid \texttt{let} \; p \; \texttt{=} \; e \mid \texttt{let} \; \texttt{rec} \; x \; p^* \; \texttt{=} \; e)^*
+\end{align*}
+
+\textbf{Metavariables:}
+\begin{itemize}
+\item $x$ ranges over variables (identifiers beginning with lowercase letters)
+\item $n$ ranges over integer literals
+\item $b$ ranges over boolean literals (\texttt{true}, \texttt{false})
+\item $s$ ranges over string literals
+\item $c$ ranges over character literals
+\item $C$ ranges over constructors (identifiers beginning with uppercase letters)
+\item $T$ ranges over type constructors
+\item $\alpha$ ranges over type variables (identifiers beginning with \texttt{'})
+\item $\texttt{op}$ ranges over binary operators: \texttt{+}, \texttt{-}, \texttt{*}, \texttt{/}, \texttt{\%}, \texttt{==}, \texttt{!=}, \texttt{<}, \texttt{>}, \texttt{<=}, \texttt{>=}, \texttt{\&\&}, \texttt{||}
+\end{itemize}
+
+\textbf{Notation:}
+\begin{itemize}
+\item $e^*$ denotes zero or more occurrences of $e$
+\item $e^+$ denotes one or more occurrences of $e$
+\item $[e]$ denotes an optional occurrence of $e$
+\item $(e_1 \mid e_2)$ denotes a choice between $e_1$ and $e_2$
+\end{itemize}
+
 \section{Formal Semantics}
 
 \subsection{Overview}
