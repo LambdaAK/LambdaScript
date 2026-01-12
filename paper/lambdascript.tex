@@ -49,4 +49,148 @@ The main contributions of this paper are:
 
 The remainder of this paper is organized as follows. Section~II presents examples demonstrating LambdaScript's features, building intuition before formal treatment. Section~III describes the type system design, including polymorphism, algebraic data types, and type inference. Section~IV provides detailed formal semantics with typing rules and operational semantics. Section~V details the implementation architecture of each pipeline component. Section~VI presents testing methodology and evaluation results. Section~VII concludes with reflections and future directions.
 
+\section{Examples}
+
+This section presents examples that demonstrate LambdaScript's core features, building intuition for the formal treatment in subsequent sections. We showcase algebraic data types, pattern matching, polymorphism, and higher-order functions through practical examples.
+
+\subsection{Polymorphic List Data Type}
+
+We begin by defining a polymorphic list type using recursive algebraic data types. LambdaScript uses the \texttt{type rec} keyword for recursive type definitions and the \texttt{'a} syntax for type variables, following OCaml conventions.
+
+\begin{verbatim}
+type rec List<'a> = 
+  | Nil 
+  | Cons of ('a, List<'a>)
+\end{verbatim}
+
+This definition introduces two constructors: \texttt{Nil} represents the empty list, and \texttt{Cons} takes a tuple containing an element of type \texttt{'a} and the rest of the list. The type parameter \texttt{'a} makes this list polymorphic, allowing lists of any type.
+
+With the list type defined, we can implement fundamental higher-order functions that operate over lists.
+
+\subsubsection{Map Function}
+
+The \texttt{map} function applies a function to each element of a list:
+
+\begin{verbatim}
+let rec map = fn f -> fn lst ->
+  case lst do
+  | Nil -> Nil
+  | Cons (h, t) -> Cons (f h, map f t)
+\end{verbatim}
+
+The type system infers the polymorphic type:
+\begin{center}
+\texttt{map : ('a -> 'b) -> List<'a> -> List<'b>}
+\end{center}
+
+This demonstrates parametric polymorphism: \texttt{map} works for any input type \texttt{'a} and output type \texttt{'b}, as long as the function \texttt{f} has type \texttt{'a -> 'b}.
+
+Example usage:
+\begin{verbatim}
+let double = fn x -> x * 2 in
+let numbers = Cons (1, Cons (2, Nil)) in
+map double numbers
+(* Result: Cons (2, Cons (4, Nil)) *)
+\end{verbatim}
+
+\subsubsection{Reduce Function}
+
+The \texttt{reduce} function (also known as fold) combines list elements using a binary operator:
+
+\begin{verbatim}
+let rec reduce = fn op -> fn acc -> fn lst ->
+  case lst do
+  | Nil -> acc
+  | Cons (h, t) -> reduce op (op acc h) t
+\end{verbatim}
+
+Inferred type: \texttt{reduce : ('b -> 'a -> 'b) -> 'b -> List<'a> -> 'b}
+
+The type signature shows that \texttt{reduce} can produce a result of a different type (\texttt{'b}) than the list elements (\texttt{'a}), demonstrating the power of polymorphic type inference.
+
+Example summing a list:
+\begin{verbatim}
+let add = fn x -> fn y -> x + y in
+let numbers = Cons (1, Cons (2, Nil)) in
+reduce add 0 numbers
+(* Result: 3 *)
+\end{verbatim}
+
+\subsection{Option Monad}
+
+The Option type represents computations that may fail, providing a type-safe alternative to null values. We define it as a sum type with two constructors:
+
+\begin{verbatim}
+type Option<'a> = 
+  | None 
+  | Some of 'a
+\end{verbatim}
+
+\texttt{None} represents absence of a value, while \texttt{Some} wraps a present value of type \texttt{'a}.
+
+\subsubsection{Monadic Bind Operation}
+
+The bind operation chains optional computations. In LambdaScript, we can define it as an operator:
+
+\begin{verbatim}
+let (>>=) = fn opt -> fn f ->
+  case opt do
+  | None -> None
+  | Some x -> f x
+\end{verbatim}
+
+Inferred type: \texttt{(>>=) : Option<'a> -> ('a -> Option<'b>) -> Option<'b>}
+
+This type signature is the hallmark of monadic bind: it takes an \texttt{Option<'a>}, a function from \texttt{'a} to \texttt{Option<'b>}, and produces \texttt{Option<'b>}. If the input is \texttt{None}, the computation short-circuits; otherwise, the function is applied to the unwrapped value.
+
+\subsubsection{Return Operation}
+
+The \texttt{return} operation (called \texttt{pure} in some languages) lifts a value into the Option context:
+
+\begin{verbatim}
+let return = fn x -> Some x
+\end{verbatim}
+
+Inferred type: \texttt{return : 'a -> Option<'a>}
+
+\subsubsection{Map for Option}
+
+Mapping a function over an optional value:
+
+\begin{verbatim}
+let map_opt = fn f -> fn opt ->
+  case opt do
+  | None -> None
+  | Some x -> Some (f x)
+\end{verbatim}
+
+Inferred type: \texttt{map\_opt : ('a -> 'b) -> Option<'a> -> Option<'b>}
+
+\subsubsection{Example: Safe Division}
+
+These operations enable safe computation chains. Consider safe division:
+
+\begin{verbatim}
+let safe_div = fn x -> fn y ->
+  if y == 0 then None
+  else Some (x / y)
+in
+
+let compute = fn x -> fn y -> fn z ->
+  (safe_div x y) >>= (fn result1 ->
+    (safe_div result1 z) >>= (fn result2 ->
+      return result2))
+in
+
+compute 100 10 2
+(* Result: Some 5 *)
+
+compute 100 0 2
+(* Result: None *)
+\end{verbatim}
+
+The first computation succeeds: $100 / 10 / 2 = 5$. The second short-circuits at division by zero, returning \texttt{None} without attempting the second division. This demonstrates how the Option monad handles errors compositionally through pattern matching and type safety, without exceptions or null pointer errors.
+
+These examples illustrate several key features of LambdaScript: algebraic data types enable clean data modeling, pattern matching provides exhaustive case analysis, parametric polymorphism allows generic code, and the type system infers complex types including higher-rank polymorphism in monadic operations.
+
 \end{document}

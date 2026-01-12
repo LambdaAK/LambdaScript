@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  12 JAN 2026 14:35
+This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  12 JAN 2026 14:41
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -273,6 +273,38 @@ Underfull \hbox (badness 1990) in paragraph at lines 45--46
  []
 
 
+Underfull \vbox (badness 4543) has occurred while \output is active []
+
+ [1{/Users/alex/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}
+
+
+]
+Overfull \hbox (18.0pt too wide) in paragraph at lines 105--105
+[]\OT1/pcr/m/n/10 let rec reduce = fn op -> fn acc -> fn lst ->[] 
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 107--108
+[]\OT1/ptm/m/n/10 Inferred type: \OT1/pcr/m/n/10 reduce : ('b -> 'a -> 'b) ->
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 142--143
+[]\OT1/ptm/m/n/10 Inferred type: \OT1/pcr/m/n/10 (>>=) : Option<'a> -> ('a ->
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 167--168
+[]\OT1/ptm/m/n/10 Inferred type: \OT1/pcr/m/n/10 map_opt : ('a -> 'b) ->
+ []
+
+
+Overfull \hbox (6.0pt too wide) in paragraph at lines 190--190
+[]    \OT1/pcr/m/n/10 (safe_div result1 z) >>= (fn result2 ->[] 
+ []
+
+[2]
+
 ** Conference Paper **
 Before submitting the final camera ready copy, remember to:
 
@@ -283,23 +315,22 @@ Before submitting the final camera ready copy, remember to:
  uses only Type 1 fonts and that every step in the generation
  process uses the appropriate paper size.
 
-[1{/Users/alex/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}
-
+[3
 
 ] (./lambdascript.aux) ) 
 Here is how much of TeX's memory you used:
- 3909 strings out of 478051
- 62373 string characters out of 5840003
- 1865330 words of memory out of 5000000
- 24011 multiletter control sequences out of 15000+600000
+ 3910 strings out of 478051
+ 62391 string characters out of 5840003
+ 1870330 words of memory out of 5000000
+ 24012 multiletter control sequences out of 15000+600000
  544975 words of font info for 91 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
  57i,8n,62p,918b,266s stack positions out of 10000i,1000n,20000p,200000b,200000s
-{/Users/alex/Library/TinyTeX/texmf-dist/fonts/enc/dvips/base/8r.enc}</Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmbi8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on lambdascript.pdf (1 page, 66042 bytes).
+{/Users/alex/Library/TinyTeX/texmf-dist/fonts/enc/dvips/base/8r.enc}</Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmbi8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
+Output written on lambdascript.pdf (3 pages, 102011 bytes).
 PDF statistics:
- 39 PDF objects out of 1000 (max. 8388607)
- 23 compressed objects within 1 object stream
+ 55 PDF objects out of 1000 (max. 8388607)
+ 33 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 
