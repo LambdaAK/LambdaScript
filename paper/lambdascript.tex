@@ -72,7 +72,7 @@ With the list type defined, we can implement fundamental higher-order functions 
 The \texttt{map} function applies a function to each element of a list:
 
 \begin{verbatim}
-let rec map = fn f -> fn lst ->
+let rec map f lst =
   case lst do
   | Nil -> Nil
   | Cons (h, t) -> Cons (f h, map f t)
@@ -98,7 +98,7 @@ map double numbers
 The \texttt{reduce} function (also known as fold) combines list elements using a binary operator:
 
 \begin{verbatim}
-let rec reduce = fn op -> fn acc -> fn lst ->
+let rec reduce op acc lst =
   case lst do
   | Nil -> acc
   | Cons (h, t) -> reduce op (op acc h) t
@@ -133,7 +133,7 @@ type Option<'a> =
 The bind operation chains optional computations. In LambdaScript, we can define it as an operator:
 
 \begin{verbatim}
-let (>>=) = fn opt -> fn f ->
+let (>>=) opt f =
   case opt do
   | None -> None
   | Some x -> f x
@@ -148,7 +148,7 @@ This type signature is the hallmark of monadic bind: it takes an \texttt{Option<
 The \texttt{return} operation (called \texttt{pure} in some languages) lifts a value into the Option context:
 
 \begin{verbatim}
-let return = fn x -> Some x
+let return x = Some x
 \end{verbatim}
 
 Inferred type: \texttt{return : 'a -> Option<'a>}
@@ -158,7 +158,7 @@ Inferred type: \texttt{return : 'a -> Option<'a>}
 Mapping a function over an optional value:
 
 \begin{verbatim}
-let map_opt = fn f -> fn opt ->
+let map_opt f opt =
   case opt do
   | None -> None
   | Some x -> Some (f x)
@@ -171,12 +171,12 @@ Inferred type: \texttt{map\_opt : ('a -> 'b) -> Option<'a> -> Option<'b>}
 These operations enable safe computation chains. Consider safe division:
 
 \begin{verbatim}
-let safe_div = fn x -> fn y ->
+let safe_div x y =
   if y == 0 then None
   else Some (x / y)
 in
 
-let compute = fn x -> fn y -> fn z ->
+let compute x y z =
   (safe_div x y) >>= (fn result1 ->
     (safe_div result1 z) >>= (fn result2 ->
       return result2))
@@ -192,5 +192,156 @@ compute 100 0 2
 The first computation succeeds: $100 / 10 / 2 = 5$. The second short-circuits at division by zero, returning \texttt{None} without attempting the second division. This demonstrates how the Option monad handles errors compositionally through pattern matching and type safety, without exceptions or null pointer errors.
 
 These examples illustrate several key features of LambdaScript: algebraic data types enable clean data modeling, pattern matching provides exhaustive case analysis, parametric polymorphism allows generic code, and the type system infers complex types including higher-rank polymorphism in monadic operations.
+
+\section{Type System}
+
+LambdaScript features a Hindley-Milner type system with support for parametric polymorphism, algebraic data types, and mutually recursive type definitions. The type system is both sound and complete: every well-typed program has a principal type, and type inference always succeeds when a valid typing exists.
+
+\subsection{Basic Types and Type Inference}
+
+LambdaScript includes primitive types (\texttt{int}, \texttt{float}, \texttt{bool}, \texttt{string}, \texttt{char}, \texttt{unit}), composite types (functions, lists, tuples), and user-defined algebraic data types. The type checker automatically infers types without requiring explicit annotations:
+
+\begin{verbatim}
+let x = 42
+(* Inferred: x : int *)
+
+let add x y = x + y
+(* Inferred: add : int -> int -> int *)
+
+let id x = x
+(* Inferred: id : 'a -> 'a *)
+\end{verbatim}
+
+The identity function \texttt{id} receives the polymorphic type \texttt{'a -> 'a}, where \texttt{'a} is a type variable that can be instantiated to any type. This demonstrates \textbf{let-polymorphism}: functions bound with \texttt{let} can be used at multiple types in different contexts.
+
+\subsection{Type Variables and Generalization}
+
+Type variables represent unknown types during inference. When a function is defined with \texttt{let}, the type checker \textbf{generalizes} over all unconstrained type variables, introducing universal quantifiers. Consider:
+
+\begin{verbatim}
+let compose f g x = f (g x)
+(* Type: ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c *)
+\end{verbatim}
+
+The type checker generates fresh type variables for \texttt{f}, \texttt{g}, and \texttt{x}, then analyzes the function application \texttt{f (g x)}:
+\begin{itemize}
+\item \texttt{g x} requires \texttt{g : 'a -> 'b} for some \texttt{'b}
+\item \texttt{f (g x)} requires \texttt{f : 'b -> 'c} for some \texttt{'c}
+\item The result has type \texttt{'c}
+\end{itemize}
+
+After constraint solving, the system generalizes to produce the most general type with three independent type variables.
+
+\subsection{Algebraic Data Types}
+
+Algebraic data types define new types using constructors. Each constructor may carry a payload:
+
+\begin{verbatim}
+type Result<'a, 'b> = 
+  | Ok of 'a
+  | Error of 'b
+\end{verbatim}
+
+When this definition is processed, the type checker:
+\begin{enumerate}
+\item Introduces \texttt{Result} as a new type constructor taking two type parameters
+\item Creates constructor types: \texttt{Ok : 'a -> Result<'a, 'b>} and \texttt{Error : 'b -> Result<'a, 'b>}
+\item Adds these constructors to the typing environment
+\end{enumerate}
+
+Users can then construct and match on values:
+
+\begin{verbatim}
+let safe_sqrt x =
+  if x < 0 then Error "negative"
+  else Ok (sqrt x)
+(* Type: int -> Result<float, string> *)
+
+let handle result =
+  case result do
+  | Ok v -> v
+  | Error msg -> 0.0
+(* Type: Result<float, 'a> -> float *)
+\end{verbatim}
+
+\subsection{Recursive Types}
+
+Recursive types reference themselves in their definition. LambdaScript uses \textbf{isorecursive} semantics with explicit \texttt{type rec} declarations:
+
+\begin{verbatim}
+type rec Tree<'a> = 
+  | Leaf of 'a
+  | Node of ('a, Tree<'a>, Tree<'a>)
+\end{verbatim}
+
+Internally, this is represented as a fixed-point type $\mu$\texttt{Tree}. The type checker ensures that:
+\begin{itemize}
+\item Each recursive occurrence is properly parameterized
+\item Constructor payloads are type-checked in an environment containing the recursive type
+\item Pattern matching correctly unfolds the recursive type
+\end{itemize}
+
+Example usage demonstrates automatic type inference through recursive structures:
+
+\begin{verbatim}
+let rec height tree =
+  case tree do
+  | Leaf _ -> 1
+  | Node (_, l, r) -> 
+      1 + (if height l > height r 
+           then height l else height r)
+(* Type: Tree<'a> -> int *)
+\end{verbatim}
+
+\subsection{Mutually Recursive Types}
+
+A key contribution of LambdaScript is clean support for mutually recursive type definitions using the \texttt{and} keyword. Multiple types can reference each other:
+
+\begin{verbatim}
+type rec Tree<'a> = 
+  | Leaf of 'a 
+  | Node of ('a, Forest<'a>)
+and Forest<'a> = 
+  | Empty 
+  | Trees of (Tree<'a>, Forest<'a>)
+\end{verbatim}
+
+The type checker processes mutually recursive types by:
+\begin{enumerate}
+\item Adding all type names to the environment simultaneously before processing any constructors
+\item Type-checking each constructor's payload in the extended environment
+\item Ensuring all type parameters are consistently applied across mutual references
+\item Verifying that cycles are properly guarded by constructors (no infinite types)
+\end{enumerate}
+
+This enables natural expression of complex data structures:
+
+\begin{verbatim}
+let rec tree_size t =
+  case t do
+  | Leaf _ -> 1
+  | Node (_, forest) -> 1 + forest_size forest
+and forest_size f =
+  case f do
+  | Empty -> 0
+  | Trees (t, rest) -> 
+      tree_size t + forest_size rest
+(* tree_size : Tree<'a> -> int
+   forest_size : Forest<'a> -> int *)
+\end{verbatim}
+
+The implementation extends the standard Hindley-Milner unification algorithm to handle fixed-point types and ensures that type variable substitutions propagate correctly across the mutual recursion group.
+
+\subsection{Type Annotations}
+
+While type inference eliminates most annotations, LambdaScript allows optional type annotations for documentation and disambiguation:
+
+\begin{verbatim}
+let f (x: int) : int = x + 1
+
+let g (x: int) : int = x * 2
+\end{verbatim}
+
+Type annotations are checked for consistency with inferred types. If an annotation conflicts with the inferred type, the type checker reports an error.
 
 \end{document}

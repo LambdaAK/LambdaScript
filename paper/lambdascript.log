@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  12 JAN 2026 14:41
+This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  12 JAN 2026 14:45
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -279,11 +279,6 @@ Underfull \vbox (badness 4543) has occurred while \output is active []
 
 
 ]
-Overfull \hbox (18.0pt too wide) in paragraph at lines 105--105
-[]\OT1/pcr/m/n/10 let rec reduce = fn op -> fn acc -> fn lst ->[] 
- []
-
-
 Underfull \hbox (badness 10000) in paragraph at lines 107--108
 []\OT1/ptm/m/n/10 Inferred type: \OT1/pcr/m/n/10 reduce : ('b -> 'a -> 'b) ->
  []
@@ -304,6 +299,35 @@ Overfull \hbox (6.0pt too wide) in paragraph at lines 190--190
  []
 
 [2]
+Underfull \hbox (badness 2126) in paragraph at lines 202--203
+[]\OT1/ptm/m/n/10 LambdaScript in-cludes prim-i-tive types (\OT1/pcr/m/n/10 int\OT1/ptm/m/n/10 , \OT1/pcr/m/n/10 float\OT1/ptm/m/n/10 ,
+ []
+
+
+Overfull \hbox (36.0pt too wide) in paragraph at lines 224--224
+[]\OT1/pcr/m/n/10 (* Type: ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c *)[] 
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 248--249
+[]\OT1/ptm/m/n/10 Creates con-struc-tor types: \OT1/pcr/m/n/10 Ok : 'a ->
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 248--249
+\OT1/pcr/m/n/10 Result<'a, 'b> \OT1/ptm/m/n/10 and \OT1/pcr/m/n/10 Error : 'b ->
+ []
+
+
+Underfull \hbox (badness 1769) in paragraph at lines 284--285
+[]\OT1/ptm/m/n/10 Example us-age demon-strates au-to-matic type in-fer-ence
+ []
+
+[3]
+Overfull \hbox (24.0pt too wide) in paragraph at lines 331--331
+[]  \OT1/pcr/m/n/10 | Node (_, forest) -> 1 + forest_size forest[] 
+ []
+
 
 ** Conference Paper **
 Before submitting the final camera ready copy, remember to:
@@ -315,22 +339,22 @@ Before submitting the final camera ready copy, remember to:
  uses only Type 1 fonts and that every step in the generation
  process uses the appropriate paper size.
 
-[3
+[4
 
 ] (./lambdascript.aux) ) 
 Here is how much of TeX's memory you used:
  3910 strings out of 478051
  62391 string characters out of 5840003
- 1870330 words of memory out of 5000000
+ 1869330 words of memory out of 5000000
  24012 multiletter control sequences out of 15000+600000
  544975 words of font info for 91 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
  57i,8n,62p,918b,266s stack positions out of 10000i,1000n,20000p,200000b,200000s
 {/Users/alex/Library/TinyTeX/texmf-dist/fonts/enc/dvips/base/8r.enc}</Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmbi8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on lambdascript.pdf (3 pages, 102011 bytes).
+Output written on lambdascript.pdf (4 pages, 109510 bytes).
 PDF statistics:
- 55 PDF objects out of 1000 (max. 8388607)
- 33 compressed objects within 1 object stream
+ 58 PDF objects out of 1000 (max. 8388607)
+ 35 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 
