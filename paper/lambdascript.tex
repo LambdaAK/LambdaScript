@@ -344,4 +344,24 @@ let g (x: int) : int = x * 2
 
 Type annotations are checked for consistency with inferred types. If an annotation conflicts with the inferred type, the type checker reports an error.
 
+\section{Formal Semantics}
+
+\subsection{Overview}
+
+We now present the formal semantics of LambdaScript, providing a rigorous mathematical foundation for both the type system and runtime behavior. Formal semantics serve multiple purposes: they enable precise reasoning about program behavior, provide unambiguous specifications for implementers, and allow formal verification of type soundness and other properties.
+
+Our semantic framework consists of two complementary components:
+
+\textbf{Static Semantics} defines the type system through typing judgments of the form $\Gamma \vdash e : \tau$, read as ``under type environment $\Gamma$, expression $e$ has type $\tau$.'' The static semantics specify when programs are well-typed and determine the principal types of expressions through constraint-based type inference. We formalize the Hindley-Milner algorithm, including constraint generation, unification, and generalization. Special attention is given to the treatment of algebraic data types and mutually recursive type definitions, which require careful handling of type environments and fixed-point types.
+
+\textbf{Dynamic Semantics} defines program evaluation through operational semantics. We use large-step (natural) operational semantics with evaluation judgments of the form $\langle e, \rho \rangle \Downarrow v$, indicating that expression $e$ in environment $\rho$ evaluates to value $v$. Large-step semantics directly relate expressions to their final values, making the evaluation rules more intuitive and closely aligned with the implementation. The dynamic semantics specify how values are computed, how functions are applied, how pattern matching proceeds, and how recursion is handled through environment-based closure semantics.
+
+The static and dynamic semantics are designed to satisfy \textbf{type soundness}: well-typed programs do not get stuck during evaluation. This is formalized through the type preservation theorem: if $\Gamma \vdash e : \tau$ and $\langle e, \rho \rangle \Downarrow v$, then $v$ has type $\tau$. While we do not provide complete proofs here, the semantics are structured to facilitate such proofs.
+
+We adopt standard mathematical notation: $\Gamma$ denotes type environments mapping variables to types, $\rho$ denotes value environments mapping variables to values, and $\tau$ ranges over types. Substitutions are written $[\tau'/\alpha]\tau$ for replacing type variable $\alpha$ with type $\tau'$ in type $\tau$. Function types are written $\tau_1 \rightarrow \tau_2$, list types as $[\tau]$, and tuple types as $(\tau_1, \tau_2, \ldots, \tau_n)$.
+
+\subsection{Static Semantics}
+
+\subsection{Dynamic Semantics}
+
 \end{document}
