@@ -364,4 +364,59 @@ We adopt standard mathematical notation: $\Gamma$ denotes type environments mapp
 
 \subsection{Dynamic Semantics}
 
+\subsubsection{Notation}
+
+We employ the following notation for dynamic semantics:
+
+\textbf{Syntactic Categories:}
+\begin{itemize}
+\item $e$ ranges over expressions
+\item $v$ ranges over values
+\item $p$ ranges over patterns
+\item $x$ ranges over variables
+\item $n$ ranges over integer literals
+\item $b$ ranges over boolean literals (\texttt{true}, \texttt{false})
+\item $C$ ranges over constructors
+\end{itemize}
+
+\textbf{Values:}
+Values are the results of evaluation and include:
+\begin{itemize}
+\item Integer values: $n$
+\item Boolean values: $b$
+\item Unit value: $()$
+\item String values: $s$
+\item List values: $[]$ (empty list), $v_1 :: v_2$ (cons)
+\item Tuple values: $(v_1, v_2, \ldots, v_n)$
+\item Closure values: $\langle \lambda x.e, \rho \rangle$ representing a function with parameter $x$, body $e$, and captured environment $\rho$
+\item Constructor values: $C(v)$ representing algebraic data type constructors applied to values
+\end{itemize}
+
+\textbf{Environments:}
+$\rho$ denotes value environments, which are finite maps from variables to values, written as $\{x_1 \mapsto v_1, \ldots, x_n \mapsto v_n\}$. We write:
+\begin{itemize}
+\item $\rho(x)$ for environment lookup, returning the value bound to $x$
+\item $\rho[x \mapsto v]$ for environment extension, binding $x$ to $v$
+\item $\emptyset$ for the empty environment
+\item $\rho_1 + \rho_2$ for environment union (right-biased: $\rho_2$ shadows $\rho_1$)
+\end{itemize}
+
+\textbf{Evaluation Judgment:}
+The primary judgment form is:
+$$\langle e, \rho \rangle \Downarrow v$$
+read as ``expression $e$ evaluates to value $v$ in environment $\rho$.''
+
+\textbf{Pattern Matching:}
+Pattern matching produces bindings from patterns and values. We write:
+$$\texttt{match}(p, v) = \rho$$
+to indicate that pattern $p$ successfully matches value $v$, producing environment $\rho$ containing the bindings. If matching fails, we write $\texttt{match}(p, v) = \bot$ (failure).
+
+\textbf{Auxiliary Notation:}
+\begin{itemize}
+\item $\{e_i\}_{i=1}^{n}$ denotes a sequence of expressions $e_1, \ldots, e_n$
+\item $\{v_i\}_{i=1}^{n}$ denotes a sequence of values $v_1, \ldots, v_n$
+\item Inference rules are written with premises above the line and conclusion below
+\item Side conditions are written to the right of rules when necessary
+\end{itemize}
+
 \end{document}
