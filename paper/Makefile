@@ -1,7 +1,7 @@
 # Makefile for LaTeX compilation
 
 # Main document name (without .tex extension)
-MAIN = conference_101719
+MAIN = lambdascript
 
 # LaTeX compiler
 LATEX = pdflatex
