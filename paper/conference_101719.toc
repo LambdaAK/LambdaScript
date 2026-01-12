@@ -1,0 +1,47 @@
+\contentsline {section}{\numberline {I}Introduction}{1}{}%
+\contentsline {section}{\numberline {II}Language Overview}{2}{}%
+\contentsline {subsection}{\numberline {\mbox {II-A}}Core Features}{2}{}%
+\contentsline {subsubsection}{\numberline {\mbox {II-A}1}Type System}{2}{}%
+\contentsline {subsubsection}{\numberline {\mbox {II-A}2}Expressions}{2}{}%
+\contentsline {subsubsection}{\numberline {\mbox {II-A}3}Example Program}{2}{}%
+\contentsline {section}{\numberline {III}Formal Semantics}{2}{}%
+\contentsline {subsection}{\numberline {\mbox {III-A}}Syntax}{2}{}%
+\contentsline {subsection}{\numberline {\mbox {III-B}}Type System}{2}{}%
+\contentsline {subsubsection}{\numberline {\mbox {III-B}1}Type Inference Algorithm}{2}{}%
+\contentsline {subsubsection}{\numberline {\mbox {III-B}2}Type Relations}{2}{}%
+\contentsline {subsubsection}{\numberline {\mbox {III-B}3}Polymorphism}{2}{}%
+\contentsline {subsection}{\numberline {\mbox {III-C}}Operational Semantics}{2}{}%
+\contentsline {subsubsection}{\numberline {\mbox {III-C}1}Small-Step Semantics}{2}{}%
+\contentsline {subsubsection}{\numberline {\mbox {III-C}2}Values and Closures}{2}{}%
+\contentsline {subsection}{\numberline {\mbox {III-D}}Algebraic Data Types}{2}{}%
+\contentsline {subsubsection}{\numberline {\mbox {III-D}1}Type Definitions}{2}{}%
+\contentsline {subsubsection}{\numberline {\mbox {III-D}2}Recursive Types}{2}{}%
+\contentsline {subsubsection}{\numberline {\mbox {III-D}3}Mutually Recursive Types}{2}{}%
+\contentsline {subsection}{\numberline {\mbox {III-E}}Pattern Matching}{2}{}%
+\contentsline {subsubsection}{\numberline {\mbox {III-E}1}Pattern Syntax}{2}{}%
+\contentsline {subsubsection}{\numberline {\mbox {III-E}2}Exhaustiveness Checking}{2}{}%
+\contentsline {section}{\numberline {IV}Implementation}{2}{}%
+\contentsline {subsection}{\numberline {\mbox {IV-A}}Architecture Overview}{2}{}%
+\contentsline {subsection}{\numberline {\mbox {IV-B}}Lexical Analysis}{3}{}%
+\contentsline {subsection}{\numberline {\mbox {IV-C}}Parsing}{3}{}%
+\contentsline {subsection}{\numberline {\mbox {IV-D}}Type Checking Implementation}{3}{}%
+\contentsline {subsubsection}{\numberline {\mbox {IV-D}1}Constraint Generation}{3}{}%
+\contentsline {subsubsection}{\numberline {\mbox {IV-D}2}Unification}{3}{}%
+\contentsline {subsubsection}{\numberline {\mbox {IV-D}3}Generalization and Instantiation}{3}{}%
+\contentsline {subsection}{\numberline {\mbox {IV-E}}Evaluation}{3}{}%
+\contentsline {subsubsection}{\numberline {\mbox {IV-E}1}Environment Model}{3}{}%
+\contentsline {subsubsection}{\numberline {\mbox {IV-E}2}Recursive Functions}{3}{}%
+\contentsline {subsubsection}{\numberline {\mbox {IV-E}3}Mutually Recursive Definitions}{3}{}%
+\contentsline {subsection}{\numberline {\mbox {IV-F}}Built-in Functions}{3}{}%
+\contentsline {subsection}{\numberline {\mbox {IV-G}}Advanced Features}{3}{}%
+\contentsline {subsubsection}{\numberline {\mbox {IV-G}1}List Comprehensions}{3}{}%
+\contentsline {subsubsection}{\numberline {\mbox {IV-G}2}Operators as First-Class Values}{3}{}%
+\contentsline {section}{\numberline {V}Case Study: Red-Black Trees}{3}{}%
+\contentsline {section}{\numberline {VI}Evaluation and Testing}{3}{}%
+\contentsline {subsection}{\numberline {\mbox {VI-A}}Test Suite}{3}{}%
+\contentsline {subsection}{\numberline {\mbox {VI-B}}Code Coverage}{3}{}%
+\contentsline {subsection}{\numberline {\mbox {VI-C}}Performance Characteristics}{3}{}%
+\contentsline {section}{\numberline {VII}Related Work}{3}{}%
+\contentsline {section}{\numberline {VIII}Future Work}{4}{}%
+\contentsline {section}{\numberline {IX}Conclusion}{4}{}%
+\contentsline {section}{References}{4}{}%
