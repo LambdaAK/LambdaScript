@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  16 JAN 2026 15:38
+This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  16 JAN 2026 15:49
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -20,6 +20,7 @@ LaTeX Font Info:    Trying to load font information for OT1+ptm on input line 50
 (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/psnfss/ot1ptm.fd
 File: ot1ptm.fd 2001/06/04 font definitions for OT1/ptm.
 )
+** ATTENTION: Single column mode is not typically used with IEEE publications.
 -- Using 8.5in x 11in (letter) paper.
 -- Using PDF output.
 \@IEEEnormalsizeunitybaselineskip=\dimen143
@@ -267,93 +268,7 @@ File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 LaTeX Font Info:    Trying to load font information for U+msb on input line 44.
  (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
-)
-Underfull \hbox (badness 1990) in paragraph at lines 45--46
-[]\OT1/ptm/m/n/10 A com-plete im-ple-men-ta-tion ar-chi-tec-ture demon-strat-
- []
-
-
-Underfull \vbox (badness 4543) has occurred while \output is active []
-
- [1{/Users/alex/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}
-
-
-]
-Underfull \hbox (badness 10000) in paragraph at lines 107--108
-[]\OT1/ptm/m/n/10 Inferred type: \OT1/pcr/m/n/10 reduce : ('b -> 'a -> 'b) ->
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 142--143
-[]\OT1/ptm/m/n/10 Inferred type: \OT1/pcr/m/n/10 (>>=) : Option<'a> -> ('a ->
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 167--168
-[]\OT1/ptm/m/n/10 Inferred type: \OT1/pcr/m/n/10 map_opt : ('a -> 'b) ->
- []
-
-
-Overfull \hbox (6.0pt too wide) in paragraph at lines 190--190
-[]    \OT1/pcr/m/n/10 (safe_div result1 z) >>= (fn result2 ->[] 
- []
-
-[2]
-Underfull \hbox (badness 2126) in paragraph at lines 202--203
-[]\OT1/ptm/m/n/10 LambdaScript in-cludes prim-i-tive types (\OT1/pcr/m/n/10 int\OT1/ptm/m/n/10 , \OT1/pcr/m/n/10 float\OT1/ptm/m/n/10 ,
- []
-
-
-Overfull \hbox (36.0pt too wide) in paragraph at lines 224--224
-[]\OT1/pcr/m/n/10 (* Type: ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c *)[] 
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 248--249
-[]\OT1/ptm/m/n/10 Creates con-struc-tor types: \OT1/pcr/m/n/10 Ok : 'a ->
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 248--249
-\OT1/pcr/m/n/10 Result<'a, 'b> \OT1/ptm/m/n/10 and \OT1/pcr/m/n/10 Error : 'b ->
- []
-
-
-Underfull \hbox (badness 1769) in paragraph at lines 284--285
-[]\OT1/ptm/m/n/10 Example us-age demon-strates au-to-matic type in-fer-ence
- []
-
-[3]
-Overfull \hbox (24.0pt too wide) in paragraph at lines 331--331
-[]  \OT1/pcr/m/n/10 | Node (_, forest) -> 1 + forest_size forest[] 
- []
-
-[4] [5]
-Overfull \hbox (72.78595pt too wide) detected at line 518
-[]
- []
-
-
-Overfull \hbox (22.51387pt too wide) detected at line 528
-[]
- []
-
-
-Underfull \hbox (badness 7851) in paragraph at lines 568--569
- \OT1/ptm/m/it/10 3) Pat-tern Match-ing Rules: [][] \OT1/ptm/m/n/10 The aux-il-iary func-tion
- []
-
-
-Overfull \hbox (54.45355pt too wide) detected at line 593
-[]\OT1/cmr/m/n/10 ((\OML/cmm/m/it/10 p[]; [] ; p[]\OT1/cmr/m/n/10 )\OML/cmm/m/it/10 ; \OT1/cmr/m/n/10 (\OML/cmm/m/it/10 v[]; [] ; v[]\OT1/cmr/m/n/10 )) = [](\OML/cmm/m/it/10 p[]; v[]\OT1/cmr/m/n/10 ) + [] + [](\OML/cmm/m/it/10 p[]; v[]\OT1/cmr/m/n/10 )
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 620--621
-[]\OT1/ptm/m/n/10 Evaluating \OT1/pcr/m/n/10 case [1, 2] do | [] -> 0 | h ::
- []
-
-[6]
+) [1{/Users/alex/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}] [2] [3] [4] [5] [6] [7] [8] [9] [10] [11] [12]
 
 ** Conference Paper **
 Before submitting the final camera ready copy, remember to:
@@ -365,22 +280,20 @@ Before submitting the final camera ready copy, remember to:
  uses only Type 1 fonts and that every step in the generation
  process uses the appropriate paper size.
 
-[7
-
-] (./lambdascript.aux) ) 
+[13] (./lambdascript.aux) ) 
 Here is how much of TeX's memory you used:
  3912 strings out of 478051
- 62417 string characters out of 5840003
- 1880330 words of memory out of 5000000
+ 62416 string characters out of 5840003
+ 1871330 words of memory out of 5000000
  24014 multiletter control sequences out of 15000+600000
- 545407 words of font info for 93 fonts, out of 8000000 for 9000
+ 545389 words of font info for 93 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 57i,11n,62p,918b,266s stack positions out of 10000i,1000n,20000p,200000b,200000s
-{/Users/alex/Library/TinyTeX/texmf-dist/fonts/enc/dvips/base/8r.enc}</Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmbi8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on lambdascript.pdf (7 pages, 160338 bytes).
+ 57i,14n,62p,937b,196s stack positions out of 10000i,1000n,20000p,200000b,200000s
+{/Users/alex/Library/TinyTeX/texmf-dist/fonts/enc/dvips/base/8r.enc}</Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
+Output written on lambdascript.pdf (13 pages, 171854 bytes).
 PDF statistics:
- 84 PDF objects out of 1000 (max. 8388607)
- 52 compressed objects within 1 object stream
+ 103 PDF objects out of 1000 (max. 8388607)
+ 65 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 

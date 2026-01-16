@@ -1,4 +1,4 @@
-\documentclass[conference]{IEEEtran}
+\documentclass[conference,onecolumn]{IEEEtran}
 \IEEEoverridecommandlockouts
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
@@ -431,6 +431,256 @@ The static and dynamic semantics are designed to satisfy \textbf{type soundness}
 We adopt standard mathematical notation: $\Gamma$ denotes type environments mapping variables to types, $\rho$ denotes value environments mapping variables to values, and $\tau$ ranges over types. Substitutions are written $[\tau'/\alpha]\tau$ for replacing type variable $\alpha$ with type $\tau'$ in type $\tau$. Function types are written $\tau_1 \rightarrow \tau_2$, list types as $[\tau]$, and tuple types as $(\tau_1, \tau_2, \ldots, \tau_n)$.
 
 \subsection{Static Semantics}
+
+The static semantics of LambdaScript defines a type system based on the Hindley-Milner approach with extensions for algebraic data types and mutually recursive type definitions. We present typing rules, constraint generation, unification, and generalization.
+
+\subsubsection{Notation and Definitions}
+
+\textbf{Types and Type Schemes:}
+
+Types $\tau$ are classified as:
+\begin{itemize}
+\item Primitive types: \texttt{int}, \texttt{bool}, \texttt{string}, \texttt{char}, \texttt{unit}
+\item Type variables: $\alpha, \beta, \gamma, \ldots$
+\item Function types: $\tau_1 \to \tau_2$
+\item List types: $[\tau]$
+\item Tuple types: $(\tau_1, \ldots, \tau_n)$
+\item Algebraic data types: $T\langle\tau_1, \ldots, \tau_n\rangle$
+\item Recursive types: $\mu T.\tau$
+\end{itemize}
+
+Type schemes $\sigma$ extend types with universal quantification:
+$$\sigma ::= \tau \mid \forall \alpha.\sigma$$
+
+\textbf{Type Environments:}
+
+A type environment $\Gamma$ is a finite map from variables to type schemes, written $\{x_1 : \sigma_1, \ldots, x_n : \sigma_n\}$. We write:
+\begin{itemize}
+\item $\Gamma(x)$ for environment lookup
+\item $\Gamma, x : \sigma$ for environment extension
+\item $\emptyset$ for the empty environment
+\item $FV(\Gamma)$ for the set of free type variables in $\Gamma$
+\item $FV(\tau)$ for the set of free type variables in $\tau$
+\end{itemize}
+
+\textbf{Substitutions:}
+
+A type substitution $S$ is a finite map from type variables to types, written $[\tau_1/\alpha_1, \ldots, \tau_n/\alpha_n]$. We write:
+\begin{itemize}
+\item $S(\tau)$ for applying substitution $S$ to type $\tau$
+\item $S(\Gamma)$ for applying substitution to all types in $\Gamma$
+\item $S_2 \circ S_1$ for composition: $(S_2 \circ S_1)(\tau) = S_2(S_1(\tau))$
+\item $\texttt{id}$ for the identity substitution
+\end{itemize}
+
+\textbf{Typing Judgment:}
+
+The primary judgment form is:
+$$\Gamma \vdash e : \tau$$
+read as ``under type environment $\Gamma$, expression $e$ has type $\tau$.''
+
+\textbf{Generalization and Instantiation:}
+
+Generalization introduces universal quantifiers:
+$$\text{gen}(\Gamma, \tau) = \forall \{\alpha_1, \ldots, \alpha_n\}.\tau$$
+where $\{\alpha_1, \ldots, \alpha_n\} = FV(\tau) \setminus FV(\Gamma)$.
+
+Instantiation removes universal quantifiers by substituting fresh type variables:
+$$\text{inst}(\forall \alpha.\sigma) = \sigma[\beta/\alpha]$$
+where $\beta$ is fresh. For non-quantified types: $\text{inst}(\tau) = \tau$.
+
+\subsubsection{Typing Rules}
+
+We present the typing rules for all LambdaScript expressions.
+
+\textbf{Literals:}
+
+$$\frac{}{\Gamma \vdash n : \texttt{int}}
+\quad
+\frac{}{\Gamma \vdash b : \texttt{bool}}
+\quad
+\frac{}{\Gamma \vdash s : \texttt{string}}
+\quad
+\frac{}{\Gamma \vdash c : \texttt{char}}
+\quad
+\frac{}{\Gamma \vdash () : \texttt{unit}}$$
+
+\textbf{Variables:}
+
+$$\frac{x : \sigma \in \Gamma \quad \tau = \text{inst}(\sigma)}{\Gamma \vdash x : \tau}$$
+
+Variables are looked up in the environment and their type schemes are instantiated with fresh type variables.
+
+\textbf{Functions:}
+
+$$\frac{\Gamma, x : \tau_1 \vdash e : \tau_2}{\Gamma \vdash \texttt{fn} \; x \; \texttt{->} \; e : \tau_1 \to \tau_2}$$
+
+For pattern-based functions:
+$$\frac{p : \tau_1 \leadsto \Gamma' \quad \Gamma, \Gamma' \vdash e : \tau_2}{\Gamma \vdash \texttt{fn} \; p \; \texttt{->} \; e : \tau_1 \to \tau_2}$$
+
+where $p : \tau \leadsto \Gamma'$ means pattern $p$ matches values of type $\tau$ and produces bindings $\Gamma'$.
+
+\textbf{Application:}
+
+$$\frac{\Gamma \vdash e_1 : \tau_1 \to \tau_2 \quad \Gamma \vdash e_2 : \tau_1}{\Gamma \vdash e_1 \; e_2 : \tau_2}$$
+
+\textbf{Let Binding (Polymorphic):}
+
+$$\frac{\Gamma \vdash e_1 : \tau_1 \quad \Gamma, x : \text{gen}(\Gamma, \tau_1) \vdash e_2 : \tau_2}{\Gamma \vdash \texttt{let} \; x = e_1 \; \texttt{in} \; e_2 : \tau_2}$$
+
+Let-bound variables are generalized, allowing polymorphic usage in $e_2$.
+
+\textbf{Recursive Let Binding:}
+
+$$\frac{\Gamma, f : \tau_1 \to \tau_2 \vdash \texttt{fn} \; x \; \texttt{->} \; e_1 : \tau_1 \to \tau_2 \quad \Gamma, f : \forall \{\alpha\}.(\tau_1 \to \tau_2) \vdash e_2 : \tau}{\Gamma \vdash \texttt{let rec} \; f \; x = e_1 \; \texttt{in} \; e_2 : \tau}$$
+
+The recursive function $f$ is available in its own body with a monomorphic type, then generalized for use in $e_2$.
+
+\textbf{Conditional:}
+
+$$\frac{\Gamma \vdash e_1 : \texttt{bool} \quad \Gamma \vdash e_2 : \tau \quad \Gamma \vdash e_3 : \tau}{\Gamma \vdash \texttt{if} \; e_1 \; \texttt{then} \; e_2 \; \texttt{else} \; e_3 : \tau}$$
+
+Both branches must have the same type.
+
+\textbf{Pattern Matching:}
+
+$$\frac{\Gamma \vdash e : \tau \quad \forall i.\; p_i : \tau \leadsto \Gamma_i \quad \Gamma, \Gamma_i \vdash e_i : \tau'}{\Gamma \vdash \texttt{case} \; e \; \texttt{do} \; \{p_i \to e_i\}^n_{i=1} : \tau'}$$
+
+All patterns must match the scrutinee type, and all branches must have the same result type.
+
+\textbf{Lists:}
+
+$$\frac{}{\Gamma \vdash [] : [\alpha]}
+\quad
+\frac{\Gamma \vdash e_1 : \tau \quad \Gamma \vdash e_2 : [\tau]}{\Gamma \vdash e_1 :: e_2 : [\tau]}$$
+
+Empty lists are polymorphic; cons requires consistent element types.
+
+\textbf{Tuples:}
+
+$$\frac{\Gamma \vdash e_1 : \tau_1 \quad \cdots \quad \Gamma \vdash e_n : \tau_n}{\Gamma \vdash (e_1, \ldots, e_n) : (\tau_1, \ldots, \tau_n)}$$
+
+\textbf{Constructors:}
+
+For a constructor $C : \tau \to T\langle\alpha_1, \ldots, \alpha_n\rangle$ in the environment:
+
+$$\frac{}{\Gamma \vdash C : \tau[\tau_1/\alpha_1, \ldots, \tau_n/\alpha_n] \to T\langle\tau_1, \ldots, \tau_n\rangle}$$
+
+$$\frac{\Gamma \vdash e : \tau}{\Gamma \vdash C \; e : T\langle\ldots\rangle}$$
+
+Constructors are instantiated with fresh type variables when used.
+
+\textbf{Binary Operators:}
+
+$$\frac{\Gamma \vdash e_1 : \texttt{int} \quad \Gamma \vdash e_2 : \texttt{int}}{\Gamma \vdash e_1 \; \texttt{+} \; e_2 : \texttt{int}}$$
+
+Similar rules apply for other arithmetic operators (\texttt{-}, \texttt{*}, \texttt{/}, \texttt{\%}).
+
+$$\frac{\Gamma \vdash e_1 : \tau \quad \Gamma \vdash e_2 : \tau}{\Gamma \vdash e_1 \; \texttt{==} \; e_2 : \texttt{bool}}$$
+
+Comparison operators require both operands to have the same type.
+
+$$\frac{\Gamma \vdash e_1 : \texttt{bool} \quad \Gamma \vdash e_2 : \texttt{bool}}{\Gamma \vdash e_1 \; \texttt{\&\&} \; e_2 : \texttt{bool}}$$
+
+Logical operators require boolean operands.
+
+\subsubsection{Pattern Typing}
+
+Pattern typing judgments have the form $p : \tau \leadsto \Gamma$, indicating that pattern $p$ matches values of type $\tau$ and produces bindings $\Gamma$.
+
+\textbf{Variable Pattern:}
+$$x : \tau \leadsto \{x : \tau\}$$
+
+\textbf{Wildcard Pattern:}
+$$\_ : \tau \leadsto \emptyset$$
+
+\textbf{Literal Patterns:}
+$$n : \texttt{int} \leadsto \emptyset
+\quad
+b : \texttt{bool} \leadsto \emptyset
+\quad
+() : \texttt{unit} \leadsto \emptyset$$
+
+\textbf{List Patterns:}
+$$[] : [\alpha] \leadsto \emptyset$$
+
+$$\frac{p_1 : \tau \leadsto \Gamma_1 \quad p_2 : [\tau] \leadsto \Gamma_2}{p_1 :: p_2 : [\tau] \leadsto \Gamma_1 \cup \Gamma_2}$$
+
+\textbf{Tuple Patterns:}
+$$\frac{p_1 : \tau_1 \leadsto \Gamma_1 \quad \cdots \quad p_n : \tau_n \leadsto \Gamma_n}{(p_1, \ldots, p_n) : (\tau_1, \ldots, \tau_n) \leadsto \Gamma_1 \cup \cdots \cup \Gamma_n}$$
+
+\textbf{Constructor Patterns:}
+$$C : T\langle\tau_1, \ldots, \tau_n\rangle \leadsto \emptyset$$
+
+$$\frac{p : \tau \leadsto \Gamma}{C \; p : T\langle\ldots\rangle \leadsto \Gamma}$$
+
+where $C$ has type $\tau \to T\langle\ldots\rangle$.
+
+\subsubsection{Constraint-Based Type Inference}
+
+LambdaScript implements type inference using constraint generation and unification, following Algorithm W.
+
+\textbf{Constraint Generation:}
+
+The function $\mathcal{C}(\Gamma, e)$ generates a pair $(\tau, C)$ where $\tau$ is the inferred type (possibly containing fresh type variables) and $C$ is a set of type equality constraints.
+
+\textit{Examples:}
+
+\begin{align*}
+\mathcal{C}(\Gamma, n) &= (\texttt{int}, \emptyset) \\
+\mathcal{C}(\Gamma, x) &= (\text{inst}(\Gamma(x)), \emptyset) \\
+\mathcal{C}(\Gamma, e_1 \; e_2) &= (\beta, C_1 \cup C_2 \cup \{(\tau_1, \tau_2 \to \beta)\})
+\end{align*}
+
+where $(\tau_1, C_1) = \mathcal{C}(\Gamma, e_1)$, $(\tau_2, C_2) = \mathcal{C}(\Gamma, e_2)$, and $\beta$ is fresh.
+
+\begin{align*}
+\mathcal{C}(\Gamma, \texttt{fn} \; x \; \texttt{->} \; e) &= (\alpha \to \tau, C)
+\end{align*}
+
+where $\alpha$ is fresh, $(\tau, C) = \mathcal{C}(\Gamma \cup \{x : \alpha\}, e)$.
+
+\begin{align*}
+\mathcal{C}(\Gamma, \texttt{if} \; e_1 \; \texttt{then} \; e_2 \; \texttt{else} \; e_3) &= (\tau_2, C_1 \cup C_2 \cup C_3 \cup \{(\tau_1, \texttt{bool}), (\tau_2, \tau_3)\})
+\end{align*}
+
+where $(\tau_i, C_i) = \mathcal{C}(\Gamma, e_i)$.
+
+\textbf{Unification:}
+
+The unification algorithm $\mathcal{U}(C)$ takes a set of constraints and computes a most general unifier (MGU), a substitution $S$ satisfying all constraints.
+
+\textit{Unification rules:}
+
+\begin{align*}
+\mathcal{U}(\emptyset) &= \texttt{id} \\
+\mathcal{U}(\{(\tau, \tau)\} \cup C) &= \mathcal{U}(C) \\
+\mathcal{U}(\{(\alpha, \tau)\} \cup C) &= [\tau/\alpha] \circ \mathcal{U}([\tau/\alpha]C) \quad \text{if } \alpha \notin FV(\tau) \\
+\mathcal{U}(\{(\tau, \alpha)\} \cup C) &= [\tau/\alpha] \circ \mathcal{U}([\tau/\alpha]C) \quad \text{if } \alpha \notin FV(\tau) \\
+\mathcal{U}(\{(\tau_1 \to \tau_2, \tau'_1 \to \tau'_2)\} \cup C) &= \mathcal{U}(\{(\tau_1, \tau'_1), (\tau_2, \tau'_2)\} \cup C) \\
+\mathcal{U}(\{([\tau], [\tau'])\} \cup C) &= \mathcal{U}(\{(\tau, \tau')\} \cup C) \\
+\mathcal{U}(\{((\tau_1, \ldots, \tau_n), (\tau'_1, \ldots, \tau'_n))\} \cup C) &= \mathcal{U}(\{(\tau_1, \tau'_1), \ldots, (\tau_n, \tau'_n)\} \cup C) \\
+\mathcal{U}(\{(T\langle\tau_1, \ldots, \tau_n\rangle, T\langle\tau'_1, \ldots, \tau'_n\rangle)\} \cup C) &= \mathcal{U}(\{(\tau_1, \tau'_1), \ldots, (\tau_n, \tau'_n)\} \cup C)
+\end{align*}
+
+The occurs check ($\alpha \notin FV(\tau)$) prevents infinite types.
+
+\textbf{Type Inference Algorithm:}
+
+The complete type inference algorithm for expression $e$ in environment $\Gamma$:
+
+\begin{enumerate}
+\item Generate constraints: $(\tau, C) = \mathcal{C}(\Gamma, e)$
+\item Solve constraints: $S = \mathcal{U}(C)$
+\item Apply substitution: $\tau' = S(\tau)$
+\item Generalize: $\sigma = \text{gen}(S(\Gamma), \tau')$
+\end{enumerate}
+
+The result is the principal type scheme $\sigma$.
+
+\textbf{Soundness and Completeness:}
+
+The type inference algorithm is sound (if inference succeeds, the program is well-typed) and complete (if a typing exists, inference finds the principal type). This is guaranteed by the properties of Algorithm W for Hindley-Milner type systems.
 
 \subsection{Dynamic Semantics}
 
