@@ -1009,6 +1009,7 @@ Parser combinators provide compositional building blocks:
 \item \texttt{*>} (right): Sequences two parsers, keeping right result
 \item \texttt{<*} (left): Sequences two parsers, keeping left result
 \item \texttt{>>=} (bind): Monadic bind for dependent parsing
+\item \texttt{let*} (binding operator): Syntactic sugar for \texttt{>>=}, enabling clean monadic code
 \end{itemize}
 
 \textit{Example combinator usage:}
@@ -1018,12 +1019,12 @@ Parser combinators provide compositional building blocks:
 \begin{verbatim}
 (* Parse "if e1 then e2 else e3" *)
 let if_parser = 
-  keyword If *> 
-  expr_parser >>= fun e1 ->
-  keyword Then *>
-  expr_parser >>= fun e2 ->
-  keyword Else *>
-  expr_parser >>= fun e3 ->
+  let* _ = expect_token If in
+  let* e1 = expr_parser in
+  let* _ = expect_token Then in
+  let* e2 = expr_parser in
+  let* _ = expect_token Else in
+  let* e3 = expr_parser in
   return (Ternary (e1, e2, e3))
 \end{verbatim}
 \end{quote}
