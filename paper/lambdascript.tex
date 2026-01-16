@@ -30,8 +30,8 @@ functional programming, type inference, algebraic data types, pattern matching, 
 \end{IEEEkeywords}
 
 \tableofcontents
-\newpage
 
+\newpage
 \section{Introduction}
 
 Statically-typed functional programming languages such as Haskell, OCaml, and Standard ML provide powerful abstractions for writing correct programs through algebraic data types, pattern matching, and polymorphic type inference. The Hindley-Milner type system enables programmers to write code without explicit type annotations while maintaining complete type safety through automatic type inference. However, understanding how these features interact---both formally through typing rules and operationally through implementation---requires navigating complex, mature language ecosystems with decades of accumulated features and optimizations.
@@ -52,6 +52,7 @@ The main contributions of this paper are:
 
 The remainder of this paper is organized as follows. Section~II presents examples demonstrating LambdaScript's features, building intuition before formal treatment. Section~III describes the type system design, including polymorphism, algebraic data types, and type inference. Section~IV provides detailed formal semantics with typing rules and operational semantics. Section~V details the implementation architecture of each pipeline component. Section~VI presents testing methodology and evaluation results. Section~VII concludes with reflections and future directions.
 
+\newpage
 \section{Examples}
 
 This section presents examples that demonstrate LambdaScript's core features, building intuition for the formal treatment in subsequent sections. We showcase algebraic data types, pattern matching, polymorphism, and higher-order functions through practical examples.
@@ -60,11 +61,14 @@ This section presents examples that demonstrate LambdaScript's core features, bu
 
 We begin by defining a polymorphic list type using recursive algebraic data types. LambdaScript uses the \texttt{type rec} keyword for recursive type definitions and the \texttt{'a} syntax for type variables, following OCaml conventions.
 
+\begin{quote}
+\small
 \begin{verbatim}
 type rec List<'a> = 
   | Nil 
   | Cons of ('a, List<'a>)
 \end{verbatim}
+\end{quote}
 
 This definition introduces two constructors: \texttt{Nil} represents the empty list, and \texttt{Cons} takes a tuple containing an element of type \texttt{'a} and the rest of the list. The type parameter \texttt{'a} makes this list polymorphic, allowing lists of any type.
 
@@ -74,12 +78,15 @@ With the list type defined, we can implement fundamental higher-order functions 
 
 The \texttt{map} function applies a function to each element of a list:
 
+\begin{quote}
+\small
 \begin{verbatim}
 let rec map f lst =
   case lst do
   | Nil -> Nil
   | Cons (h, t) -> Cons (f h, map f t)
 \end{verbatim}
+\end{quote}
 
 The type system infers the polymorphic type:
 \begin{center}
@@ -89,45 +96,57 @@ The type system infers the polymorphic type:
 This demonstrates parametric polymorphism: \texttt{map} works for any input type \texttt{'a} and output type \texttt{'b}, as long as the function \texttt{f} has type \texttt{'a -> 'b}.
 
 Example usage:
+\begin{quote}
+\small
 \begin{verbatim}
 let double = fn x -> x * 2 in
 let numbers = Cons (1, Cons (2, Nil)) in
 map double numbers
 (* Result: Cons (2, Cons (4, Nil)) *)
 \end{verbatim}
+\end{quote}
 
 \subsubsection{Reduce Function}
 
 The \texttt{reduce} function (also known as fold) combines list elements using a binary operator:
 
+\begin{quote}
+\small
 \begin{verbatim}
 let rec reduce op acc lst =
   case lst do
   | Nil -> acc
   | Cons (h, t) -> reduce op (op acc h) t
 \end{verbatim}
+\end{quote}
 
 Inferred type: \texttt{reduce : ('b -> 'a -> 'b) -> 'b -> List<'a> -> 'b}
 
 The type signature shows that \texttt{reduce} can produce a result of a different type (\texttt{'b}) than the list elements (\texttt{'a}), demonstrating the power of polymorphic type inference.
 
 Example summing a list:
+\begin{quote}
+\small
 \begin{verbatim}
 let add = fn x -> fn y -> x + y in
 let numbers = Cons (1, Cons (2, Nil)) in
 reduce add 0 numbers
 (* Result: 3 *)
 \end{verbatim}
+\end{quote}
 
 \subsection{Option Monad}
 
 The Option type represents computations that may fail, providing a type-safe alternative to null values. We define it as a sum type with two constructors:
 
+\begin{quote}
+\small
 \begin{verbatim}
 type Option<'a> = 
   | None 
   | Some of 'a
 \end{verbatim}
+\end{quote}
 
 \texttt{None} represents absence of a value, while \texttt{Some} wraps a present value of type \texttt{'a}.
 
@@ -135,12 +154,15 @@ type Option<'a> =
 
 The bind operation chains optional computations. In LambdaScript, we can define it as an operator:
 
+\begin{quote}
+\small
 \begin{verbatim}
 let (>>=) opt f =
   case opt do
   | None -> None
   | Some x -> f x
 \end{verbatim}
+\end{quote}
 
 Inferred type: \texttt{(>>=) : Option<'a> -> ('a -> Option<'b>) -> Option<'b>}
 
@@ -150,9 +172,12 @@ This type signature is the hallmark of monadic bind: it takes an \texttt{Option<
 
 The \texttt{return} operation (called \texttt{pure} in some languages) lifts a value into the Option context:
 
+\begin{quote}
+\small
 \begin{verbatim}
 let return x = Some x
 \end{verbatim}
+\end{quote}
 
 Inferred type: \texttt{return : 'a -> Option<'a>}
 
@@ -160,12 +185,15 @@ Inferred type: \texttt{return : 'a -> Option<'a>}
 
 Mapping a function over an optional value:
 
+\begin{quote}
+\small
 \begin{verbatim}
 let map_opt f opt =
   case opt do
   | None -> None
   | Some x -> Some (f x)
 \end{verbatim}
+\end{quote}
 
 Inferred type: \texttt{map\_opt : ('a -> 'b) -> Option<'a> -> Option<'b>}
 
@@ -173,6 +201,8 @@ Inferred type: \texttt{map\_opt : ('a -> 'b) -> Option<'a> -> Option<'b>}
 
 These operations enable safe computation chains. Consider safe division:
 
+\begin{quote}
+\small
 \begin{verbatim}
 let safe_div x y =
   if y == 0 then None
@@ -191,11 +221,13 @@ compute 100 10 2
 compute 100 0 2
 (* Result: None *)
 \end{verbatim}
+\end{quote}
 
 The first computation succeeds: $100 / 10 / 2 = 5$. The second short-circuits at division by zero, returning \texttt{None} without attempting the second division. This demonstrates how the Option monad handles errors compositionally through pattern matching and type safety, without exceptions or null pointer errors.
 
 These examples illustrate several key features of LambdaScript: algebraic data types enable clean data modeling, pattern matching provides exhaustive case analysis, parametric polymorphism allows generic code, and the type system infers complex types including higher-rank polymorphism in monadic operations.
 
+\newpage
 \section{Type System}
 
 LambdaScript features a Hindley-Milner type system with support for parametric polymorphism, algebraic data types, and mutually recursive type definitions. The type system is both sound and complete: every well-typed program has a principal type, and type inference always succeeds when a valid typing exists.
@@ -204,6 +236,8 @@ LambdaScript features a Hindley-Milner type system with support for parametric p
 
 LambdaScript includes primitive types (\texttt{int}, \texttt{float}, \texttt{bool}, \texttt{string}, \texttt{char}, \texttt{unit}), composite types (functions, lists, tuples), and user-defined algebraic data types. The type checker automatically infers types without requiring explicit annotations:
 
+\begin{quote}
+\small
 \begin{verbatim}
 let x = 42
 (* Inferred: x : int *)
@@ -214,6 +248,7 @@ let add x y = x + y
 let id x = x
 (* Inferred: id : 'a -> 'a *)
 \end{verbatim}
+\end{quote}
 
 The identity function \texttt{id} receives the polymorphic type \texttt{'a -> 'a}, where \texttt{'a} is a type variable that can be instantiated to any type. This demonstrates \textbf{let-polymorphism}: functions bound with \texttt{let} can be used at multiple types in different contexts.
 
@@ -221,10 +256,13 @@ The identity function \texttt{id} receives the polymorphic type \texttt{'a -> 'a
 
 Type variables represent unknown types during inference. When a function is defined with \texttt{let}, the type checker \textbf{generalizes} over all unconstrained type variables, introducing universal quantifiers. Consider:
 
+\begin{quote}
+\small
 \begin{verbatim}
 let compose f g x = f (g x)
 (* Type: ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c *)
 \end{verbatim}
+\end{quote}
 
 The type checker generates fresh type variables for \texttt{f}, \texttt{g}, and \texttt{x}, then analyzes the function application \texttt{f (g x)}:
 \begin{itemize}
@@ -239,11 +277,14 @@ After constraint solving, the system generalizes to produce the most general typ
 
 Algebraic data types define new types using constructors. Each constructor may carry a payload:
 
+\begin{quote}
+\small
 \begin{verbatim}
 type Result<'a, 'b> = 
   | Ok of 'a
   | Error of 'b
 \end{verbatim}
+\end{quote}
 
 When this definition is processed, the type checker:
 \begin{enumerate}
@@ -254,6 +295,8 @@ When this definition is processed, the type checker:
 
 Users can then construct and match on values:
 
+\begin{quote}
+\small
 \begin{verbatim}
 let safe_sqrt x =
   if x < 0 then Error "negative"
@@ -266,16 +309,20 @@ let handle result =
   | Error msg -> 0.0
 (* Type: Result<float, 'a> -> float *)
 \end{verbatim}
+\end{quote}
 
 \subsection{Recursive Types}
 
 Recursive types reference themselves in their definition. LambdaScript uses \textbf{isorecursive} semantics with explicit \texttt{type rec} declarations:
 
+\begin{quote}
+\small
 \begin{verbatim}
 type rec Tree<'a> = 
   | Leaf of 'a
   | Node of ('a, Tree<'a>, Tree<'a>)
 \end{verbatim}
+\end{quote}
 
 Internally, this is represented as a fixed-point type $\mu$\texttt{Tree}. The type checker ensures that:
 \begin{itemize}
@@ -286,6 +333,8 @@ Internally, this is represented as a fixed-point type $\mu$\texttt{Tree}. The ty
 
 Example usage demonstrates automatic type inference through recursive structures:
 
+\begin{quote}
+\small
 \begin{verbatim}
 let rec height tree =
   case tree do
@@ -295,11 +344,14 @@ let rec height tree =
            then height l else height r)
 (* Type: Tree<'a> -> int *)
 \end{verbatim}
+\end{quote}
 
 \subsection{Mutually Recursive Types}
 
 A key contribution of LambdaScript is clean support for mutually recursive type definitions using the \texttt{and} keyword. Multiple types can reference each other:
 
+\begin{quote}
+\small
 \begin{verbatim}
 type rec Tree<'a> = 
   | Leaf of 'a 
@@ -308,6 +360,7 @@ and Forest<'a> =
   | Empty 
   | Trees of (Tree<'a>, Forest<'a>)
 \end{verbatim}
+\end{quote}
 
 The type checker processes mutually recursive types by:
 \begin{enumerate}
@@ -319,6 +372,8 @@ The type checker processes mutually recursive types by:
 
 This enables natural expression of complex data structures:
 
+\begin{quote}
+\small
 \begin{verbatim}
 let rec tree_size t =
   case t do
@@ -332,6 +387,7 @@ and forest_size f =
 (* tree_size : Tree<'a> -> int
    forest_size : Forest<'a> -> int *)
 \end{verbatim}
+\end{quote}
 
 The implementation extends the standard Hindley-Milner unification algorithm to handle fixed-point types and ensures that type variable substitutions propagate correctly across the mutual recursion group.
 
@@ -339,14 +395,18 @@ The implementation extends the standard Hindley-Milner unification algorithm to 
 
 While type inference eliminates most annotations, LambdaScript allows optional type annotations for documentation and disambiguation:
 
+\begin{quote}
+\small
 \begin{verbatim}
 let f (x: int) : int = x + 1
 
 let g (x: int) : int = x * 2
 \end{verbatim}
+\end{quote}
 
 Type annotations are checked for consistency with inferred types. If an annotation conflicts with the inferred type, the type checker reports an error.
 
+\newpage
 \section{Syntax}
 
 We present the complete syntax of LambdaScript in Extended Backus-Naur Form (EBNF). Non-terminals are written in italics, terminals in \texttt{typewriter font}, and metavariables are defined below.
@@ -417,6 +477,7 @@ p ::= &\; \_ \mid x \mid n \mid b \mid s \mid c \mid () \\
 \item $(e_1 \mid e_2)$ denotes a choice between $e_1$ and $e_2$
 \end{itemize}
 
+\newpage
 \section{Formal Semantics}
 
 \subsection{Overview}
@@ -881,5 +942,386 @@ Evaluating \texttt{case [1, 2] do | [] -> 0 | h :: t -> h} in $\emptyset$:
 \end{enumerate}
 
 These operational semantics define the complete runtime behavior of LambdaScript and provide a formal foundation for reasoning about program correctness.
+
+\newpage
+\section{Implementation}
+
+The LambdaScript interpreter is implemented in OCaml and consists of a multi-pass pipeline that transforms source code into typed, evaluated results. This section describes the architecture and implementation details of each component.
+
+\subsection{Architecture Overview}
+
+The interpreter follows a traditional compiler pipeline architecture with the following phases:
+
+\begin{enumerate}
+\item \textbf{Lexical Analysis (Lexer)}: Tokenizes source code into a stream of tokens
+\item \textbf{Syntactic Analysis (Parser)}: Constructs an abstract syntax tree (AST) from tokens using parser combinators
+\item \textbf{AST Simplification}: Transforms the parser AST into a condensed representation suitable for type checking
+\item \textbf{Type Inference}: Performs constraint-based type inference using Algorithm W
+\item \textbf{Type Fixing}: Resolves recursive types and applies type substitutions throughout the AST
+\item \textbf{Evaluation}: Interprets the typed AST using environment-based semantics
+\end{enumerate}
+
+The implementation uses two distinct AST representations:
+
+\begin{itemize}
+\item \textbf{Parser AST} (\texttt{Expr.expr}): A surface-level representation that closely mirrors the concrete syntax, preserving operator precedence information and syntactic structure
+\item \textbf{Core AST} (\texttt{Cexpr.c\_expr}): A simplified representation optimized for type checking and evaluation, with explicit operator applications and normalized structure
+\end{itemize}
+
+This two-stage approach separates parsing concerns from semantic analysis, allowing the parser to focus on syntactic correctness while the core representation facilitates type inference and evaluation.
+
+\subsection{Lexer and Parser}
+
+\subsubsection{Lexical Analysis}
+
+The lexer (\texttt{lex.ml}) implements a token-based scanner that transforms source code into a sequence of tokens. Tokens represent atomic lexical units such as keywords, identifiers, literals, and operators.
+
+\textit{Token types include:}
+\begin{itemize}
+\item \textbf{Literals}: \texttt{Integer}, \texttt{FloatToken}, \texttt{Boolean}, \texttt{CharToken}, \texttt{StringToken}
+\item \textbf{Keywords}: \texttt{Let}, \texttt{Rec}, \texttt{And}, \texttt{In}, \texttt{If}, \texttt{Then}, \texttt{Else}, \texttt{Case}, \texttt{Do}, \texttt{Fn}, \texttt{Type}
+\item \textbf{Identifiers}: \texttt{Id} (lowercase), \texttt{TypeVar} (starts with \texttt{'}), type constructors
+\item \textbf{Operators}: \texttt{Plus}, \texttt{Minus}, \texttt{Times}, \texttt{Divide}, \texttt{Mod}, \texttt{AND}, \texttt{OR}, \texttt{ConsToken} (\texttt{::})
+\item \textbf{Comparison}: \texttt{EQ}, \texttt{NE}, \texttt{LT}, \texttt{GT}, \texttt{LE}, \texttt{GE}
+\item \textbf{Delimiters}: \texttt{LParen}, \texttt{RParen}, \texttt{LBracket}, \texttt{RBracket}, \texttt{LBrace}, \texttt{RBrace}
+\item \textbf{Custom operators}: \texttt{Relop}, \texttt{Addop}, \texttt{Mulop}, \texttt{Logop} for user-defined operators
+\end{itemize}
+
+The lexer maintains line number information for each token, enabling precise error reporting. String and character literals support escape sequences (\texttt{\textbackslash n}, \texttt{\textbackslash t}, \texttt{\textbackslash"}, etc.). Comments are handled using OCaml-style syntax: \texttt{(* ... *)}.
+
+\subsubsection{Parser Combinators}
+
+The parser (\texttt{parser.ml}) uses a combinator-based approach, defining a parser as a function from token streams to optional parse results:
+
+\begin{quote}
+\small
+\begin{verbatim}
+type 'a parser = 
+  token_type list -> ('a * token_type list) option
+\end{verbatim}
+\end{quote}
+
+Parser combinators provide compositional building blocks:
+
+\begin{itemize}
+\item \texttt{<|>} (choice): Tries first parser; if it fails, tries second parser
+\item \texttt{>>} (sequence): Chains parsers, passing results forward
+\item \texttt{*>} (right): Sequences two parsers, keeping right result
+\item \texttt{<*} (left): Sequences two parsers, keeping left result
+\item \texttt{>>=} (bind): Monadic bind for dependent parsing
+\end{itemize}
+
+\textit{Example combinator usage:}
+
+\begin{quote}
+\small
+\begin{verbatim}
+(* Parse "if e1 then e2 else e3" *)
+let if_parser = 
+  keyword If *> 
+  expr_parser >>= fun e1 ->
+  keyword Then *>
+  expr_parser >>= fun e2 ->
+  keyword Else *>
+  expr_parser >>= fun e3 ->
+  return (Ternary (e1, e2, e3))
+\end{verbatim}
+\end{quote}
+
+The parser handles operator precedence through a stratified grammar with separate parsing levels for disjunction (\texttt{||}), conjunction (\texttt{\&\&}), comparison, cons (\texttt{::}), addition, multiplication, and atomic expressions. This ensures correct precedence without explicit precedence tables.
+
+Pattern parsing supports all pattern forms including literals, variables, wildcards, cons patterns, tuples, and constructor applications. Type annotations are parsed alongside expressions and patterns, allowing optional type information at function parameters and let bindings.
+
+\subsection{Type Inference Engine}
+
+The type inference engine (\texttt{typecheck.ml}) implements a constraint-based variant of Algorithm W, the classical Hindley-Milner type inference algorithm. Type inference proceeds in three phases: constraint generation, unification, and generalization.
+
+\subsubsection{Constraint Generation}
+
+Given an expression and a typing environment, constraint generation produces a type (possibly containing fresh type variables) and a set of type equations that must be satisfied for the expression to be well-typed.
+
+The constraint generation function has type:
+\begin{quote}
+\small
+\begin{verbatim}
+generate : type_env -> c_expr -> 
+  (mono_type * type_equations)
+\end{verbatim}
+\end{quote}
+
+Fresh type variables are generated using a counter-based approach, ensuring unique identifiers for each unknown type. Constraints are accumulated as the expression tree is traversed.
+
+\textit{Example constraint generation:}
+
+For function application \texttt{e1 e2}:
+\begin{enumerate}
+\item Generate constraints for \texttt{e1}, obtaining type $\tau_1$ and constraints $C_1$
+\item Generate constraints for \texttt{e2}, obtaining type $\tau_2$ and constraints $C_2$
+\item Create fresh type variable $\alpha$ for the result
+\item Add constraint $\tau_1 = \tau_2 \to \alpha$
+\item Return type $\alpha$ with constraints $C_1 \cup C_2 \cup \{(\tau_1, \tau_2 \to \alpha)\}$
+\end{enumerate}
+
+Let-bound variables require special handling to support polymorphism. After inferring the type of the bound expression, we solve its constraints, then generalize the resulting type before adding it to the environment for the body. This implements let-polymorphism, allowing expressions like:
+
+\begin{quote}
+\small
+\begin{verbatim}
+let id = fn x -> x in
+(id 5, id "hello")
+\end{verbatim}
+\end{quote}
+
+where \texttt{id} is used at both \texttt{int -> int} and \texttt{string -> string}.
+
+\subsubsection{Unification}
+
+The unification algorithm solves a set of type equations by computing a most general unifier (MGU)—a substitution that, when applied to both sides of each equation, makes them equal.
+
+\textit{Unification rules:}
+
+\begin{itemize}
+\item $\mathcal{U}(\alpha, \tau)$: If $\alpha$ does not occur in $\tau$, return $[\tau/\alpha]$; otherwise fail (occurs check)
+\item $\mathcal{U}(\tau, \alpha)$: Symmetric to above
+\item $\mathcal{U}(\tau_1 \to \tau_2, \tau'_1 \to \tau'_2)$: Recursively unify $\tau_1$ with $\tau'_1$ and $\tau_2$ with $\tau'_2$
+\item $\mathcal{U}([\tau], [\tau'])$: Recursively unify $\tau$ with $\tau'$
+\item $\mathcal{U}((\tau_1, \ldots, \tau_n), (\tau'_1, \ldots, \tau'_n))$: Recursively unify each pair
+\item $\mathcal{U}(T\langle\tau_1, \ldots, \tau_n\rangle, T\langle\tau'_1, \ldots, \tau'_n\rangle)$: Unify type applications
+\end{itemize}
+
+The occurs check prevents infinite types by ensuring a type variable does not appear in its own definition. For recursive types, we use explicit fixed-point type constructors (\texttt{FixedPoint}) rather than allowing infinite unfolding.
+
+Type errors are reported when:
+\begin{itemize}
+\item A type variable occurs in its substituted type (occurs check failure)
+\item Two primitive types are equated (e.g., \texttt{int = bool})
+\item Type constructors have different arities or names
+\item Patterns and scrutinees have incompatible types
+\end{itemize}
+
+\subsubsection{Generalization and Instantiation}
+
+After constraint solving, types are generalized by introducing universal quantifiers for free type variables. The generalization function:
+
+$$\text{gen}(\Gamma, \tau) = \forall \{\alpha_1, \ldots, \alpha_n\}.\tau$$
+
+where $\{\alpha_1, \ldots, \alpha_n\} = FV(\tau) \setminus FV(\Gamma)$.
+
+Type schemes are instantiated by replacing quantified variables with fresh type variables:
+
+$$\text{inst}(\forall \alpha.\sigma) = \sigma[\beta/\alpha]$$
+
+This allows polymorphic functions to be used at multiple types while maintaining type safety.
+
+\subsubsection{Type Fixing}
+
+After type inference, the type fixer (\texttt{typefixer.ml}) applies the computed substitution throughout the entire AST, replacing type variables with their inferred types. This phase also:
+
+\begin{itemize}
+\item Resolves recursive type references using fixed-point constructors
+\item Validates that all type variables have been instantiated
+\item Ensures mutually recursive types reference each other correctly
+\item Annotates the AST with complete type information for evaluation
+\end{itemize}
+
+\subsection{Pattern Matching}
+
+Pattern matching in LambdaScript supports comprehensive destructuring with exhaustiveness checking and redundancy detection.
+
+\subsubsection{Pattern Compilation}
+
+Patterns are compiled into decision trees that efficiently test values against pattern structure. The compilation process:
+
+\begin{enumerate}
+\item \textbf{Flattening}: Nested patterns are flattened into sequences of simple tests
+\item \textbf{Grouping}: Patterns with the same constructor are grouped together
+\item \textbf{Optimization}: Redundant tests are eliminated
+\end{enumerate}
+
+Pattern matching executes by traversing the decision tree, testing each pattern in order until a match is found. Variable bindings are collected during matching and added to the evaluation environment.
+
+\subsubsection{Exhaustiveness Checking}
+
+The exhaustiveness checker (\texttt{exhaustiveness.ml}) ensures that pattern matches cover all possible values. This analysis prevents runtime match failures by detecting missing cases at compile time.
+
+The algorithm constructs a symbolic representation of the input space and removes the portion covered by each pattern. If any portion remains uncovered, the match is non-exhaustive and an error is reported.
+
+\textit{Example exhaustiveness violations:}
+
+\begin{quote}
+\small
+\begin{verbatim}
+(* Non-exhaustive: missing Nil case *)
+case lst do
+| h :: t -> h
+
+(* Exhaustive: all cases covered *)
+case lst do
+| [] -> 0
+| h :: t -> h
+\end{verbatim}
+\end{quote}
+
+For user-defined algebraic data types, exhaustiveness checking verifies that all constructors are matched. Wildcard patterns and variable patterns match any value, making the entire match exhaustive if they appear as the final case.
+
+\subsection{Evaluator}
+
+The evaluator (\texttt{ceval.ml}) implements the operational semantics using environment-based interpretation with closures.
+
+\subsubsection{Value Representation}
+
+Values are the results of evaluation:
+
+\begin{quote}
+\small
+\begin{verbatim}
+type value =
+  | IntVal of int
+  | BoolVal of bool
+  | StringVal of string
+  | CharVal of char
+  | UnitVal
+  | ListVal of value list
+  | TupleVal of value list
+  | ClosureVal of c_pat * c_expr * env
+  | ConstructorVal of string * value option
+\end{verbatim}
+\end{quote}
+
+Closures capture their defining environment, enabling proper handling of free variables and supporting higher-order functions with lexical scoping.
+
+\subsubsection{Environment-Based Evaluation}
+
+Environments map variable names to values. Evaluation judgments have the form:
+
+$$\langle e, \rho \rangle \Downarrow v$$
+
+The evaluator recursively descends the expression tree, accumulating bindings in the environment and producing values.
+
+\textit{Key evaluation rules:}
+
+\begin{itemize}
+\item \textbf{Variables}: Look up in environment, fail if unbound
+\item \textbf{Functions}: Create closure capturing current environment
+\item \textbf{Application}: Evaluate function to closure, evaluate argument, match pattern against argument value, evaluate body in extended environment
+\item \textbf{Let bindings}: Evaluate bound expression, match pattern, extend environment for body
+\item \textbf{Recursive let}: Create cyclic environment where bound variable refers to itself
+\item \textbf{Pattern matching}: Evaluate scrutinee, try each branch in order until pattern matches
+\end{itemize}
+
+\subsubsection{Built-in Functions}
+
+Built-in functions are implemented as primitive operations in the evaluator:
+
+\begin{itemize}
+\item \textbf{I/O}: \texttt{print}, \texttt{println}
+\item \textbf{Conversions}: \texttt{int\_to\_str}, \texttt{int\_to\_float}, \texttt{float\_to\_int}, \texttt{string\_to\_list}
+\item \textbf{Higher-order}: \texttt{map}, \texttt{filter}, \texttt{reduce\_left}, \texttt{reduce\_right}
+\end{itemize}
+
+These functions are pre-populated in the initial environment with appropriate types and implementations.
+
+\subsection{Advanced Features}
+
+\subsubsection{Mutually Recursive Types}
+
+Mutually recursive type definitions are handled by:
+\begin{enumerate}
+\item Adding all type names to the environment simultaneously
+\item Type-checking constructor payloads with all names in scope
+\item Using fixed-point type constructors to represent cycles
+\item Verifying that cycles are guarded by constructors (preventing infinite types)
+\end{enumerate}
+
+\subsubsection{List Comprehensions}
+
+List comprehensions desugar into nested \texttt{map} and \texttt{filter} operations:
+
+\begin{quote}
+\small
+\begin{verbatim}
+[x * 2 | x => lst, x > 5]
+\end{verbatim}
+\end{quote}
+
+desugars to:
+
+\begin{quote}
+\small
+\begin{verbatim}
+map (fn x -> x * 2) 
+    (filter (fn x -> x > 5) lst)
+\end{verbatim}
+\end{quote}
+
+\subsubsection{Custom Operators}
+
+User-defined operators are supported through operator definitions. Operators are first-class values when wrapped in parentheses:
+
+\begin{quote}
+\small
+\begin{verbatim}
+let (++) = fn a -> fn b -> a + b in
+(++) 3 4  (* Returns 7 *)
+\end{verbatim}
+\end{quote}
+
+Custom operators follow the precedence of their first character (\texttt{+}, \texttt{-}, \texttt{*}, \texttt{/}, etc.).
+
+\subsubsection{Code Blocks}
+
+Code blocks provide sequential execution with local definitions:
+
+\begin{quote}
+\small
+\begin{verbatim}
+{
+  let x = 5;
+  let y = 10;
+  x + y
+}
+\end{verbatim}
+\end{quote}
+
+Blocks desugar into nested let expressions, maintaining proper scoping of local bindings.
+
+\newpage
+\section{Testing and Validation}
+
+% TODO: Write testing section
+
+\subsection{Test Suite Design}
+
+% TODO
+
+\subsection{Coverage Analysis}
+
+% TODO
+
+\subsection{Real-World Examples}
+
+% TODO
+
+\newpage
+\section{Discussion}
+
+% TODO: Write discussion section
+
+\subsection{Known Limitations}
+
+% TODO
+
+\subsection{Related Work}
+
+% TODO
+
+\subsection{Future Work}
+
+% TODO
+
+\newpage
+\section{Conclusion}
+
+% TODO: Write conclusion
 
 \end{document}
