@@ -1,0 +1,30 @@
+\contentsline {section}{\numberline {I}Introduction}{2}{}%
+\contentsline {section}{\numberline {II}Examples}{2}{}%
+\contentsline {subsection}{\numberline {\mbox {II-A}}Polymorphic List Data Type}{2}{}%
+\contentsline {subsubsection}{\numberline {\mbox {II-A}1}Map Function}{3}{}%
+\contentsline {subsubsection}{\numberline {\mbox {II-A}2}Reduce Function}{3}{}%
+\contentsline {subsection}{\numberline {\mbox {II-B}}Option Monad}{3}{}%
+\contentsline {subsubsection}{\numberline {\mbox {II-B}1}Monadic Bind Operation}{3}{}%
+\contentsline {subsubsection}{\numberline {\mbox {II-B}2}Return Operation}{3}{}%
+\contentsline {subsubsection}{\numberline {\mbox {II-B}3}Map for Option}{4}{}%
+\contentsline {subsubsection}{\numberline {\mbox {II-B}4}Example: Safe Division}{4}{}%
+\contentsline {section}{\numberline {III}Type System}{4}{}%
+\contentsline {subsection}{\numberline {\mbox {III-A}}Basic Types and Type Inference}{4}{}%
+\contentsline {subsection}{\numberline {\mbox {III-B}}Type Variables and Generalization}{4}{}%
+\contentsline {subsection}{\numberline {\mbox {III-C}}Algebraic Data Types}{5}{}%
+\contentsline {subsection}{\numberline {\mbox {III-D}}Recursive Types}{5}{}%
+\contentsline {subsection}{\numberline {\mbox {III-E}}Mutually Recursive Types}{5}{}%
+\contentsline {subsection}{\numberline {\mbox {III-F}}Type Annotations}{6}{}%
+\contentsline {section}{\numberline {IV}Syntax}{6}{}%
+\contentsline {section}{\numberline {V}Formal Semantics}{7}{}%
+\contentsline {subsection}{\numberline {\mbox {V-A}}Overview}{7}{}%
+\contentsline {subsection}{\numberline {\mbox {V-B}}Static Semantics}{8}{}%
+\contentsline {subsubsection}{\numberline {\mbox {V-B}1}Notation and Definitions}{8}{}%
+\contentsline {subsubsection}{\numberline {\mbox {V-B}2}Typing Rules}{9}{}%
+\contentsline {subsubsection}{\numberline {\mbox {V-B}3}Pattern Typing}{10}{}%
+\contentsline {subsubsection}{\numberline {\mbox {V-B}4}Constraint-Based Type Inference}{10}{}%
+\contentsline {subsection}{\numberline {\mbox {V-C}}Dynamic Semantics}{11}{}%
+\contentsline {subsubsection}{\numberline {\mbox {V-C}1}Notation}{11}{}%
+\contentsline {subsubsection}{\numberline {\mbox {V-C}2}Evaluation Rules}{12}{}%
+\contentsline {subsubsection}{\numberline {\mbox {V-C}3}Pattern Matching Rules}{13}{}%
+\contentsline {subsubsection}{\numberline {\mbox {V-C}4}Evaluation Examples}{14}{}%

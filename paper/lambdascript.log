@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  16 JAN 2026 15:49
+This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  16 JAN 2026 15:54
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -256,19 +256,23 @@ Package: epstopdf-base 2020-01-24 v2.11 Base part for package epstopdf
 Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 485.
  (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg
 File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
-))
-LaTeX Font Info:    Trying to load font information for OT1+pcr on input line 38.
- (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/psnfss/ot1pcr.fd
-File: ot1pcr.fd 2001/06/04 font definitions for OT1/pcr.
-)
-LaTeX Font Info:    Trying to load font information for U+msa on input line 44.
+)) (./lambdascript.toc
+LaTeX Font Info:    Trying to load font information for U+msa on input line 3.
  (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 44.
+LaTeX Font Info:    Trying to load font information for U+msb on input line 3.
  (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
-) [1{/Users/alex/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}] [2] [3] [4] [5] [6] [7] [8] [9] [10] [11] [12]
+))
+\tf@toc=\write3
+\openout3 = `lambdascript.toc'.
+
+ [1{/Users/alex/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}]
+LaTeX Font Info:    Trying to load font information for OT1+pcr on input line 41.
+ (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/psnfss/ot1pcr.fd
+File: ot1pcr.fd 2001/06/04 font definitions for OT1/pcr.
+) [2] [3] [4] [5] [6] [7] [8] [9] [10] [11] [12] [13]
 
 ** Conference Paper **
 Before submitting the final camera ready copy, remember to:
@@ -280,20 +284,20 @@ Before submitting the final camera ready copy, remember to:
  uses only Type 1 fonts and that every step in the generation
  process uses the appropriate paper size.
 
-[13] (./lambdascript.aux) ) 
+[14] (./lambdascript.aux) ) 
 Here is how much of TeX's memory you used:
- 3912 strings out of 478051
- 62416 string characters out of 5840003
- 1871330 words of memory out of 5000000
- 24014 multiletter control sequences out of 15000+600000
+ 3918 strings out of 478051
+ 62504 string characters out of 5840003
+ 1869330 words of memory out of 5000000
+ 24017 multiletter control sequences out of 15000+600000
  545389 words of font info for 93 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 57i,14n,62p,937b,196s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 57i,14n,62p,937b,242s stack positions out of 10000i,1000n,20000p,200000b,200000s
 {/Users/alex/Library/TinyTeX/texmf-dist/fonts/enc/dvips/base/8r.enc}</Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on lambdascript.pdf (13 pages, 171854 bytes).
+Output written on lambdascript.pdf (14 pages, 174253 bytes).
 PDF statistics:
- 103 PDF objects out of 1000 (max. 8388607)
- 65 compressed objects within 1 object stream
+ 106 PDF objects out of 1000 (max. 8388607)
+ 67 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 
