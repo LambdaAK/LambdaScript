@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  16 JAN 2026 16:27
+This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  16 JAN 2026 16:41
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -301,7 +301,7 @@ Here is how much of TeX's memory you used:
  14 hyphenation exceptions out of 8191
  57i,14n,62p,937b,231s stack positions out of 10000i,1000n,20000p,200000b,200000s
 {/Users/alex/Library/TinyTeX/texmf-dist/fonts/enc/dvips/base/8r.enc}</Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on lambdascript.pdf (24 pages, 200240 bytes).
+Output written on lambdascript.pdf (24 pages, 200269 bytes).
 PDF statistics:
  137 PDF objects out of 1000 (max. 8388607)
  88 compressed objects within 1 object stream
