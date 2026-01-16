@@ -50,3 +50,13 @@ typecheck:
 parsetest:
 	dune build bin/parse_file.exe
 	dune exec ./bin/parse_file.exe "$(FILE)"
+
+paper:
+	cd paper && pdflatex conference_101719.tex
+	cd paper && pdflatex conference_101719.tex
+
+paper-clean:
+	cd paper && rm -f *.aux *.log *.out *.bbl *.blg *.toc *.lof *.lot
+
+paper-open:
+	open paper/conference_101719.pdf
