@@ -1,0 +1,341 @@
+\documentclass[10pt,letterpaper,twocolumn]{article}
+
+% Page setup
+\usepackage[top=1in, bottom=1in, left=0.75in, right=0.75in]{geometry}
+\setlength{\columnsep}{0.25in}
+
+% Fonts and encoding
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+% Paragraph formatting
+\setlength{\parindent}{0.125in}
+\setlength{\parskip}{0pt}
+
+% Math packages
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+
+% Code display
+\usepackage{verbatim}
+
+% Graphics
+\usepackage{graphicx}
+
+% Hyperlinks
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=blue,
+    urlcolor=blue,
+    hidelinks
+}
+
+% Theorem environments
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+
+% Title information
+\title{\Large\bfseries LambdaScript: A Functional Programming Language}
+\author{
+  {\large\bfseries Alex Kozik (ajk333@cornell.edu)} \\
+  {\normalsize Department of Computer Science, Cornell University, Ithaca, NY, USA}
+}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\small
+\noindent
+[Write a 150-word abstract summarizing: (1) What LambdaScript is, (2) Key features (type inference, pattern matching, recursive types), (3) Main contributions of the work]
+
+\end{abstract}
+
+\noindent\textbf{Keywords:} functional programming; type inference; pattern matching; Hindley-Milner; algebraic data types
+
+\section{Introduction}
+
+% TODO: Write introduction
+
+\section{Language Design and Formal Semantics}
+
+\subsection{Syntax}
+
+We present the abstract syntax of LambdaScript using BNF notation. The language supports first-class functions, algebraic data types, pattern matching, and polymorphic type inference.
+
+\textbf{Expressions:}
+
+\begin{align*}
+e \in \textbf{Exp} \quad e ::= &\; n \mid b \mid s \mid c \mid () \\
+&\mid x \mid \lambda p{:}\tau . e \mid e_1\;e_2 \\
+&\mid \texttt{let}\;p = e_1\;\texttt{in}\;e_2 \\
+&\mid \texttt{let rec}\;p = e_1\;\texttt{in}\;e_2 \\
+&\mid \texttt{if}\;e_1\;\texttt{then}\;e_2\;\texttt{else}\;e_3 \\
+&\mid \texttt{case}\;e\;\texttt{do}\;\{p_i \to e_i\}^n_{i=1} \\
+&\mid [] \mid e_1 :: e_2 \mid [e_1, \ldots, e_n] \\
+&\mid (e_1, \ldots, e_n) \\
+&\mid e_1 \oplus e_2
+\end{align*}
+
+where $n \in \mathbb{Z}$ (integers), $b \in \{\texttt{true}, \texttt{false}\}$ (booleans), $s$ ranges over strings, $c$ ranges over characters, $x$ ranges over identifiers, and $\oplus \in \{+, -, *, /, \%, ==, !=, <, >, \le, \ge, \&\&, ||\}$.
+
+\textbf{Patterns:}
+
+\begin{align*}
+p \in \textbf{Pat} \quad p ::= &\; n \mid b \mid s \mid c \mid () \\
+&\mid x \mid \_ \mid [] \mid p_1 :: p_2 \\
+&\mid (p_1, \ldots, p_n) \\
+&\mid C\;p \mid C
+\end{align*}
+
+where $C$ ranges over data constructors.
+
+\textbf{Types:}
+
+\begin{align*}
+\tau \in \textbf{Type} \quad \tau ::= &\; \texttt{int} \mid \texttt{bool} \mid \texttt{string} \mid \texttt{char} \mid \texttt{unit} \\
+&\mid \alpha \mid \tau_1 \to \tau_2 \mid [\tau] \\
+&\mid (\tau_1, \ldots, \tau_n) \\
+&\mid T\langle\tau_1, \ldots, \tau_n\rangle \\
+&\mid \mu T.\tau \\
+\sigma ::= &\; \tau \mid \forall \alpha.\sigma
+\end{align*}
+
+where $\alpha$ ranges over type variables, $T$ ranges over type constructors, $\mu T.\tau$ represents recursive types, and $\sigma$ represents polymorphic type schemes.
+
+\subsection{Type System}
+
+LambdaScript uses a Hindley-Milner style type system with support for polymorphism and algebraic data types. We define typing judgments of the form $\Delta; \Gamma \vdash e : \tau$, where $\Delta$ is a type variable environment, $\Gamma$ is a term variable environment mapping identifiers to type schemes, and $\tau$ is a monomorphic type.
+
+\textbf{Typing Rules:}
+
+\textit{Literals:}
+
+$$
+\frac{}{\Delta; \Gamma \vdash n : \texttt{int}}
+\quad
+\frac{}{\Delta; \Gamma \vdash b : \texttt{bool}}
+\quad
+\frac{}{\Delta; \Gamma \vdash s : \texttt{string}}
+\quad
+\frac{}{\Delta; \Gamma \vdash () : \texttt{unit}}
+$$
+
+\textit{Variables:}
+
+$$
+\frac{x : \sigma \in \Gamma \quad \tau = \text{inst}(\sigma)}{\Delta; \Gamma \vdash x : \tau}
+$$
+
+where $\text{inst}(\forall \alpha.\sigma) = \sigma\{\tau'/\alpha\}$ for fresh $\tau'$.
+
+\textit{Functions:}
+
+$$
+\frac{\Delta; \Gamma, x : \tau_1 \vdash e : \tau_2}{\Delta; \Gamma \vdash \lambda x{:}\tau_1 . e : \tau_1 \to \tau_2}
+$$
+
+\textit{Application:}
+
+$$
+\frac{\Delta; \Gamma \vdash e_1 : \tau_1 \to \tau_2 \quad \Delta; \Gamma \vdash e_2 : \tau_1}{\Delta; \Gamma \vdash e_1\;e_2 : \tau_2}
+$$
+
+\textit{Let Binding:}
+
+$$
+\frac{\Delta; \Gamma \vdash e_1 : \tau_1 \quad \Delta; \Gamma, x : \text{gen}(\Delta, \Gamma, \tau_1) \vdash e_2 : \tau_2}{\Delta; \Gamma \vdash \texttt{let}\;x = e_1\;\texttt{in}\;e_2 : \tau_2}
+$$
+
+where $\text{gen}(\Delta, \Gamma, \tau) = \forall \{\alpha_i\}.\tau$ and $\{\alpha_i\}$ are type variables in $\tau$ but not free in $\Gamma$.
+
+\textit{Conditional:}
+
+$$
+\frac{\Delta; \Gamma \vdash e_1 : \texttt{bool} \quad \Delta; \Gamma \vdash e_2 : \tau \quad \Delta; \Gamma \vdash e_3 : \tau}{\Delta; \Gamma \vdash \texttt{if}\;e_1\;\texttt{then}\;e_2\;\texttt{else}\;e_3 : \tau}
+$$
+
+\textit{Pattern Matching:}
+
+$$
+\frac{\Delta; \Gamma \vdash e : \tau \quad \forall i.\; p_i : \tau \leadsto \Gamma_i \quad \Delta; \Gamma, \Gamma_i \vdash e_i : \tau'}{\Delta; \Gamma \vdash \texttt{case}\;e\;\texttt{do}\;\{p_i \to e_i\}^n_{i=1} : \tau'}
+$$
+
+\textit{Lists:}
+
+$$
+\frac{}{\Delta; \Gamma \vdash [] : [\alpha]}
+\quad
+\frac{\Delta; \Gamma \vdash e_1 : \tau \quad \Delta; \Gamma \vdash e_2 : [\tau]}{\Delta; \Gamma \vdash e_1 :: e_2 : [\tau]}
+$$
+
+\subsection{Static Semantics}
+
+Type inference in LambdaScript follows a constraint-based approach in the style of Algorithm W. The type checker operates in three phases:
+
+\textbf{1. Constraint Generation}
+
+For each expression $e$, we generate a type $\tau_e$ and a set of constraints $C$. The function $\text{generate}(\Gamma, e)$ returns a pair $(\tau, C)$ where:
+\begin{itemize}
+\item $\tau$ is the inferred type (possibly containing fresh type variables)
+\item $C = \{(\tau_i, \tau'_i)\}$ is a set of type equations to be satisfied
+\end{itemize}
+
+\textit{Example constraint generation rules:}
+
+\begin{align*}
+\text{generate}(\Gamma, n) &= (\texttt{int}, \emptyset) \\
+\text{generate}(\Gamma, x) &= (\text{inst}(\Gamma(x)), \emptyset) \\
+\text{generate}(\Gamma, e_1\;e_2) &= (\alpha, C_1 \cup C_2 \cup \{(\tau_1, \tau_2 \to \alpha)\})
+\end{align*}
+
+where $(\tau_1, C_1) = \text{generate}(\Gamma, e_1)$, $(\tau_2, C_2) = \text{generate}(\Gamma, e_2)$, and $\alpha$ is fresh.
+
+\textbf{2. Unification}
+
+The unification algorithm solves constraint sets by computing a most general unifier (MGU). Given constraints $C = \{(\tau_i, \tau'_i)\}$, we compute a substitution $S$ such that $S(\tau_i) = S(\tau'_i)$ for all $i$.
+
+The unification rules are standard:
+\begin{itemize}
+\item $\text{unify}(\alpha, \tau) = [\tau/\alpha]$ if $\alpha \notin FV(\tau)$
+\item $\text{unify}(\tau_1 \to \tau_2, \tau'_1 \to \tau'_2) = S_2 \circ S_1$ where $S_1 = \text{unify}(\tau_1, \tau'_1)$ and $S_2 = \text{unify}(S_1(\tau_2), S_1(\tau'_2))$
+\item $\text{unify}(T\langle\tau_1, \ldots, \tau_n\rangle, T\langle\tau'_1, \ldots, \tau'_n\rangle) = S_n \circ \cdots \circ S_1$ where $S_i$ unifies $S_{i-1}(\tau_i)$ with $S_{i-1}(\tau'_i)$
+\end{itemize}
+
+\textbf{3. Generalization}
+
+After solving constraints, we generalize types by introducing universal quantifiers for type variables not appearing free in the environment:
+
+$$\text{gen}(\Gamma, \tau) = \forall \{\alpha_i\}.\tau$$
+
+where $\{\alpha_i\} = FV(\tau) \setminus FV(\Gamma)$.
+
+\subsection{Dynamic Semantics}
+
+We define the operational semantics of LambdaScript using big-step (natural) semantics. Evaluation judgments have the form $\rho \vdash e \Downarrow v$, where $\rho$ is an environment mapping variables to values, $e$ is an expression, and $v$ is a value.
+
+\textbf{Values:}
+
+$$
+v ::= n \mid b \mid s \mid c \mid () \mid \langle \rho, \lambda p.e \rangle \mid [] \mid v_1 :: v_2 \mid (v_1, \ldots, v_n) \mid C\;v \mid C
+$$
+
+\textbf{Evaluation Rules:}
+
+\textit{Literals and Variables:}
+
+$$
+\frac{}{\rho \vdash n \Downarrow n}
+\quad
+\frac{}{\rho \vdash b \Downarrow b}
+\quad
+\frac{x \mapsto v \in \rho}{\rho \vdash x \Downarrow v}
+$$
+
+\textit{Functions:}
+
+$$
+\frac{}{\rho \vdash \lambda p.e \Downarrow \langle \rho, \lambda p.e \rangle}
+$$
+
+\textit{Application:}
+
+$$
+\frac{\rho \vdash e_1 \Downarrow \langle \rho', \lambda p.e \rangle \quad \rho \vdash e_2 \Downarrow v_2 \quad \text{match}(p, v_2) = \rho'' \quad \rho' \cup \rho'' \vdash e \Downarrow v}{\rho \vdash e_1\;e_2 \Downarrow v}
+$$
+
+\textit{Let Binding:}
+
+$$
+\frac{\rho \vdash e_1 \Downarrow v_1 \quad \text{match}(p, v_1) = \rho' \quad \rho \cup \rho' \vdash e_2 \Downarrow v_2}{\rho \vdash \texttt{let}\;p = e_1\;\texttt{in}\;e_2 \Downarrow v_2}
+$$
+
+\textit{Conditional:}
+
+$$
+\frac{\rho \vdash e_1 \Downarrow \texttt{true} \quad \rho \vdash e_2 \Downarrow v}{\rho \vdash \texttt{if}\;e_1\;\texttt{then}\;e_2\;\texttt{else}\;e_3 \Downarrow v}
+\quad
+\frac{\rho \vdash e_1 \Downarrow \texttt{false} \quad \rho \vdash e_3 \Downarrow v}{\rho \vdash \texttt{if}\;e_1\;\texttt{then}\;e_2\;\texttt{else}\;e_3 \Downarrow v}
+$$
+
+\textit{Pattern Matching:}
+
+$$
+\frac{\rho \vdash e \Downarrow v \quad \text{match}(p_i, v) = \rho' \quad \rho \cup \rho' \vdash e_i \Downarrow v'}{\rho \vdash \texttt{case}\;e\;\texttt{do}\;\{p_j \to e_j\}^n_{j=1} \Downarrow v'}
+$$
+
+where $i$ is the first index such that $\text{match}(p_i, v)$ succeeds.
+
+\textit{Binary Operators:}
+
+$$
+\frac{\rho \vdash e_1 \Downarrow n_1 \quad \rho \vdash e_2 \Downarrow n_2 \quad n_3 = n_1 \oplus n_2}{\rho \vdash e_1 \oplus e_2 \Downarrow n_3}
+$$
+
+\textbf{Pattern Matching Function:}
+
+The auxiliary function $\text{match}(p, v)$ returns an environment binding variables in pattern $p$ to corresponding values in $v$, or fails if the pattern does not match:
+
+\begin{align*}
+\text{match}(x, v) &= \{x \mapsto v\} \\
+\text{match}(\_, v) &= \emptyset \\
+\text{match}(n, n) &= \emptyset \\
+\text{match}(p_1 :: p_2, v_1 :: v_2) &= \text{match}(p_1, v_1) \cup \text{match}(p_2, v_2) \\
+\text{match}((p_1, \ldots, p_n), (v_1, \ldots, v_n)) &= \bigcup_i \text{match}(p_i, v_i)
+\end{align*}
+
+\section{Implementation}
+
+\subsection{Architecture Overview}
+
+% TODO
+
+\subsection{Lexer and Parser}
+
+% TODO
+
+\subsection{Type Inference Engine}
+
+% TODO
+
+\subsection{Pattern Matching}
+
+% TODO
+
+\subsection{Evaluator}
+
+% TODO
+
+\subsection{Advanced Features}
+
+% TODO
+
+\section{Examples and Applications}
+
+% TODO
+
+\section{Discussion}
+
+\subsection{Known Limitations}
+
+% TODO
+
+\subsection{Related Work}
+
+% TODO
+
+\subsection{Future Work}
+
+% TODO
+
+\section{Conclusion}
+
+% TODO
+
+\end{document}

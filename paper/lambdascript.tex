@@ -458,7 +458,7 @@ Values are the results of evaluation and include:
 \item String values: $s$
 \item List values: $[]$ (empty list), $v_1 :: v_2$ (cons)
 \item Tuple values: $(v_1, v_2, \ldots, v_n)$
-\item Closure values: $\langle \lambda x.e, \rho \rangle$ representing a function with parameter $x$, body $e$, and captured environment $\rho$
+\item Closure values: $\langle \texttt{fn} \; p \; \texttt{->} \; e, \rho \rangle$ representing a function with parameter pattern $p$, body $e$, and captured environment $\rho$
 \item Constructor values: $C(v)$ representing algebraic data type constructors applied to values
 \end{itemize}
 
@@ -488,5 +488,145 @@ to indicate that pattern $p$ successfully matches value $v$, producing environme
 \item Inference rules are written with premises above the line and conclusion below
 \item Side conditions are written to the right of rules when necessary
 \end{itemize}
+
+\subsubsection{Evaluation Rules}
+
+We now present the complete evaluation rules for LambdaScript expressions.
+
+\textbf{Literals:}
+
+$$\frac{}{\langle n, \rho \rangle \Downarrow n}
+\quad
+\frac{}{\langle b, \rho \rangle \Downarrow b}
+\quad
+\frac{}{\langle s, \rho \rangle \Downarrow s}
+\quad
+\frac{}{\langle (), \rho \rangle \Downarrow ()}$$
+
+\textbf{Variables:}
+
+$$\frac{x \mapsto v \in \rho}{\langle x, \rho \rangle \Downarrow v}$$
+
+\textbf{Functions (Closures):}
+
+$$\frac{}{\langle \texttt{fn} \; p \; \texttt{->} \; e, \rho \rangle \Downarrow \langle \texttt{fn} \; p \; \texttt{->} \; e, \rho \rangle}$$
+
+A function expression evaluates to a closure capturing the current environment.
+
+\textbf{Application:}
+
+$$\frac{\langle e_1, \rho \rangle \Downarrow \langle \texttt{fn} \; p \; \texttt{->} \; e, \rho' \rangle \quad \langle e_2, \rho \rangle \Downarrow v_2 \quad \texttt{match}(p, v_2) = \rho'' \quad \langle e, \rho' + \rho'' \rangle \Downarrow v}{\langle e_1 \; e_2, \rho \rangle \Downarrow v}$$
+
+Application evaluates the function to a closure, evaluates the argument, matches the argument against the parameter pattern, and evaluates the body in the extended environment.
+
+\textbf{Let Binding:}
+
+$$\frac{\langle e_1, \rho \rangle \Downarrow v_1 \quad \texttt{match}(p, v_1) = \rho' \quad \langle e_2, \rho + \rho' \rangle \Downarrow v_2}{\langle \texttt{let} \; p = e_1 \; \texttt{in} \; e_2, \rho \rangle \Downarrow v_2}$$
+
+\textbf{Recursive Let Binding:}
+
+$$\frac{\langle e_1, \rho[x \mapsto \langle \texttt{fn} \; p \; \texttt{->} \; e_1, \rho[x \mapsto \cdots] \rangle] \rangle \Downarrow v_1 \quad \langle e_2, \rho[x \mapsto v_1] \rangle \Downarrow v_2}{\langle \texttt{let rec} \; x \; p = e_1 \; \texttt{in} \; e_2, \rho \rangle \Downarrow v_2}$$
+
+The recursive binding creates a cyclic environment where $x$ is bound to a closure that can refer to itself.
+
+\textbf{Conditional:}
+
+$$\frac{\langle e_1, \rho \rangle \Downarrow \texttt{true} \quad \langle e_2, \rho \rangle \Downarrow v}{\langle \texttt{if} \; e_1 \; \texttt{then} \; e_2 \; \texttt{else} \; e_3, \rho \rangle \Downarrow v}$$
+
+$$\frac{\langle e_1, \rho \rangle \Downarrow \texttt{false} \quad \langle e_3, \rho \rangle \Downarrow v}{\langle \texttt{if} \; e_1 \; \texttt{then} \; e_2 \; \texttt{else} \; e_3, \rho \rangle \Downarrow v}$$
+
+\textbf{Pattern Matching:}
+
+$$\frac{\langle e, \rho \rangle \Downarrow v \quad \texttt{match}(p_i, v) = \rho' \quad \langle e_i, \rho + \rho' \rangle \Downarrow v'}{\langle \texttt{case} \; e \; \texttt{do} \; \{p_j \rightarrow e_j\}_{j=1}^{n}, \rho \rangle \Downarrow v'}$$
+
+where $i$ is the first index such that $\texttt{match}(p_i, v) \neq \bot$.
+
+\textbf{Lists:}
+
+$$\frac{}{\langle [], \rho \rangle \Downarrow []}
+\quad
+\frac{\langle e_1, \rho \rangle \Downarrow v_1 \quad \langle e_2, \rho \rangle \Downarrow v_2}{\langle e_1 :: e_2, \rho \rangle \Downarrow v_1 :: v_2}$$
+
+\textbf{Tuples:}
+
+$$\frac{\langle e_1, \rho \rangle \Downarrow v_1 \quad \cdots \quad \langle e_n, \rho \rangle \Downarrow v_n}{\langle (e_1, \ldots, e_n), \rho \rangle \Downarrow (v_1, \ldots, v_n)}$$
+
+\textbf{Constructors:}
+
+$$\frac{}{\langle C, \rho \rangle \Downarrow C}
+\quad
+\frac{\langle e, \rho \rangle \Downarrow v}{\langle C \; e, \rho \rangle \Downarrow C(v)}$$
+
+\textbf{Binary Operators:}
+
+$$\frac{\langle e_1, \rho \rangle \Downarrow n_1 \quad \langle e_2, \rho \rangle \Downarrow n_2 \quad n_3 = n_1 \oplus n_2}{\langle e_1 \; \texttt{op} \; e_2, \rho \rangle \Downarrow n_3}$$
+
+where $\oplus$ denotes the semantic interpretation of the operator.
+
+\subsubsection{Pattern Matching Rules}
+
+The auxiliary function $\texttt{match}(p, v)$ attempts to match pattern $p$ against value $v$, returning an environment of bindings or failure ($\bot$).
+
+\textbf{Variable Pattern:}
+$$\texttt{match}(x, v) = \{x \mapsto v\}$$
+
+\textbf{Wildcard Pattern:}
+$$\texttt{match}(\_, v) = \emptyset$$
+
+\textbf{Literal Patterns:}
+$$\texttt{match}(n, n) = \emptyset
+\quad
+\texttt{match}(b, b) = \emptyset
+\quad
+\texttt{match}((), ()) = \emptyset$$
+
+If the literal values don't match: $\texttt{match}(n, n') = \bot$ when $n \neq n'$.
+
+\textbf{List Patterns:}
+$$\texttt{match}([], []) = \emptyset$$
+
+$$\texttt{match}(p_1 :: p_2, v_1 :: v_2) = \texttt{match}(p_1, v_1) + \texttt{match}(p_2, v_2)$$
+
+if both sub-matches succeed; otherwise $\bot$.
+
+\textbf{Tuple Patterns:}
+$$\texttt{match}((p_1, \ldots, p_n), (v_1, \ldots, v_n)) = \texttt{match}(p_1, v_1) + \cdots + \texttt{match}(p_n, v_n)$$
+
+if all sub-matches succeed; otherwise $\bot$.
+
+\textbf{Constructor Patterns:}
+$$\texttt{match}(C, C) = \emptyset$$
+
+$$\texttt{match}(C \; p, C(v)) = \texttt{match}(p, v)$$
+
+If constructors don't match: $\texttt{match}(C, C') = \bot$ when $C \neq C'$.
+
+\subsubsection{Evaluation Examples}
+
+\textbf{Example 1: Function Application}
+
+Consider evaluating \texttt{(fn x -> x + 1) 5} in empty environment $\emptyset$:
+
+\begin{enumerate}
+\item $\langle \texttt{fn} \; x \; \texttt{->} \; x + 1, \emptyset \rangle \Downarrow \langle \texttt{fn} \; x \; \texttt{->} \; x + 1, \emptyset \rangle$
+\item $\langle 5, \emptyset \rangle \Downarrow 5$
+\item $\texttt{match}(x, 5) = \{x \mapsto 5\}$
+\item $\langle x + 1, \{x \mapsto 5\} \rangle \Downarrow 6$
+\item Therefore: $\langle \texttt{(fn} \; x \; \texttt{->} \; x + 1) \; 5, \emptyset \rangle \Downarrow 6$
+\end{enumerate}
+
+\textbf{Example 2: Pattern Matching on Lists}
+
+Evaluating \texttt{case [1, 2] do | [] -> 0 | h :: t -> h} in $\emptyset$:
+
+\begin{enumerate}
+\item $\langle [1, 2], \emptyset \rangle \Downarrow 1 :: (2 :: [])$
+\item First pattern $[]$ fails: $\texttt{match}([], 1 :: (2 :: [])) = \bot$
+\item Second pattern $h :: t$ succeeds: $\texttt{match}(h :: t, 1 :: (2 :: [])) = \{h \mapsto 1, t \mapsto 2 :: []\}$
+\item $\langle h, \{h \mapsto 1, t \mapsto 2 :: []\} \rangle \Downarrow 1$
+\item Result: $1$
+\end{enumerate}
+
+These operational semantics define the complete runtime behavior of LambdaScript and provide a formal foundation for reasoning about program correctness.
 
 \end{document}

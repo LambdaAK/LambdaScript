@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  12 JAN 2026 15:05
+This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  16 JAN 2026 15:38
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -328,7 +328,32 @@ Overfull \hbox (24.0pt too wide) in paragraph at lines 331--331
 []  \OT1/pcr/m/n/10 | Node (_, forest) -> 1 + forest_size forest[] 
  []
 
-[4]
+[4] [5]
+Overfull \hbox (72.78595pt too wide) detected at line 518
+[]
+ []
+
+
+Overfull \hbox (22.51387pt too wide) detected at line 528
+[]
+ []
+
+
+Underfull \hbox (badness 7851) in paragraph at lines 568--569
+ \OT1/ptm/m/it/10 3) Pat-tern Match-ing Rules: [][] \OT1/ptm/m/n/10 The aux-il-iary func-tion
+ []
+
+
+Overfull \hbox (54.45355pt too wide) detected at line 593
+[]\OT1/cmr/m/n/10 ((\OML/cmm/m/it/10 p[]; [] ; p[]\OT1/cmr/m/n/10 )\OML/cmm/m/it/10 ; \OT1/cmr/m/n/10 (\OML/cmm/m/it/10 v[]; [] ; v[]\OT1/cmr/m/n/10 )) = [](\OML/cmm/m/it/10 p[]; v[]\OT1/cmr/m/n/10 ) + [] + [](\OML/cmm/m/it/10 p[]; v[]\OT1/cmr/m/n/10 )
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 620--621
+[]\OT1/ptm/m/n/10 Evaluating \OT1/pcr/m/n/10 case [1, 2] do | [] -> 0 | h ::
+ []
+
+[6]
 
 ** Conference Paper **
 Before submitting the final camera ready copy, remember to:
@@ -340,7 +365,9 @@ Before submitting the final camera ready copy, remember to:
  uses only Type 1 fonts and that every step in the generation
  process uses the appropriate paper size.
 
-[5] (./lambdascript.aux) ) 
+[7
+
+] (./lambdascript.aux) ) 
 Here is how much of TeX's memory you used:
  3912 strings out of 478051
  62417 string characters out of 5840003
@@ -350,10 +377,10 @@ Here is how much of TeX's memory you used:
  14 hyphenation exceptions out of 8191
  57i,11n,62p,918b,266s stack positions out of 10000i,1000n,20000p,200000b,200000s
 {/Users/alex/Library/TinyTeX/texmf-dist/fonts/enc/dvips/base/8r.enc}</Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmbi8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on lambdascript.pdf (5 pages, 152233 bytes).
+Output written on lambdascript.pdf (7 pages, 160338 bytes).
 PDF statistics:
- 76 PDF objects out of 1000 (max. 8388607)
- 46 compressed objects within 1 object stream
+ 84 PDF objects out of 1000 (max. 8388607)
+ 52 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 

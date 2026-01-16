@@ -1,34 +1,21 @@
-# Makefile for LaTeX compilation
+.PHONY: all quick view clean bib
 
-# Main document name (without .tex extension)
-MAIN = lambdascript
+TARGET = lambdascript
 
-# LaTeX compiler
-LATEX = pdflatex
+all: quick
 
-# Default target
-all: $(MAIN).pdf
+quick:
+	pdflatex $(TARGET).tex
+	pdflatex $(TARGET).tex
 
-# Compile the PDF (run multiple times to resolve references)
-$(MAIN).pdf: $(MAIN).tex
-	$(LATEX) $(MAIN).tex
-	$(LATEX) $(MAIN).tex
+bib:
+	pdflatex $(TARGET).tex
+	bibtex $(TARGET)
+	pdflatex $(TARGET).tex
+	pdflatex $(TARGET).tex
 
-# Clean auxiliary files
+view:
+	open $(TARGET).pdf
+
 clean:
-	rm -f $(MAIN).aux $(MAIN).log $(MAIN).out $(MAIN).toc \
-	      $(MAIN).bbl $(MAIN).blg $(MAIN).synctex.gz
-
-# Clean all generated files including PDF
-cleanall: clean
-	rm -f $(MAIN).pdf
-
-# View the PDF (macOS)
-view: $(MAIN).pdf
-	open $(MAIN).pdf
-
-# Force rebuild
-rebuild: cleanall all
-
-.PHONY: all clean cleanall view rebuild
-
+	rm -f $(TARGET).aux $(TARGET).log $(TARGET).out $(TARGET).pdf $(TARGET).bbl $(TARGET).blg
