@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  16 JAN 2026 16:16
+This is pdfTeX, Version 3.141592653-2.6-1.40.24 (TeX Live 2022) (preloaded format=pdflatex 2023.1.26)  16 JAN 2026 16:27
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -269,17 +269,17 @@ File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 \openout3 = `lambdascript.toc'.
 
  [2]
-LaTeX Font Info:    Trying to load font information for OT1+pcr on input line 41.
+LaTeX Font Info:    Trying to load font information for OT1+pcr on input line 37.
  (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/psnfss/ot1pcr.fd
 File: ot1pcr.fd 2001/06/04 font definitions for OT1/pcr.
 ) [3] [4] [5] [6] [7] [8] [9] [10] [11] [12] [13] [14] [15] [16]
-LaTeX Font Info:    Trying to load font information for OMS+pcr on input line 990.
+LaTeX Font Info:    Trying to load font information for OMS+pcr on input line 986.
  (/Users/alex/Library/TinyTeX/texmf-dist/tex/latex/psnfss/omspcr.fd
 File: omspcr.fd 
 )
 LaTeX Font Info:    Font shape `OMS/pcr/m/n' in size <10> not available
-(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 990.
- [17] [18] [19] [20] [21] [22]
+(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 986.
+ [17] [18] [19] [20] [21] [22] [23]
 
 ** Conference Paper **
 Before submitting the final camera ready copy, remember to:
@@ -291,7 +291,7 @@ Before submitting the final camera ready copy, remember to:
  uses only Type 1 fonts and that every step in the generation
  process uses the appropriate paper size.
 
-[23] (./lambdascript.aux) ) 
+[24] (./lambdascript.aux) ) 
 Here is how much of TeX's memory you used:
  3939 strings out of 478051
  62866 string characters out of 5840003
@@ -301,10 +301,10 @@ Here is how much of TeX's memory you used:
  14 hyphenation exceptions out of 8191
  57i,14n,62p,937b,231s stack positions out of 10000i,1000n,20000p,200000b,200000s
 {/Users/alex/Library/TinyTeX/texmf-dist/fonts/enc/dvips/base/8r.enc}</Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></Users/alex/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on lambdascript.pdf (23 pages, 191005 bytes).
+Output written on lambdascript.pdf (24 pages, 200240 bytes).
 PDF statistics:
- 134 PDF objects out of 1000 (max. 8388607)
- 86 compressed objects within 1 object stream
+ 137 PDF objects out of 1000 (max. 8388607)
+ 88 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 

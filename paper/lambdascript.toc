@@ -52,10 +52,16 @@
 \contentsline {subsubsection}{\numberline {\mbox {VI-F}4}Code Blocks}{20}{}%
 \contentsline {section}{\numberline {VII}Testing and Validation}{21}{}%
 \contentsline {subsection}{\numberline {\mbox {VII-A}}Test Suite Design}{21}{}%
-\contentsline {subsection}{\numberline {\mbox {VII-B}}Coverage Analysis}{21}{}%
-\contentsline {subsection}{\numberline {\mbox {VII-C}}Real-World Examples}{21}{}%
-\contentsline {section}{\numberline {VIII}Discussion}{22}{}%
-\contentsline {subsection}{\numberline {\mbox {VIII-A}}Known Limitations}{22}{}%
-\contentsline {subsection}{\numberline {\mbox {VIII-B}}Related Work}{22}{}%
-\contentsline {subsection}{\numberline {\mbox {VIII-C}}Future Work}{22}{}%
-\contentsline {section}{\numberline {IX}Conclusion}{23}{}%
+\contentsline {subsubsection}{\numberline {\mbox {VII-A}1}Test Categories}{21}{}%
+\contentsline {subsubsection}{\numberline {\mbox {VII-A}2}Test Generators}{22}{}%
+\contentsline {subsection}{\numberline {\mbox {VII-B}}Coverage Analysis}{22}{}%
+\contentsline {subsubsection}{\numberline {\mbox {VII-B}1}Coverage Metrics}{22}{}%
+\contentsline {subsubsection}{\numberline {\mbox {VII-B}2}Coverage Report Generation}{22}{}%
+\contentsline {subsection}{\numberline {\mbox {VII-C}}Real-World Examples}{22}{}%
+\contentsline {subsubsection}{\numberline {\mbox {VII-C}1}Red-Black Tree}{22}{}%
+\contentsline {subsubsection}{\numberline {\mbox {VII-C}2}List Operations}{23}{}%
+\contentsline {subsubsection}{\numberline {\mbox {VII-C}3}Monadic Structures}{23}{}%
+\contentsline {subsubsection}{\numberline {\mbox {VII-C}4}Interpreter Implementation}{23}{}%
+\contentsline {subsection}{\numberline {\mbox {VII-D}}Performance Characteristics}{23}{}%
+\contentsline {subsection}{\numberline {\mbox {VII-E}}Validation Results}{23}{}%
+\contentsline {section}{\numberline {VIII}Conclusion}{24}{}%
