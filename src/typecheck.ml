@@ -216,6 +216,19 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
       in
       let- field_types, equations = process_fields [] [] fields in
       return (RecordType field_types, equations, [])
+  | ERecordUpdate (record_expr, updates) ->
+      (* { expr with field1 = val1, ... } - type is same as record_expr *)
+      let- record_type, record_equations, _ = generate env type_env record_expr in
+      (* For each update, add constraint that the field type matches *)
+      let rec process_updates acc_equations = function
+        | [] -> return (record_type, acc_equations, [])
+        | (field_name, field_expr) :: rest ->
+            let- field_type, field_equations, _ = generate env type_env field_expr in
+            let minimal_record = RecordType [(field_name, field_type)] in
+            let equation = (record_type, minimal_record) in
+            process_updates (equation :: field_equations @ acc_equations) rest
+      in
+      process_updates record_equations updates
   | EFieldAccess (record_expr, field_name) ->
       (* Generate type for the record expression *)
       let- record_type, record_equations, _ = generate env type_env record_expr in

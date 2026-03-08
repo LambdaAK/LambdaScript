@@ -96,6 +96,7 @@ and c_expr =
   | EListEnumeration of c_expr * c_expr
   | EListComprehension of c_expr * (c_pat * c_expr) list
   | ERecordLit of (string * c_expr) list
+  | ERecordUpdate of c_expr * (string * c_expr) list (* { expr with field = value, ... } *)
   | EFieldAccess of c_expr * string
 
 and value =

@@ -421,6 +421,23 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
             eval_fields ((name, value) :: acc) rest
       in
       eval_fields [] fields
+  | ERecordUpdate (record_expr, updates) -> (
+      (* Evaluate the record, then overlay the updates *)
+      let* record_value = eval_c_expr record_expr env in
+      match record_value with
+      | RecordValue fields ->
+          let rec apply_updates acc = function
+            | [] -> return (RecordValue acc)
+            | (field_name, field_expr) :: rest ->
+                let* field_value = eval_c_expr field_expr env in
+                let updated =
+                  (field_name, field_value)
+                  :: List.filter (fun (n, _) -> n <> field_name) acc
+                in
+                apply_updates updated rest
+          in
+          apply_updates fields updates
+      | _ -> Error (OtherError "Record update on non-record value"))
   | EFieldAccess (record_expr, field_name) -> (
       (* Evaluate the record expression and extract the field *)
       let* record_value = eval_c_expr record_expr env in

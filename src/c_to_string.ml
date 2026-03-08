@@ -158,6 +158,11 @@ let rec string_of_expr : c_expr -> string = function
         name ^ ": " ^ string_of_expr e
       ) fields in
       "{" ^ String.concat ", " field_strs ^ "}"
+  | ERecordUpdate (e, updates) ->
+      let update_strs = List.map (fun (name, e) ->
+        name ^ " = " ^ string_of_expr e
+      ) updates in
+      "{" ^ string_of_expr e ^ " with " ^ String.concat ", " update_strs ^ "}"
   | EFieldAccess (e, field) ->
       string_of_expr e ^ "." ^ field
   | EBindMutRec (bindings, body) ->

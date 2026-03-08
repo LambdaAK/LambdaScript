@@ -135,6 +135,7 @@ and factor =
   | ListEnumeration of expr * expr
   | ListComprehension of expr * generator list
   | RecordLit of (string * expr) list
+  | RecordUpdate of expr * (string * expr) list (* { expr with field = value, ... } *)
   | FieldAccess of factor * string
 
 and generator = pat * expr

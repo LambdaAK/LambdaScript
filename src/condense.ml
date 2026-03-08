@@ -266,6 +266,10 @@ and condense_factor : factor -> c_expr = function
         (condense_expr e, List.map condense_generator generators)
   | RecordLit fields ->
       ERecordLit (List.map (fun (name, expr) -> (name, condense_expr expr)) fields)
+  | RecordUpdate (record_expr, updates) ->
+      ERecordUpdate
+        ( condense_expr record_expr,
+          List.map (fun (name, expr) -> (name, condense_expr expr)) updates )
   | FieldAccess (factor, field_name) ->
       EFieldAccess (condense_factor factor, field_name)
 

@@ -4675,6 +4675,9 @@ let record_type_tests =
       ("{x: {y: 1}}", "{x: {y: int}}");
       ("{x: {y: 1}}.x", "{y: int}");
       ("{x: {y: 1}}.x.y", "int");
+      (* Record updates *)
+      ("let p = {x: 1, y: 2} in { p with x = 10 }", "{x: int, y: int}");
+      ("{ {x: 1, y: 2} with x = 99 }", "{x: int, y: int}");
       (* Records with functions *)
       ("{f: fn x -> x}", "{f: 'a -> 'a}");
       ("{f: fn x -> x + 1}", "{f: int -> int}");
@@ -4762,6 +4765,14 @@ let record_eval_tests =
       ("(fn r -> r.x) {x: 1, y: 2}", "1");
       ("(fn r -> r.x) {x: 1, y: 2, z: 3}", "1");
       ("let f = fn r -> r.x + 1 in f {x: 5, y: 10}", "6");
+      (* Record updates: { expr with field = value } *)
+      ("let p = {x: 10, y: 20} in { p with x = 100 }.x", "100");
+      ("let p = {x: 10, y: 20} in { p with x = 100 }.y", "20");
+      ("let p = {x: 10, y: 20} in { p with y = 50 }.y", "50");
+      ("let p = {x: 10, y: 20} in { p with x = 5, y = 15 }.x", "5");
+      ("let p = {x: 10, y: 20} in { p with x = 5, y = 15 }.y", "15");
+      ("{ {x: 1, y: 2} with x = 99 }.x", "99");
+      ("{ {x: 1, y: 2} with x = 99 }.y", "2");
     ]
 
 (* ============================================================================
@@ -7156,6 +7167,14 @@ let complex_record_operations =
   let open ProgramTesting in
   "complex_record_operations"
   >::: [
+         ( "record update with syntax" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               let p = {x: 1, y: 2}
+               let p2 = { p with x = 10 }
+             |}
+             ~expr:"p2.x + p2.y" ~expected_value:"12" );
          ( "record update simulation" >:: fun _ ->
            assert_expression_has_value
              ~program:

@@ -598,6 +598,23 @@ end = struct
     let* () = expect_token RBracket in
     return (ListComprehension (expr, branches))
 
+  and record_update_parser () : factor parser =
+    (* { expr with field1 = expr1, field2 = expr2, ... } *)
+    let* () = expect_token LBrace in
+    let* record_expr = expr_parser in
+    let* () = expect_token With in
+    let parse_field_update () =
+      let* field_name = expect_token_get_data (function
+        | Id id -> Some id
+        | _ -> None) in
+      let* () = expect_token Equals in
+      let* field_expr = expr_parser in
+      return (field_name, field_expr)
+    in
+    let* updates = parse_sep_delim (parse_field_update ()) Comma in
+    let* () = expect_token RBrace in
+    return (RecordUpdate (record_expr, updates))
+
   and record_lit_parser () : factor parser =
     (* {field1: expr1, field2: expr2, ...} *)
     let* () = expect_token LBrace in
@@ -630,7 +647,7 @@ end = struct
         ( (function
           | LBrace :: _ -> true
           | _ -> false),
-          record_lit_parser () );
+          record_update_parser () <|> record_lit_parser () );
       ]
       [
         boolean_parser;

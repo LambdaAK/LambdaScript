@@ -470,6 +470,15 @@ and string_of_factor (factor : factor) (level : int) =
           (List.map (fun (name, e) ->
             name ^ ": " ^ string_of_expr e (level + 1)) fields)
       ^ ")"
+  | RecordUpdate (record_expr, updates) ->
+      "RecordUpdate ("
+      ^ string_of_expr record_expr (level + 1)
+      ^ " with "
+      ^ String.concat
+          (",\n" ^ indentations_with_newline (level + 1))
+          (List.map (fun (name, e) ->
+            name ^ " = " ^ string_of_expr e (level + 1)) updates)
+      ^ ")"
   | FieldAccess (f, field_name) ->
       "FieldAccess ("
       ^ string_of_factor f (level + 1)
