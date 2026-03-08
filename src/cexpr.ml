@@ -127,6 +127,12 @@ and builtin_function =
   | Filter
   | ReduceLeft
   | ReduceRight
+  | StrLength
+  | StrConcat
+  | StrConcatPartial of string
+  | StrSlice
+  | StrSlicePartial1 of string
+  | StrSlicePartial2 of string * int
 
 and env = (string * value) list
 

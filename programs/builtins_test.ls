@@ -1,0 +1,7 @@
+let () = println (int_to_str (str_length "hello"))
+let () = println (str_concat "hello" " world")
+let () = println (str_slice "hello" 1 3)
+let () = println (int_to_str (list_length [1, 2, 3]))
+let () = println (int_to_str (list_head [1, 2, 3]))
+let () = println (int_to_str (tuple_fst (5, 10)))
+let () = println (int_to_str (tuple_snd (5, 10)))

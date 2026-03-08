@@ -4775,6 +4775,46 @@ let record_eval_tests =
       ("{ {x: 1, y: 2} with x = 99 }.y", "2");
     ]
 
+let builtin_eval_tests =
+  List.map
+    (fun (a, b) -> eval_test a b)
+    [
+      (* String builtins *)
+      ("str_length \"hello\"", "5");
+      ("str_length \"\"", "0");
+      ("str_concat \"hello\" \" world\"", "\"hello world\"");
+      ("str_slice \"hello\" 1 3", "\"ell\"");
+      ("str_slice \"hello\" 0 5", "\"hello\"");
+      (* List builtins *)
+      ("list_length []", "0");
+      ("list_length [1, 2, 3]", "3");
+      ("list_head [1, 2, 3]", "1");
+      ("list_tail [1, 2, 3]", "[2, 3]");
+      ("list_nth [10, 20, 30] 0", "10");
+      ("list_nth [10, 20, 30] 1", "20");
+      ("list_nth [10, 20, 30] 2", "30");
+      (* Tuple builtins *)
+      ("tuple_fst (1, 2)", "1");
+      ("tuple_snd (1, 2)", "2");
+      ("tuple_fst (\"a\", \"b\")", "\"a\"");
+      ("tuple_snd (1, true)", "true");
+    ]
+
+let builtin_type_tests =
+  List.map
+    (fun (a, b) -> type_test a b)
+    [
+      ("str_length \"x\"", "int");
+      ("str_concat \"a\" \"b\"", "str");
+      ("str_slice \"hello\" 0 1", "str");
+      ("list_length [1, 2, 3]", "int");
+      ("list_head [1, 2, 3]", "int");
+      ("list_tail [1, 2, 3]", "[int]");
+      ("list_nth [1, 2, 3] 0", "int");
+      ("tuple_fst (1, 2)", "int");
+      ("tuple_snd (1, 2)", "int");
+    ]
+
 (* ============================================================================
    COMPREHENSIVE RECORD TYPE TESTS
 
@@ -10914,6 +10954,8 @@ let all_tests =
       record_type_tests;
       [ named_record_type_tests ];
       record_eval_tests;
+      builtin_eval_tests;
+      builtin_type_tests;
       extended_record_type_tests;
       extended_record_eval_tests;
       [ complex_record_scenarios ];

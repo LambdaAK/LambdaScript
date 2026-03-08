@@ -4,7 +4,7 @@ open Language.Condense
 open Language.Typecheck
 open Language.Cexpr
 open Language.Ceval
-open Language.Env
+open Language.Build_env
 
 let interpret (filename : string) =
   let channel =
@@ -43,7 +43,7 @@ let interpret (filename : string) =
           exit 1);
       let condensed_program = List.map condense_defn program in
 
-      let static_env : static_env = built_ins_types in
+      let static_env : static_env = build_full_static_env () in
       let dynamic_env : env = initial_env () |> unwrap_eval_result in
       let type_env : type_env = [] in
 

@@ -15,6 +15,13 @@ let built_ins : (string * value * c_type) list =
     ( "list_of_string",
       BuiltInFunction StringToList,
       Mono (StringType => CListType CharType) );
+    ("str_length", BuiltInFunction StrLength, Mono (StringType => IntType));
+    ( "str_concat",
+      BuiltInFunction StrConcat,
+      Mono (StringType => (StringType => StringType)) );
+    ( "str_slice",
+      BuiltInFunction StrSlice,
+      Mono (StringType => (IntType => (IntType => StringType))) );
     (* Built-in type constructors - these represent the types themselves when used as values *)
     (* Using a fresh type variable that will be unified during type checking *)
     ("bool", UnitValue, Mono BoolType);
@@ -98,6 +105,24 @@ filter|}
     ("<>", {|fn a -> fn b -> if a == b then false else true|});
     ("&&", {|fn a -> fn b -> a && b|});
     ("||", {|fn a -> fn b -> a || b|});
+    ( "list_length",
+      {|let rec length lst = case lst do | [] -> 0 | _ :: t -> 1 + length t in length|}
+    );
+    ( "list_head",
+      {|let head = fn lst -> case lst do | h :: _ -> h in head|}
+    );
+    ( "list_tail",
+      {|let tail = fn lst -> case lst do | _ :: t -> t in tail|}
+    );
+    ( "list_nth",
+      {|let rec nth lst n = case lst do | h :: t -> if n == 0 then h else nth t (n - 1) in nth|}
+    );
+    ( "tuple_fst",
+      {|let fst = fn p -> case p do | (a, b) -> a in fst|}
+    );
+    ( "tuple_snd",
+      {|let snd = fn p -> case p do | (a, b) -> b in snd|}
+    );
   ]
 
 (* definitions of the REPL *)

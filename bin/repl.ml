@@ -362,7 +362,7 @@ let run_repl ?preload_file () =
   print_colored_line color_dim "Type :help for commands, :quit to exit";
   print_newline ();
 
-  let static_env = Language.Env.built_ins_types in
+  let static_env = Language.Build_env.build_full_static_env () in
   let dynamic_env =
     Language.Ceval.initial_env () |> Language.Ceval.unwrap_eval_result
   in

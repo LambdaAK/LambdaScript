@@ -91,6 +91,21 @@ Supports comprehensive pattern matching including:
 - `float_to_int : float -> int`
 - `string_to_list : string -> [char]`
 
+**String Operations**:
+- `str_length : string -> int` - length of string
+- `str_concat : string -> string -> string` - concatenate two strings
+- `str_slice : string -> int -> int -> string` - substring (start, length)
+
+**List Operations**:
+- `list_length : [a] -> int` - length of list
+- `list_head : [a] -> a` - first element (fails on empty)
+- `list_tail : [a] -> [a]` - all but first element
+- `list_nth : [a] -> int -> a` - nth element (0-indexed)
+
+**Tuple Operations**:
+- `tuple_fst : (a, b) -> a` - first element of pair
+- `tuple_snd : (a, b) -> b` - second element of pair
+
 **Higher-Order Functions**:
 - `map : (a -> b) -> [a] -> [b]`
 - `filter : (a -> bool) -> [a] -> [a]`

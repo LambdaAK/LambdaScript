@@ -464,6 +464,26 @@ and eval_builtin (f : builtin_function) (v : value) : value eval_result =
         s |> String.to_seq |> List.of_seq |> List.map (fun c -> CharValue c)
       in
       ListValue char_list |> return
+  | StrLength, StringValue s -> IntegerValue (String.length s) |> return
+  | StrConcat, StringValue s1 ->
+      BuiltInFunction (StrConcatPartial s1) |> return
+  | StrConcatPartial s1, StringValue s2 ->
+      StringValue (s1 ^ s2) |> return
+  | StrSlice, StringValue s ->
+      BuiltInFunction (StrSlicePartial1 s) |> return
+  | StrSlicePartial1 s, IntegerValue start ->
+      BuiltInFunction (StrSlicePartial2 (s, start)) |> return
+  | StrSlicePartial2 (s, start), IntegerValue len ->
+      let s_len = String.length s in
+      let start = max 0 (min start s_len) in
+      let len = max 0 (min len (s_len - start)) in
+      StringValue (String.sub s start len) |> return
+  | StrLength, _ -> Error (OtherError "str_length: expected string")
+  | StrConcat, _ -> Error (OtherError "str_concat: expected string")
+  | StrConcatPartial _, _ -> Error (OtherError "str_concat: expected string")
+  | StrSlice, _ -> Error (OtherError "str_slice: expected string")
+  | StrSlicePartial1 _, _ -> Error (OtherError "str_slice: expected int")
+  | StrSlicePartial2 _, _ -> Error (OtherError "str_slice: expected int")
   | _ -> Error (OtherError "eval_builtin: unimplemented")
 
 and generate_envs_from_generators generators env : env list eval_result =
