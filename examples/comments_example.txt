@@ -1,0 +1,39 @@
+/* ============================================
+   LambdaScript Comment Feature Examples
+   ============================================
+
+   This demonstrates both single-line and
+   multi-line comment support.
+*/
+
+// Single-line comment syntax
+
+let x = 42  // Comments can appear at end of line
+
+/* Multi-line comment
+   can span multiple lines */
+
+let y = 100
+
+// Function with documentation
+let rec factorial n =
+  if n == 0 then 1  // Base case
+  else n * factorial (n - 1)  /* Recursive case */
+
+/* Type definition with comments */
+type rec List<a> =
+  | Nil                    // Empty list
+  | Cons of (a, List<a>)  // List node
+
+// Helper function
+let rec sum lst =
+  switch lst =>
+  | Nil -> 0
+  | Cons (h, t) -> h + sum t  // Add head to tail sum
+
+// Test the code
+let mylist = Cons (1, Cons (2, Cons (3, Nil)))
+let result = sum mylist
+let () = println (int_to_str result)  // Prints: 6
+
+/* End of example */
