@@ -5,6 +5,11 @@ declare void @ls_print(i8*)
 declare void @ls_println(i8*)
 declare i8* @ls_int_to_str(i32)
 
+define i1 @foo(i8 %_p1, i8 %_p2) {
+entry:
+  ret i1 true
+}
+
 define i32 @add(i32 %x, i32 %y, i1 %bb) {
 entry:
   br i1 %bb, label %then_1, label %else_2
@@ -21,9 +26,10 @@ else_2:
 
 define i32 @main() {
 entry:
-  %_t4 = call i32 @add(i32 1, i32 2, i1 false)
-  %res = add nsw i32 %_t4, 0
-  %_t5 = call i8* @ls_int_to_str(i32 %res)
-  call void @ls_println(i8* %_t5)
+  %_t4 = call i1 @foo(i8 0, i8 0)
+  %_t5 = call i32 @add(i32 1, i32 2, i1 %_t4)
+  %res = add nsw i32 %_t5, 0
+  %_t6 = call i8* @ls_int_to_str(i32 %res)
+  call void @ls_println(i8* %_t6)
   ret i32 0
 }

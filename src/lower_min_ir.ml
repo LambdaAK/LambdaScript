@@ -17,12 +17,19 @@ open Min_ir
 
 let counter = ref 0
 
+let param_counter = ref 0
+
 let reset_fresh () =
-  counter := 0
+  counter := 0;
+  param_counter := 0
 
 let fresh () =
   incr counter;
   "_t" ^ string_of_int !counter
+
+let fresh_param () =
+  incr param_counter;
+  "_p" ^ string_of_int !param_counter
 
 type fn_ctx = {
   mutable completed : block list;
@@ -96,13 +103,11 @@ let param_min_ir_tys (name : string) (param_anns : c_type option list)
             "Polymorphic parameter annotation not supported for compilation")
     param_anns inferred_monos
 
-(** [peel_efun body] — parameters (with annotations), inner expression. *)
-let rec peel_efun acc_p acc_a : c_expr -> string list * c_type option list * c_expr
+(** [peel_efun body] — parameters (patterns + annotations), inner expression. *)
+let rec peel_efun acc_p acc_a : c_expr -> c_pat list * c_type option list * c_expr
     = function
-  | EFunction (CIdPat p, ann, rest) ->
-      peel_efun (p :: acc_p) (ann :: acc_a) rest
-  | EFunction _ ->
-      unsupported "Function parameter must be a simple identifier for compilation"
+  | EFunction (pat, ann, rest) ->
+      peel_efun (pat :: acc_p) (ann :: acc_a) rest
   | e ->
       (List.rev acc_p, List.rev acc_a, e)
 
@@ -377,17 +382,33 @@ and lower_block (parts : c_expr_or_c_defn list) (env : env) (ctx : fn_ctx) :
 let blocks_assoc (ctx : fn_ctx) : (string * block) list =
   List.map (fun b -> (b.label, b)) ctx.completed
 
-let lower_user_function (name : string) (params : string list)
+let lower_user_function (name : string) (param_pats : c_pat list)
     (param_anns : c_type option list) (inner : c_expr) (env : env)
     (static_env : static_env) : func_def =
   let param_tys = param_min_ir_tys name param_anns static_env in
-  let ctx = create_fn_ctx () in
-  let env_params =
-    List.fold_right
-      (fun (p, pt) acc -> (p, Val (Local p, pt)) :: acc)
-      (List.combine params param_tys)
-      []
+  if List.length param_pats <> List.length param_tys then
+    unsupported "Internal: parameter pattern count mismatch";
+  let param_names_and_frags =
+    List.map2
+      (fun pat pt ->
+        match pat with
+        | CIdPat s ->
+            (s, [ (s, Val (Local s, pt)) ])
+        | CUnitPat ->
+            let p = fresh_param () in
+            (p, [])
+        | CWildcardPat ->
+            let p = fresh_param () in
+            (p, [])
+        | CIntPat _ | CBoolPat _ | CNilPat | CConsPat _ | CVectorPat _ | CCharPat _
+        | CStringPat _ | CVariantPat _ ->
+            unsupported
+              "Function parameter pattern not supported for native compilation")
+      param_pats param_tys
   in
+  let params = List.map fst param_names_and_frags in
+  let env_params = List.concat (List.map snd param_names_and_frags) in
+  let ctx = create_fn_ctx () in
   let merged = env_params @ env in
   let op, ret_ty =
     match lower_expr inner merged ctx with
@@ -453,8 +474,8 @@ let lower_c_program (defs : c_defn list) (static_env : static_env) :
       | CDefn (pat, _, body, _, _) :: rest ->
           (match pat with
           | CIdPat name -> (
-              let params, anns, inner = peel_efun [] [] body in
-              match params with
+              let param_pats, anns, inner = peel_efun [] [] body in
+              match param_pats with
               | [] -> (
                   match lower_expr inner env ctx_main with
                   | LVal (o, t) ->
@@ -466,7 +487,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env) :
                       walk env' rest)
               | _ :: _ ->
                   let fn =
-                    lower_user_function name params anns inner env static_env
+                    lower_user_function name param_pats anns inner env static_env
                   in
                   user_funs := !user_funs @ [ fn ];
                   let c =

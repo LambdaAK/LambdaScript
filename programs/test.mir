@@ -1,4 +1,10 @@
 entry: @main
+fn foo(_p1: unit, _p2: unit) -> i1 {
+entry:
+
+  ret true
+}
+
 fn add(x: i32, y: i32, bb: i1) -> i32 {
 entry:
 
@@ -16,9 +22,10 @@ merge_3:
 
 fn main() -> unit {
 entry:
-  _t4 = call @add(1, 2, false)
-  res = %_t4
-  _t5 = call @int_to_str(%res)
-  void call @println(%_t5)
+  _t4 = call @foo((), ())
+  _t5 = call @add(1, 2, %_t4)
+  res = %_t5
+  _t6 = call @int_to_str(%res)
+  void call @println(%_t6)
   ret void
 }

@@ -1,5 +1,12 @@
 	.section	__TEXT,__text,regular,pure_instructions
 	.build_version macos, 15, 0
+	.globl	_foo                            ; -- Begin function foo
+	.p2align	2
+_foo:                                   ; @foo
+; %bb.0:                                ; %entry
+	mov	w0, #1                          ; =0x1
+	ret
+                                        ; -- End function
 	.globl	_add                            ; -- Begin function add
 	.p2align	2
 _add:                                   ; @add
@@ -18,7 +25,7 @@ _main:                                  ; @main
 	.cfi_def_cfa_offset 16
 	.cfi_offset w30, -8
 	.cfi_offset w29, -16
-	mov	w0, #-1                         ; =0xffffffff
+	mov	w0, #3                          ; =0x3
 	bl	_ls_int_to_str
 	bl	_ls_println
 	mov	w0, #0                          ; =0x0

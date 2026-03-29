@@ -16,6 +16,12 @@ let llvm_ll_ty : ty -> string = function
   | String -> "i8*"
   | Unit -> "void"
 
+(** [unit] is not an LLVM value type; use [i8] as the ABI carrier for [unit]
+    parameters, call arguments, and SSA locals that hold [unit]. *)
+let llvm_value_ty : ty -> string = function
+  | Unit -> "i8"
+  | t -> llvm_ll_ty t
+
 let ibin_ll : ibin -> string = function
   | Add -> "add nsw"
   | Sub -> "sub nsw"
@@ -121,8 +127,8 @@ let emit_operand h (op : operand) : string * string =
   | ConstI32 n -> ("i32", string_of_int n)
   | ConstI1 b -> ("i1", if b then "true" else "false")
   | ConstStr _ -> failwith "llvm_emit: ConstStr must use Copy/global"
-  | ConstUnit -> failwith "llvm_emit: ConstUnit in value position"
-  | Local x -> (llvm_ll_ty (H.find h x), "%" ^ x)
+  | ConstUnit -> ("i8", "0")
+  | Local x -> (llvm_value_ty (H.find h x), "%" ^ x)
 
 let map_call_args h (fd : func_def) (args : Min_ir.operand list) : string list
     =
@@ -130,13 +136,20 @@ let map_call_args h (fd : func_def) (args : Min_ir.operand list) : string list
     failwith "llvm_emit: call arity mismatch";
   List.map2
     (fun (_, pty) op ->
-      let got_ll, v = emit_operand h op in
-      let exp_ll = llvm_ll_ty pty in
-      if got_ll <> exp_ll then
-        failwith
-          (Printf.sprintf "llvm_emit: call arg expected %s, got %s" exp_ll
-             got_ll);
-      Printf.sprintf "%s %s" exp_ll v)
+      match (pty, op) with
+      | Unit, ConstUnit -> "i8 0"
+      | Unit, Local x ->
+          if H.find h x <> Unit then
+            failwith "llvm_emit: unit call argument local must have unit type";
+          Printf.sprintf "i8 %%%s" x
+      | _ ->
+          let got_ll, v = emit_operand h op in
+          let exp_ll = llvm_value_ty pty in
+          if got_ll <> exp_ll then
+            failwith
+              (Printf.sprintf "llvm_emit: call arg expected %s, got %s" exp_ll
+                 got_ll);
+          Printf.sprintf "%s %s" exp_ll v)
     fd.params args
 
 let emit_copy_dst ctx h lines dst o =
@@ -152,17 +165,21 @@ let emit_copy_dst ctx h lines dst o =
       in
       lines := !lines @ [ ins ];
       H.replace h dst (operand_min_ty h o)
+  | ConstUnit ->
+      lines := !lines @ [ Printf.sprintf "  %%%s = add i8 0, 0" dst ];
+      H.replace h dst Unit
   | Local _ ->
+      let ty = operand_min_ty h o in
       let t, v = emit_operand h o in
       let ins =
-        if t = "i32" then Printf.sprintf "  %%%s = add nsw i32 %s, 0" dst v
+        if ty = Unit then Printf.sprintf "  %%%s = add i8 %s, 0" dst v
+        else if t = "i32" then Printf.sprintf "  %%%s = add nsw i32 %s, 0" dst v
         else if t = "i1" then Printf.sprintf "  %%%s = xor i1 %s, false" dst v
         else if t = "i8*" then Printf.sprintf "  %%%s = bitcast i8* %s to i8*" dst v
         else failwith "llvm_emit: copy"
       in
       lines := !lines @ [ ins ];
-      H.replace h dst (operand_min_ty h o)
-  | ConstUnit -> failwith "llvm_emit: copy unit"
+      H.replace h dst ty
 
 let phi_incoming_val (h : (string, ty) H.t) (exp_ty : ty) (op : operand) :
     string =
@@ -347,7 +364,7 @@ let emit_func ctx (fn_sigs : (string, func_def) H.t) (f : func_def) : string =
     String.concat ", "
       (List.map
          (fun (p, t) ->
-           Printf.sprintf "%s %%%s" (llvm_ll_ty t) p)
+           Printf.sprintf "%s %%%s" (llvm_value_ty t) p)
          f.params)
   in
   let h = init_param_types f in
