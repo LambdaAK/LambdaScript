@@ -99,8 +99,9 @@ let emit_global_string ctx (dst : string) (s : string) : string =
       gname n lit
   in
   ctx.prelude <- line :: ctx.prelude;
+  (* No parentheses around [N x i8] — required for Apple clang LLVM IR parser. *)
   Printf.sprintf
-    "  %%%s = getelementptr inbounds ([%d x i8], [%d x i8]* @%s, i64 0, i64 0)"
+    "  %%%s = getelementptr inbounds [%d x i8], [%d x i8]* @%s, i64 0, i64 0"
     dst n n gname
 
 let operand_min_ty (h : (string, ty) H.t) : operand -> ty = function
@@ -153,11 +154,42 @@ let emit_copy_dst ctx h lines dst o =
       H.replace h dst (operand_min_ty h o)
   | ConstUnit -> failwith "llvm_emit: copy unit"
 
+let phi_incoming_val (h : (string, ty) H.t) (exp_ty : ty) (op : operand) :
+    string =
+  let () =
+    let got = operand_min_ty h op in
+    if got <> exp_ty then
+      failwith
+        (Printf.sprintf "llvm_emit: phi arm type mismatch (expected %s)"
+           (match exp_ty with
+           | I32 -> "i32"
+           | I1 -> "i1"
+           | String -> "i8*"
+           | Unit -> "void"))
+  in
+  match op with
+  | ConstI32 n -> string_of_int n
+  | ConstI1 b -> if b then "true" else "false"
+  | Local x -> "%" ^ x
+  | ConstStr _ ->
+      failwith "llvm_emit: phi cannot use string literal; materialize to a local"
+  | ConstUnit -> failwith "llvm_emit: phi cannot use unit"
+
 let emit_instr ctx (h : (string, ty) H.t) (lines : string list ref)
     (instr : instr) : unit =
   match instr with
-  | Phi _ ->
-      failwith "llvm_emit: phi not implemented (add when lowering uses branches)"
+  | Phi (dst, t, incomings) ->
+      let ll_t = llvm_ll_ty t in
+      let parts =
+        String.concat ", "
+          (List.map
+             (fun (lbl, op) ->
+               let v = phi_incoming_val h t op in
+               Printf.sprintf "[ %s, %%%s ]" v lbl)
+             incomings)
+      in
+      lines := !lines @ [ Printf.sprintf "  %%%s = phi %s %s" dst ll_t parts ];
+      H.replace h dst t
   | VoidCall (name, args) -> (
       match args with
       | [ arg ] ->

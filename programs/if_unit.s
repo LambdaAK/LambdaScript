@@ -9,13 +9,19 @@ _main:                                  ; @main
 	.cfi_def_cfa_offset 16
 	.cfi_offset w30, -8
 	.cfi_offset w29, -16
-	mov	w0, #3                          ; =0x3
-	bl	_ls_int_to_str
+Lloh0:
+	adrp	x0, l_.str.1@PAGE
+Lloh1:
+	add	x0, x0, l_.str.1@PAGEOFF
 	bl	_ls_println
 	mov	w0, #0                          ; =0x0
 	ldp	x29, x30, [sp], #16             ; 16-byte Folded Reload
 	ret
+	.loh AdrpAdd	Lloh0, Lloh1
 	.cfi_endproc
                                         ; -- End function
-.subsections_via_symbols
+	.section	__TEXT,__cstring,cstring_literals
+l_.str.1:                               ; @.str.1
+	.asciz	"no"
 
+.subsections_via_symbols

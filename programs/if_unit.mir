@@ -1,0 +1,17 @@
+entry: @main
+fn main() -> unit {
+entry:
+
+  br false ? then_1 : else_2
+then_1:
+  _t1 = "yes"
+  void call @println(%_t1)
+  br merge_3
+else_2:
+  _t2 = "no"
+  void call @println(%_t2)
+  br merge_3
+merge_3:
+
+  ret void
+}
