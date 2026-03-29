@@ -25,7 +25,7 @@ let with_tmpdir f =
   Unix.mkdir path 0o700;
   Fun.protect ~finally:(fun () -> rm_rf path) (fun () -> f path)
 
-(** Drop carriage returns so case files can be edited on Windows. *)
+(** Drop carriage returns so fixture files can be edited on Windows. *)
 let drop_cr s =
   let b = Buffer.create (String.length s) in
   String.iter (function '\r' -> () | c -> Buffer.add_char b c) s;
@@ -90,12 +90,12 @@ let list_case_files () : string list =
   let dir = compiler_cases_dir () in
   let entries = Sys.readdir dir |> Array.to_list in
   let cases =
-    List.filter (fun name -> Filename.check_suffix name ".case") entries
+    List.filter (fun name -> Filename.check_suffix name ".ls") entries
     |> List.map (fun name -> Filename.concat dir name)
     |> List.sort String.compare
   in
   if cases = [] then
-    failwith ("No .case files under " ^ dir);
+    failwith ("No .ls compiler case files under " ^ dir);
   cases
 
 let test_one case_path =
