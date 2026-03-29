@@ -1,8 +1,10 @@
 (** Lower a subset of {!Cexpr.c_expr} to {!Min_ir}.
 
     Top-level [let f x y = e] becomes a separate [func_def]; [main] sequences
-    value bindings and calls. Only direct, fully saturated calls (curried surface
-    syntax) are supported — no partial application as a value.
+    value bindings and calls. Curried calls support **partial application**: names
+    can bind to a [callable] with a prefix of arguments fixed; further
+    [EApp] supplies the rest until a direct [Call]/[VoidCall] is emitted. Passing a
+    partial application as a function argument is not supported.
 
     [&&] and [||] lower to [IAnd]/[IOr] (both operands evaluated; not short-circuit). *)
 
@@ -104,16 +106,6 @@ let rec peel_efun acc_p acc_a : c_expr -> string list * c_type option list * c_e
   | e ->
       (List.rev acc_p, List.rev acc_a, e)
 
-type fun_spec = {
-  arity : int;
-  param_tys : ty list;
-  ret_ty : ty;
-}
-
-type env_binding = Val of operand * ty | Fun of fun_spec
-
-type env = (string * env_binding) list
-
 let map_arith_bop : c_bop -> ibin option = function
   | CPlus -> Some Add
   | CMinus -> Some Sub
@@ -130,15 +122,41 @@ let map_cmp : c_bop -> icmp option = function
   | CGE -> Some Sge
   | _ -> None
 
-(** Curried call chain [f a b …]: [EApp (EApp (EId f, a), b)]. *)
-let rec peel_call acc e =
-  match e with
-  | EApp (f, a) -> peel_call (a :: acc) f
-  | EId s -> Some (s, acc)
-  | _ -> None
+(** A callable is a direct LLVM function name plus a prefix of already-applied
+    arguments (SSA operands). [param_tys] is the *full* parameter list of [base]. *)
+type callable = {
+  base : string;
+  fixed : operand list;
+  param_tys : ty list;
+  ret_ty : ty;
+}
 
-let rec lower_builtin_print name arg env ctx =
-  let o2, t2 = lower_expr arg env ctx in
+type expr_result = LVal of operand * ty | LPartial of callable
+
+type env_binding = Val of operand * ty | C of callable
+
+type env = (string * env_binding) list
+
+(** Curried application spine: left-most head and arguments left-to-right. *)
+let rec peel_app_spine e acc =
+  match e with
+  | EApp (f, a) -> peel_app_spine f (a :: acc)
+  | EId s -> (`Id s, acc)
+  | _ -> (`Other e, acc)
+
+let arity_remaining c =
+  List.length c.param_tys - List.length c.fixed
+
+let rec lower_expr_val (e : c_expr) (env : env) (ctx : fn_ctx) : operand * ty =
+  match lower_expr e env ctx with
+  | LVal (o, t) -> (o, t)
+  | LPartial _ ->
+      unsupported
+        "Expected a value here, not a partially applied function (cannot pass a \
+         partial application as an argument)"
+
+and lower_builtin_print name arg env ctx =
+  let o2, t2 = lower_expr_val arg env ctx in
   if t2 <> String then unsupported "print/println expect a string argument";
   let arg_op =
     match o2 with
@@ -149,134 +167,177 @@ let rec lower_builtin_print name arg env ctx =
     | o -> o
   in
   emit_instr ctx (VoidCall (name, [ arg_op ]));
-  (ConstUnit, Unit)
+  LVal (ConstUnit, Unit)
 
 and lower_builtin_int_to_str arg env ctx =
-  let o2, t2 = lower_expr arg env ctx in
+  let o2, t2 = lower_expr_val arg env ctx in
   if t2 <> I32 then unsupported "int_to_str expects i32";
   let t = fresh () in
   emit_instr ctx (Assign (t, Call ("int_to_str", [ o2 ])));
-  (Local t, String)
+  LVal (Local t, String)
 
-and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : operand * ty =
+(** Apply call arguments [args] (already in order) to [c]; emit a call when saturated. *)
+and apply_call_args (env : env) (ctx : fn_ctx) (c : callable) (args : c_expr list)
+    : expr_result =
+  let rec go c = function
+    | [] ->
+        if arity_remaining c = 0 then emit_saturated_call ctx c
+        else LPartial c
+    | arg :: rest -> (
+        if arity_remaining c = 0 then unsupported "Too many arguments in call";
+        let i = List.length c.fixed in
+        let expect = List.nth c.param_tys i in
+        let op, got = lower_expr_val arg env ctx in
+        if got <> expect then unsupported "call argument type mismatch";
+        let c' = { c with fixed = c.fixed @ [ op ] } in
+        match rest with
+        | [] ->
+            if arity_remaining c' = 0 then emit_saturated_call ctx c' else LPartial c'
+        | _ -> go c' rest)
+  in
+  go c args
+
+and emit_saturated_call ctx (c : callable) : expr_result =
+  if List.length c.fixed <> List.length c.param_tys then
+    unsupported "Internal: saturated call length mismatch";
+  if c.ret_ty = Unit then (
+    emit_instr ctx (VoidCall (c.base, c.fixed));
+    LVal (ConstUnit, Unit))
+  else (
+    let t = fresh () in
+    emit_instr ctx (Assign (t, Call (c.base, c.fixed)));
+    LVal (Local t, c.ret_ty))
+
+and resolve_callable (name : string) (env : env) : callable option =
+  match List.assoc_opt name env with
+  | Some (C c) -> Some c
+  | Some (Val _) | None -> None
+
+and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : expr_result =
   match e with
-  | EInt n -> (ConstI32 n, I32)
-  | EBool b -> (ConstI1 b, I1)
-  | EString s -> (ConstStr s, String)
-  | EUnit -> (ConstUnit, Unit)
+  | EInt n -> LVal (ConstI32 n, I32)
+  | EBool b -> LVal (ConstI1 b, I1)
+  | EString s -> LVal (ConstStr s, String)
+  | EUnit -> LVal (ConstUnit, Unit)
   | EId x -> (
       match List.assoc_opt x env with
-      | Some (Val (o, t)) -> (o, t)
-      | Some (Fun _) ->
-          unsupported ("`" ^ x ^ "` is a function — add arguments to call it")
+      | Some (Val (o, t)) -> LVal (o, t)
+      | Some (C c) ->
+          if arity_remaining c > 0 then LPartial c
+          else unsupported ("`" ^ x ^ "` is already fully applied (compiler bug)")
       | None -> unsupported ("Unbound name `" ^ x ^ "` (not a lowering target)"))
   | EBop (op, e1, e2) -> (
       match map_arith_bop op with
       | Some b ->
-          let o1, t1 = lower_expr e1 env ctx in
-          let o2, t2 = lower_expr e2 env ctx in
+          let o1, t1 = lower_expr_val e1 env ctx in
+          let o2, t2 = lower_expr_val e2 env ctx in
           if t1 <> I32 || t2 <> I32 then
             unsupported "Arithmetic expects i32 operands";
           let t = fresh () in
           emit_instr ctx (Assign (t, Binop (b, o1, o2)));
-          (Local t, I32)
+          LVal (Local t, I32)
       | None -> (
           match map_cmp op with
           | Some c ->
-              let o1, t1 = lower_expr e1 env ctx in
-              let o2, t2 = lower_expr e2 env ctx in
+              let o1, t1 = lower_expr_val e1 env ctx in
+              let o2, t2 = lower_expr_val e2 env ctx in
               if t1 <> I32 || t2 <> I32 then
                 unsupported "Integer comparison expects i32 operands";
               let t = fresh () in
               emit_instr ctx (Assign (t, ICmp (c, o1, o2)));
-              (Local t, I1)
+              LVal (Local t, I1)
           | None -> (
               match op with
               | CGT ->
-                  let o1, t1 = lower_expr e1 env ctx in
-                  let o2, t2 = lower_expr e2 env ctx in
+                  let o1, t1 = lower_expr_val e1 env ctx in
+                  let o2, t2 = lower_expr_val e2 env ctx in
                   if t1 <> I32 || t2 <> I32 then
                     unsupported "Integer comparison expects i32 operands";
                   let t = fresh () in
                   emit_instr ctx (Assign (t, ICmp (Slt, o2, o1)));
-                  (Local t, I1)
+                  LVal (Local t, I1)
               | CAnd ->
-                  let o1, t1 = lower_expr e1 env ctx in
-                  let o2, t2 = lower_expr e2 env ctx in
+                  let o1, t1 = lower_expr_val e1 env ctx in
+                  let o2, t2 = lower_expr_val e2 env ctx in
                   if t1 <> I1 || t2 <> I1 then
                     unsupported "&& expects bool operands";
                   let t = fresh () in
                   emit_instr ctx (Assign (t, IAnd (o1, o2)));
-                  (Local t, I1)
+                  LVal (Local t, I1)
               | COr ->
-                  let o1, t1 = lower_expr e1 env ctx in
-                  let o2, t2 = lower_expr e2 env ctx in
+                  let o1, t1 = lower_expr_val e1 env ctx in
+                  let o2, t2 = lower_expr_val e2 env ctx in
                   if t1 <> I1 || t2 <> I1 then
                     unsupported "|| expects bool operands";
                   let t = fresh () in
                   emit_instr ctx (Assign (t, IOr (o1, o2)));
-                  (Local t, I1)
+                  LVal (Local t, I1)
               | _ -> unsupported ("Binary operator not supported in Min_IR lowering yet"))))
-  | EBind (CIdPat x, _ta, e1, e2, _rt) ->
-      let o1, t1 = lower_expr e1 env ctx in
-      emit_instr ctx (Assign (x, Copy o1));
-      let env' = (x, Val (Local x, t1)) :: env in
-      lower_expr e2 env' ctx
+  | EBind (CIdPat x, _ta, e1, e2, _rt) -> (
+      match lower_expr e1 env ctx with
+      | LVal (o1, t1) ->
+          emit_instr ctx (Assign (x, Copy o1));
+          let env' = (x, Val (Local x, t1)) :: env in
+          lower_expr e2 env' ctx
+      | LPartial c ->
+          let env' = (x, C c) :: env in
+          lower_expr e2 env' ctx)
   | EBind _ -> unsupported "let: only simple identifier patterns supported"
   | EBlock parts -> lower_block parts env ctx
-  | EApp (e1, e2) -> (
-      match peel_call [ e2 ] e1 with
-      | Some ("print", [ arg ]) -> lower_builtin_print "print" arg env ctx
-      | Some ("println", [ arg ]) -> lower_builtin_print "println" arg env ctx
-      | Some ("int_to_str", [ arg ]) -> lower_builtin_int_to_str arg env ctx
-      | Some (name, args) -> (
-          match List.assoc_opt name env with
-          | Some (Fun spec) ->
-              if List.length args <> spec.arity then
-                unsupported
-                  (Printf.sprintf
-                     "function `%s` expects %d arguments (got %d) — partial \
-                      application is not compiled"
-                     name spec.arity (List.length args));
-              let arg_ops =
-                List.map2
-                  (fun arg_e expect_ty ->
-                    let o, got = lower_expr arg_e env ctx in
-                    if got <> expect_ty then
-                      unsupported "call argument type mismatch";
-                    o)
-                  args spec.param_tys
-              in
-              if spec.ret_ty = Unit then (
-                emit_instr ctx (VoidCall (name, arg_ops));
-                (ConstUnit, Unit))
-              else (
-                let t = fresh () in
-                emit_instr ctx (Assign (t, Call (name, arg_ops)));
-                (Local t, spec.ret_ty))
-          | Some (Val _) ->
-              unsupported "Called name is a value, not a function"
-          | None ->
-              unsupported ("Unknown callee `" ^ name ^ "` (declare it above the call)"))
-      | None -> unsupported "Call shape not supported (need f arg … arg)")
+  | EApp (e1, e2) ->
+      let head, args = peel_app_spine e1 [ e2 ] in
+      (match head with
+      | `Other _ ->
+          unsupported "Call shape not supported (callee must be an identifier chain)"
+      | `Id name -> (
+          match name with
+          | "print" -> (
+              match args with
+              | [ arg ] -> lower_builtin_print "print" arg env ctx
+              | _ -> unsupported "print expects exactly one argument")
+          | "println" -> (
+              match args with
+              | [ arg ] -> lower_builtin_print "println" arg env ctx
+              | _ -> unsupported "println expects exactly one argument")
+          | "int_to_str" -> (
+              match args with
+              | [ arg ] -> lower_builtin_int_to_str arg env ctx
+              | _ -> unsupported "int_to_str expects exactly one argument")
+          | _ -> (
+              match resolve_callable name env with
+              | Some c -> apply_call_args env ctx c args
+              | None ->
+                  unsupported
+                    ("Unknown function `" ^ name ^ "` — declare it above the call, \
+                     or it is not a function"))))
   | ETernary (cond, e_then, e_else) -> (
-      let o_c, t_c = lower_expr cond env ctx in
+      let o_c, t_c = lower_expr_val cond env ctx in
       if t_c <> I1 then unsupported "if condition must be bool";
       let l_then = fresh_lbl ctx "then" in
       let l_else = fresh_lbl ctx "else" in
       let l_merge = fresh_lbl ctx "merge" in
       close_block ctx (BrCond (o_c, l_then, l_else));
       open_block ctx l_then;
-      let o1, ty1 = lower_expr e_then env ctx in
+      let o1, ty1 =
+        match lower_expr e_then env ctx with
+        | LVal (o, t) -> (o, t)
+        | LPartial _ ->
+            unsupported "if branch cannot be a partially applied function value"
+      in
       close_block ctx (Br l_merge);
       open_block ctx l_else;
-      let o2, ty2 = lower_expr e_else env ctx in
+      let o2, ty2 =
+        match lower_expr e_else env ctx with
+        | LVal (o, t) -> (o, t)
+        | LPartial _ ->
+            unsupported "if branch cannot be a partially applied function value"
+      in
       if ty1 <> ty2 then unsupported "if branches must have the same type";
       close_block ctx (Br l_merge);
       open_block ctx l_merge;
       match ty1 with
       | Unit ->
-          (ConstUnit, Unit)
+          LVal (ConstUnit, Unit)
       | String ->
           let materialize o =
             match o with
@@ -290,25 +351,28 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : operand * ty =
           let o2' = materialize o2 in
           let res = fresh () in
           emit_instr ctx (Phi (res, ty1, [ (l_then, o1'); (l_else, o2') ]));
-          (Local res, ty1)
+          LVal (Local res, ty1)
       | _ ->
           let res = fresh () in
           emit_instr ctx (Phi (res, ty1, [ (l_then, o1); (l_else, o2) ]));
-          (Local res, ty1))
+          LVal (Local res, ty1))
   | EBindRec _ | EBindMutRec _ | EFunction _ | ESwitch _ | ENil
   | EListEnumeration _ | EListComprehension _ | EVector _ | ERecordLit _
   | ERecordUpdate _ | EFieldAccess _ | EChar _ | EFloat _ ->
       unsupported "Expression form not supported in Min_IR lowering yet"
 
 and lower_block (parts : c_expr_or_c_defn list) (env : env) (ctx : fn_ctx) :
-    operand * ty =
+    expr_result =
   match parts with
-  | [] -> (ConstUnit, Unit)
+  | [] -> LVal (ConstUnit, Unit)
   | [ Expr e ] -> lower_expr e env ctx
   | Defn _ :: _ -> unsupported "Definitions inside blocks are not supported yet"
-  | Expr e :: rest ->
-      let _o1, _t1 = lower_expr e env ctx in
-      lower_block rest env ctx
+  | Expr e :: rest -> (
+      match lower_expr e env ctx with
+      | LVal _ -> lower_block rest env ctx
+      | LPartial _ ->
+          unsupported
+            "Sequencing discard of a partially applied function is not supported")
 
 let blocks_assoc (ctx : fn_ctx) : (string * block) list =
   List.map (fun b -> (b.label, b)) ctx.completed
@@ -325,7 +389,12 @@ let lower_user_function (name : string) (params : string list)
       []
   in
   let merged = env_params @ env in
-  let op, ret_ty = lower_expr inner merged ctx in
+  let op, ret_ty =
+    match lower_expr inner merged ctx with
+    | LVal (o, t) -> (o, t)
+    | LPartial _ ->
+        unsupported "Returning a function value from a user function is not supported"
+  in
   let term : term =
     match ret_ty with Unit -> Ret None | _ -> Ret (Some op)
   in
@@ -342,7 +411,12 @@ let lower_c_expr_to_main (e : c_expr) : (func_def, string) result =
   try
     reset_fresh ();
     let ctx = create_fn_ctx () in
-    let op, ret_ty = lower_expr e [] ctx in
+    let op, ret_ty =
+      match lower_expr e [] ctx with
+      | LVal (o, t) -> (o, t)
+      | LPartial _ ->
+          unsupported "Expression must be a value, not a bare or partial function"
+    in
     let term : term =
       match ret_ty with Unit -> Ret None | _ -> Ret (Some op)
     in
@@ -381,27 +455,35 @@ let lower_c_program (defs : c_defn list) (static_env : static_env) :
           | CIdPat name -> (
               let params, anns, inner = peel_efun [] [] body in
               match params with
-              | [] ->
-                  let o, t = lower_expr inner env ctx_main in
-                  let env' = (name, Val (Local name, t)) :: env in
-                  emit_instr ctx_main (Assign (name, Copy o));
-                  walk env' rest
+              | [] -> (
+                  match lower_expr inner env ctx_main with
+                  | LVal (o, t) ->
+                      emit_instr ctx_main (Assign (name, Copy o));
+                      let env' = (name, Val (Local name, t)) :: env in
+                      walk env' rest
+                  | LPartial c ->
+                      let env' = (name, C c) :: env in
+                      walk env' rest)
               | _ :: _ ->
                   let fn =
                     lower_user_function name params anns inner env static_env
                   in
                   user_funs := !user_funs @ [ fn ];
-                  let spec =
+                  let c =
                     {
-                      arity = List.length fn.params;
+                      base = name;
+                      fixed = [];
                       param_tys = List.map snd fn.params;
                       ret_ty = fn.ret;
                     }
                   in
-                  walk ((name, Fun spec) :: env) rest)
-          | CUnitPat | CWildcardPat ->
-              let _o, _t = lower_expr body env ctx_main in
-              walk env rest
+                  walk ((name, C c) :: env) rest)
+          | CUnitPat | CWildcardPat -> (
+              match lower_expr body env ctx_main with
+              | LVal _ -> walk env rest
+              | LPartial _ ->
+                  unsupported
+                    "Discarded expression cannot be a partially applied function")
           | _ ->
               unsupported
                 "Top-level let only supports identifier, unit, or wildcard patterns in Min_IR lowering")

@@ -21,8 +21,9 @@ else_2:
 
 define i32 @main() {
 entry:
-  %_t4 = call i32 @add(i32 10, i32 20, i1 true)
-  %_t5 = call i8* @ls_int_to_str(i32 %_t4)
+  %_t4 = call i32 @add(i32 1, i32 2, i1 false)
+  %res = add nsw i32 %_t4, 0
+  %_t5 = call i8* @ls_int_to_str(i32 %res)
   call void @ls_println(i8* %_t5)
   ret i32 0
 }

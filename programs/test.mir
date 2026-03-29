@@ -16,8 +16,9 @@ merge_3:
 
 fn main() -> unit {
 entry:
-  _t4 = call @add(10, 20, true)
-  _t5 = call @int_to_str(%_t4)
+  _t4 = call @add(1, 2, false)
+  res = %_t4
+  _t5 = call @int_to_str(%res)
   void call @println(%_t5)
   ret void
 }
