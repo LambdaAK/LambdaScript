@@ -7,4 +7,7 @@
 (test
  (name compiler_tests)
  (modules compiler_tests)
- (libraries Language ounit2 unix))
+ (libraries Language ounit2 unix)
+ (deps (source_tree compiler_cases))
+ (action
+  (chdir %{workspace_root} (run %{test}))))

@@ -9,6 +9,11 @@ suite:
 	dune build test/test.exe
 	dune exec ./test/test.exe
 
+# [dune runtest] prints nothing when the runtest alias is already up to date.
+# [--force] re-executes tests so OUnit output (dots + summary) is visible.
+compiler-suite:
+	dune runtest test --force
+
 bisect:
 	dune build test/test.exe
 	dune exec --instrument-with bisect_ppx --force test/test.exe
