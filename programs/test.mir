@@ -1,11 +1,5 @@
 entry: @main
-fn id__lsm966650245(x: i32) -> i32 {
-entry:
-
-  ret %x
-}
-
-fn id__lsm944046621(x: unit) -> unit {
+fn f__lsm28971515(x: i32, y: i32) -> unit {
 entry:
 
   ret void
@@ -13,8 +7,6 @@ entry:
 
 fn main() -> unit {
 entry:
-  _t1 = call @id__lsm966650245(10)
-  a = %_t1
-  void call @id__lsm944046621(())
+  void call @f__lsm28971515(1, 2)
   ret void
 }

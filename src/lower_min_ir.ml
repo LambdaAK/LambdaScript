@@ -318,6 +318,13 @@ let find_cdefn_function (name : string) (defs : c_defn list) :
   in
   find defs
 
+(** Curried application spine: left-most head and arguments left-to-right. *)
+let rec peel_app_spine e acc =
+  match e with
+  | EApp (f, a) -> peel_app_spine f (a :: acc)
+  | EId s -> (`Id s, acc)
+  | _ -> (`Other e, acc)
+
 (** Collect (top-level function name, instantiated function type) pairs needed for
     monomorphization, including instances discovered inside specialized bodies
     (fixpoint). *)
@@ -335,14 +342,15 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
   in
   let rec collect_visit_expr (env : static_env) (e : c_expr) : unit =
     match e with
-    | EApp (e1, e2) ->
+    | EApp (e1, e2) as app ->
         collect_visit_expr env e1;
         collect_visit_expr env e2;
-        (match e1 with
-        | EId f when is_poly_static f env -> (
-            match Typecheck.mono_fun_type_of_binary_app env type_env e1 e2 with
-            | Ok m_fun -> add f m_fun
-            | Error _ -> ())
+        let head, args = peel_app_spine app [] in
+        (match head with
+        | `Id f when is_poly_static f env -> (
+            match Typecheck.mono_fun_type_of_curried_app env type_env f args with
+            | Ok m_fun when Typecheck.mono_type_fully_concrete m_fun -> add f m_fun
+            | Ok _ | Error _ -> ())
         | _ -> ())
     | EBop (_, a, b) ->
         collect_visit_expr env a;
@@ -456,13 +464,6 @@ let build_mono_instance_env (instances : (string * mono_type) list)
           in
           (emit, C stub) :: acc)
     [] instances
-
-(** Curried application spine: left-most head and arguments left-to-right. *)
-let rec peel_app_spine e acc =
-  match e with
-  | EApp (f, a) -> peel_app_spine f (a :: acc)
-  | EId s -> (`Id s, acc)
-  | _ -> (`Other e, acc)
 
 let arity_remaining c =
   List.length c.param_tys - List.length c.fixed
@@ -671,20 +672,27 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
                         let static_for_mono =
                           static_env_for_mono_call static_env env
                         in
+                        let all_args = first_arg :: rest_args in
                         match
-                          Typecheck.mono_fun_type_of_binary_app static_for_mono
-                            type_env (EId name) first_arg
+                          Typecheck.mono_fun_type_of_curried_app static_for_mono
+                            type_env name all_args
                         with
                         | Error err ->
                             unsupported
                               ("monomorph: "
                               ^ Typecheck.string_of_type_check_error err)
+                        | Ok m_fun when not (Typecheck.mono_type_fully_concrete m_fun)
+                          ->
+                            unsupported
+                              "Polymorphic partial application is not supported \
+                               for native compilation (call the function with \
+                               concrete arguments on all parameters)"
                         | Ok m_fun ->
                             let mangle = mangle_poly_instance name m_fun in
                             match resolve_callable mangle env with
                             | Some c ->
                                 apply_call_args env ctx static_env type_env c
-                                  (first_arg :: rest_args)
+                                  all_args
                             | None ->
                                 unsupported
                                   ("Missing monomorphized specialization for `"

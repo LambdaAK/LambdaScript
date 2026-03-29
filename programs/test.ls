@@ -1,5 +1,4 @@
-let id x = x
+let f x y = ()
 
-let a = id 10
+let ff = f 1
 
-let () = id ()

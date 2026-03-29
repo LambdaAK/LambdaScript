@@ -1257,6 +1257,42 @@ and mono_fun_type_of_binary_app (env : static_env) (type_env : type_env)
   let the_mono_type = fix_type the_mono_type in
   return the_mono_type
 
+(** Monomorphic type of top-level [f_name] after applying it left-to-right to
+    [args] (same spine as the surface application). Used to monomorphize
+    curried calls: a binary step alone can leave free type variables
+    (e.g. [f 1] when [f : 'a -> 'b -> unit]); this solves the whole spine. *)
+and mono_fun_type_of_curried_app (env : static_env) (type_env : type_env)
+    (f_name : string) (args : c_expr list) : mono_type type_check_result =
+  match List.assoc_opt f_name env with
+  | None -> Error (OtherError ("mono_fun_type_of_curried_app: unbound `" ^ f_name ^ "`"))
+  | Some ct ->
+      let m0 = instantiate ct in
+      let rec simplify_constraint_list acc = function
+        | [] -> return (List.rev acc)
+        | (t1, t2) :: rest ->
+            let- t1_simplified = simplify_mono_type t1 type_env in
+            let- t2_simplified = simplify_mono_type t2 type_env in
+            simplify_constraint_list
+              ((t1_simplified, t2_simplified) :: acc)
+              rest
+      in
+      let rec loop cur_ty constraints = function
+        | [] ->
+            let- simplified_constraints = simplify_constraint_list [] constraints in
+            let solution = reduce_eq simplified_constraints type_env in
+            let- the_mono_type = get_type m0 solution type_env in
+            return (fix_type the_mono_type)
+        | arg :: rest ->
+            let- ta, ca, _ = generate env type_env arg in
+            let- ta = simplify_mono_type ta type_env in
+            let r = fresh_type_var () in
+            let app_eq = (cur_ty, FunctionType (ta, r)) in
+            loop r (app_eq :: (ca @ constraints)) rest
+      in
+      loop m0 [] args
+
+and mono_type_fully_concrete (m : mono_type) : bool = get_type_vars m = []
+
 (* swap all variables for new variables *)
 and swap_all_variables_in_type (t : mono_type) : mono_type type_check_result =
   (* First generalize the type to quantify over all variables *)

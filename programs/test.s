@@ -1,14 +1,8 @@
 	.section	__TEXT,__text,regular,pure_instructions
 	.build_version macos, 15, 0
-	.globl	_id__lsm966650245               ; -- Begin function id__lsm966650245
+	.globl	_f__lsm28971515                 ; -- Begin function f__lsm28971515
 	.p2align	2
-_id__lsm966650245:                      ; @id__lsm966650245
-; %bb.0:                                ; %entry
-	ret
-                                        ; -- End function
-	.globl	_id__lsm944046621               ; -- Begin function id__lsm944046621
-	.p2align	2
-_id__lsm944046621:                      ; @id__lsm944046621
+_f__lsm28971515:                        ; @f__lsm28971515
 ; %bb.0:                                ; %entry
 	ret
                                         ; -- End function
