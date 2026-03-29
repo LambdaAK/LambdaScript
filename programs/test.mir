@@ -1,12 +1,21 @@
 entry: @main
-fn f__lsm28971515(x: i32, y: i32) -> unit {
+fn f__lsm76640768(x: i32, y: i32) -> i32 {
 entry:
 
-  ret void
+  ret %y
+}
+
+fn ff__lsm966650245(__ls_eta_1: i32) -> i32 {
+entry:
+  _t1 = call @f__lsm76640768(1, %__ls_eta_1)
+  ret %_t1
 }
 
 fn main() -> unit {
 entry:
-  void call @f__lsm28971515(1, 2)
+  _t2 = call @ff__lsm966650245(2)
+  fff = %_t2
+  _t3 = call @int_to_str(%fff)
+  void call @println(%_t3)
   ret void
 }

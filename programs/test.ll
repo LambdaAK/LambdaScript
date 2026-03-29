@@ -5,13 +5,22 @@ declare void @ls_print(i8*)
 declare void @ls_println(i8*)
 declare i8* @ls_int_to_str(i32)
 
-define void @f__lsm28971515(i32 %x, i32 %y) {
+define i32 @f__lsm76640768(i32 %x, i32 %y) {
 entry:
-  ret void
+  ret i32 %y
+}
+
+define i32 @ff__lsm966650245(i32 %__ls_eta_1) {
+entry:
+  %_t1 = call i32 @f__lsm76640768(i32 1, i32 %__ls_eta_1)
+  ret i32 %_t1
 }
 
 define i32 @main() {
 entry:
-  call void @f__lsm28971515(i32 1, i32 2)
+  %_t2 = call i32 @ff__lsm966650245(i32 2)
+  %fff = add nsw i32 %_t2, 0
+  %_t3 = call i8* @ls_int_to_str(i32 %fff)
+  call void @ls_println(i8* %_t3)
   ret i32 0
 }

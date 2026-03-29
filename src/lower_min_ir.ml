@@ -31,13 +31,16 @@ let nested_emit_ctr = ref 0
 
 let lambda_ty_counter = ref 0
 
+let eta_expand_counter = ref 0
+
 module S = Set.Make (String)
 
 let reset_fresh () =
   counter := 0;
   param_counter := 0;
   nested_emit_ctr := 0;
-  lambda_ty_counter := 0
+  lambda_ty_counter := 0;
+  eta_expand_counter := 0
 
 let fresh_lambda_ty_key () =
   incr lambda_ty_counter;
@@ -324,6 +327,169 @@ let rec peel_app_spine e acc =
   | EApp (f, a) -> peel_app_spine f (a :: acc)
   | EId s -> (`Id s, acc)
   | _ -> (`Other e, acc)
+
+let rec curried_fun_arity_mono (m : mono_type) : int =
+  match m with
+  | FunctionType (_, r) -> 1 + curried_fun_arity_mono r
+  | _ -> 0
+
+let fresh_eta_param () =
+  incr eta_expand_counter;
+  "__ls_eta_" ^ string_of_int !eta_expand_counter
+
+(** If [f] is polymorphic at compile time and [args] do not saturate its arity,
+    return [fun y1 ... yk -> f args y1 ... yk] so the binding uses the same
+    top-level polymorphic lowering path as an ordinary function. *)
+let eta_poly_partial_spine (static_env : static_env) (f : string) (args : c_expr list)
+    : c_expr option =
+  if not (is_poly_static f static_env) then None
+  else
+    match List.assoc_opt f static_env with
+    | None -> None
+    | Some ct ->
+        let m = Typecheck.instantiate ct in
+        let arity = curried_fun_arity_mono m in
+        let n = List.length args in
+        if n >= arity then None
+        else
+          let k = arity - n in
+          let ys = List.init k (fun _ -> fresh_eta_param ()) in
+          let base = List.fold_left (fun acc a -> EApp (acc, a)) (EId f) args in
+          let applied =
+            List.fold_left (fun acc ynm -> EApp (acc, EId ynm)) base ys
+          in
+          Some
+            (List.fold_right
+               (fun ynm inner -> EFunction (CIdPat ynm, None, inner))
+               ys applied)
+
+(** [e] is exactly a curried spine [f a1 ... an] (not a larger expression). *)
+let eta_expand_binding_rhs (static_env : static_env) (e : c_expr) : c_expr =
+  match peel_app_spine e [] with
+  | `Id f, args when args <> [] -> (
+      match eta_poly_partial_spine static_env f args with
+      | Some e' -> e'
+      | None -> e)
+  | _ -> e
+
+let rec map_expr_eta_at_lets (static_env : static_env) (e : c_expr) : c_expr =
+  match e with
+  | EBind (pat, ta, e1, e2, rt) ->
+      let e1' =
+        eta_expand_binding_rhs static_env (map_expr_eta_at_lets static_env e1)
+      in
+      let e2' =
+        eta_expand_binding_rhs static_env (map_expr_eta_at_lets static_env e2)
+      in
+      EBind (pat, ta, e1', e2', rt)
+  | EBindRec (pat, ta, e1, e2, rt) ->
+      let e1' =
+        eta_expand_binding_rhs static_env (map_expr_eta_at_lets static_env e1)
+      in
+      let e2' =
+        eta_expand_binding_rhs static_env (map_expr_eta_at_lets static_env e2)
+      in
+      EBindRec (pat, ta, e1', e2', rt)
+  | EBindMutRec (binds, body) ->
+      let binds' =
+        List.map
+          (fun (pat, ta, e1, rt, n) ->
+            let e1' =
+              eta_expand_binding_rhs static_env
+                (map_expr_eta_at_lets static_env e1)
+            in
+            (pat, ta, e1', rt, n))
+          binds
+      in
+      let body' =
+        eta_expand_binding_rhs static_env (map_expr_eta_at_lets static_env body)
+      in
+      EBindMutRec (binds', body')
+  | EFunction (pat, ann, body) ->
+      EFunction (pat, ann, map_expr_eta_at_lets static_env body)
+  | EApp (a, b) ->
+      EApp (map_expr_eta_at_lets static_env a, map_expr_eta_at_lets static_env b)
+  | EBop (op, a, b) ->
+      EBop
+        ( op,
+          map_expr_eta_at_lets static_env a,
+          map_expr_eta_at_lets static_env b )
+  | ETernary (a, b, c) ->
+      ETernary
+        ( map_expr_eta_at_lets static_env a,
+          map_expr_eta_at_lets static_env b,
+          map_expr_eta_at_lets static_env c )
+  | EBlock parts ->
+      EBlock
+        (List.map
+           (function
+             | Expr ex -> Expr (map_expr_eta_at_lets static_env ex)
+             | Defn d -> Defn (map_defn_eta static_env d))
+           parts)
+  | ESwitch (e0, branches) ->
+      ESwitch
+        ( map_expr_eta_at_lets static_env e0,
+          List.map
+            (fun (p, be) -> (p, map_expr_eta_at_lets static_env be))
+            branches )
+  | EVector es -> EVector (List.map (map_expr_eta_at_lets static_env) es)
+  | EListEnumeration (a, b) ->
+      EListEnumeration
+        (map_expr_eta_at_lets static_env a, map_expr_eta_at_lets static_env b)
+  | EListComprehension (e0, gens) ->
+      EListComprehension
+        ( map_expr_eta_at_lets static_env e0,
+          List.map
+            (fun (pat, ge) -> (pat, map_expr_eta_at_lets static_env ge))
+            gens )
+  | ERecordLit fields ->
+      ERecordLit
+        (List.map
+           (fun (s, ex) -> (s, map_expr_eta_at_lets static_env ex))
+           fields)
+  | ERecordUpdate (base, upd) ->
+      ERecordUpdate
+        ( map_expr_eta_at_lets static_env base,
+          List.map
+            (fun (s, ex) -> (s, map_expr_eta_at_lets static_env ex))
+            upd )
+  | EFieldAccess (e0, fld) ->
+      EFieldAccess (map_expr_eta_at_lets static_env e0, fld)
+  | EInt _ | EBool _ | EString _ | EUnit | EChar _ | EFloat _ | ENil | EId _ ->
+      e
+
+and map_defn_eta (static_env : static_env) (d : c_defn) : c_defn =
+  match d with
+  | CDefn (pat, ann, body, rt, n) ->
+      CDefn
+        ( pat,
+          ann,
+          map_expr_eta_at_lets static_env (eta_expand_binding_rhs static_env body),
+          rt,
+          n )
+  | CDefnRec (pat, ann, body, rt, n) ->
+      CDefnRec
+        ( pat,
+          ann,
+          map_expr_eta_at_lets static_env (eta_expand_binding_rhs static_env body),
+          rt,
+          n )
+  | CDefnMutRec defns ->
+      CDefnMutRec
+        (List.map
+           (fun (pat, ann, body, rt, n) ->
+             ( pat,
+               ann,
+               map_expr_eta_at_lets static_env
+                 (eta_expand_binding_rhs static_env body),
+               rt,
+               n ))
+           defns)
+  | CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _ -> d
+
+let eta_expand_program (static_env : static_env) (defs : c_defn list) : c_defn list
+    =
+  List.map (map_defn_eta static_env) defs
 
 (** Collect (top-level function name, instantiated function type) pairs needed for
     monomorphization, including instances discovered inside specialized bodies
@@ -936,6 +1102,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
     (type_env : Typecheck.type_env) : (prog, string) result =
   try
     reset_fresh ();
+    let defs = eta_expand_program static_env defs in
     let instances = collect_mono_instantiations defs static_env type_env in
     let user_funs = ref [] in
     let env_mono = build_mono_instance_env instances defs static_env in
