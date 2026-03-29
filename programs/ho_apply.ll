@@ -11,17 +11,16 @@ entry:
   ret i32 %_t1
 }
 
-define i32 @lam__lsn1(i32 %x) {
+define i32 @inc(i32 %y) {
 entry:
-  %_t2 = add nsw i32 %x, 1
+  %_t2 = add nsw i32 %y, 1
   ret i32 %_t2
 }
 
 define i32 @main() {
 entry:
-  %_t3 = call i32 @apply(i32 (i32)* @lam__lsn1, i32 41)
-  %result = add nsw i32 %_t3, 0
-  %_t4 = call i8* @ls_int_to_str(i32 %result)
+  %_t3 = call i32 @apply(i32 (i32)* @inc, i32 41)
+  %_t4 = call i8* @ls_int_to_str(i32 %_t3)
   call void @ls_println(i8* %_t4)
   ret i32 0
 }

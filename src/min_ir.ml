@@ -19,6 +19,9 @@ type ty =
   | I1
   | String
   | Unit
+  (** Monomorphic function pointer ([param types], return). LLVM: e.g. [i32
+      (i32)*]. *)
+  | Fun of ty list * ty
 
 type ibin = Add | Sub | Mul | Div | Mod
 
@@ -33,6 +36,8 @@ type operand =
   | ConstStr of string
   (* Placeholder result of [void] I/O; used when sequencing [println] etc. *)
   | ConstUnit
+  (** Address of a module function with the given parameter/return Min_ir shape. *)
+  | FnAddr of string * ty list * ty
 
 type rhs =
   | Copy of operand
@@ -44,6 +49,8 @@ type rhs =
   (* Direct call: either a [func_def] in the same [prog] or a runtime symbol
      (e.g. [int_to_str] — see {!runtime_string_symbols}). *)
   | Call of string * operand list
+  (* Indirect call: callee operand has LLVM type [(param_tys -> ret_ty)*]. *)
+  | IndirectCall of operand * ty list * ty * operand list
 
 type instr =
   | Assign of string * rhs
@@ -53,6 +60,7 @@ type instr =
   (* Side-effect only; no result. Names match LambdaScript builtins — see
      {!runtime_void_symbols}. *)
   | VoidCall of string * operand list
+  | VoidIndirectCall of operand * ty list * operand list
 
 type term =
   | Ret of operand option (* [None] = return void / unit *)
@@ -96,11 +104,14 @@ let labels_of_func (f : func_def) : string list = List.map fst f.blocks
 
 (* ----- pretty-print (debug / incremental testing) ----- *)
 
-let string_of_ty = function
+let rec string_of_ty = function
   | I32 -> "i32"
   | I1 -> "i1"
   | String -> "string"
   | Unit -> "unit"
+  | Fun (ps, r) ->
+      let ps_s = String.concat ", " (List.map string_of_ty ps) in
+      Printf.sprintf "fn(%s) -> %s" ps_s (string_of_ty r)
 
 let string_of_ibin = function
   | Add -> "add"
@@ -139,6 +150,8 @@ let string_of_operand = function
   | ConstI1 b -> if b then "true" else "false"
   | ConstStr s -> Printf.sprintf "\"%s\"" (escape_string s)
   | ConstUnit -> "()"
+  | FnAddr (n, ps, r) ->
+      Printf.sprintf "&%s : %s" n (string_of_ty (Fun (ps, r)))
 
 let string_of_rhs = function
   | Copy o -> string_of_operand o
@@ -155,6 +168,10 @@ let string_of_rhs = function
   | Call (f, args) ->
       let args_s = String.concat ", " (List.map string_of_operand args) in
       Printf.sprintf "call @%s(%s)" f args_s
+  | IndirectCall (c, _pts, rt, args) ->
+      let args_s = String.concat ", " (List.map string_of_operand args) in
+      Printf.sprintf "indirect_call %s(%s) -> %s"
+        (string_of_operand c) args_s (string_of_ty rt)
 
 let string_of_instr = function
   | Assign (dst, rhs) ->
@@ -162,6 +179,10 @@ let string_of_instr = function
   | VoidCall (f, args) ->
       let args_s = String.concat ", " (List.map string_of_operand args) in
       Printf.sprintf "  void call @%s(%s)" f args_s
+  | VoidIndirectCall (c, _pts, args) ->
+      let args_s = String.concat ", " (List.map string_of_operand args) in
+      Printf.sprintf "  void indirect %s(%s)"
+        (string_of_operand c) args_s
   | Phi (dst, t, incomings) ->
       let parts =
         String.concat ", "

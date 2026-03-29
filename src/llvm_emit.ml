@@ -10,16 +10,33 @@ type emit_ctx = {
 
 let ctx_create () = { prelude = []; str_counter = 0 }
 
-let llvm_ll_ty : ty -> string = function
+let rec llvm_fun_ptr_ty (params : ty list) (ret : ty) : string =
+  let pl =
+    List.map
+      (fun t ->
+        if t = Unit then "i8" else llvm_ll_ty t)
+      params
+    |> String.concat ", "
+  in
+  let rl =
+    match ret with
+    | Unit -> "void"
+    | t -> llvm_ll_ty t
+  in
+  Printf.sprintf "%s (%s)*" rl pl
+
+and llvm_ll_ty : ty -> string = function
   | I32 -> "i32"
   | I1 -> "i1"
   | String -> "i8*"
   | Unit -> "void"
+  | Fun (ps, r) -> llvm_fun_ptr_ty ps r
 
 (** [unit] is not an LLVM value type; use [i8] as the ABI carrier for [unit]
     parameters, call arguments, and SSA locals that hold [unit]. *)
 let llvm_value_ty : ty -> string = function
   | Unit -> "i8"
+  | Fun (ps, r) -> llvm_fun_ptr_ty ps r
   | t -> llvm_ll_ty t
 
 let ibin_ll : ibin -> string = function
@@ -117,6 +134,7 @@ let operand_min_ty (h : (string, ty) H.t) : operand -> ty = function
   | ConstI1 _ -> I1
   | ConstStr _ -> String
   | ConstUnit -> Unit
+  | FnAddr (_, ps, r) -> Fun (ps, r)
   | Local x -> (
       match H.find_opt h x with
       | Some t -> t
@@ -128,6 +146,9 @@ let emit_operand h (op : operand) : string * string =
   | ConstI1 b -> ("i1", if b then "true" else "false")
   | ConstStr _ -> failwith "llvm_emit: ConstStr must use Copy/global"
   | ConstUnit -> ("i8", "0")
+  | FnAddr (name, ps, r) ->
+      let fpty = llvm_fun_ptr_ty ps r in
+      (fpty, "@" ^ name)
   | Local x -> (llvm_value_ty (H.find h x), "%" ^ x)
 
 let map_call_args h (fd : func_def) (args : Min_ir.operand list) : string list
@@ -168,11 +189,21 @@ let emit_copy_dst ctx h lines dst o =
   | ConstUnit ->
       lines := !lines @ [ Printf.sprintf "  %%%s = add i8 0, 0" dst ];
       H.replace h dst Unit
+  | FnAddr (name, ps, rt) ->
+      let fpty = llvm_fun_ptr_ty ps rt in
+      lines :=
+        !lines
+        @ [
+            Printf.sprintf "  %%%s = bitcast %s @%s to %s" dst fpty name fpty;
+          ];
+      H.replace h dst (Fun (ps, rt))
   | Local _ ->
       let ty = operand_min_ty h o in
       let t, v = emit_operand h o in
       let ins =
         if ty = Unit then Printf.sprintf "  %%%s = add i8 %s, 0" dst v
+        else if (match ty with Fun _ -> true | _ -> false) then
+          Printf.sprintf "  %%%s = bitcast %s %s to %s" dst t v t
         else if t = "i32" then Printf.sprintf "  %%%s = add nsw i32 %s, 0" dst v
         else if t = "i1" then Printf.sprintf "  %%%s = xor i1 %s, false" dst v
         else if t = "i8*" then Printf.sprintf "  %%%s = bitcast i8* %s to i8*" dst v
@@ -191,7 +222,8 @@ let phi_incoming_val (h : (string, ty) H.t) (exp_ty : ty) (op : operand) :
            | I32 -> "i32"
            | I1 -> "i1"
            | String -> "i8*"
-           | Unit -> "void"))
+           | Unit -> "void"
+           | Fun _ -> "fn"))
   in
   match op with
   | ConstI32 n ->
@@ -213,13 +245,16 @@ let phi_incoming_val (h : (string, ty) H.t) (exp_ty : ty) (op : operand) :
                | I32 -> "i32"
                | I1 -> "i1"
                | String -> "i8*"
-               | Unit -> "void"))
+               | Unit -> "void"
+               | Fun _ -> "fn"))
       | Some _ | None ->
           ());
       "%" ^ x
   | ConstStr _ ->
       failwith "llvm_emit: phi cannot use string literal; materialize to a local"
   | ConstUnit -> failwith "llvm_emit: phi cannot use unit"
+  | FnAddr _ ->
+      failwith "llvm_emit: phi cannot use function address; materialize to a local"
 
 let emit_instr ctx (fn_sigs : (string, func_def) H.t)
     (h : (string, ty) H.t) (lines : string list ref) (instr : instr) : unit =
@@ -256,6 +291,31 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
             !lines
             @ [ Printf.sprintf "  call void @%s(%s)" name (String.concat ", " parts) ]
       )
+  | VoidIndirectCall (callee_op, ptys, args) ->
+      let callee_ty = llvm_fun_ptr_ty ptys Unit in
+      let ct, cv = emit_operand h callee_op in
+      if ct <> callee_ty then
+        failwith "llvm_emit: void indirect callee type mismatch";
+      let parts =
+        List.map2
+          (fun pty op ->
+            match (pty, op) with
+            | Unit, ConstUnit -> "i8 0"
+            | Unit, Local x ->
+                if H.find h x <> Unit then
+                  failwith "llvm_emit: unit indirect arg must be unit local";
+                Printf.sprintf "i8 %%%s" x
+            | _ ->
+                let got_ll, v = emit_operand h op in
+                let exp_ll = if pty = Unit then "i8" else llvm_ll_ty pty in
+                if got_ll <> exp_ll then
+                  failwith "llvm_emit: void indirect call arg type mismatch";
+                Printf.sprintf "%s %s" exp_ll v)
+          ptys args
+      in
+      lines :=
+        !lines
+        @ [ Printf.sprintf "  call void %s(%s)" cv (String.concat ", " parts) ]
   | Assign (dst, rhs) -> (
       match rhs with
       | Copy o -> emit_copy_dst ctx h lines dst o
@@ -312,7 +372,40 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
                     Printf.sprintf "  %%%s = call %s @%s(%s)" dst ret_ll name
                       (String.concat ", " parts);
                   ];
-              H.replace h dst fd.ret))
+              H.replace h dst fd.ret)
+      | IndirectCall (callee_op, ptys, ret_ty, args) -> (
+          match ret_ty with
+          | Unit -> failwith "llvm_emit: indirect value call cannot return unit"
+          | _ ->
+              let callee_ty = llvm_fun_ptr_ty ptys ret_ty in
+              let ct, cv = emit_operand h callee_op in
+              if ct <> callee_ty then
+                failwith "llvm_emit: indirect callee type mismatch";
+              let parts =
+                List.map2
+                  (fun pty op ->
+                    match (pty, op) with
+                    | Unit, ConstUnit -> "i8 0"
+                    | Unit, Local x ->
+                        if H.find h x <> Unit then
+                          failwith "llvm_emit: unit indirect arg must be unit local";
+                        Printf.sprintf "i8 %%%s" x
+                    | _ ->
+                        let got_ll, v = emit_operand h op in
+                        let exp_ll = if pty = Unit then "i8" else llvm_ll_ty pty in
+                        if got_ll <> exp_ll then
+                          failwith "llvm_emit: indirect call arg type mismatch";
+                        Printf.sprintf "%s %s" exp_ll v)
+                  ptys args
+              in
+              let ret_ll = llvm_ll_ty ret_ty in
+              lines :=
+                !lines
+                @ [
+                    Printf.sprintf "  %%%s = call %s %s(%s)" dst ret_ll cv
+                      (String.concat ", " parts);
+                  ];
+              H.replace h dst ret_ty))
 
 let emit_term h (lines : string list ref) ~(ret : ty) ~(is_c_main : bool)
     (t : term) : unit =
@@ -334,6 +427,9 @@ let emit_term h (lines : string list ref) ~(ret : ty) ~(is_c_main : bool)
     | false, String, Some o ->
         let _ty, v = emit_operand h o in
         lines := !lines @ [ Printf.sprintf "  ret i8* %s" v ]
+    | false, Fun _, Some o ->
+        let ty, v = emit_operand h o in
+        lines := !lines @ [ Printf.sprintf "  ret %s %s" ty v ]
     | _ -> failwith "llvm_emit: bad return"
   in
   match t with

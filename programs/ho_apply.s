@@ -10,9 +10,9 @@ _apply:                                 ; @apply
 	br	x2
 	.cfi_endproc
                                         ; -- End function
-	.globl	_lam__lsn1                      ; -- Begin function lam__lsn1
+	.globl	_inc                            ; -- Begin function inc
 	.p2align	2
-_lam__lsn1:                             ; @lam__lsn1
+_inc:                                   ; @inc
 ; %bb.0:                                ; %entry
 	add	w0, w0, #1
 	ret

@@ -210,6 +210,32 @@ let () = println (int_to_str 2)
 let () = println (int_to_str 3)
 |}
       "1\n2\n3\n";
+    (* Higher-order: typed params so the function argument has a concrete Min_ir type *)
+    case "apply function argument"
+      {|
+let apply (f : int -> int) (x : int) : int = f x
+let inc y = y + 1
+let () = println (int_to_str (apply inc 41))
+|}
+      "42\n";
+    case "twice higher-order"
+      {|
+let twice (f : int -> int) (x : int) : int = f (f x)
+let add1 z = z + 1
+let () = println (int_to_str (twice add1 5))
+|}
+      "7\n";
+    case "immediate lambda call"
+      {|
+let () = println (int_to_str ((fn x -> x + 1) 8))
+|}
+      "9\n";
+    case "function returned from unit -> (int -> int)"
+      {|
+let get_inc () : int -> int = fn x -> x + 1
+let () = println (int_to_str ((get_inc ()) 40))
+|}
+      "41\n";
   ]
 
 let test_one (name, program, expected_stdout) =

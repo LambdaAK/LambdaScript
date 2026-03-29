@@ -5,17 +5,16 @@ entry:
   ret %_t1
 }
 
-fn lam__lsn1(x: i32) -> i32 {
+fn inc(y: i32) -> i32 {
 entry:
-  _t2 = add %x, 1
+  _t2 = add %y, 1
   ret %_t2
 }
 
 fn main() -> unit {
 entry:
-  _t3 = call @apply(&lam__lsn1 : fn(i32) -> i32, 41)
-  result = %_t3
-  _t4 = call @int_to_str(%result)
+  _t3 = call @apply(&inc : fn(i32) -> i32, 41)
+  _t4 = call @int_to_str(%_t3)
   void call @println(%_t4)
   ret void
 }

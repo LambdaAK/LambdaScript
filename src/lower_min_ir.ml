@@ -8,8 +8,10 @@
     Top-level [let f x y = e] becomes a separate [func_def]; [main] sequences
     value bindings and calls. Curried calls support **partial application**: names
     can bind to a [callable] with a prefix of arguments fixed; further
-    [EApp] supplies the rest until a direct [Call]/[VoidCall] is emitted. Passing a
-    partial application as a function argument is not supported.
+    [EApp] supplies the rest until a direct [Call]/[VoidCall] or indirect call is
+    emitted. Saturated function values ([fn] with no free locals, or references to
+    static functions only) may be passed as arguments. Partial applications as
+    values remain unsupported.
 
     [&&] and [||] lower to [IAnd]/[IOr] (both operands evaluated; not short-circuit). *)
 
@@ -26,10 +28,19 @@ let param_counter = ref 0
 
 let nested_emit_ctr = ref 0
 
+let lambda_ty_counter = ref 0
+
+module S = Set.Make (String)
+
 let reset_fresh () =
   counter := 0;
   param_counter := 0;
-  nested_emit_ctr := 0
+  nested_emit_ctr := 0;
+  lambda_ty_counter := 0
+
+let fresh_lambda_ty_key () =
+  incr lambda_ty_counter;
+  "__ls_lam_t" ^ string_of_int !lambda_ty_counter
 
 let fresh () =
   incr counter;
@@ -75,15 +86,37 @@ let open_block (ctx : fn_ctx) label =
   ctx.cur_label <- label;
   ctx.cur_instrs <- []
 
-let mono_to_min (m : mono_type) : ty =
+let rec peel_function_chain_to_min (acc : ty list) (m : mono_type) : ty list * ty
+    =
+  match m with
+  | FunctionType (a, r) -> peel_function_chain_to_min (mono_to_min a :: acc) r
+  | _ -> (List.rev acc, mono_to_min m)
+
+and mono_to_min (m : mono_type) : ty =
   match m with
   | IntType -> I32
   | BoolType -> I1
   | StringType -> String
   | UnitType -> Unit
-  | FloatType | CharType | TypeVar _ | TypeName _ | FunctionType _
-  | VectorType _ | CListType _ | CTypeApp _ | FixedPoint _ | RecordType _ ->
+  | FunctionType _ ->
+      let ps, rt = peel_function_chain_to_min [] m in
+      Fun (ps, rt)
+  | TypeVar _ ->
+      unsupported
+        "Polymorphic type in native compile (e.g. 'a -> 'a): add monomorphic \
+         type annotations on parameters and result, e.g. let f (x : int) : int = x"
+  | FloatType | CharType | TypeName _ | VectorType _ | CListType _ | CTypeApp _
+  | FixedPoint _ | RecordType _ ->
       unsupported "Type not supported for native parameter/return yet"
+
+let rec ty_equal (a : ty) (b : ty) : bool =
+  match (a, b) with
+  | I32, I32 | I1, I1 | String, String | Unit, Unit -> true
+  | Fun (p1, r1), Fun (p2, r2) ->
+      List.length p1 = List.length p2
+      && List.for_all2 ty_equal p1 p2
+      && ty_equal r1 r2
+  | _ -> false
 
 (** [peel_inferred_param_monos n m] takes the first [n] argument types from a
     curried [FunctionType] chain ([m] must be the typechecker's type for the
@@ -146,10 +179,15 @@ let map_cmp : c_bop -> icmp option = function
   | CGE -> Some Sge
   | _ -> None
 
-(** A callable is a direct LLVM function name plus a prefix of already-applied
-    arguments (SSA operands). [param_tys] is the *full* parameter list of [base]. *)
+(** Callee is either a module symbol or an SSA value of function-pointer type. *)
+type callee_repr =
+  | Static of string
+  | Dynamic of operand
+
+(** A callable: callee plus a prefix of already-applied arguments. [param_tys] is
+    the *full* parameter list of the callee. *)
 type callable = {
-  base : string;
+  callee : callee_repr;
   fixed : operand list;
   param_tys : ty list;
   ret_ty : ty;
@@ -160,6 +198,52 @@ type expr_result = LVal of operand * ty | LPartial of callable
 type env_binding = Val of operand * ty | C of callable
 
 type env = (string * env_binding) list
+
+let pat_bound_simple : c_pat -> string list = function
+  | CIdPat x -> [ x ]
+  | CUnitPat | CWildcardPat -> []
+  | _ ->
+      unsupported "lambda parameter pattern not supported for native compilation"
+
+let rec free_vars_cexpr : c_expr -> S.t = function
+  | EId x -> S.singleton x
+  | EInt _ | EBool _ | EString _ | EUnit -> S.empty
+  | EFunction (p, _, e) ->
+      let b = pat_bound_simple p in
+      S.diff (free_vars_cexpr e) (S.of_list b)
+  | EApp (a, b) -> S.union (free_vars_cexpr a) (free_vars_cexpr b)
+  | EBop (_, a, b) -> S.union (free_vars_cexpr a) (free_vars_cexpr b)
+  | ETernary (a, b, c) ->
+      S.union (S.union (free_vars_cexpr a) (free_vars_cexpr b)) (free_vars_cexpr c)
+  | EBind (CIdPat x, _, e1, e2, _) ->
+      S.union (free_vars_cexpr e1) (S.remove x (free_vars_cexpr e2))
+  | EBind _ ->
+      unsupported "let pattern in closure analysis (lambda body) not supported"
+  | EBlock parts ->
+      List.fold_left
+        (fun acc part ->
+          match part with
+          | Expr e -> S.union acc (free_vars_cexpr e)
+          | Defn _ ->
+              unsupported "definition in block during closure analysis")
+        S.empty parts
+  | _ ->
+      unsupported "expression in lambda (closure analysis) not supported for compilation"
+
+let check_lambda_free_vars (env : env) (fv : S.t) =
+  S.iter
+    (fun v ->
+      match List.assoc_opt v env with
+      | None -> ()
+      | Some (Val _) ->
+          unsupported "Lambda closes over a local value (closures not implemented)"
+      | Some (C c) -> (
+          match c.callee with
+          | Static _ -> ()
+          | Dynamic _ ->
+              unsupported
+                "Lambda closes over a function parameter (closures not implemented)"))
+    fv
 
 (** After [n] curried arrow parameters, the monomorphic result type of the binding. *)
 let rec mono_after_n_fun_args (n : int) (m : mono_type) : mono_type =
@@ -186,7 +270,7 @@ let callable_stub (name : string) (param_anns : c_type option list)
     (static_env : static_env) : callable =
   let param_tys = param_min_ir_tys name param_anns static_env in
   let ret_ty = ret_min_ty_of_user_fn name (List.length param_tys) static_env in
-  { base = name; fixed = []; param_tys; ret_ty }
+  { callee = Static name; fixed = []; param_tys; ret_ty }
 
 (** Curried application spine: left-most head and arguments left-to-right. *)
 let rec peel_app_spine e acc =
@@ -205,10 +289,18 @@ let rec lower_expr_val (e : c_expr) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) : operand * ty =
   match lower_expr e env ctx static_env type_env with
   | LVal (o, t) -> (o, t)
-  | LPartial _ ->
-      unsupported
-        "Expected a value here, not a partially applied function (cannot pass a \
-         partial application as an argument)"
+  | LPartial c -> (
+      if List.length c.fixed <> 0 then
+        unsupported
+          "Expected a value here, not a partially applied function (cannot pass a \
+           partial application as an argument)";
+      let ft = Fun (c.param_tys, c.ret_ty) in
+      let op =
+        match c.callee with
+        | Static name -> FnAddr (name, c.param_tys, c.ret_ty)
+        | Dynamic o -> o
+      in
+      (op, ft))
 
 and lower_builtin_print name arg env ctx static_env type_env =
   let o2, t2 = lower_expr_val arg env ctx static_env type_env in
@@ -244,7 +336,7 @@ and apply_call_args (env : env) (ctx : fn_ctx) (static_env : static_env)
         let i = List.length c.fixed in
         let expect = List.nth c.param_tys i in
         let op, got = lower_expr_val arg env ctx static_env type_env in
-        if got <> expect then unsupported "call argument type mismatch";
+        if not (ty_equal got expect) then unsupported "call argument type mismatch";
         let c' = { c with fixed = c.fixed @ [ op ] } in
         match rest with
         | [] ->
@@ -256,13 +348,24 @@ and apply_call_args (env : env) (ctx : fn_ctx) (static_env : static_env)
 and emit_saturated_call ctx (c : callable) : expr_result =
   if List.length c.fixed <> List.length c.param_tys then
     unsupported "Internal: saturated call length mismatch";
-  if c.ret_ty = Unit then (
-    emit_instr ctx (VoidCall (c.base, c.fixed));
-    LVal (ConstUnit, Unit))
-  else (
-    let t = fresh () in
-    emit_instr ctx (Assign (t, Call (c.base, c.fixed)));
-    LVal (Local t, c.ret_ty))
+  match c.callee with
+  | Static name ->
+      if c.ret_ty = Unit then (
+        emit_instr ctx (VoidCall (name, c.fixed));
+        LVal (ConstUnit, Unit))
+      else (
+        let t = fresh () in
+        emit_instr ctx (Assign (t, Call (name, c.fixed)));
+        LVal (Local t, c.ret_ty))
+  | Dynamic callee_op ->
+      if c.ret_ty = Unit then (
+        emit_instr ctx (VoidIndirectCall (callee_op, c.param_tys, c.fixed));
+        LVal (ConstUnit, Unit))
+      else (
+        let t = fresh () in
+        emit_instr ctx
+          (Assign (t, IndirectCall (callee_op, c.param_tys, c.ret_ty, c.fixed)));
+        LVal (Local t, c.ret_ty))
 
 and resolve_callable (name : string) (env : env) : callable option =
   match List.assoc_opt name env with
@@ -344,8 +447,10 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
   | EApp (e1, e2) ->
       let head, args = peel_app_spine e1 [ e2 ] in
       (match head with
-      | `Other _ ->
-          unsupported "Call shape not supported (callee must be an identifier chain)"
+      | `Other e_fn -> (
+          match lower_expr e_fn env ctx static_env type_env with
+          | LPartial c -> apply_call_args env ctx static_env type_env c args
+          | LVal _ -> unsupported "Call of a non-function value")
       | `Id name -> (
           match name with
           | "print" -> (
@@ -395,7 +500,11 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
             unsupported "if branch cannot be a partially applied function value"
       in
       let l_else_exit = ctx.cur_label in
-      if ty1 <> ty2 then unsupported "if branches must have the same type";
+      if not (ty_equal ty1 ty2) then
+        unsupported "if branches must have the same type";
+      (match ty1 with
+      | Fun _ -> unsupported "if branches cannot be function values yet"
+      | _ -> ());
       close_block ctx (Br l_merge);
       open_block ctx l_merge;
       match ty1 with
@@ -435,7 +544,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               let static_here = (name, fn_ct) :: static_env in
               let emit = mangle_nested_emit name in
               let c0 = callable_stub name anns static_here in
-              let stub = { c0 with base = emit } in
+              let stub = { c0 with callee = Static emit } in
               let outer_env = (name, C stub) :: env in
               let fn, nested =
                 lower_user_function ~ty_key:name ~emit param_pats anns inner
@@ -445,7 +554,42 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               lower_expr e2 outer_env ctx static_here type_env))
   | EBindRec _ ->
       unsupported "let rec: only simple identifier patterns supported for compilation"
-  | EBindMutRec _ | EFunction _ | ESwitch _ | ENil
+  | EFunction _ as lam -> (
+      let param_pats, anns, inner_most = peel_efun [] [] lam in
+      List.iter
+        (function
+          | CIdPat _ | CUnitPat | CWildcardPat -> ()
+          | _ -> unsupported "lambda parameter pattern")
+        param_pats;
+      let bound = List.concat (List.map pat_bound_simple param_pats) in
+      let fv = S.diff (free_vars_cexpr inner_most) (S.of_list bound) in
+      check_lambda_free_vars env fv;
+      match Typecheck.type_of_c_expr static_env type_env lam with
+      | Error err ->
+          unsupported ("lambda: " ^ Typecheck.string_of_type_check_error err)
+      | Ok ct ->
+          let mono_full = Typecheck.instantiate ct in
+          let syn_key = fresh_lambda_ty_key () in
+          let static_here = (syn_key, Mono mono_full) :: static_env in
+          let mangled = mangle_nested_emit "lam" in
+          let fn, nested =
+            lower_user_function ~ty_key:syn_key ~emit:mangled param_pats anns
+              inner_most env static_here type_env
+          in
+          ctx.nested_funcs <- ctx.nested_funcs @ nested @ [ fn ];
+          let param_tys = List.map snd fn.params in
+          let ret_ty = fn.ret in
+          let c =
+            {
+              callee = Static mangled;
+              fixed = [];
+              param_tys;
+              ret_ty;
+            }
+          in
+          if arity_remaining c > 0 then LPartial c
+          else unsupported "Internal: zero-arity lambda")
+  | EBindMutRec _ | ESwitch _ | ENil
   | EListEnumeration _ | EListComprehension _ | EVector _ | ERecordLit _
   | ERecordUpdate _ | EFieldAccess _ | EChar _ | EFloat _ ->
       unsupported "Expression form not supported in Min_IR lowering yet"
@@ -474,8 +618,21 @@ and lower_user_function ~(ty_key : string) ~(emit : string)
     List.map2
       (fun pat pt ->
         match pat with
-        | CIdPat s ->
-            (s, [ (s, Val (Local s, pt)) ])
+        | CIdPat s -> (
+            match pt with
+            | Fun (param_tys, ret_ty) ->
+                ( s,
+                  [
+                    ( s,
+                      C
+                        {
+                          callee = Dynamic (Local s);
+                          fixed = [];
+                          param_tys;
+                          ret_ty;
+                        } );
+                  ] )
+            | _ -> (s, [ (s, Val (Local s, pt)) ]))
         | CUnitPat ->
             let p = fresh_param () in
             (p, [])
@@ -495,8 +652,17 @@ and lower_user_function ~(ty_key : string) ~(emit : string)
   let op, ret_ty =
     match lower_expr inner merged ctx static_env type_env with
     | LVal (o, t) -> (o, t)
+    | LPartial c when List.length c.fixed = 0 ->
+        let ft = Fun (c.param_tys, c.ret_ty) in
+        let op =
+          match c.callee with
+          | Static name -> FnAddr (name, c.param_tys, c.ret_ty)
+          | Dynamic o -> o
+        in
+        (op, ft)
     | LPartial _ ->
-        unsupported "Returning a function value from a user function is not supported"
+        unsupported
+          "Returning a partially applied function is not supported"
   in
   let term : term =
     match ret_ty with Unit -> Ret None | _ -> Ret (Some op)
@@ -637,7 +803,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                   user_funs := !user_funs @ nested @ [ fn ];
                   let c =
                     {
-                      base = name;
+                      callee = Static name;
                       fixed = [];
                       param_tys = List.map snd fn.params;
                       ret_ty = fn.ret;
