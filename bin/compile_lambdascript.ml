@@ -43,7 +43,7 @@ let compile (src_path : string) (out_path : string) =
       let condensed_program = List.map condense_defn program in
       let static_env = build_full_static_env () in
       let type_env : type_env = [] in
-      let _st, _te =
+      let static_env, _te =
         List.fold_left
           (fun (static_env, type_env) defn ->
             match generate_defn static_env type_env defn with
@@ -54,7 +54,9 @@ let compile (src_path : string) (out_path : string) =
           (static_env, type_env) condensed_program
       in
       let min_ir_prog =
-        match Language.Lower_min_ir.lower_c_program condensed_program with
+        match
+          Language.Lower_min_ir.lower_c_program condensed_program static_env
+        with
         | Ok p -> p
         | Error msg ->
             print_endline ("Lowering failed: " ^ msg);

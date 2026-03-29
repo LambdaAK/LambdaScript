@@ -1,0 +1,23 @@
+entry: @main
+fn add(x: i32, y: i32, bb: i1) -> i32 {
+entry:
+
+  br %bb ? then_1 : else_2
+then_1:
+  _t1 = add %x, %y
+  br merge_3
+else_2:
+  _t2 = sub %x, %y
+  br merge_3
+merge_3:
+  _t3 = phi i32 [ then_1, %_t1 ], [ else_2, %_t2 ]
+  ret %_t3
+}
+
+fn main() -> unit {
+entry:
+  _t4 = call @add(10, 20, true)
+  _t5 = call @int_to_str(%_t4)
+  void call @println(%_t5)
+  ret void
+}

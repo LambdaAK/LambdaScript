@@ -124,13 +124,20 @@ let emit_operand h (op : operand) : string * string =
   | ConstUnit -> failwith "llvm_emit: ConstUnit in value position"
   | Local x -> (llvm_ll_ty (H.find h x), "%" ^ x)
 
-let rhs_result_ty h : rhs -> ty = function
-  | Copy o -> operand_min_ty h o
-  | Binop _ -> I32
-  | ICmp _ -> I1
-  | IAnd _ | IOr _ -> I1
-  | Call ("int_to_str", _) -> String
-  | Call _ -> failwith "llvm_emit: unsupported callee"
+let map_call_args h (fd : func_def) (args : Min_ir.operand list) : string list
+    =
+  if List.length args <> List.length fd.params then
+    failwith "llvm_emit: call arity mismatch";
+  List.map2
+    (fun (_, pty) op ->
+      let got_ll, v = emit_operand h op in
+      let exp_ll = llvm_ll_ty pty in
+      if got_ll <> exp_ll then
+        failwith
+          (Printf.sprintf "llvm_emit: call arg expected %s, got %s" exp_ll
+             got_ll);
+      Printf.sprintf "%s %s" exp_ll v)
+    fd.params args
 
 let emit_copy_dst ctx h lines dst o =
   match o with
@@ -159,9 +166,8 @@ let emit_copy_dst ctx h lines dst o =
 
 let phi_incoming_val (h : (string, ty) H.t) (exp_ty : ty) (op : operand) :
     string =
-  let () =
-    let got = operand_min_ty h op in
-    if got <> exp_ty then
+  let check_exp_const got_const =
+    if got_const <> exp_ty then
       failwith
         (Printf.sprintf "llvm_emit: phi arm type mismatch (expected %s)"
            (match exp_ty with
@@ -171,15 +177,35 @@ let phi_incoming_val (h : (string, ty) H.t) (exp_ty : ty) (op : operand) :
            | Unit -> "void"))
   in
   match op with
-  | ConstI32 n -> string_of_int n
-  | ConstI1 b -> if b then "true" else "false"
-  | Local x -> "%" ^ x
+  | ConstI32 n ->
+      check_exp_const I32;
+      string_of_int n
+  | ConstI1 b ->
+      check_exp_const I1;
+      if b then "true" else "false"
+  | Local x -> (
+      (* Merge blocks may be emitted before all predecessors in block order;
+         the local may not be in [h] yet. LLVM phis only reference values from
+         the named predecessor block, so this is valid IR. *)
+      match H.find_opt h x with
+      | Some t when t <> exp_ty ->
+          failwith
+            (Printf.sprintf
+               "llvm_emit: phi arm type mismatch for %%%s (expected %s)" x
+               (match exp_ty with
+               | I32 -> "i32"
+               | I1 -> "i1"
+               | String -> "i8*"
+               | Unit -> "void"))
+      | Some _ | None ->
+          ());
+      "%" ^ x
   | ConstStr _ ->
       failwith "llvm_emit: phi cannot use string literal; materialize to a local"
   | ConstUnit -> failwith "llvm_emit: phi cannot use unit"
 
-let emit_instr ctx (h : (string, ty) H.t) (lines : string list ref)
-    (instr : instr) : unit =
+let emit_instr ctx (fn_sigs : (string, func_def) H.t)
+    (h : (string, ty) H.t) (lines : string list ref) (instr : instr) : unit =
   match instr with
   | Phi (dst, t, incomings) ->
       let ll_t = llvm_ll_ty t in
@@ -194,13 +220,25 @@ let emit_instr ctx (h : (string, ty) H.t) (lines : string list ref)
       lines := !lines @ [ Printf.sprintf "  %%%s = phi %s %s" dst ll_t parts ];
       H.replace h dst t
   | VoidCall (name, args) -> (
-      match args with
-      | [ arg ] ->
-          let at, av = emit_operand h arg in
-          if at <> "i8*" then failwith "llvm_emit: print/println expect i8*";
-          let c = callee_ll name in
-          lines := !lines @ [ Printf.sprintf "  call void @%s(%s %s)" c at av ]
-      | _ -> failwith "llvm_emit: print/println expect one argument")
+      match name with
+      | "print" | "println" -> (
+          match args with
+          | [ arg ] ->
+              let at, av = emit_operand h arg in
+              if at <> "i8*" then failwith "llvm_emit: print/println expect i8*";
+              let c = callee_ll name in
+              lines :=
+                !lines @ [ Printf.sprintf "  call void @%s(%s %s)" c at av ]
+          | _ -> failwith "llvm_emit: print/println expect one argument")
+      | _ ->
+          let fd = H.find fn_sigs name in
+          if fd.ret <> Unit then
+            failwith "llvm_emit: value-returning call must use Assign, not void";
+          let parts = map_call_args h fd args in
+          lines :=
+            !lines
+            @ [ Printf.sprintf "  call void @%s(%s)" name (String.concat ", " parts) ]
+      )
   | Assign (dst, rhs) -> (
       match rhs with
       | Copy o -> emit_copy_dst ctx h lines dst o
@@ -231,16 +269,33 @@ let emit_instr ctx (h : (string, ty) H.t) (lines : string list ref)
             !lines @ [ Printf.sprintf "  %%%s = %s i1 %s, %s" dst op v1 v2 ];
           H.replace h dst I1
       | Call (name, args) -> (
-          match name, args with
-          | "int_to_str", [ a ] ->
-              let ta, va = emit_operand h a in
-              if ta <> "i32" then failwith "llvm_emit: int_to_str expects i32";
-              let c = callee_ll "int_to_str" in
+          match name with
+          | "int_to_str" -> (
+              match args with
+              | [ a ] ->
+                  let ta, va = emit_operand h a in
+                  if ta <> "i32" then failwith "llvm_emit: int_to_str expects i32";
+                  let c = callee_ll "int_to_str" in
+                  lines :=
+                    !lines
+                    @ [
+                        Printf.sprintf "  %%%s = call i8* @%s(i32 %s)" dst c va;
+                      ];
+                  H.replace h dst String
+              | _ -> failwith "llvm_emit: int_to_str arity")
+          | _ ->
+              let fd = H.find fn_sigs name in
+              if fd.ret = Unit then
+                failwith "llvm_emit: void call should use VoidCall";
+              let parts = map_call_args h fd args in
+              let ret_ll = llvm_ll_ty fd.ret in
               lines :=
                 !lines
-                @ [ Printf.sprintf "  %%%s = call i8* @%s(i32 %s)" dst c va ];
-              H.replace h dst String
-          | _ -> failwith "llvm_emit: unknown call"))
+                @ [
+                    Printf.sprintf "  %%%s = call %s @%s(%s)" dst ret_ll name
+                      (String.concat ", " parts);
+                  ];
+              H.replace h dst fd.ret))
 
 let emit_term h (lines : string list ref) ~(ret : ty) ~(is_c_main : bool)
     (t : term) : unit =
@@ -282,7 +337,7 @@ let init_param_types (f : func_def) : (string, ty) H.t =
   List.iter (fun (p, t) -> H.replace h p t) f.params;
   h
 
-let emit_func ctx (f : func_def) : string =
+let emit_func ctx (fn_sigs : (string, func_def) H.t) (f : func_def) : string =
   let is_c_main = f.name = "main" in
   let ret_s =
     if is_c_main && f.ret = Unit then "i32"
@@ -301,7 +356,7 @@ let emit_func ctx (f : func_def) : string =
   List.iter
     (fun blk ->
       body_lines := !body_lines @ [ Printf.sprintf "%s:" blk.label ];
-      List.iter (fun i -> emit_instr ctx h body_lines i) blk.instrs;
+      List.iter (fun i -> emit_instr ctx fn_sigs h body_lines i) blk.instrs;
       emit_term h body_lines ~ret:f.ret ~is_c_main blk.term)
     blks;
   Printf.sprintf "define %s @%s(%s) {\n%s\n}\n" ret_s f.name params_s
@@ -309,7 +364,11 @@ let emit_func ctx (f : func_def) : string =
 
 let emit_prog (p : prog) : string =
   let ctx = ctx_create () in
-  let func_text = List.map (emit_func ctx) p.funcs |> String.concat "\n" in
+  let fn_sigs : (string, func_def) H.t = H.create 16 in
+  List.iter (fun f -> H.replace fn_sigs f.name f) p.funcs;
+  let func_text =
+    List.map (emit_func ctx fn_sigs) p.funcs |> String.concat "\n"
+  in
   let globals = String.concat "\n" (List.rev ctx.prelude) in
   let gl_sep = if ctx.prelude = [] then "" else "\n" in
   module_banner ^ runtime_declarations ^ "\n" ^ globals ^ gl_sep ^ func_text
