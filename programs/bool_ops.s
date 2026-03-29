@@ -9,22 +9,12 @@ _main:                                  ; @main
 	.cfi_def_cfa_offset 16
 	.cfi_offset w30, -8
 	.cfi_offset w29, -16
-Lloh0:
-	adrp	x0, l_.str.1@PAGE
-Lloh1:
-	add	x0, x0, l_.str.1@PAGEOFF
-	bl	_ls_println
-	mov	w0, #10                         ; =0xa
+	mov	w0, #99                         ; =0x63
 	bl	_ls_int_to_str
 	bl	_ls_println
 	mov	w0, #0                          ; =0x0
 	ldp	x29, x30, [sp], #16             ; 16-byte Folded Reload
 	ret
-	.loh AdrpAdd	Lloh0, Lloh1
 	.cfi_endproc
                                         ; -- End function
-	.section	__TEXT,__cstring,cstring_literals
-l_.str.1:                               ; @.str.1
-	.asciz	"yes1"
-
 .subsections_via_symbols

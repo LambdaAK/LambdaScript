@@ -1,0 +1,22 @@
+entry: @main
+fn main() -> unit {
+entry:
+  _t1 = icmp sle 1, 2
+  _t2 = icmp sge 3, 3
+  _t3 = icmp sge 2, 5
+  _t4 = or %_t3, true
+  _t5 = and %_t2, %_t4
+  _t6 = and %_t1, %_t5
+  br %_t6 ? then_1 : else_2
+then_1:
+
+  br merge_3
+else_2:
+
+  br merge_3
+merge_3:
+  _t7 = phi i32 [ then_1, 99 ], [ else_2, 0 ]
+  _t8 = call @int_to_str(%_t7)
+  void call @println(%_t8)
+  ret void
+}

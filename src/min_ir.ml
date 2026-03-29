@@ -22,7 +22,7 @@ type ty =
 
 type ibin = Add | Sub | Mul | Div | Mod
 
-type icmp = Eq | Ne | Ult | Slt
+type icmp = Eq | Ne | Ult | Slt | Sle | Sge
 
 (** Values that can flow through SSA edges (constants or locals). *)
 type operand =
@@ -38,6 +38,9 @@ type rhs =
   | Copy of operand
   | Binop of ibin * operand * operand
   | ICmp of icmp * operand * operand
+  (* Boolean [i1] (non-short-circuit; both operands evaluated). *)
+  | IAnd of operand * operand
+  | IOr of operand * operand
   (* Direct call: either a [func_def] in the same [prog] or a runtime symbol
      (e.g. [int_to_str] — see {!runtime_string_symbols}). *)
   | Call of string * operand list
@@ -111,6 +114,8 @@ let string_of_icmp = function
   | Ne -> "ne"
   | Ult -> "ult"
   | Slt -> "slt"
+  | Sle -> "sle"
+  | Sge -> "sge"
 
 let escape_string s =
   let b = Buffer.create (String.length s + 8) in
@@ -143,6 +148,10 @@ let string_of_rhs = function
   | ICmp (c, a, b) ->
       Printf.sprintf "icmp %s %s, %s" (string_of_icmp c) (string_of_operand a)
         (string_of_operand b)
+  | IAnd (a, b) ->
+      Printf.sprintf "and %s, %s" (string_of_operand a) (string_of_operand b)
+  | IOr (a, b) ->
+      Printf.sprintf "or %s, %s" (string_of_operand a) (string_of_operand b)
   | Call (f, args) ->
       let args_s = String.concat ", " (List.map string_of_operand args) in
       Printf.sprintf "call @%s(%s)" f args_s

@@ -1,7 +1,9 @@
 (** Lower a subset of {!Cexpr.c_expr} to {!Min_ir}.
 
     Uses a per-function block builder so control flow ([ETernary] / [if … then … else …])
-    can add multiple basic blocks, [Phi] at merges, and non-unit branches. *)
+    can add multiple basic blocks, [Phi] at merges, and non-unit branches.
+
+    [&&] and [||] lower to [IAnd]/[IOr] (both operands evaluated; not short-circuit). *)
 
 exception Unsupported of string
 
@@ -58,6 +60,8 @@ let map_cmp : c_bop -> icmp option = function
   | CEQ -> Some Eq
   | CNE -> Some Ne
   | CLT -> Some Slt
+  | CLE -> Some Sle
+  | CGE -> Some Sge
   | _ -> None
 
 let rec lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : operand * ty =
@@ -99,6 +103,22 @@ let rec lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : operand * ty =
                     unsupported "Integer comparison expects i32 operands";
                   let t = fresh () in
                   emit_instr ctx (Assign (t, ICmp (Slt, o2, o1)));
+                  (Local t, I1)
+              | CAnd ->
+                  let o1, t1 = lower_expr e1 env ctx in
+                  let o2, t2 = lower_expr e2 env ctx in
+                  if t1 <> I1 || t2 <> I1 then
+                    unsupported "&& expects bool operands";
+                  let t = fresh () in
+                  emit_instr ctx (Assign (t, IAnd (o1, o2)));
+                  (Local t, I1)
+              | COr ->
+                  let o1, t1 = lower_expr e1 env ctx in
+                  let o2, t2 = lower_expr e2 env ctx in
+                  if t1 <> I1 || t2 <> I1 then
+                    unsupported "|| expects bool operands";
+                  let t = fresh () in
+                  emit_instr ctx (Assign (t, IOr (o1, o2)));
                   (Local t, I1)
               | _ -> unsupported ("Binary operator not supported in Min_IR lowering yet"))))
   | EBind (CIdPat x, _ta, e1, e2, _rt) ->

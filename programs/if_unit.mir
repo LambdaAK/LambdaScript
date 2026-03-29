@@ -8,10 +8,29 @@ then_1:
   void call @println(%_t1)
   br merge_3
 else_2:
-  _t2 = "no"
+
+  br true ? then_4 : else_5
+then_4:
+  _t2 = "yes1"
   void call @println(%_t2)
+  br merge_6
+else_5:
+  _t3 = "no"
+  void call @println(%_t3)
+  br merge_6
+merge_6:
+
   br merge_3
 merge_3:
-
+  a = 1
+  b = 2
+  c = 3
+  d = 4
+  _t4 = add %a, %b
+  _t5 = add %_t4, %c
+  _t6 = add %_t5, %d
+  x = %_t6
+  _t7 = call @int_to_str(%x)
+  void call @println(%_t7)
   ret void
 }

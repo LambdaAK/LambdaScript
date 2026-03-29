@@ -28,6 +28,8 @@ let icmp_ll : icmp -> string = function
   | Ne -> "ne"
   | Ult -> "ult"
   | Slt -> "slt"
+  | Sle -> "sle"
+  | Sge -> "sge"
 
 let callee_ll : string -> string = function
   | "print" -> "ls_print"
@@ -126,6 +128,7 @@ let rhs_result_ty h : rhs -> ty = function
   | Copy o -> operand_min_ty h o
   | Binop _ -> I32
   | ICmp _ -> I1
+  | IAnd _ | IOr _ -> I1
   | Call ("int_to_str", _) -> String
   | Call _ -> failwith "llvm_emit: unsupported callee"
 
@@ -218,6 +221,14 @@ let emit_instr ctx (h : (string, ty) H.t) (lines : string list ref)
           lines :=
             !lines
             @ [ Printf.sprintf "  %%%s = icmp %s i32 %s, %s" dst (icmp_ll c) v1 v2 ];
+          H.replace h dst I1
+      | IAnd (o1, o2) | IOr (o1, o2) as rhs_logic ->
+          let t1, v1 = emit_operand h o1 in
+          let t2, v2 = emit_operand h o2 in
+          if t1 <> "i1" || t2 <> "i1" then failwith "llvm_emit: and/or expect i1";
+          let op = match rhs_logic with IAnd _ -> "and" | _ -> "or" in
+          lines :=
+            !lines @ [ Printf.sprintf "  %%%s = %s i1 %s, %s" dst op v1 v2 ];
           H.replace h dst I1
       | Call (name, args) -> (
           match name, args with
