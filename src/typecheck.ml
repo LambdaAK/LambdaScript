@@ -1232,6 +1232,31 @@ and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :
   in
   return the_c_type
 
+(** Solved monomorphic type of [e1] (the function position) in the binary
+    application [EApp (e1, e2)], after constraint solving. Used for
+    monomorphization. *)
+and mono_fun_type_of_binary_app (env : static_env) (type_env : type_env)
+    (e1 : c_expr) (e2 : c_expr) : mono_type type_check_result =
+  let- t1, c1, _ = generate env type_env e1 in
+  let- t2, c2, _ = generate env type_env e2 in
+  let result_type = fresh_type_var () in
+  let app_constraint = (t1, FunctionType (t2, result_type)) in
+  let constraints = app_constraint :: (c1 @ c2) in
+  let- simplified_constraints =
+    let rec simplify_constraint_list acc = function
+      | [] -> return (List.rev acc)
+      | (t1, t2) :: rest ->
+          let- t1_simplified = simplify_mono_type t1 type_env in
+          let- t2_simplified = simplify_mono_type t2 type_env in
+          simplify_constraint_list ((t1_simplified, t2_simplified) :: acc) rest
+    in
+    simplify_constraint_list [] constraints
+  in
+  let solution = reduce_eq simplified_constraints type_env in
+  let- the_mono_type = get_type t1 solution type_env in
+  let the_mono_type = fix_type the_mono_type in
+  return the_mono_type
+
 (* swap all variables for new variables *)
 and swap_all_variables_in_type (t : mono_type) : mono_type type_check_result =
   (* First generalize the type to quantify over all variables *)

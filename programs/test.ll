@@ -5,23 +5,20 @@ declare void @ls_print(i8*)
 declare void @ls_println(i8*)
 declare i8* @ls_int_to_str(i32)
 
-define i32 @apply(i32 (i32)* %f, i32 %x) {
+define i32 @id__lsm966650245(i32 %x) {
 entry:
-  %_t1 = call i32 %f(i32 %x)
-  ret i32 %_t1
+  ret i32 %x
 }
 
-define i32 @lam__lsn1(i32 %x) {
+define void @id__lsm944046621(i8 %x) {
 entry:
-  %_t2 = add nsw i32 %x, 1
-  ret i32 %_t2
+  ret void
 }
 
 define i32 @main() {
 entry:
-  %_t3 = call i32 @apply(i32 (i32)* @lam__lsn1, i32 41)
-  %result = add nsw i32 %_t3, 0
-  %_t4 = call i8* @ls_int_to_str(i32 %result)
-  call void @ls_println(i8* %_t4)
+  %_t1 = call i32 @id__lsm966650245(i32 10)
+  %a = add nsw i32 %_t1, 0
+  call void @id__lsm944046621(i8 0)
   ret i32 0
 }

@@ -236,6 +236,34 @@ let get_inc () : int -> int = fn x -> x + 1
 let () = println (int_to_str ((get_inc ()) 40))
 |}
       "41\n";
+    (* Monomorphization: polymorphic defs without annotations *)
+    case "monomorph poly identity int"
+      {|
+let f x = x
+let () = println (int_to_str (f 0))
+|}
+      "0\n";
+    case "monomorph poly identity two uses same type"
+      {|
+let f x = x
+let () = println (int_to_str (f 0))
+let () = println (int_to_str (f 1))
+|}
+      "0\n1\n";
+    case "monomorph poly identity int and bool instances"
+      {|
+let f x = x
+let () = println (int_to_str (f 0))
+let () = println (int_to_str (if f true then 1 else 0))
+|}
+      "0\n1\n";
+    case "monomorph nested poly call through another poly fun"
+      {|
+let g x = x
+let f y = g y
+let () = println (int_to_str (f 0))
+|}
+      "0\n";
   ]
 
 let test_one (name, program, expected_stdout) =

@@ -1,5 +1,5 @@
-let apply (f : int -> int) (x : int) : int = f x
+let id x = x
 
-let result = apply (fn x -> x + 1) 41
+let a = id 10
 
-let () = println (int_to_str result)
+let () = id ()

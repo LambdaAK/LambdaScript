@@ -21,6 +21,7 @@ let unsupported msg = raise (Unsupported msg)
 
 open Cexpr
 open Min_ir
+open Ceval
 
 let counter = ref 0
 
@@ -265,12 +266,196 @@ let ret_min_ty_of_user_fn (name : string) (num_params : int)
       let m = Typecheck.instantiate ct in
       mono_to_min (mono_after_n_fun_args num_params m)
 
+let is_poly_static (name : string) (static_env : static_env) : bool =
+  match List.assoc_opt name static_env with
+  | Some (PolyType _) -> true
+  | Some (Mono _) | None -> false
+
+(** Map simple Min_IR types back to [mono_type] for typing local value bindings
+    when resolving polymorphic call instantiations inside function bodies. *)
+let min_ty_to_mono_opt : ty -> mono_type option = function
+  | I32 -> Some IntType
+  | I1 -> Some BoolType
+  | String -> Some StringType
+  | Unit -> Some UnitType
+  | Fun _ -> None
+
+(** Extend the global static environment with locals so [mono_fun_type_of_binary_app]
+    sees parameters and [let]-bound names in the current lowering scope. *)
+let static_env_for_mono_call (global : static_env) (env : env) : static_env =
+  List.fold_left
+    (fun acc (name, b) ->
+      match b with
+      | Val (_, t) -> (
+          match min_ty_to_mono_opt t with
+          | Some m -> (name, Mono m) :: acc
+          | None -> acc)
+      | C _ -> acc)
+    [] env
+  @ global
+
+let replace_static_binding (name : string) (ct : c_type) (static_env : static_env)
+    : static_env =
+  (name, ct) :: List.remove_assoc name static_env
+
+let mangle_poly_instance (name : string) (mono : mono_type) : string =
+  let h = Hashtbl.hash (string_of_mono_type mono) in
+  let s = if h < 0 then string_of_int (abs h) else string_of_int h in
+  name ^ "__lsm" ^ s
+
+let find_cdefn_function (name : string) (defs : c_defn list) :
+    (c_pat list * c_type option list * c_expr) option =
+  let rec find = function
+    | [] -> None
+    | CDefn (pat, _, body, _, _) :: rest -> (
+        match pat with
+        | CIdPat n when n = name ->
+            let param_pats, anns, inner = peel_efun [] [] body in
+            if param_pats = [] then find rest
+            else Some (param_pats, anns, inner)
+        | _ -> find rest)
+    | _ :: rest -> find rest
+  in
+  find defs
+
+(** Collect (top-level function name, instantiated function type) pairs needed for
+    monomorphization, including instances discovered inside specialized bodies
+    (fixpoint). *)
+let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
+    (type_env : Typecheck.type_env) : (string * mono_type) list =
+  let seen : (string * string, unit) Hashtbl.t = Hashtbl.create 64 in
+  let all : (string * mono_type) list ref = ref [] in
+  let q : (string * mono_type) Queue.t = Queue.create () in
+  let add name mono =
+    let key = (name, string_of_mono_type mono) in
+    if not (Hashtbl.mem seen key) then (
+      Hashtbl.add seen key ();
+      all := (name, mono) :: !all;
+      Queue.add (name, mono) q)
+  in
+  let rec collect_visit_expr (env : static_env) (e : c_expr) : unit =
+    match e with
+    | EApp (e1, e2) ->
+        collect_visit_expr env e1;
+        collect_visit_expr env e2;
+        (match e1 with
+        | EId f when is_poly_static f env -> (
+            match Typecheck.mono_fun_type_of_binary_app env type_env e1 e2 with
+            | Ok m_fun -> add f m_fun
+            | Error _ -> ())
+        | _ -> ())
+    | EBop (_, a, b) ->
+        collect_visit_expr env a;
+        collect_visit_expr env b
+    | ETernary (a, b, c) ->
+        collect_visit_expr env a;
+        collect_visit_expr env b;
+        collect_visit_expr env c
+    | EBind (pat, _, e1, e2, _) ->
+        collect_visit_expr env e1;
+        (match Typecheck.type_of_c_expr env type_env e1 with
+        | Ok ct -> (
+            match bind_static pat ct with
+            | Some bindings -> collect_visit_expr (bindings @ env) e2
+            | None -> collect_visit_expr env e2)
+        | Error _ -> collect_visit_expr env e2)
+    | EBindRec (_, _, e1, e2, _) ->
+        collect_visit_expr env e1;
+        collect_visit_expr env e2
+    | EBindMutRec (bindings, body) ->
+        List.iter
+          (fun (_, _, e1, _, _) -> collect_visit_expr env e1)
+          bindings;
+        collect_visit_expr env body
+    | EBlock parts ->
+        List.iter
+          (function
+            | Expr e -> collect_visit_expr env e
+            | Defn d -> collect_visit_defn env d)
+          parts
+    | EFunction (_, _, body) -> collect_visit_expr env body
+    | ESwitch (e0, branches) ->
+        collect_visit_expr env e0;
+        List.iter (fun (_, be) -> collect_visit_expr env be) branches
+    | EVector es -> List.iter (collect_visit_expr env) es
+    | EListEnumeration (a, b) ->
+        collect_visit_expr env a;
+        collect_visit_expr env b
+    | EListComprehension (e0, gens) ->
+        collect_visit_expr env e0;
+        List.iter
+          (fun (_, ge) -> collect_visit_expr env ge)
+          gens
+    | ERecordLit fields -> List.iter (fun (_, e0) -> collect_visit_expr env e0) fields
+    | ERecordUpdate (base, upd) ->
+        collect_visit_expr env base;
+        List.iter (fun (_, e0) -> collect_visit_expr env e0) upd
+    | EFieldAccess (e0, _) -> collect_visit_expr env e0
+    | EInt _ | EBool _ | EString _ | EUnit | EChar _ | EFloat _ | ENil | EId _ ->
+        ()
+  and collect_visit_defn (env : static_env) (defn : c_defn) : unit =
+    match defn with
+    | CDefn (pat, _, body, _, _) -> visit_def_body env pat body
+    | CDefnRec (pat, _, body, _, _) -> visit_def_body env pat body
+    | CDefnMutRec ds ->
+        List.iter (fun (pat, _, body, _, _) -> visit_def_body env pat body) ds
+    | CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _ -> ()
+  and visit_def_body (env : static_env) (pat : c_pat) (body : c_expr) : unit =
+    match pat with
+    | CIdPat _ ->
+        let _, _, inner = peel_efun [] [] body in
+        collect_visit_expr env inner
+    | CUnitPat | CWildcardPat -> collect_visit_expr env body
+    | _ -> ()
+  in
+  List.iter (collect_visit_defn static_env) defs;
+  while not (Queue.is_empty q) do
+    let name, mono = Queue.pop q in
+    match find_cdefn_function name defs with
+    | None -> ()
+    | Some (param_pats, _, inner) ->
+        let static_inst = replace_static_binding name (Mono mono) static_env in
+        let param_monos =
+          peel_inferred_param_monos (List.length param_pats) mono
+        in
+        let env_inst =
+          List.fold_left
+            (fun acc (pat, pm) ->
+              match bind_static pat (Mono pm) with
+              | Some b -> b @ acc
+              | None -> acc)
+            static_inst
+            (List.combine param_pats param_monos)
+        in
+        collect_visit_expr env_inst inner
+  done;
+  List.sort
+    (fun (a, ma) (b, mb) ->
+      match String.compare a b with
+      | 0 -> String.compare (string_of_mono_type ma) (string_of_mono_type mb)
+      | c -> c)
+    (List.rev !all)
+
 (** Callable shape for [name] before lowering its body (recursive / mutual fixup). *)
 let callable_stub (name : string) (param_anns : c_type option list)
     (static_env : static_env) : callable =
   let param_tys = param_min_ir_tys name param_anns static_env in
   let ret_ty = ret_min_ty_of_user_fn name (List.length param_tys) static_env in
   { callee = Static name; fixed = []; param_tys; ret_ty }
+
+let build_mono_instance_env (instances : (string * mono_type) list)
+    (defs : c_defn list) (static_env : static_env) : env =
+  List.fold_left
+    (fun acc (name, mono) ->
+      match find_cdefn_function name defs with
+      | None -> acc
+      | Some (_, anns, _) ->
+          let emit = mangle_poly_instance name mono in
+          let stub =
+            callable_stub emit anns ((emit, Mono mono) :: static_env)
+          in
+          (emit, C stub) :: acc)
+    [] instances
 
 (** Curried application spine: left-most head and arguments left-to-right. *)
 let rec peel_app_spine e acc =
@@ -385,7 +570,12 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       | Some (C c) ->
           if arity_remaining c > 0 then LPartial c
           else unsupported ("`" ^ x ^ "` is already fully applied (compiler bug)")
-      | None -> unsupported ("Unbound name `" ^ x ^ "` (not a lowering target)"))
+      | None ->
+          if is_poly_static x static_env then
+            unsupported
+              ("Polymorphic function `" ^ x
+             ^ "` cannot be used as a value here; call it fully applied")
+          else unsupported ("Unbound name `" ^ x ^ "` (not a lowering target)"))
   | EBop (op, e1, e2) -> (
       match map_arith_bop op with
       | Some b ->
@@ -473,9 +663,36 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               | Some c ->
                   apply_call_args env ctx static_env type_env c args
               | None ->
-                  unsupported
-                    ("Unknown function `" ^ name ^ "` — declare it above the call, \
-                     or it is not a function"))))
+                  if is_poly_static name static_env then
+                    match args with
+                    | [] ->
+                        unsupported "Internal: polymorphic call with empty arg list"
+                    | first_arg :: rest_args -> (
+                        let static_for_mono =
+                          static_env_for_mono_call static_env env
+                        in
+                        match
+                          Typecheck.mono_fun_type_of_binary_app static_for_mono
+                            type_env (EId name) first_arg
+                        with
+                        | Error err ->
+                            unsupported
+                              ("monomorph: "
+                              ^ Typecheck.string_of_type_check_error err)
+                        | Ok m_fun ->
+                            let mangle = mangle_poly_instance name m_fun in
+                            match resolve_callable mangle env with
+                            | Some c ->
+                                apply_call_args env ctx static_env type_env c
+                                  (first_arg :: rest_args)
+                            | None ->
+                                unsupported
+                                  ("Missing monomorphized specialization for `"
+                                 ^ name ^ "` — compiler bug"))
+                  else
+                    unsupported
+                      ("Unknown function `" ^ name
+                     ^ "` — declare it above the call, or it is not a function"))))
   | ETernary (cond, e_then, e_else) -> (
       let o_c, t_c = lower_expr_val cond env ctx static_env type_env in
       if t_c <> I1 then unsupported "if condition must be bool";
@@ -711,7 +928,22 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
     (type_env : Typecheck.type_env) : (prog, string) result =
   try
     reset_fresh ();
+    let instances = collect_mono_instantiations defs static_env type_env in
     let user_funs = ref [] in
+    let env_mono = build_mono_instance_env instances defs static_env in
+    List.iter
+      (fun (name, mono) ->
+        match find_cdefn_function name defs with
+        | None -> ()
+        | Some (param_pats, anns, inner) ->
+            let emit = mangle_poly_instance name mono in
+            let fn, nested =
+              lower_user_function ~ty_key:emit ~emit param_pats anns inner env_mono
+                ((emit, Mono mono) :: static_env)
+                type_env
+            in
+            user_funs := !user_funs @ nested @ [ fn ])
+      instances;
     let ctx_main = create_fn_ctx () in
     let rec walk env = function
       | [] -> ()
@@ -726,6 +958,9 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
               | [] ->
                   unsupported
                     "let rec on non-function values is not supported for native compilation"
+              | _ :: _ when is_poly_static name static_env ->
+                  unsupported
+                    "Polymorphic let rec is not supported for native compilation yet"
               | _ :: _ ->
                   let stub = callable_stub name anns static_env in
                   let fn, nested =
@@ -756,6 +991,12 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
               if param_pats = [] then
                 unsupported
                   "mutually recursive non-function values are not supported for native compilation")
+            parsed;
+          List.iter
+            (fun (name, param_pats, _, _) ->
+              if param_pats <> [] && is_poly_static name static_env then
+                unsupported
+                  "Polymorphic mutually recursive functions are not supported for native compilation yet")
             parsed;
           let stubs =
             List.map
@@ -795,6 +1036,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                   | LPartial c ->
                       let env' = (name, C c) :: env in
                       walk env' rest)
+              | _ :: _ when is_poly_static name static_env -> walk env rest
               | _ :: _ ->
                   let fn, nested =
                     lower_user_function ~ty_key:name ~emit:name param_pats anns
@@ -820,7 +1062,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
               unsupported
                 "Top-level let only supports identifier, unit, or wildcard patterns in Min_IR lowering")
     in
-    walk [] defs;
+    walk env_mono defs;
     close_block ctx_main (Ret None);
     let main_fn : func_def =
       {

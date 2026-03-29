@@ -1,21 +1,20 @@
 entry: @main
-fn apply(f: fn(i32) -> i32, x: i32) -> i32 {
+fn id__lsm966650245(x: i32) -> i32 {
 entry:
-  _t1 = indirect_call %f(%x) -> i32
-  ret %_t1
+
+  ret %x
 }
 
-fn lam__lsn1(x: i32) -> i32 {
+fn id__lsm944046621(x: unit) -> unit {
 entry:
-  _t2 = add %x, 1
-  ret %_t2
+
+  ret void
 }
 
 fn main() -> unit {
 entry:
-  _t3 = call @apply(&lam__lsn1 : fn(i32) -> i32, 41)
-  result = %_t3
-  _t4 = call @int_to_str(%result)
-  void call @println(%_t4)
+  _t1 = call @id__lsm966650245(10)
+  a = %_t1
+  void call @id__lsm944046621(())
   ret void
 }
