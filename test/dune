@@ -3,3 +3,8 @@
  (public_name Test)
  (modules test)
  (libraries Language ounit2 str))
+
+(test
+ (name compiler_tests)
+ (modules compiler_tests)
+ (libraries Language ounit2 unix))
