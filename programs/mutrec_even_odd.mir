@@ -1,0 +1,49 @@
+entry: @main
+fn even(n: i32) -> i1 {
+entry:
+  _t1 = icmp eq %n, 0
+  br %_t1 ? then_1 : else_2
+then_1:
+
+  br merge_3
+else_2:
+  _t2 = sub %n, 1
+  _t3 = call @odd(%_t2)
+  br merge_3
+merge_3:
+  _t4 = phi i1 [ then_1, true ], [ else_2, %_t3 ]
+  ret %_t4
+}
+
+fn odd(n: i32) -> i1 {
+entry:
+  _t5 = icmp eq %n, 0
+  br %_t5 ? then_1 : else_2
+then_1:
+
+  br merge_3
+else_2:
+  _t6 = sub %n, 1
+  _t7 = call @even(%_t6)
+  br merge_3
+merge_3:
+  _t8 = phi i1 [ then_1, false ], [ else_2, %_t7 ]
+  ret %_t8
+}
+
+fn main() -> unit {
+entry:
+  _t9 = call @odd(7)
+  br %_t9 ? then_1 : else_2
+then_1:
+
+  br merge_3
+else_2:
+
+  br merge_3
+merge_3:
+  _t10 = phi i32 [ then_1, 1 ], [ else_2, 0 ]
+  _t11 = call @int_to_str(%_t10)
+  void call @println(%_t11)
+  ret void
+}

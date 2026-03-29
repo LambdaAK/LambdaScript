@@ -1,5 +1,10 @@
 (** Lower a subset of {!Cexpr.c_expr} to {!Min_ir}.
 
+    Top-level [let rec] / [let rec … and …] use a fixup environment: callable
+    stubs (parameter and return types from the typechecker) are installed before
+    lowering bodies so direct calls resolve. Value-only recursive bindings are
+    unsupported.
+
     Top-level [let f x y = e] becomes a separate [func_def]; [main] sequences
     value bindings and calls. Curried calls support **partial application**: names
     can bind to a [callable] with a prefix of arguments fixed; further
@@ -141,6 +146,33 @@ type expr_result = LVal of operand * ty | LPartial of callable
 type env_binding = Val of operand * ty | C of callable
 
 type env = (string * env_binding) list
+
+(** After [n] curried arrow parameters, the monomorphic result type of the binding. *)
+let rec mono_after_n_fun_args (n : int) (m : mono_type) : mono_type =
+  if n = 0 then m
+  else
+    match m with
+    | FunctionType (_, r) -> mono_after_n_fun_args (n - 1) r
+    | _ ->
+        unsupported
+          "Inferred type is not a curried function matching its parameter count"
+
+let ret_min_ty_of_user_fn (name : string) (num_params : int)
+    (static_env : static_env) : ty =
+  match List.assoc_opt name static_env with
+  | None ->
+      unsupported
+        ("Missing type for `" ^ name ^ "` in static environment (compiler bug)")
+  | Some ct ->
+      let m = Typecheck.instantiate ct in
+      mono_to_min (mono_after_n_fun_args num_params m)
+
+(** Callable shape for [name] before lowering its body (recursive / mutual fixup). *)
+let callable_stub (name : string) (param_anns : c_type option list)
+    (static_env : static_env) : callable =
+  let param_tys = param_min_ir_tys name param_anns static_env in
+  let ret_ty = ret_min_ty_of_user_fn name (List.length param_tys) static_env in
+  { base = name; fixed = []; param_tys; ret_ty }
 
 (** Curried application spine: left-most head and arguments left-to-right. *)
 let rec peel_app_spine e acc =
@@ -329,6 +361,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : expr_result =
         | LPartial _ ->
             unsupported "if branch cannot be a partially applied function value"
       in
+      let l_then_exit = ctx.cur_label in
       close_block ctx (Br l_merge);
       open_block ctx l_else;
       let o2, ty2 =
@@ -337,6 +370,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : expr_result =
         | LPartial _ ->
             unsupported "if branch cannot be a partially applied function value"
       in
+      let l_else_exit = ctx.cur_label in
       if ty1 <> ty2 then unsupported "if branches must have the same type";
       close_block ctx (Br l_merge);
       open_block ctx l_merge;
@@ -355,11 +389,13 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : expr_result =
           let o1' = materialize o1 in
           let o2' = materialize o2 in
           let res = fresh () in
-          emit_instr ctx (Phi (res, ty1, [ (l_then, o1'); (l_else, o2') ]));
+          emit_instr ctx
+            (Phi (res, ty1, [ (l_then_exit, o1'); (l_else_exit, o2') ]));
           LVal (Local res, ty1)
       | _ ->
           let res = fresh () in
-          emit_instr ctx (Phi (res, ty1, [ (l_then, o1); (l_else, o2) ]));
+          emit_instr ctx
+            (Phi (res, ty1, [ (l_then_exit, o1); (l_else_exit, o2) ]));
           LVal (Local res, ty1))
   | EBindRec _ | EBindMutRec _ | EFunction _ | ESwitch _ | ENil
   | EListEnumeration _ | EListComprehension _ | EVector _ | ERecordLit _
@@ -383,7 +419,7 @@ let blocks_assoc (ctx : fn_ctx) : (string * block) list =
   List.map (fun b -> (b.label, b)) ctx.completed
 
 let lower_user_function (name : string) (param_pats : c_pat list)
-    (param_anns : c_type option list) (inner : c_expr) (env : env)
+    (param_anns : c_type option list) (inner : c_expr) (outer_env : env)
     (static_env : static_env) : func_def =
   let param_tys = param_min_ir_tys name param_anns static_env in
   if List.length param_pats <> List.length param_tys then
@@ -409,7 +445,7 @@ let lower_user_function (name : string) (param_pats : c_pat list)
   let params = List.map fst param_names_and_frags in
   let env_params = List.concat (List.map snd param_names_and_frags) in
   let ctx = create_fn_ctx () in
-  let merged = env_params @ env in
+  let merged = env_params @ outer_env in
   let op, ret_ty =
     match lower_expr inner merged ctx with
     | LVal (o, t) -> (o, t)
@@ -468,9 +504,69 @@ let lower_c_program (defs : c_defn list) (static_env : static_env) :
       | (CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _) :: rest
         ->
           walk env rest
-      | (CDefnRec _ | CDefnMutRec _) :: _ ->
-          unsupported
-            "Recursive top-level definitions are not supported in Min_IR lowering yet"
+      | CDefnRec (pat, _, body, _, _) :: rest -> (
+          match pat with
+          | CIdPat name -> (
+              let param_pats, anns, inner = peel_efun [] [] body in
+              match param_pats with
+              | [] ->
+                  unsupported
+                    "let rec on non-function values is not supported for native compilation"
+              | _ :: _ ->
+                  let stub = callable_stub name anns static_env in
+                  let fn =
+                    lower_user_function name param_pats anns inner
+                      ((name, C stub) :: env) static_env
+                  in
+                  user_funs := !user_funs @ [ fn ];
+                  walk ((name, C stub) :: env) rest)
+          | CUnitPat | CWildcardPat | _ ->
+              unsupported
+                "let rec only supports identifier bindings in native compilation")
+      | CDefnMutRec defns :: rest ->
+          let parsed =
+            List.map
+              (fun (pat, _, body, _, _) ->
+                match pat with
+                | CIdPat name ->
+                    let param_pats, anns, inner = peel_efun [] [] body in
+                    (name, param_pats, anns, inner)
+                | CUnitPat | CWildcardPat | _ ->
+                    unsupported
+                      "mutually recursive definitions need identifier bindings \
+                       in native compilation")
+              defns
+          in
+          List.iter
+            (fun (_, param_pats, _, _) ->
+              if param_pats = [] then
+                unsupported
+                  "mutually recursive non-function values are not supported for native compilation")
+            parsed;
+          let stubs =
+            List.map
+              (fun (name, _, anns, _) -> (name, callable_stub name anns static_env))
+              parsed
+          in
+          let env_with_stubs =
+            List.fold_left
+              (fun acc (n, c) -> (n, C c) :: acc)
+              env stubs
+          in
+          List.iter
+            (fun (name, param_pats, anns, inner) ->
+              let fn =
+                lower_user_function name param_pats anns inner env_with_stubs
+                  static_env
+              in
+              user_funs := !user_funs @ [ fn ])
+            parsed;
+          let env' =
+            List.fold_left
+              (fun acc (n, c) -> (n, C c) :: acc)
+              env stubs
+          in
+          walk env' rest
       | CDefn (pat, _, body, _, _) :: rest ->
           (match pat with
           | CIdPat name -> (

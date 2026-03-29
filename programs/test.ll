@@ -5,31 +5,132 @@ declare void @ls_print(i8*)
 declare void @ls_println(i8*)
 declare i8* @ls_int_to_str(i32)
 
-define i1 @foo(i8 %_p1, i8 %_p2) {
+define i32 @fib(i32 %n) {
 entry:
-  ret i1 true
-}
-
-define i32 @add(i32 %x, i32 %y, i1 %bb) {
-entry:
-  br i1 %bb, label %then_1, label %else_2
+  %_t1 = icmp eq i32 %n, 0
+  br i1 %_t1, label %then_1, label %else_2
 then_1:
-  %_t1 = add nsw i32 %x, %y
   br label %merge_3
 merge_3:
-  %_t3 = phi i32 [ %_t1, %then_1 ], [ %_t2, %else_2 ]
-  ret i32 %_t3
+  %_t51 = phi i32 [ 1, %then_1 ], [ %_t50, %merge_6 ]
+  ret i32 %_t51
 else_2:
-  %_t2 = sub nsw i32 %x, %y
+  %_t2 = icmp eq i32 %n, 1
+  br i1 %_t2, label %then_4, label %else_5
+then_4:
+  br label %merge_6
+merge_6:
+  %_t50 = phi i32 [ 1, %then_4 ], [ %_t49, %merge_9 ]
   br label %merge_3
+else_5:
+  %_t3 = icmp eq i32 %n, 2
+  br i1 %_t3, label %then_7, label %else_8
+then_7:
+  br label %merge_9
+merge_9:
+  %_t49 = phi i32 [ 1, %then_7 ], [ %_t48, %merge_12 ]
+  br label %merge_6
+else_8:
+  %_t4 = icmp eq i32 %n, 3
+  br i1 %_t4, label %then_10, label %else_11
+then_10:
+  br label %merge_12
+merge_12:
+  %_t48 = phi i32 [ 2, %then_10 ], [ %_t47, %merge_15 ]
+  br label %merge_9
+else_11:
+  %_t5 = icmp eq i32 %n, 4
+  br i1 %_t5, label %then_13, label %else_14
+then_13:
+  br label %merge_15
+merge_15:
+  %_t47 = phi i32 [ 3, %then_13 ], [ %_t46, %merge_18 ]
+  br label %merge_12
+else_14:
+  %_t6 = icmp eq i32 %n, 5
+  br i1 %_t6, label %then_16, label %else_17
+then_16:
+  br label %merge_18
+merge_18:
+  %_t46 = phi i32 [ 5, %then_16 ], [ %_t45, %merge_21 ]
+  br label %merge_15
+else_17:
+  %_t7 = icmp eq i32 %n, 6
+  br i1 %_t7, label %then_19, label %else_20
+then_19:
+  br label %merge_21
+merge_21:
+  %_t45 = phi i32 [ 8, %then_19 ], [ %_t44, %merge_24 ]
+  br label %merge_18
+else_20:
+  %_t8 = icmp eq i32 %n, 7
+  br i1 %_t8, label %then_22, label %else_23
+then_22:
+  br label %merge_24
+merge_24:
+  %_t44 = phi i32 [ 13, %then_22 ], [ %_t43, %merge_27 ]
+  br label %merge_21
+else_23:
+  %_t9 = icmp eq i32 %n, 8
+  br i1 %_t9, label %then_25, label %else_26
+then_25:
+  br label %merge_27
+merge_27:
+  %_t43 = phi i32 [ 21, %then_25 ], [ %_t42, %merge_30 ]
+  br label %merge_24
+else_26:
+  %_t10 = icmp eq i32 %n, 9
+  br i1 %_t10, label %then_28, label %else_29
+then_28:
+  br label %merge_30
+merge_30:
+  %_t42 = phi i32 [ 34, %then_28 ], [ %_t41, %merge_33 ]
+  br label %merge_27
+else_29:
+  %_t11 = icmp eq i32 %n, 10
+  br i1 %_t11, label %then_31, label %else_32
+then_31:
+  br label %merge_33
+merge_33:
+  %_t41 = phi i32 [ 55, %then_31 ], [ %_t40, %else_32 ]
+  br label %merge_30
+else_32:
+  %_t12 = sub nsw i32 %n, 1
+  %_t13 = call i32 @fib(i32 %_t12)
+  %_t14 = sub nsw i32 %n, 2
+  %_t15 = call i32 @fib(i32 %_t14)
+  %_t16 = add nsw i32 %_t13, %_t15
+  %_t17 = sub nsw i32 %n, 3
+  %_t18 = call i32 @fib(i32 %_t17)
+  %_t19 = add nsw i32 %_t16, %_t18
+  %_t20 = sub nsw i32 %n, 4
+  %_t21 = call i32 @fib(i32 %_t20)
+  %_t22 = add nsw i32 %_t19, %_t21
+  %_t23 = sub nsw i32 %n, 5
+  %_t24 = call i32 @fib(i32 %_t23)
+  %_t25 = add nsw i32 %_t22, %_t24
+  %_t26 = sub nsw i32 %n, 6
+  %_t27 = call i32 @fib(i32 %_t26)
+  %_t28 = add nsw i32 %_t25, %_t27
+  %_t29 = sub nsw i32 %n, 7
+  %_t30 = call i32 @fib(i32 %_t29)
+  %_t31 = add nsw i32 %_t28, %_t30
+  %_t32 = sub nsw i32 %n, 8
+  %_t33 = call i32 @fib(i32 %_t32)
+  %_t34 = add nsw i32 %_t31, %_t33
+  %_t35 = sub nsw i32 %n, 9
+  %_t36 = call i32 @fib(i32 %_t35)
+  %_t37 = add nsw i32 %_t34, %_t36
+  %_t38 = sub nsw i32 %n, 10
+  %_t39 = call i32 @fib(i32 %_t38)
+  %_t40 = add nsw i32 %_t37, %_t39
+  br label %merge_33
 }
 
 define i32 @main() {
 entry:
-  %_t4 = call i1 @foo(i8 0, i8 0)
-  %_t5 = call i32 @add(i32 1, i32 2, i1 %_t4)
-  %res = add nsw i32 %_t5, 0
-  %_t6 = call i8* @ls_int_to_str(i32 %res)
-  call void @ls_println(i8* %_t6)
+  %_t52 = call i32 @fib(i32 15)
+  %_t53 = call i8* @ls_int_to_str(i32 %_t52)
+  call void @ls_println(i8* %_t53)
   ret i32 0
 }
