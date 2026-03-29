@@ -1,5 +1,5 @@
 entry: @main
-fn fib(n: i32) -> i32 {
+fn fact_helper__lsn1(n: i32, acc: i32) -> i32 {
 entry:
   _t1 = icmp eq %n, 0
   br %_t1 ? then_1 : else_2
@@ -7,135 +7,25 @@ then_1:
 
   br merge_3
 else_2:
-  _t2 = icmp eq %n, 1
-  br %_t2 ? then_4 : else_5
-then_4:
-
-  br merge_6
-else_5:
-  _t3 = icmp eq %n, 2
-  br %_t3 ? then_7 : else_8
-then_7:
-
-  br merge_9
-else_8:
-  _t4 = icmp eq %n, 3
-  br %_t4 ? then_10 : else_11
-then_10:
-
-  br merge_12
-else_11:
-  _t5 = icmp eq %n, 4
-  br %_t5 ? then_13 : else_14
-then_13:
-
-  br merge_15
-else_14:
-  _t6 = icmp eq %n, 5
-  br %_t6 ? then_16 : else_17
-then_16:
-
-  br merge_18
-else_17:
-  _t7 = icmp eq %n, 6
-  br %_t7 ? then_19 : else_20
-then_19:
-
-  br merge_21
-else_20:
-  _t8 = icmp eq %n, 7
-  br %_t8 ? then_22 : else_23
-then_22:
-
-  br merge_24
-else_23:
-  _t9 = icmp eq %n, 8
-  br %_t9 ? then_25 : else_26
-then_25:
-
-  br merge_27
-else_26:
-  _t10 = icmp eq %n, 9
-  br %_t10 ? then_28 : else_29
-then_28:
-
-  br merge_30
-else_29:
-  _t11 = icmp eq %n, 10
-  br %_t11 ? then_31 : else_32
-then_31:
-
-  br merge_33
-else_32:
-  _t12 = sub %n, 1
-  _t13 = call @fib(%_t12)
-  _t14 = sub %n, 2
-  _t15 = call @fib(%_t14)
-  _t16 = add %_t13, %_t15
-  _t17 = sub %n, 3
-  _t18 = call @fib(%_t17)
-  _t19 = add %_t16, %_t18
-  _t20 = sub %n, 4
-  _t21 = call @fib(%_t20)
-  _t22 = add %_t19, %_t21
-  _t23 = sub %n, 5
-  _t24 = call @fib(%_t23)
-  _t25 = add %_t22, %_t24
-  _t26 = sub %n, 6
-  _t27 = call @fib(%_t26)
-  _t28 = add %_t25, %_t27
-  _t29 = sub %n, 7
-  _t30 = call @fib(%_t29)
-  _t31 = add %_t28, %_t30
-  _t32 = sub %n, 8
-  _t33 = call @fib(%_t32)
-  _t34 = add %_t31, %_t33
-  _t35 = sub %n, 9
-  _t36 = call @fib(%_t35)
-  _t37 = add %_t34, %_t36
-  _t38 = sub %n, 10
-  _t39 = call @fib(%_t38)
-  _t40 = add %_t37, %_t39
-  br merge_33
-merge_33:
-  _t41 = phi i32 [ then_31, 55 ], [ else_32, %_t40 ]
-  br merge_30
-merge_30:
-  _t42 = phi i32 [ then_28, 34 ], [ merge_33, %_t41 ]
-  br merge_27
-merge_27:
-  _t43 = phi i32 [ then_25, 21 ], [ merge_30, %_t42 ]
-  br merge_24
-merge_24:
-  _t44 = phi i32 [ then_22, 13 ], [ merge_27, %_t43 ]
-  br merge_21
-merge_21:
-  _t45 = phi i32 [ then_19, 8 ], [ merge_24, %_t44 ]
-  br merge_18
-merge_18:
-  _t46 = phi i32 [ then_16, 5 ], [ merge_21, %_t45 ]
-  br merge_15
-merge_15:
-  _t47 = phi i32 [ then_13, 3 ], [ merge_18, %_t46 ]
-  br merge_12
-merge_12:
-  _t48 = phi i32 [ then_10, 2 ], [ merge_15, %_t47 ]
-  br merge_9
-merge_9:
-  _t49 = phi i32 [ then_7, 1 ], [ merge_12, %_t48 ]
-  br merge_6
-merge_6:
-  _t50 = phi i32 [ then_4, 1 ], [ merge_9, %_t49 ]
+  _t2 = sub %n, 1
+  _t3 = mul %n, %acc
+  _t4 = call @fact_helper__lsn1(%_t2, %_t3)
   br merge_3
 merge_3:
-  _t51 = phi i32 [ then_1, 1 ], [ merge_6, %_t50 ]
-  ret %_t51
+  _t5 = phi i32 [ then_1, %acc ], [ else_2, %_t4 ]
+  ret %_t5
+}
+
+fn fact(n: i32) -> i32 {
+entry:
+  _t6 = call @fact_helper__lsn1(%n, 1)
+  ret %_t6
 }
 
 fn main() -> unit {
 entry:
-  _t52 = call @fib(15)
-  _t53 = call @int_to_str(%_t52)
-  void call @println(%_t53)
+  _t7 = call @fact(5)
+  _t8 = call @int_to_str(%_t7)
+  void call @println(%_t8)
   ret void
 }

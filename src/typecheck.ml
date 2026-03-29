@@ -1915,6 +1915,16 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       in
       aux [] fields
 
+(** Inferred type of [e1] in [let rec id = e1 in ...], using [env] as the
+    surrounding static environment (for lowering after whole-program typecheck). *)
+let type_rec_binding_rhs (env : static_env) (type_env : type_env) (id : string)
+    (e1 : c_expr) : c_type type_check_result =
+  let function_type = fresh_type_var () in
+  let new_env = (id, Mono function_type) :: env in
+  let- t1, c1, _ = generate new_env type_env e1 in
+  let new_constraint = (function_type, t1) in
+  generalize (new_constraint :: c1) env type_env t1
+
 let rec get_mono_type (t : c_type) : mono_type =
   match t with
   | Mono t -> t

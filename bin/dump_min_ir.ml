@@ -42,7 +42,7 @@ let dump_ir (filename : string) =
       let condensed_program = List.map condense_defn program in
       let static_env = build_full_static_env () in
       let type_env : type_env = [] in
-      let static_env, _type_env =
+      let static_env, type_env =
         List.fold_left
           (fun (static_env, type_env) defn ->
             match generate_defn static_env type_env defn with
@@ -55,6 +55,7 @@ let dump_ir (filename : string) =
       in
       match
         Language.Lower_min_ir.lower_c_program condensed_program static_env
+          type_env
       with
       | Ok prog -> print_endline (string_of_prog prog)
       | Error msg ->

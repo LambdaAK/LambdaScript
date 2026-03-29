@@ -24,9 +24,12 @@ let counter = ref 0
 
 let param_counter = ref 0
 
+let nested_emit_ctr = ref 0
+
 let reset_fresh () =
   counter := 0;
-  param_counter := 0
+  param_counter := 0;
+  nested_emit_ctr := 0
 
 let fresh () =
   incr counter;
@@ -41,10 +44,21 @@ type fn_ctx = {
   mutable cur_label : string;
   mutable cur_instrs : instr list;
   mutable lbl_counter : int;
+  mutable nested_funcs : func_def list;
 }
 
 let create_fn_ctx () : fn_ctx =
-  { completed = []; cur_label = "entry"; cur_instrs = []; lbl_counter = 0 }
+  {
+    completed = [];
+    cur_label = "entry";
+    cur_instrs = [];
+    lbl_counter = 0;
+    nested_funcs = [];
+  }
+
+let mangle_nested_emit (logical : string) : string =
+  incr nested_emit_ctr;
+  logical ^ "__lsn" ^ string_of_int !nested_emit_ctr
 
 let fresh_lbl (ctx : fn_ctx) prefix =
   ctx.lbl_counter <- ctx.lbl_counter + 1;
@@ -184,16 +198,20 @@ let rec peel_app_spine e acc =
 let arity_remaining c =
   List.length c.param_tys - List.length c.fixed
 
-let rec lower_expr_val (e : c_expr) (env : env) (ctx : fn_ctx) : operand * ty =
-  match lower_expr e env ctx with
+let blocks_assoc (ctx : fn_ctx) : (string * block) list =
+  List.map (fun b -> (b.label, b)) ctx.completed
+
+let rec lower_expr_val (e : c_expr) (env : env) (ctx : fn_ctx)
+    (static_env : static_env) (type_env : Typecheck.type_env) : operand * ty =
+  match lower_expr e env ctx static_env type_env with
   | LVal (o, t) -> (o, t)
   | LPartial _ ->
       unsupported
         "Expected a value here, not a partially applied function (cannot pass a \
          partial application as an argument)"
 
-and lower_builtin_print name arg env ctx =
-  let o2, t2 = lower_expr_val arg env ctx in
+and lower_builtin_print name arg env ctx static_env type_env =
+  let o2, t2 = lower_expr_val arg env ctx static_env type_env in
   if t2 <> String then unsupported "print/println expect a string argument";
   let arg_op =
     match o2 with
@@ -206,16 +224,17 @@ and lower_builtin_print name arg env ctx =
   emit_instr ctx (VoidCall (name, [ arg_op ]));
   LVal (ConstUnit, Unit)
 
-and lower_builtin_int_to_str arg env ctx =
-  let o2, t2 = lower_expr_val arg env ctx in
+and lower_builtin_int_to_str arg env ctx static_env type_env =
+  let o2, t2 = lower_expr_val arg env ctx static_env type_env in
   if t2 <> I32 then unsupported "int_to_str expects i32";
   let t = fresh () in
   emit_instr ctx (Assign (t, Call ("int_to_str", [ o2 ])));
   LVal (Local t, String)
 
 (** Apply call arguments [args] (already in order) to [c]; emit a call when saturated. *)
-and apply_call_args (env : env) (ctx : fn_ctx) (c : callable) (args : c_expr list)
-    : expr_result =
+and apply_call_args (env : env) (ctx : fn_ctx) (static_env : static_env)
+    (type_env : Typecheck.type_env) (c : callable) (args : c_expr list) :
+    expr_result =
   let rec go c = function
     | [] ->
         if arity_remaining c = 0 then emit_saturated_call ctx c
@@ -224,7 +243,7 @@ and apply_call_args (env : env) (ctx : fn_ctx) (c : callable) (args : c_expr lis
         if arity_remaining c = 0 then unsupported "Too many arguments in call";
         let i = List.length c.fixed in
         let expect = List.nth c.param_tys i in
-        let op, got = lower_expr_val arg env ctx in
+        let op, got = lower_expr_val arg env ctx static_env type_env in
         if got <> expect then unsupported "call argument type mismatch";
         let c' = { c with fixed = c.fixed @ [ op ] } in
         match rest with
@@ -250,7 +269,8 @@ and resolve_callable (name : string) (env : env) : callable option =
   | Some (C c) -> Some c
   | Some (Val _) | None -> None
 
-and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : expr_result =
+and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
+    (type_env : Typecheck.type_env) : expr_result =
   match e with
   | EInt n -> LVal (ConstI32 n, I32)
   | EBool b -> LVal (ConstI1 b, I1)
@@ -266,8 +286,8 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : expr_result =
   | EBop (op, e1, e2) -> (
       match map_arith_bop op with
       | Some b ->
-          let o1, t1 = lower_expr_val e1 env ctx in
-          let o2, t2 = lower_expr_val e2 env ctx in
+          let o1, t1 = lower_expr_val e1 env ctx static_env type_env in
+          let o2, t2 = lower_expr_val e2 env ctx static_env type_env in
           if t1 <> I32 || t2 <> I32 then
             unsupported "Arithmetic expects i32 operands";
           let t = fresh () in
@@ -276,8 +296,8 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : expr_result =
       | None -> (
           match map_cmp op with
           | Some c ->
-              let o1, t1 = lower_expr_val e1 env ctx in
-              let o2, t2 = lower_expr_val e2 env ctx in
+              let o1, t1 = lower_expr_val e1 env ctx static_env type_env in
+              let o2, t2 = lower_expr_val e2 env ctx static_env type_env in
               if t1 <> I32 || t2 <> I32 then
                 unsupported "Integer comparison expects i32 operands";
               let t = fresh () in
@@ -286,24 +306,24 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : expr_result =
           | None -> (
               match op with
               | CGT ->
-                  let o1, t1 = lower_expr_val e1 env ctx in
-                  let o2, t2 = lower_expr_val e2 env ctx in
+                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env in
+                  let o2, t2 = lower_expr_val e2 env ctx static_env type_env in
                   if t1 <> I32 || t2 <> I32 then
                     unsupported "Integer comparison expects i32 operands";
                   let t = fresh () in
                   emit_instr ctx (Assign (t, ICmp (Slt, o2, o1)));
                   LVal (Local t, I1)
               | CAnd ->
-                  let o1, t1 = lower_expr_val e1 env ctx in
-                  let o2, t2 = lower_expr_val e2 env ctx in
+                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env in
+                  let o2, t2 = lower_expr_val e2 env ctx static_env type_env in
                   if t1 <> I1 || t2 <> I1 then
                     unsupported "&& expects bool operands";
                   let t = fresh () in
                   emit_instr ctx (Assign (t, IAnd (o1, o2)));
                   LVal (Local t, I1)
               | COr ->
-                  let o1, t1 = lower_expr_val e1 env ctx in
-                  let o2, t2 = lower_expr_val e2 env ctx in
+                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env in
+                  let o2, t2 = lower_expr_val e2 env ctx static_env type_env in
                   if t1 <> I1 || t2 <> I1 then
                     unsupported "|| expects bool operands";
                   let t = fresh () in
@@ -311,16 +331,16 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : expr_result =
                   LVal (Local t, I1)
               | _ -> unsupported ("Binary operator not supported in Min_IR lowering yet"))))
   | EBind (CIdPat x, _ta, e1, e2, _rt) -> (
-      match lower_expr e1 env ctx with
+      match lower_expr e1 env ctx static_env type_env with
       | LVal (o1, t1) ->
           emit_instr ctx (Assign (x, Copy o1));
           let env' = (x, Val (Local x, t1)) :: env in
-          lower_expr e2 env' ctx
+          lower_expr e2 env' ctx static_env type_env
       | LPartial c ->
           let env' = (x, C c) :: env in
-          lower_expr e2 env' ctx)
+          lower_expr e2 env' ctx static_env type_env)
   | EBind _ -> unsupported "let: only simple identifier patterns supported"
-  | EBlock parts -> lower_block parts env ctx
+  | EBlock parts -> lower_block parts env ctx static_env type_env
   | EApp (e1, e2) ->
       let head, args = peel_app_spine e1 [ e2 ] in
       (match head with
@@ -330,25 +350,29 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : expr_result =
           match name with
           | "print" -> (
               match args with
-              | [ arg ] -> lower_builtin_print "print" arg env ctx
+              | [ arg ] ->
+                  lower_builtin_print "print" arg env ctx static_env type_env
               | _ -> unsupported "print expects exactly one argument")
           | "println" -> (
               match args with
-              | [ arg ] -> lower_builtin_print "println" arg env ctx
+              | [ arg ] ->
+                  lower_builtin_print "println" arg env ctx static_env type_env
               | _ -> unsupported "println expects exactly one argument")
           | "int_to_str" -> (
               match args with
-              | [ arg ] -> lower_builtin_int_to_str arg env ctx
+              | [ arg ] ->
+                  lower_builtin_int_to_str arg env ctx static_env type_env
               | _ -> unsupported "int_to_str expects exactly one argument")
           | _ -> (
               match resolve_callable name env with
-              | Some c -> apply_call_args env ctx c args
+              | Some c ->
+                  apply_call_args env ctx static_env type_env c args
               | None ->
                   unsupported
                     ("Unknown function `" ^ name ^ "` — declare it above the call, \
                      or it is not a function"))))
   | ETernary (cond, e_then, e_else) -> (
-      let o_c, t_c = lower_expr_val cond env ctx in
+      let o_c, t_c = lower_expr_val cond env ctx static_env type_env in
       if t_c <> I1 then unsupported "if condition must be bool";
       let l_then = fresh_lbl ctx "then" in
       let l_else = fresh_lbl ctx "else" in
@@ -356,7 +380,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : expr_result =
       close_block ctx (BrCond (o_c, l_then, l_else));
       open_block ctx l_then;
       let o1, ty1 =
-        match lower_expr e_then env ctx with
+        match lower_expr e_then env ctx static_env type_env with
         | LVal (o, t) -> (o, t)
         | LPartial _ ->
             unsupported "if branch cannot be a partially applied function value"
@@ -365,7 +389,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : expr_result =
       close_block ctx (Br l_merge);
       open_block ctx l_else;
       let o2, ty2 =
-        match lower_expr e_else env ctx with
+        match lower_expr e_else env ctx static_env type_env with
         | LVal (o, t) -> (o, t)
         | LPartial _ ->
             unsupported "if branch cannot be a partially applied function value"
@@ -397,31 +421,53 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) : expr_result =
           emit_instr ctx
             (Phi (res, ty1, [ (l_then_exit, o1); (l_else_exit, o2) ]));
           LVal (Local res, ty1))
-  | EBindRec _ | EBindMutRec _ | EFunction _ | ESwitch _ | ENil
+  | EBindRec (CIdPat name, _ta, e1, e2, _rt) -> (
+      match Typecheck.type_rec_binding_rhs static_env type_env name e1 with
+      | Error err ->
+          unsupported ("let rec: " ^ Typecheck.string_of_type_check_error err)
+      | Ok fn_ct ->
+          let param_pats, anns, inner = peel_efun [] [] e1 in
+          (match param_pats with
+          | [] ->
+              unsupported
+                "let rec on non-function values is not supported for native compilation"
+          | _ :: _ ->
+              let static_here = (name, fn_ct) :: static_env in
+              let emit = mangle_nested_emit name in
+              let c0 = callable_stub name anns static_here in
+              let stub = { c0 with base = emit } in
+              let outer_env = (name, C stub) :: env in
+              let fn, nested =
+                lower_user_function ~ty_key:name ~emit param_pats anns inner
+                  outer_env static_here type_env
+              in
+              ctx.nested_funcs <- ctx.nested_funcs @ nested @ [ fn ];
+              lower_expr e2 outer_env ctx static_here type_env))
+  | EBindRec _ ->
+      unsupported "let rec: only simple identifier patterns supported for compilation"
+  | EBindMutRec _ | EFunction _ | ESwitch _ | ENil
   | EListEnumeration _ | EListComprehension _ | EVector _ | ERecordLit _
   | ERecordUpdate _ | EFieldAccess _ | EChar _ | EFloat _ ->
       unsupported "Expression form not supported in Min_IR lowering yet"
 
-and lower_block (parts : c_expr_or_c_defn list) (env : env) (ctx : fn_ctx) :
-    expr_result =
+and lower_block (parts : c_expr_or_c_defn list) (env : env) (ctx : fn_ctx)
+    (static_env : static_env) (type_env : Typecheck.type_env) : expr_result =
   match parts with
   | [] -> LVal (ConstUnit, Unit)
-  | [ Expr e ] -> lower_expr e env ctx
+  | [ Expr e ] -> lower_expr e env ctx static_env type_env
   | Defn _ :: _ -> unsupported "Definitions inside blocks are not supported yet"
   | Expr e :: rest -> (
-      match lower_expr e env ctx with
-      | LVal _ -> lower_block rest env ctx
+      match lower_expr e env ctx static_env type_env with
+      | LVal _ -> lower_block rest env ctx static_env type_env
       | LPartial _ ->
           unsupported
             "Sequencing discard of a partially applied function is not supported")
 
-let blocks_assoc (ctx : fn_ctx) : (string * block) list =
-  List.map (fun b -> (b.label, b)) ctx.completed
-
-let lower_user_function (name : string) (param_pats : c_pat list)
-    (param_anns : c_type option list) (inner : c_expr) (outer_env : env)
-    (static_env : static_env) : func_def =
-  let param_tys = param_min_ir_tys name param_anns static_env in
+and lower_user_function ~(ty_key : string) ~(emit : string)
+    (param_pats : c_pat list) (param_anns : c_type option list) (inner : c_expr)
+    (outer_env : env) (static_env : static_env) (type_env : Typecheck.type_env) :
+    func_def * func_def list =
+  let param_tys = param_min_ir_tys ty_key param_anns static_env in
   if List.length param_pats <> List.length param_tys then
     unsupported "Internal: parameter pattern count mismatch";
   let param_names_and_frags =
@@ -447,7 +493,7 @@ let lower_user_function (name : string) (param_pats : c_pat list)
   let ctx = create_fn_ctx () in
   let merged = env_params @ outer_env in
   let op, ret_ty =
-    match lower_expr inner merged ctx with
+    match lower_expr inner merged ctx static_env type_env with
     | LVal (o, t) -> (o, t)
     | LPartial _ ->
         unsupported "Returning a function value from a user function is not supported"
@@ -456,20 +502,22 @@ let lower_user_function (name : string) (param_pats : c_pat list)
     match ret_ty with Unit -> Ret None | _ -> Ret (Some op)
   in
   close_block ctx term;
-  {
-    name;
-    params = List.combine params param_tys;
-    ret = ret_ty;
-    entry = "entry";
-    blocks = blocks_assoc ctx;
-  }
+  let nested = ctx.nested_funcs in
+  ( {
+      name = emit;
+      params = List.combine params param_tys;
+      ret = ret_ty;
+      entry = "entry";
+      blocks = blocks_assoc ctx;
+    },
+    nested )
 
 let lower_c_expr_to_main (e : c_expr) : (func_def, string) result =
   try
     reset_fresh ();
     let ctx = create_fn_ctx () in
     let op, ret_ty =
-      match lower_expr e [] ctx with
+      match lower_expr e [] ctx [] [] with
       | LVal (o, t) -> (o, t)
       | LPartial _ ->
           unsupported "Expression must be a value, not a bare or partial function"
@@ -493,8 +541,8 @@ let lower_c_expr_to_prog (e : c_expr) : (prog, string) result =
   | Ok fn -> Ok { funcs = [ fn ]; entry = Some "main" }
   | Error e -> Error e
 
-let lower_c_program (defs : c_defn list) (static_env : static_env) :
-    (prog, string) result =
+let lower_c_program (defs : c_defn list) (static_env : static_env)
+    (type_env : Typecheck.type_env) : (prog, string) result =
   try
     reset_fresh ();
     let user_funs = ref [] in
@@ -514,11 +562,11 @@ let lower_c_program (defs : c_defn list) (static_env : static_env) :
                     "let rec on non-function values is not supported for native compilation"
               | _ :: _ ->
                   let stub = callable_stub name anns static_env in
-                  let fn =
-                    lower_user_function name param_pats anns inner
-                      ((name, C stub) :: env) static_env
+                  let fn, nested =
+                    lower_user_function ~ty_key:name ~emit:name param_pats anns
+                      inner ((name, C stub) :: env) static_env type_env
                   in
-                  user_funs := !user_funs @ [ fn ];
+                  user_funs := !user_funs @ nested @ [ fn ];
                   walk ((name, C stub) :: env) rest)
           | CUnitPat | CWildcardPat | _ ->
               unsupported
@@ -555,11 +603,11 @@ let lower_c_program (defs : c_defn list) (static_env : static_env) :
           in
           List.iter
             (fun (name, param_pats, anns, inner) ->
-              let fn =
-                lower_user_function name param_pats anns inner env_with_stubs
-                  static_env
+              let fn, nested =
+                lower_user_function ~ty_key:name ~emit:name param_pats anns inner
+                  env_with_stubs static_env type_env
               in
-              user_funs := !user_funs @ [ fn ])
+              user_funs := !user_funs @ nested @ [ fn ])
             parsed;
           let env' =
             List.fold_left
@@ -573,7 +621,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env) :
               let param_pats, anns, inner = peel_efun [] [] body in
               match param_pats with
               | [] -> (
-                  match lower_expr inner env ctx_main with
+                  match lower_expr inner env ctx_main static_env type_env with
                   | LVal (o, t) ->
                       emit_instr ctx_main (Assign (name, Copy o));
                       let env' = (name, Val (Local name, t)) :: env in
@@ -582,10 +630,11 @@ let lower_c_program (defs : c_defn list) (static_env : static_env) :
                       let env' = (name, C c) :: env in
                       walk env' rest)
               | _ :: _ ->
-                  let fn =
-                    lower_user_function name param_pats anns inner env static_env
+                  let fn, nested =
+                    lower_user_function ~ty_key:name ~emit:name param_pats anns
+                      inner env static_env type_env
                   in
-                  user_funs := !user_funs @ [ fn ];
+                  user_funs := !user_funs @ nested @ [ fn ];
                   let c =
                     {
                       base = name;
@@ -596,7 +645,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env) :
                   in
                   walk ((name, C c) :: env) rest)
           | CUnitPat | CWildcardPat -> (
-              match lower_expr body env ctx_main with
+              match lower_expr body env ctx_main static_env type_env with
               | LVal _ -> walk env rest
               | LPartial _ ->
                   unsupported
@@ -616,5 +665,9 @@ let lower_c_program (defs : c_defn list) (static_env : static_env) :
         blocks = blocks_assoc ctx_main;
       }
     in
-    Ok { funcs = !user_funs @ [ main_fn ]; entry = Some "main" }
+    Ok
+      {
+        funcs = !user_funs @ ctx_main.nested_funcs @ [ main_fn ];
+        entry = Some "main";
+      }
   with Unsupported msg -> Error msg
