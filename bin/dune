@@ -20,6 +20,20 @@
   (backend bisect_ppx)))
 
 (executable
+ (name dump_min_ir)
+ (modules dump_min_ir)
+ (libraries Language)
+ (instrumentation
+  (backend bisect_ppx)))
+
+(executable
+ (name compile_lambdascript)
+ (modules compile_lambdascript)
+ (libraries Language)
+ (instrumentation
+  (backend bisect_ppx)))
+
+(executable
  (name parser_tester)
  (modules parser_tester)
  (libraries Language)
