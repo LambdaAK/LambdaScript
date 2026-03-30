@@ -1,5 +1,5 @@
 (** Emit LLVM IR text from {!Min_ir.prog}. Link with [runtime/ls_runtime.c] using
-    [clang]. Runtime: [ls_print], [ls_println], [ls_int_to_str]. *)
+    [clang]. Runtime: [ls_print], [ls_println], [ls_int_to_str], [ls_str_concat]. *)
 
 open Min_ir
 
@@ -113,6 +113,7 @@ let callee_ll : string -> string = function
   | "print" -> "ls_print"
   | "println" -> "ls_println"
   | "int_to_str" -> "ls_int_to_str"
+  | "str_concat" -> "ls_str_concat"
   | n -> n
 
 let llvm_c_escape s =
@@ -161,6 +162,7 @@ let runtime_declarations : string =
   "declare void @ls_print(i8*)\n\
    declare void @ls_println(i8*)\n\
    declare i8* @ls_int_to_str(i32)\n\
+   declare i8* @ls_str_concat(i8*, i8*)\n\
    declare i8* @ls_malloc(i64)\n\
    declare i8* @ls_mkclos(i8*, i8*)\n"
 
@@ -430,6 +432,22 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
                       ];
                   H.replace h dst String
               | _ -> failwith "llvm_emit: int_to_str arity")
+          | "str_concat" -> (
+              match args with
+              | [ a; b ] ->
+                  let ta, va = emit_operand h a in
+                  let tb, vb = emit_operand h b in
+                  if ta <> "i8*" || tb <> "i8*" then
+                    failwith "llvm_emit: str_concat expects two strings";
+                  let c = callee_ll "str_concat" in
+                  lines :=
+                    !lines
+                    @ [
+                        Printf.sprintf "  %%%s = call i8* @%s(i8* %s, i8* %s)" dst
+                          c va vb;
+                      ];
+                  H.replace h dst String
+              | _ -> failwith "llvm_emit: str_concat arity")
           | _ ->
               let fd = H.find fn_sigs name in
               if fd.ret = Unit then

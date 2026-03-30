@@ -1106,6 +1106,14 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
                   let t = fresh () in
                   emit_instr ctx (Assign (t, IOr (o1, o2)));
                   LVal (Local t, I1)
+              | CConcat ->
+                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env in
+                  let o2, t2 = lower_expr_val e2 env ctx static_env type_env in
+                  if t1 <> String || t2 <> String then
+                    unsupported "string concatenation (^) expects string operands";
+                  let t = fresh () in
+                  emit_instr ctx (Assign (t, Call ("str_concat", [ o1; o2 ])));
+                  LVal (Local t, String)
               | _ -> unsupported ("Binary operator not supported in Min_IR lowering yet"))))
   | EBind (CIdPat x, _ta, e1, e2, _rt) -> (
       match lower_expr e1 env ctx static_env type_env with

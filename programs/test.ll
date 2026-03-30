@@ -6,94 +6,18 @@ source_filename = "lambdascript"
 declare void @ls_print(i8*)
 declare void @ls_println(i8*)
 declare i8* @ls_int_to_str(i32)
+declare i8* @ls_str_concat(i8*, i8*)
 declare i8* @ls_malloc(i64)
 declare i8* @ls_mkclos(i8*, i8*)
 
-%ls.env.1 = type { i32 }
-%ls.env.2 = type { i32 }
-%ls.env.3 = type { i32, i32 (i32)* }
-%ls.env.4 = type { i32, i32 (i32)* }
-%ls.env.5 = type { i32, i32 (i32)* }
-%ls.env.6 = type { i32, i32 (i32)* }
-define i8* @deep__lsm385162459__ls_s0(i8* %_p2, i32 %n) {
-entry:
-  %_t9 = call i8* @ls_malloc(i64 4)
-  %_t10_esb = bitcast i8* %_t9 to %ls.env.1*
-  %_t10_esg = getelementptr inbounds %ls.env.1, %ls.env.1* %_t10_esb, i32 0, i32 0
-  store i32 %n, i32* %_t10_esg
-  %_t11_codep = bitcast i8* (i8*, i32 (i32)*)* @deep__lsm385162459__ls_s1 to i8*
-  %_t11 = call i8* @ls_mkclos(i8* %_t11_codep, i8* %_t9)
-  ret i8* %_t11
-}
-
-define i8* @deep__lsm385162459__ls_s1(i8* %_p3, i32 (i32)* %f) {
-entry:
-  %_t12 = call i8* @ls_malloc(i64 16)
-  %_t13_ebuf = bitcast i8* %_p3 to %ls.env.2*
-  %_t13_eg = getelementptr inbounds %ls.env.2, %ls.env.2* %_t13_ebuf, i32 0, i32 0
-  %_t13 = load i32, i32* %_t13_eg
-  %_t14_esb = bitcast i8* %_t12 to %ls.env.3*
-  %_t14_esg = getelementptr inbounds %ls.env.3, %ls.env.3* %_t14_esb, i32 0, i32 0
-  store i32 %_t13, i32* %_t14_esg
-  %_t15_esb = bitcast i8* %_t12 to %ls.env.4*
-  %_t15_esg = getelementptr inbounds %ls.env.4, %ls.env.4* %_t15_esb, i32 0, i32 1
-  store i32 (i32)* %f, i32 (i32)** %_t15_esg
-  %_t16_codep = bitcast i32 (i8*, i32)* @deep__lsm385162459__ls_s2 to i8*
-  %_t16 = call i8* @ls_mkclos(i8* %_t16_codep, i8* %_t12)
-  ret i8* %_t16
-}
-
-define i32 @deep__lsm385162459__ls_s2(i8* %_p1, i32 %x) {
-entry:
-  %_t6_ebuf = bitcast i8* %_p1 to %ls.env.5*
-  %_t6_eg = getelementptr inbounds %ls.env.5, %ls.env.5* %_t6_ebuf, i32 0, i32 0
-  %_t6 = load i32, i32* %_t6_eg
-  %_t7_ebuf = bitcast i8* %_p1 to %ls.env.6*
-  %_t7_eg = getelementptr inbounds %ls.env.6, %ls.env.6* %_t7_ebuf, i32 0, i32 1
-  %_t7 = load i32 (i32)*, i32 (i32)** %_t7_eg
-  %_t8 = call i32 @deep__lsm385162459(i32 %_t6, i32 (i32)* %_t7, i32 %x)
-  ret i32 %_t8
-}
-
-define i32 @deep__lsm385162459(i32 %n, i32 (i32)* %f, i32 %x) {
-entry:
-  %_t1 = icmp eq i32 %n, 0
-  br i1 %_t1, label %then_1, label %else_2
-then_1:
-  br label %merge_3
-merge_3:
-  %_t5 = phi i32 [ %x, %then_1 ], [ %_t4, %else_2 ]
-  ret i32 %_t5
-else_2:
-  %_t2 = sub nsw i32 %n, 1
-  %_t3 = call i32 %f(i32 %x)
-  %_t4 = call i32 @deep__lsm385162459(i32 %_t2, i32 (i32)* %f, i32 %_t3)
-  br label %merge_3
-}
-
-define i32 @unwrap__lsm966650245(i32 %y) {
-entry:
-  %_t17 = call i32 @wrap__lsm966650245(i32 %y)
-  ret i32 %_t17
-}
-
-define i32 @wrap__lsm966650245(i32 %x) {
-entry:
-  ret i32 %x
-}
-
-define i32 @inc(i32 %t) {
-entry:
-  %_t18 = add nsw i32 %t, 1
-  ret i32 %_t18
-}
-
+@.str.0 = private unnamed_addr constant [6 x i8] c"hello\00"
+@.str.1 = private unnamed_addr constant [8 x i8] c" world!\00"
 define i32 @main() {
 entry:
-  %_t19 = call i32 @deep__lsm385162459(i32 2, i32 (i32)* @inc, i32 0)
-  %_t20 = call i32 @unwrap__lsm966650245(i32 1)
-  %_t21 = add nsw i32 %_t19, %_t20
-  %_t22 = call i8* @ls_int_to_str(i32 %_t21)
-  call void @ls_println(i8* %_t22)
+  %s1 = getelementptr inbounds [6 x i8], [6 x i8]* @.str.0, i64 0, i64 0
+  %s2 = getelementptr inbounds [8 x i8], [8 x i8]* @.str.1, i64 0, i64 0
+  %_t1 = call i8* @ls_str_concat(i8* %s1, i8* %s2)
+  %s3 = bitcast i8* %_t1 to i8*
+  call void @ls_println(i8* %s3)
   ret i32 0
 }

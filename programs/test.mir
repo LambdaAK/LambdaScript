@@ -1,71 +1,10 @@
 entry: @main
-fn deep__lsm385162459__ls_s0(_p2: rawptr, n: i32) -> clos(fn(i32) -> i32, i32) -> i32 {
-entry:
-  _t9 = raw_malloc(4)
-  _t10 = env_store %_t9[0] = %n
-  _t11 = mkclos @deep__lsm385162459__ls_s1 env=%_t9 : clos(fn(i32) -> i32, i32) -> i32
-  ret %_t11
-}
-
-fn deep__lsm385162459__ls_s1(_p3: rawptr, f: fn(i32) -> i32) -> clos(i32) -> i32 {
-entry:
-  _t12 = raw_malloc(16)
-  _t13 = env_load %_p3[0]
-  _t14 = env_store %_t12[0] = %_t13
-  _t15 = env_store %_t12[1] = %f
-  _t16 = mkclos @deep__lsm385162459__ls_s2 env=%_t12 : clos(i32) -> i32
-  ret %_t16
-}
-
-fn deep__lsm385162459__ls_s2(_p1: rawptr, x: i32) -> i32 {
-entry:
-  _t6 = env_load %_p1[0]
-  _t7 = env_load %_p1[1]
-  _t8 = call @deep__lsm385162459(%_t6, %_t7, %x)
-  ret %_t8
-}
-
-fn deep__lsm385162459(n: i32, f: fn(i32) -> i32, x: i32) -> i32 {
-entry:
-  _t1 = icmp eq %n, 0
-  br %_t1 ? then_1 : else_2
-then_1:
-
-  br merge_3
-else_2:
-  _t2 = sub %n, 1
-  _t3 = indirect_call %f(%x) -> i32
-  _t4 = call @deep__lsm385162459(%_t2, %f, %_t3)
-  br merge_3
-merge_3:
-  _t5 = phi i32 [ then_1, %x ], [ else_2, %_t4 ]
-  ret %_t5
-}
-
-fn unwrap__lsm966650245(y: i32) -> i32 {
-entry:
-  _t17 = call @wrap__lsm966650245(%y)
-  ret %_t17
-}
-
-fn wrap__lsm966650245(x: i32) -> i32 {
-entry:
-
-  ret %x
-}
-
-fn inc(t: i32) -> i32 {
-entry:
-  _t18 = add %t, 1
-  ret %_t18
-}
-
 fn main() -> unit {
 entry:
-  _t19 = call @deep__lsm385162459(2, &inc : fn(i32) -> i32, 0)
-  _t20 = call @unwrap__lsm966650245(1)
-  _t21 = add %_t19, %_t20
-  _t22 = call @int_to_str(%_t21)
-  void call @println(%_t22)
+  s1 = "hello"
+  s2 = " world!"
+  _t1 = call @str_concat(%s1, %s2)
+  s3 = %_t1
+  void call @println(%s3)
   ret void
 }

@@ -105,8 +105,9 @@ type prog = { funcs : func_def list; entry : string option }
 let runtime_void_symbols = [ "print"; "println" ]
 
 (** String-producing runtime (not defined in [prog.funcs]): use
-    [Assign (tmp, Call ("int_to_str", \[operand\]))]. *)
-let runtime_string_symbols = [ "int_to_str" ]
+    [Assign (tmp, Call ("int_to_str", \[operand\]))] or
+    [Assign (tmp, Call ("str_concat", \[s1; s2\]))]. *)
+let runtime_string_symbols = [ "int_to_str"; "str_concat" ]
 
 (* ----- helpers for well-formedness checks later ----- *)
 

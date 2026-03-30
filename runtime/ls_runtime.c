@@ -48,3 +48,18 @@ char *ls_int_to_str(int32_t x) {
   memcpy(p, buf, (size_t)n + 1);
   return p;
 }
+
+char *ls_str_concat(const char *a, const char *b) {
+  size_t la = a ? strlen(a) : 0;
+  size_t lb = b ? strlen(b) : 0;
+  char *p = malloc(la + lb + 1);
+  if (!p)
+    return NULL;
+  if (la)
+    memcpy(p, a, la);
+  if (lb)
+    memcpy(p + la, b, lb + 1);
+  else
+    p[la] = '\0';
+  return p;
+}
