@@ -1,99 +1,105 @@
 entry: @main
-fn add_three__ls_s0(_p2: rawptr, x: i32) -> clos(i32, i32) -> i32 {
+fn foo__lsm768016045__ls_s0(_p2: rawptr, f: fn(i32) -> i32) -> clos(clos(i32, i32) -> i32, i32, i32) -> i32 {
 entry:
-  _t6 = raw_malloc(4)
-  _t7 = env_store %_t6[0] = %x
-  _t8 = mkclos @add_three__ls_s1 env=%_t6 : clos(i32, i32) -> i32
-  ret %_t8
+  _t8 = raw_malloc(8)
+  _t9 = env_store %_t8[0] = %f
+  _t10 = mkclos @foo__lsm768016045__ls_s1 env=%_t8 : clos(clos(i32, i32) -> i32, i32, i32) -> i32
+  ret %_t10
 }
 
-fn add_three__ls_s1(_p3: rawptr, y: i32) -> clos(i32) -> i32 {
+fn foo__lsm768016045__ls_s1(_p3: rawptr, g: clos(i32, i32) -> i32) -> clos(i32, i32) -> i32 {
 entry:
-  _t9 = raw_malloc(8)
-  _t10 = env_load %_p3[0]
-  _t11 = env_store %_t9[0] = %_t10
-  _t12 = env_store %_t9[1] = %y
-  _t13 = mkclos @add_three__ls_s2 env=%_t9 : clos(i32) -> i32
-  ret %_t13
+  _t11 = raw_malloc(16)
+  _t12 = env_load %_p3[0]
+  _t13 = env_store %_t11[0] = %_t12
+  _t14 = env_store %_t11[1] = %g
+  _t15 = mkclos @foo__lsm768016045__ls_s2 env=%_t11 : clos(i32, i32) -> i32
+  ret %_t15
 }
 
-fn add_three__ls_s2(_p1: rawptr, z: i32) -> i32 {
+fn foo__lsm768016045__ls_s2(_p4: rawptr, x: i32) -> clos(i32) -> i32 {
 entry:
-  _t3 = env_load %_p1[0]
-  _t4 = env_load %_p1[1]
-  _t5 = call @add_three(%_t3, %_t4, %z)
-  ret %_t5
+  _t16 = raw_malloc(20)
+  _t17 = env_load %_p4[0]
+  _t18 = env_store %_t16[0] = %_t17
+  _t19 = env_load %_p4[1]
+  _t20 = env_store %_t16[1] = %_t19
+  _t21 = env_store %_t16[2] = %x
+  _t22 = mkclos @foo__lsm768016045__ls_s3 env=%_t16 : clos(i32) -> i32
+  ret %_t22
 }
 
-fn add_three(x: i32, y: i32, z: i32) -> i32 {
+fn foo__lsm768016045__ls_s3(_p1: rawptr, y: i32) -> i32 {
 entry:
-  _t1 = add %x, %y
-  _t2 = add %_t1, %z
-  ret %_t2
+  _t4 = env_load %_p1[0]
+  _t5 = env_load %_p1[1]
+  _t6 = env_load %_p1[2]
+  _t7 = call @foo__lsm768016045(%_t4, %_t5, %_t6, %y)
+  ret %_t7
 }
 
-fn add__ls_s0(_p5: rawptr, x: i32) -> clos(i32) -> i32 {
+fn foo__lsm768016045(f: fn(i32) -> i32, g: clos(i32, i32) -> i32, x: i32, y: i32) -> i32 {
 entry:
-  _t17 = raw_malloc(4)
-  _t18 = env_store %_t17[0] = %x
-  _t19 = mkclos @add__ls_s1 env=%_t17 : clos(i32) -> i32
-  ret %_t19
+  _t1 = clos_apply %g (%x) -> clos(i32) -> i32
+  _t2 = clos_apply %_t1 (%y) -> i32
+  _t3 = indirect_call %f(%_t2) -> i32
+  ret %_t3
 }
 
-fn add__ls_s1(_p4: rawptr, y: i32) -> i32 {
+fn add__ls_s0(_p6: rawptr, x: i32) -> clos(i32) -> i32 {
 entry:
-  _t15 = env_load %_p4[0]
-  _t16 = call @add(%_t15, %y)
-  ret %_t16
+  _t26 = raw_malloc(4)
+  _t27 = env_store %_t26[0] = %x
+  _t28 = mkclos @add__ls_s1 env=%_t26 : clos(i32) -> i32
+  ret %_t28
+}
+
+fn add__ls_s1(_p5: rawptr, y: i32) -> i32 {
+entry:
+  _t24 = env_load %_p5[0]
+  _t25 = call @add(%_t24, %y)
+  ret %_t25
 }
 
 fn add(x: i32, y: i32) -> i32 {
 entry:
-  _t14 = add %x, %y
-  ret %_t14
+  _t23 = add %x, %y
+  ret %_t23
 }
 
-fn apply__ls_s0(_p7: rawptr, f: clos(i32, i32) -> i32) -> clos(i32, i32) -> i32 {
+fn inc(x: i32) -> i32 {
 entry:
-  _t25 = raw_malloc(8)
-  _t26 = env_store %_t25[0] = %f
-  _t27 = mkclos @apply__ls_s1 env=%_t25 : clos(i32, i32) -> i32
-  ret %_t27
+  _t29 = add %x, 1
+  ret %_t29
 }
 
-fn apply__ls_s1(_p8: rawptr, x: i32) -> clos(i32) -> i32 {
+fn partially_applied__ls_s0(_p8: rawptr, __ls_eta_1: i32) -> clos(i32) -> i32 {
 entry:
-  _t28 = raw_malloc(12)
-  _t29 = env_load %_p8[0]
-  _t30 = env_store %_t28[0] = %_t29
-  _t31 = env_store %_t28[1] = %x
-  _t32 = mkclos @apply__ls_s2 env=%_t28 : clos(i32) -> i32
-  ret %_t32
+  _t34 = raw_malloc(4)
+  _t35 = env_store %_t34[0] = %__ls_eta_1
+  _t36 = mkclos @partially_applied__ls_s1 env=%_t34 : clos(i32) -> i32
+  ret %_t36
 }
 
-fn apply__ls_s2(_p6: rawptr, y: i32) -> i32 {
+fn partially_applied__ls_s1(_p7: rawptr, __ls_eta_2: i32) -> i32 {
 entry:
-  _t22 = env_load %_p6[0]
-  _t23 = env_load %_p6[1]
-  _t24 = call @apply(%_t22, %_t23, %y)
-  ret %_t24
+  _t32 = env_load %_p7[0]
+  _t33 = call @partially_applied(%_t32, %__ls_eta_2)
+  ret %_t33
 }
 
-fn apply(f: clos(i32, i32) -> i32, x: i32, y: i32) -> i32 {
+fn partially_applied(__ls_eta_1: i32, __ls_eta_2: i32) -> i32 {
 entry:
-  _t20 = clos_apply %f (%x) -> clos(i32) -> i32
-  _t21 = clos_apply %_t20 (%y) -> i32
-  ret %_t21
+  _t30 = mkclos @add__ls_s0 env=nullptr : clos(i32, i32) -> i32
+  _t31 = call @foo__lsm768016045(&inc : fn(i32) -> i32, %_t30, %__ls_eta_1, %__ls_eta_2)
+  ret %_t31
 }
 
 fn main() -> unit {
 entry:
-  _t34 = raw_malloc(4)
-  _t35 = env_store %_t34[0] = 1
-  _t33 = mkclos @add_three__ls_s1 env=%_t34 : clos(i32, i32) -> i32
-  _t36 = call @apply(%_t33, 2, 3)
-  done = %_t36
-  _t37 = call @int_to_str(%done)
-  void call @println(%_t37)
+  _t37 = call @partially_applied(1, 2)
+  result = %_t37
+  _t38 = call @int_to_str(%result)
+  void call @println(%_t38)
   ret void
 }

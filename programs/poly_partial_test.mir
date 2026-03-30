@@ -1,0 +1,41 @@
+entry: @main
+fn apply__lsm509404921__ls_s0(_p2: rawptr, f: fn(i32) -> i32) -> clos(i32) -> i32 {
+entry:
+  _t4 = raw_malloc(8)
+  _t5 = env_store %_t4[0] = %f
+  _t6 = mkclos @apply__lsm509404921__ls_s1 env=%_t4 : clos(i32) -> i32
+  ret %_t6
+}
+
+fn apply__lsm509404921__ls_s1(_p1: rawptr, x: i32) -> i32 {
+entry:
+  _t2 = env_load %_p1[0]
+  _t3 = call @apply__lsm509404921(%_t2, %x)
+  ret %_t3
+}
+
+fn apply__lsm509404921(f: fn(i32) -> i32, x: i32) -> i32 {
+entry:
+  _t1 = indirect_call %f(%x) -> i32
+  ret %_t1
+}
+
+fn square(n: i32) -> i32 {
+entry:
+  _t7 = mul %n, %n
+  ret %_t7
+}
+
+fn h(__ls_eta_1: i32) -> i32 {
+entry:
+  _t8 = call @apply__lsm509404921(&square : fn(i32) -> i32, %__ls_eta_1)
+  ret %_t8
+}
+
+fn main() -> unit {
+entry:
+  _t9 = call @h(5)
+  _t10 = call @int_to_str(%_t9)
+  void call @println(%_t10)
+  ret void
+}

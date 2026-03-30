@@ -9,164 +9,173 @@ declare i8* @ls_int_to_str(i32)
 declare i8* @ls_malloc(i64)
 declare i8* @ls_mkclos(i8*, i8*)
 
-%ls.env.1 = type { i32 }
-%ls.env.2 = type { i32 }
-%ls.env.3 = type { i32, i32 }
-%ls.env.4 = type { i32, i32 }
-%ls.env.5 = type { i32, i32 }
-%ls.env.6 = type { i32, i32 }
-%ls.env.7 = type { i32 }
-%ls.env.8 = type { i32 }
-%ls.env.9 = type { i8* }
-%ls.env.10 = type { i8* }
-%ls.env.11 = type { i8*, i32 }
-%ls.env.12 = type { i8*, i32 }
-%ls.env.13 = type { i8*, i32 }
-%ls.env.14 = type { i8*, i32 }
+%ls.env.1 = type { i32 (i32)* }
+%ls.env.2 = type { i32 (i32)* }
+%ls.env.3 = type { i32 (i32)*, i8* }
+%ls.env.4 = type { i32 (i32)*, i8* }
+%ls.env.5 = type { i32 (i32)*, i8* }
+%ls.env.6 = type { i32 (i32)*, i8*, i32 }
+%ls.env.7 = type { i32 (i32)*, i8* }
+%ls.env.8 = type { i32 (i32)*, i8*, i32 }
+%ls.env.9 = type { i32 (i32)*, i8*, i32 }
+%ls.env.10 = type { i32 (i32)*, i8*, i32 }
+%ls.env.11 = type { i32 (i32)*, i8*, i32 }
+%ls.env.12 = type { i32 (i32)*, i8*, i32 }
+%ls.env.13 = type { i32 }
+%ls.env.14 = type { i32 }
 %ls.env.15 = type { i32 }
-define i8* @add_three__ls_s0(i8* %_p2, i32 %x) {
+%ls.env.16 = type { i32 }
+define i8* @foo__lsm768016045__ls_s0(i8* %_p2, i32 (i32)* %f) {
 entry:
-  %_t6 = call i8* @ls_malloc(i64 4)
-  %_t7_esb = bitcast i8* %_t6 to %ls.env.1*
-  %_t7_esg = getelementptr inbounds %ls.env.1, %ls.env.1* %_t7_esb, i32 0, i32 0
-  store i32 %x, i32* %_t7_esg
-  %_t8_codep = bitcast i8* (i8*, i32)* @add_three__ls_s1 to i8*
-  %_t8 = call i8* @ls_mkclos(i8* %_t8_codep, i8* %_t6)
-  ret i8* %_t8
+  %_t8 = call i8* @ls_malloc(i64 8)
+  %_t9_esb = bitcast i8* %_t8 to %ls.env.1*
+  %_t9_esg = getelementptr inbounds %ls.env.1, %ls.env.1* %_t9_esb, i32 0, i32 0
+  store i32 (i32)* %f, i32 (i32)** %_t9_esg
+  %_t10_codep = bitcast i8* (i8*, i8*)* @foo__lsm768016045__ls_s1 to i8*
+  %_t10 = call i8* @ls_mkclos(i8* %_t10_codep, i8* %_t8)
+  ret i8* %_t10
 }
 
-define i8* @add_three__ls_s1(i8* %_p3, i32 %y) {
+define i8* @foo__lsm768016045__ls_s1(i8* %_p3, i8* %g) {
 entry:
-  %_t9 = call i8* @ls_malloc(i64 8)
-  %_t10_ebuf = bitcast i8* %_p3 to %ls.env.2*
-  %_t10_eg = getelementptr inbounds %ls.env.2, %ls.env.2* %_t10_ebuf, i32 0, i32 0
-  %_t10 = load i32, i32* %_t10_eg
-  %_t11_esb = bitcast i8* %_t9 to %ls.env.3*
-  %_t11_esg = getelementptr inbounds %ls.env.3, %ls.env.3* %_t11_esb, i32 0, i32 0
-  store i32 %_t10, i32* %_t11_esg
-  %_t12_esb = bitcast i8* %_t9 to %ls.env.4*
-  %_t12_esg = getelementptr inbounds %ls.env.4, %ls.env.4* %_t12_esb, i32 0, i32 1
-  store i32 %y, i32* %_t12_esg
-  %_t13_codep = bitcast i32 (i8*, i32)* @add_three__ls_s2 to i8*
-  %_t13 = call i8* @ls_mkclos(i8* %_t13_codep, i8* %_t9)
-  ret i8* %_t13
+  %_t11 = call i8* @ls_malloc(i64 16)
+  %_t12_ebuf = bitcast i8* %_p3 to %ls.env.2*
+  %_t12_eg = getelementptr inbounds %ls.env.2, %ls.env.2* %_t12_ebuf, i32 0, i32 0
+  %_t12 = load i32 (i32)*, i32 (i32)** %_t12_eg
+  %_t13_esb = bitcast i8* %_t11 to %ls.env.3*
+  %_t13_esg = getelementptr inbounds %ls.env.3, %ls.env.3* %_t13_esb, i32 0, i32 0
+  store i32 (i32)* %_t12, i32 (i32)** %_t13_esg
+  %_t14_esb = bitcast i8* %_t11 to %ls.env.4*
+  %_t14_esg = getelementptr inbounds %ls.env.4, %ls.env.4* %_t14_esb, i32 0, i32 1
+  store i8* %g, i8** %_t14_esg
+  %_t15_codep = bitcast i8* (i8*, i32)* @foo__lsm768016045__ls_s2 to i8*
+  %_t15 = call i8* @ls_mkclos(i8* %_t15_codep, i8* %_t11)
+  ret i8* %_t15
 }
 
-define i32 @add_three__ls_s2(i8* %_p1, i32 %z) {
+define i8* @foo__lsm768016045__ls_s2(i8* %_p4, i32 %x) {
 entry:
-  %_t3_ebuf = bitcast i8* %_p1 to %ls.env.5*
-  %_t3_eg = getelementptr inbounds %ls.env.5, %ls.env.5* %_t3_ebuf, i32 0, i32 0
-  %_t3 = load i32, i32* %_t3_eg
-  %_t4_ebuf = bitcast i8* %_p1 to %ls.env.6*
-  %_t4_eg = getelementptr inbounds %ls.env.6, %ls.env.6* %_t4_ebuf, i32 0, i32 1
-  %_t4 = load i32, i32* %_t4_eg
-  %_t5 = call i32 @add_three(i32 %_t3, i32 %_t4, i32 %z)
-  ret i32 %_t5
+  %_t16 = call i8* @ls_malloc(i64 20)
+  %_t17_ebuf = bitcast i8* %_p4 to %ls.env.5*
+  %_t17_eg = getelementptr inbounds %ls.env.5, %ls.env.5* %_t17_ebuf, i32 0, i32 0
+  %_t17 = load i32 (i32)*, i32 (i32)** %_t17_eg
+  %_t18_esb = bitcast i8* %_t16 to %ls.env.6*
+  %_t18_esg = getelementptr inbounds %ls.env.6, %ls.env.6* %_t18_esb, i32 0, i32 0
+  store i32 (i32)* %_t17, i32 (i32)** %_t18_esg
+  %_t19_ebuf = bitcast i8* %_p4 to %ls.env.7*
+  %_t19_eg = getelementptr inbounds %ls.env.7, %ls.env.7* %_t19_ebuf, i32 0, i32 1
+  %_t19 = load i8*, i8** %_t19_eg
+  %_t20_esb = bitcast i8* %_t16 to %ls.env.8*
+  %_t20_esg = getelementptr inbounds %ls.env.8, %ls.env.8* %_t20_esb, i32 0, i32 1
+  store i8* %_t19, i8** %_t20_esg
+  %_t21_esb = bitcast i8* %_t16 to %ls.env.9*
+  %_t21_esg = getelementptr inbounds %ls.env.9, %ls.env.9* %_t21_esb, i32 0, i32 2
+  store i32 %x, i32* %_t21_esg
+  %_t22_codep = bitcast i32 (i8*, i32)* @foo__lsm768016045__ls_s3 to i8*
+  %_t22 = call i8* @ls_mkclos(i8* %_t22_codep, i8* %_t16)
+  ret i8* %_t22
 }
 
-define i32 @add_three(i32 %x, i32 %y, i32 %z) {
+define i32 @foo__lsm768016045__ls_s3(i8* %_p1, i32 %y) {
 entry:
-  %_t1 = add nsw i32 %x, %y
-  %_t2 = add nsw i32 %_t1, %z
-  ret i32 %_t2
+  %_t4_ebuf = bitcast i8* %_p1 to %ls.env.10*
+  %_t4_eg = getelementptr inbounds %ls.env.10, %ls.env.10* %_t4_ebuf, i32 0, i32 0
+  %_t4 = load i32 (i32)*, i32 (i32)** %_t4_eg
+  %_t5_ebuf = bitcast i8* %_p1 to %ls.env.11*
+  %_t5_eg = getelementptr inbounds %ls.env.11, %ls.env.11* %_t5_ebuf, i32 0, i32 1
+  %_t5 = load i8*, i8** %_t5_eg
+  %_t6_ebuf = bitcast i8* %_p1 to %ls.env.12*
+  %_t6_eg = getelementptr inbounds %ls.env.12, %ls.env.12* %_t6_ebuf, i32 0, i32 2
+  %_t6 = load i32, i32* %_t6_eg
+  %_t7 = call i32 @foo__lsm768016045(i32 (i32)* %_t4, i8* %_t5, i32 %_t6, i32 %y)
+  ret i32 %_t7
 }
 
-define i8* @add__ls_s0(i8* %_p5, i32 %x) {
+define i32 @foo__lsm768016045(i32 (i32)* %f, i8* %g, i32 %x, i32 %y) {
 entry:
-  %_t17 = call i8* @ls_malloc(i64 4)
-  %_t18_esb = bitcast i8* %_t17 to %ls.env.7*
-  %_t18_esg = getelementptr inbounds %ls.env.7, %ls.env.7* %_t18_esb, i32 0, i32 0
-  store i32 %x, i32* %_t18_esg
-  %_t19_codep = bitcast i32 (i8*, i32)* @add__ls_s1 to i8*
-  %_t19 = call i8* @ls_mkclos(i8* %_t19_codep, i8* %_t17)
-  ret i8* %_t19
+  %_t1_cp = bitcast i8* %g to %ls.clos*
+  %_t1_gcd = getelementptr inbounds %ls.clos, %ls.clos* %_t1_cp, i32 0, i32 0
+  %_t1_vcd = load i8*, i8** %_t1_gcd
+  %_t1_gen = getelementptr inbounds %ls.clos, %ls.clos* %_t1_cp, i32 0, i32 1
+  %_t1_ven = load i8*, i8** %_t1_gen
+  %_t1_fn = bitcast i8* %_t1_vcd to i8* (i8*, i32)*
+  %_t1 = call i8* %_t1_fn(i8* %_t1_ven, i32 %x)
+  %_t2_cp = bitcast i8* %_t1 to %ls.clos*
+  %_t2_gcd = getelementptr inbounds %ls.clos, %ls.clos* %_t2_cp, i32 0, i32 0
+  %_t2_vcd = load i8*, i8** %_t2_gcd
+  %_t2_gen = getelementptr inbounds %ls.clos, %ls.clos* %_t2_cp, i32 0, i32 1
+  %_t2_ven = load i8*, i8** %_t2_gen
+  %_t2_fn = bitcast i8* %_t2_vcd to i32 (i8*, i32)*
+  %_t2 = call i32 %_t2_fn(i8* %_t2_ven, i32 %y)
+  %_t3 = call i32 %f(i32 %_t2)
+  ret i32 %_t3
 }
 
-define i32 @add__ls_s1(i8* %_p4, i32 %y) {
+define i8* @add__ls_s0(i8* %_p6, i32 %x) {
 entry:
-  %_t15_ebuf = bitcast i8* %_p4 to %ls.env.8*
-  %_t15_eg = getelementptr inbounds %ls.env.8, %ls.env.8* %_t15_ebuf, i32 0, i32 0
-  %_t15 = load i32, i32* %_t15_eg
-  %_t16 = call i32 @add(i32 %_t15, i32 %y)
-  ret i32 %_t16
+  %_t26 = call i8* @ls_malloc(i64 4)
+  %_t27_esb = bitcast i8* %_t26 to %ls.env.13*
+  %_t27_esg = getelementptr inbounds %ls.env.13, %ls.env.13* %_t27_esb, i32 0, i32 0
+  store i32 %x, i32* %_t27_esg
+  %_t28_codep = bitcast i32 (i8*, i32)* @add__ls_s1 to i8*
+  %_t28 = call i8* @ls_mkclos(i8* %_t28_codep, i8* %_t26)
+  ret i8* %_t28
+}
+
+define i32 @add__ls_s1(i8* %_p5, i32 %y) {
+entry:
+  %_t24_ebuf = bitcast i8* %_p5 to %ls.env.14*
+  %_t24_eg = getelementptr inbounds %ls.env.14, %ls.env.14* %_t24_ebuf, i32 0, i32 0
+  %_t24 = load i32, i32* %_t24_eg
+  %_t25 = call i32 @add(i32 %_t24, i32 %y)
+  ret i32 %_t25
 }
 
 define i32 @add(i32 %x, i32 %y) {
 entry:
-  %_t14 = add nsw i32 %x, %y
-  ret i32 %_t14
+  %_t23 = add nsw i32 %x, %y
+  ret i32 %_t23
 }
 
-define i8* @apply__ls_s0(i8* %_p7, i8* %f) {
+define i32 @inc(i32 %x) {
 entry:
-  %_t25 = call i8* @ls_malloc(i64 8)
-  %_t26_esb = bitcast i8* %_t25 to %ls.env.9*
-  %_t26_esg = getelementptr inbounds %ls.env.9, %ls.env.9* %_t26_esb, i32 0, i32 0
-  store i8* %f, i8** %_t26_esg
-  %_t27_codep = bitcast i8* (i8*, i32)* @apply__ls_s1 to i8*
-  %_t27 = call i8* @ls_mkclos(i8* %_t27_codep, i8* %_t25)
-  ret i8* %_t27
+  %_t29 = add nsw i32 %x, 1
+  ret i32 %_t29
 }
 
-define i8* @apply__ls_s1(i8* %_p8, i32 %x) {
-entry:
-  %_t28 = call i8* @ls_malloc(i64 12)
-  %_t29_ebuf = bitcast i8* %_p8 to %ls.env.10*
-  %_t29_eg = getelementptr inbounds %ls.env.10, %ls.env.10* %_t29_ebuf, i32 0, i32 0
-  %_t29 = load i8*, i8** %_t29_eg
-  %_t30_esb = bitcast i8* %_t28 to %ls.env.11*
-  %_t30_esg = getelementptr inbounds %ls.env.11, %ls.env.11* %_t30_esb, i32 0, i32 0
-  store i8* %_t29, i8** %_t30_esg
-  %_t31_esb = bitcast i8* %_t28 to %ls.env.12*
-  %_t31_esg = getelementptr inbounds %ls.env.12, %ls.env.12* %_t31_esb, i32 0, i32 1
-  store i32 %x, i32* %_t31_esg
-  %_t32_codep = bitcast i32 (i8*, i32)* @apply__ls_s2 to i8*
-  %_t32 = call i8* @ls_mkclos(i8* %_t32_codep, i8* %_t28)
-  ret i8* %_t32
-}
-
-define i32 @apply__ls_s2(i8* %_p6, i32 %y) {
-entry:
-  %_t22_ebuf = bitcast i8* %_p6 to %ls.env.13*
-  %_t22_eg = getelementptr inbounds %ls.env.13, %ls.env.13* %_t22_ebuf, i32 0, i32 0
-  %_t22 = load i8*, i8** %_t22_eg
-  %_t23_ebuf = bitcast i8* %_p6 to %ls.env.14*
-  %_t23_eg = getelementptr inbounds %ls.env.14, %ls.env.14* %_t23_ebuf, i32 0, i32 1
-  %_t23 = load i32, i32* %_t23_eg
-  %_t24 = call i32 @apply(i8* %_t22, i32 %_t23, i32 %y)
-  ret i32 %_t24
-}
-
-define i32 @apply(i8* %f, i32 %x, i32 %y) {
-entry:
-  %_t20_cp = bitcast i8* %f to %ls.clos*
-  %_t20_gcd = getelementptr inbounds %ls.clos, %ls.clos* %_t20_cp, i32 0, i32 0
-  %_t20_vcd = load i8*, i8** %_t20_gcd
-  %_t20_gen = getelementptr inbounds %ls.clos, %ls.clos* %_t20_cp, i32 0, i32 1
-  %_t20_ven = load i8*, i8** %_t20_gen
-  %_t20_fn = bitcast i8* %_t20_vcd to i8* (i8*, i32)*
-  %_t20 = call i8* %_t20_fn(i8* %_t20_ven, i32 %x)
-  %_t21_cp = bitcast i8* %_t20 to %ls.clos*
-  %_t21_gcd = getelementptr inbounds %ls.clos, %ls.clos* %_t21_cp, i32 0, i32 0
-  %_t21_vcd = load i8*, i8** %_t21_gcd
-  %_t21_gen = getelementptr inbounds %ls.clos, %ls.clos* %_t21_cp, i32 0, i32 1
-  %_t21_ven = load i8*, i8** %_t21_gen
-  %_t21_fn = bitcast i8* %_t21_vcd to i32 (i8*, i32)*
-  %_t21 = call i32 %_t21_fn(i8* %_t21_ven, i32 %y)
-  ret i32 %_t21
-}
-
-define i32 @main() {
+define i8* @partially_applied__ls_s0(i8* %_p8, i32 %__ls_eta_1) {
 entry:
   %_t34 = call i8* @ls_malloc(i64 4)
   %_t35_esb = bitcast i8* %_t34 to %ls.env.15*
   %_t35_esg = getelementptr inbounds %ls.env.15, %ls.env.15* %_t35_esb, i32 0, i32 0
-  store i32 1, i32* %_t35_esg
-  %_t33_codep = bitcast i8* (i8*, i32)* @add_three__ls_s1 to i8*
-  %_t33 = call i8* @ls_mkclos(i8* %_t33_codep, i8* %_t34)
-  %_t36 = call i32 @apply(i8* %_t33, i32 2, i32 3)
-  %done = add nsw i32 %_t36, 0
-  %_t37 = call i8* @ls_int_to_str(i32 %done)
-  call void @ls_println(i8* %_t37)
+  store i32 %__ls_eta_1, i32* %_t35_esg
+  %_t36_codep = bitcast i32 (i8*, i32)* @partially_applied__ls_s1 to i8*
+  %_t36 = call i8* @ls_mkclos(i8* %_t36_codep, i8* %_t34)
+  ret i8* %_t36
+}
+
+define i32 @partially_applied__ls_s1(i8* %_p7, i32 %__ls_eta_2) {
+entry:
+  %_t32_ebuf = bitcast i8* %_p7 to %ls.env.16*
+  %_t32_eg = getelementptr inbounds %ls.env.16, %ls.env.16* %_t32_ebuf, i32 0, i32 0
+  %_t32 = load i32, i32* %_t32_eg
+  %_t33 = call i32 @partially_applied(i32 %_t32, i32 %__ls_eta_2)
+  ret i32 %_t33
+}
+
+define i32 @partially_applied(i32 %__ls_eta_1, i32 %__ls_eta_2) {
+entry:
+  %_t30_codep = bitcast i8* (i8*, i32)* @add__ls_s0 to i8*
+  %_t30 = call i8* @ls_mkclos(i8* %_t30_codep, i8* null)
+  %_t31 = call i32 @foo__lsm768016045(i32 (i32)* @inc, i8* %_t30, i32 %__ls_eta_1, i32 %__ls_eta_2)
+  ret i32 %_t31
+}
+
+define i32 @main() {
+entry:
+  %_t37 = call i32 @partially_applied(i32 1, i32 2)
+  %result = add nsw i32 %_t37, 0
+  %_t38 = call i8* @ls_int_to_str(i32 %result)
+  call void @ls_println(i8* %_t38)
   ret i32 0
 }

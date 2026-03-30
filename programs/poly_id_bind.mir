@@ -1,0 +1,20 @@
+entry: @main
+fn h__lsm966650245(__ls_eta_1: i32) -> i32 {
+entry:
+  _t1 = call @id__lsm966650245(%__ls_eta_1)
+  ret %_t1
+}
+
+fn id__lsm966650245(x: i32) -> i32 {
+entry:
+
+  ret %x
+}
+
+fn main() -> unit {
+entry:
+  _t2 = call @h__lsm966650245(1)
+  _t3 = call @int_to_str(%_t2)
+  void call @println(%_t3)
+  ret void
+}

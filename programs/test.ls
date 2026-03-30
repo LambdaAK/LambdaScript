@@ -1,11 +1,11 @@
-let add_three (x: int) (y: int) (z: int) : int = x + y + z
+let foo f g x y = f (g x y)
 
-let add (x: int) (y: int) : int = x + y
+let add x y = x + y
 
-let apply (f : int -> int -> int) (x : int) (y: int) : int = f x y
+let inc x = x + 1
 
-let partially_applied = add_three 1
+let partially_applied = foo inc add
 
-let done = apply partially_applied 2 3
+let result = partially_applied 1 2
 
-let () = println (int_to_str done)
+let () = println (int_to_str result)

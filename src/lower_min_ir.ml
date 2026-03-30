@@ -358,6 +358,25 @@ let min_ty_to_mono_opt : ty -> mono_type option = function
   | Unit -> Some UnitType
   | Fun _ | RawPtr | Clos _ -> None
 
+(** Min_IR → mono for monomorph keys (curried [Fun] / [Clos] chains). *)
+let rec min_ty_to_mono (t : ty) : mono_type =
+  match t with
+  | I32 -> IntType
+  | I1 -> BoolType
+  | String -> StringType
+  | Unit -> UnitType
+  | Fun (ps, r) ->
+      List.fold_right
+        (fun p acc -> FunctionType (min_ty_to_mono p, acc))
+        ps (min_ty_to_mono r)
+  | Clos (ps, r) ->
+      List.fold_right
+        (fun p acc -> FunctionType (min_ty_to_mono p, acc))
+        ps (min_ty_to_mono r)
+  | RawPtr ->
+      unsupported
+        "Internal: expected type for polymorphic instantiation used RawPtr"
+
 (** Extend the global static environment with locals so [mono_fun_type_of_binary_app]
     sees parameters and [let]-bound names in the current lowering scope. *)
 let static_env_for_mono_call (global : static_env) (env : env) : static_env =
@@ -441,7 +460,7 @@ let eta_poly_partial_spine (static_env : static_env) (f : string) (args : c_expr
 (** [e] is exactly a curried spine [f a1 ... an] (not a larger expression). *)
 let eta_expand_binding_rhs (static_env : static_env) (e : c_expr) : c_expr =
   match peel_app_spine e [] with
-  | `Id f, args when args <> [] -> (
+  | `Id f, args -> (
       match eta_poly_partial_spine static_env f args with
       | Some e' -> e'
       | None -> e)
@@ -586,6 +605,21 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
     | EApp (e1, e2) as app ->
         collect_visit_expr env e1;
         collect_visit_expr env e2;
+        (* Polymorphic top-level used as an argument: infer required mono from context,
+           e.g. [use id] needs [(id, int -> int)] when [use : (int -> 'b) -> 'b]. *)
+        (match e2 with
+        | EId g when is_poly_static g env -> (
+            match
+              Typecheck.mono_fun_type_of_binary_app env type_env e1 e2
+            with
+            | Ok t_fn -> (
+                match t_fn with
+                | FunctionType (arg_ty, _) when
+                    Typecheck.mono_type_fully_concrete arg_ty ->
+                    add g arg_ty
+                | _ -> ())
+            | Error _ -> ())
+        | _ -> ());
         let head, args = peel_app_spine app [] in
         (match head with
         | `Id f when is_poly_static f env -> (
@@ -842,6 +876,37 @@ let rec lower_expr_val (e : c_expr) (env : env) (ctx : fn_ctx)
         unsupported "Internal: saturated callable where a value was expected";
       materialize_clos_lower env ctx c)
 
+(** Lower an expression used as the next argument in a call, using the callee's
+    expected parameter type so polymorphic top-level names can be monomorphized
+    without a synthetic lambda ([use id], etc.). *)
+and lower_expr_val_as_call_arg (arg : c_expr) (expect : ty) (env : env)
+    (ctx : fn_ctx) (static_env : static_env) (type_env : Typecheck.type_env) :
+    operand * ty =
+  match arg with
+  | EId x when is_poly_static x static_env ->
+      let m_expect = min_ty_to_mono expect in
+      if not (Typecheck.mono_type_fully_concrete m_expect) then
+        unsupported
+          "Polymorphic value passed to a call needs a concrete parameter type at \
+           this site for native compilation";
+      let mangle = mangle_poly_instance x m_expect in
+      begin
+        match resolve_callable mangle env with
+        | Some c ->
+            let op, got = materialize_clos_lower env ctx c in
+            if not (ty_equal got expect) then
+              unsupported
+                "Internal: monomorphized polymorphic function type mismatch at call";
+            (op, got)
+        | None ->
+            unsupported
+              ("Missing monomorphized specialization `" ^ mangle ^ "`")
+      end
+  | _ ->
+      let o, got = lower_expr_val arg env ctx static_env type_env in
+      if not (ty_equal got expect) then unsupported "call argument type mismatch";
+      (o, got)
+
 and lower_builtin_print name arg env ctx static_env type_env =
   let o2, t2 = lower_expr_val arg env ctx static_env type_env in
   if t2 <> String then unsupported "print/println expect a string argument";
@@ -874,8 +939,9 @@ and apply_call_args (env : env) (ctx : fn_ctx) (static_env : static_env)
         if callable_remaining c = 0 then unsupported "Too many arguments in call";
         let i = List.length c.fixed in
         let expect = List.nth c.param_tys i in
-        let op, got = lower_expr_val arg env ctx static_env type_env in
-        if not (ty_equal got expect) then unsupported "call argument type mismatch";
+        let op, _got =
+          lower_expr_val_as_call_arg arg expect env ctx static_env type_env
+        in
         let c' = { c with fixed = c.fixed @ [ op ] } in
         match rest with
         | [] ->
@@ -902,8 +968,9 @@ and apply_fun1 env ctx static_env type_env callee_op a_ty ret_ty args :
     expr_result =
   match args with
   | [ arg ] ->
-      let oa, ta = lower_expr_val arg env ctx static_env type_env in
-      if not (ty_equal ta a_ty) then unsupported "function call argument type mismatch";
+      let oa, _ta =
+        lower_expr_val_as_call_arg arg a_ty env ctx static_env type_env
+      in
       if ret_ty = Unit then (
         emit_instr ctx (VoidIndirectCall (callee_op, [ a_ty ], [ oa ]));
         LVal (ConstUnit, Unit))
@@ -920,8 +987,9 @@ and apply_clos_chain env ctx static_env type_env clos_op ps ret_ty args :
     | [], _ :: _ -> unsupported "Too many arguments in closure call"
     | _ :: _, [] -> unsupported "Internal: closure chain needs an argument"
     | p :: prest, arg :: arest ->
-        let oa, ta = lower_expr_val arg env ctx static_env type_env in
-        if not (ty_equal ta p) then unsupported "closure argument type mismatch";
+        let oa, _ta =
+          lower_expr_val_as_call_arg arg p env ctx static_env type_env
+        in
         let next_ty =
           match prest with [] -> ret_ty | _ -> Clos (prest, ret_ty)
         in
@@ -955,9 +1023,12 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           else unsupported ("`" ^ x ^ "` is already fully applied (compiler bug)")
       | None ->
           if is_poly_static x static_env then
-            unsupported
-              ("Polymorphic function `" ^ x
-             ^ "` cannot be used as a value here; call it fully applied")
+            match eta_poly_partial_spine static_env x [] with
+            | Some e_eta -> lower_expr e_eta env ctx static_env type_env
+            | None ->
+                unsupported
+                  ("Polymorphic function `" ^ x
+                 ^ "` cannot be used as a value here; call it fully applied")
           else unsupported ("Unbound name `" ^ x ^ "` (not a lowering target)"))
   | EBop (op, e1, e2) -> (
       match map_arith_bop op with
@@ -1201,6 +1272,10 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
         param_pats;
       let bound = List.concat (List.map pat_bound_simple param_pats) in
       let fv = S.diff (free_vars_cexpr inner_most) (S.of_list bound) in
+      (* Top-level polymorphic defs are not env-bound; call sites monomorphize. *)
+      let fv =
+        S.filter (fun v -> not (is_poly_static v static_env)) fv
+      in
       let cap_entries = lambda_captures env ctx fv in
       match Typecheck.type_of_c_expr static_env type_env lam with
       | Error err ->
