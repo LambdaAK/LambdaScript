@@ -11,8 +11,9 @@
     - Control flow: labeled basic blocks; [Br], [BrCond]; [Ret]
     - [Phi] only at block heads (LLVM convention) for SSA merge points
 
-    Not represented yet: memory model beyond opaque strings, structs, closures,
-    tags, GC details, varargs, exceptions. *)
+    Closures use runtime [ls_mkclos]/[ls_malloc]; arity [>=2] function values use
+    [Clos]; env payloads use [EnvLoad]/[EnvStore]. Not represented:
+    GC/free, tags beyond this, varargs, exceptions. *)
 
 type ty =
   | I32
@@ -22,6 +23,10 @@ type ty =
   (** Monomorphic function pointer ([param types], return). LLVM: e.g. [i32
       (i32)*]. *)
   | Fun of ty list * ty
+  (** Opaque environment / raw pointer (LLVM [i8*]). *)
+  | RawPtr
+  (** First-class curried function: [args] remaining left-to-right, then [ret]. *)
+  | Clos of ty list * ty
 
 type ibin = Add | Sub | Mul | Div | Mod
 
@@ -38,6 +43,8 @@ type operand =
   | ConstUnit
   (** Address of a module function with the given parameter/return Min_ir shape. *)
   | FnAddr of string * ty list * ty
+  (** [i8*] null — environment pointer for zero-capture currying roots. *)
+  | RawNull
 
 type rhs =
   | Copy of operand
@@ -51,6 +58,15 @@ type rhs =
   | Call of string * operand list
   (* Indirect call: callee operand has LLVM type [(param_tys -> ret_ty)*]. *)
   | IndirectCall of operand * ty list * ty * operand list
+  (* [env_ptr] points to packed fields [layout] (see {!EnvLoad}/{!EnvStore}). *)
+  | MkClos of { code : string; env_ptr : operand; clo_ty : ty }
+  (* Apply curried closure [clos] (type [Clos (a :: rest, ret)]) to [arg]. *)
+  | ClosApply of { clo : operand; arg : operand; result_ty : ty }
+  (* Packed environment blob — index [i] in struct [layout]. *)
+  | EnvLoad of { env : operand; layout : ty list; index : int }
+  | EnvStore of { env : operand; layout : ty list; index : int; value : operand }
+  (* [byte_size] must match [sizeof layout] for the LLVM field layout. *)
+  | RawMalloc of int
 
 type instr =
   | Assign of string * rhs
@@ -109,6 +125,10 @@ let rec string_of_ty = function
   | I1 -> "i1"
   | String -> "string"
   | Unit -> "unit"
+  | RawPtr -> "rawptr"
+  | Clos (ps, r) ->
+      let ps_s = String.concat ", " (List.map string_of_ty ps) in
+      Printf.sprintf "clos(%s) -> %s" ps_s (string_of_ty r)
   | Fun (ps, r) ->
       let ps_s = String.concat ", " (List.map string_of_ty ps) in
       Printf.sprintf "fn(%s) -> %s" ps_s (string_of_ty r)
@@ -152,6 +172,7 @@ let string_of_operand = function
   | ConstUnit -> "()"
   | FnAddr (n, ps, r) ->
       Printf.sprintf "&%s : %s" n (string_of_ty (Fun (ps, r)))
+  | RawNull -> "nullptr"
 
 let string_of_rhs = function
   | Copy o -> string_of_operand o
@@ -172,10 +193,22 @@ let string_of_rhs = function
       let args_s = String.concat ", " (List.map string_of_operand args) in
       Printf.sprintf "indirect_call %s(%s) -> %s"
         (string_of_operand c) args_s (string_of_ty rt)
+  | MkClos { code; env_ptr; clo_ty } ->
+      Printf.sprintf "mkclos @%s env=%s : %s" code
+        (string_of_operand env_ptr) (string_of_ty clo_ty)
+  | ClosApply { clo; arg; result_ty } ->
+      Printf.sprintf "clos_apply %s (%s) -> %s"
+        (string_of_operand clo) (string_of_operand arg)
+        (string_of_ty result_ty)
+  | EnvLoad { env; layout = _; index } ->
+      Printf.sprintf "env_load %s[%d]" (string_of_operand env) index
+  | EnvStore { env; layout = _; index; value } ->
+      Printf.sprintf "env_store %s[%d] = %s" (string_of_operand env) index
+        (string_of_operand value)
+  | RawMalloc n -> Printf.sprintf "raw_malloc(%d)" n
 
 let string_of_instr = function
-  | Assign (dst, rhs) ->
-      Printf.sprintf "  %s = %s" dst (string_of_rhs rhs)
+  | Assign (dst, rhs) -> Printf.sprintf "  %s = %s" dst (string_of_rhs rhs)
   | VoidCall (f, args) ->
       let args_s = String.concat ", " (List.map string_of_operand args) in
       Printf.sprintf "  void call @%s(%s)" f args_s

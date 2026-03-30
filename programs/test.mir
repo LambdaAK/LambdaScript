@@ -1,165 +1,99 @@
 entry: @main
-fn fu__lsm287645239(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32, i: i32, j: i32, k: i32, l: i32, m: i32, n: i32, o: i32, p: i32, q: i32, r: i32, s: i32, t: i32, u: i32, v: i32, w: i32, x: i32, y: i32, z: i32) -> i32 {
+fn add_three__ls_s0(_p2: rawptr, x: i32) -> clos(i32, i32) -> i32 {
 entry:
-
-  ret %e
-}
-
-fn r1__lsm918377380(__ls_eta_1: i32, __ls_eta_2: i32, __ls_eta_3: i32, __ls_eta_4: i32, __ls_eta_5: i32, __ls_eta_6: i32, __ls_eta_7: i32, __ls_eta_8: i32, __ls_eta_9: i32, __ls_eta_10: i32, __ls_eta_11: i32, __ls_eta_12: i32, __ls_eta_13: i32, __ls_eta_14: i32, __ls_eta_15: i32, __ls_eta_16: i32, __ls_eta_17: i32, __ls_eta_18: i32, __ls_eta_19: i32, __ls_eta_20: i32, __ls_eta_21: i32, __ls_eta_22: i32, __ls_eta_23: i32, __ls_eta_24: i32, __ls_eta_25: i32) -> i32 {
-entry:
-  _t1 = call @fu__lsm287645239(1, %__ls_eta_1, %__ls_eta_2, %__ls_eta_3, %__ls_eta_4, %__ls_eta_5, %__ls_eta_6, %__ls_eta_7, %__ls_eta_8, %__ls_eta_9, %__ls_eta_10, %__ls_eta_11, %__ls_eta_12, %__ls_eta_13, %__ls_eta_14, %__ls_eta_15, %__ls_eta_16, %__ls_eta_17, %__ls_eta_18, %__ls_eta_19, %__ls_eta_20, %__ls_eta_21, %__ls_eta_22, %__ls_eta_23, %__ls_eta_24, %__ls_eta_25)
-  ret %_t1
-}
-
-fn r10__lsm430008061(__ls_eta_190: i32, __ls_eta_191: i32, __ls_eta_192: i32, __ls_eta_193: i32, __ls_eta_194: i32, __ls_eta_195: i32, __ls_eta_196: i32, __ls_eta_197: i32, __ls_eta_198: i32, __ls_eta_199: i32, __ls_eta_200: i32, __ls_eta_201: i32, __ls_eta_202: i32, __ls_eta_203: i32, __ls_eta_204: i32, __ls_eta_205: i32) -> i32 {
-entry:
-  _t2 = call @r9__lsm128942792(10, %__ls_eta_190, %__ls_eta_191, %__ls_eta_192, %__ls_eta_193, %__ls_eta_194, %__ls_eta_195, %__ls_eta_196, %__ls_eta_197, %__ls_eta_198, %__ls_eta_199, %__ls_eta_200, %__ls_eta_201, %__ls_eta_202, %__ls_eta_203, %__ls_eta_204, %__ls_eta_205)
-  ret %_t2
-}
-
-fn r11__lsm429362938(__ls_eta_206: i32, __ls_eta_207: i32, __ls_eta_208: i32, __ls_eta_209: i32, __ls_eta_210: i32, __ls_eta_211: i32, __ls_eta_212: i32, __ls_eta_213: i32, __ls_eta_214: i32, __ls_eta_215: i32, __ls_eta_216: i32, __ls_eta_217: i32, __ls_eta_218: i32, __ls_eta_219: i32, __ls_eta_220: i32) -> i32 {
-entry:
-  _t3 = call @r10__lsm430008061(11, %__ls_eta_206, %__ls_eta_207, %__ls_eta_208, %__ls_eta_209, %__ls_eta_210, %__ls_eta_211, %__ls_eta_212, %__ls_eta_213, %__ls_eta_214, %__ls_eta_215, %__ls_eta_216, %__ls_eta_217, %__ls_eta_218, %__ls_eta_219, %__ls_eta_220)
-  ret %_t3
-}
-
-fn r12__lsm569603228(__ls_eta_221: i32, __ls_eta_222: i32, __ls_eta_223: i32, __ls_eta_224: i32, __ls_eta_225: i32, __ls_eta_226: i32, __ls_eta_227: i32, __ls_eta_228: i32, __ls_eta_229: i32, __ls_eta_230: i32, __ls_eta_231: i32, __ls_eta_232: i32, __ls_eta_233: i32, __ls_eta_234: i32) -> i32 {
-entry:
-  _t4 = call @r11__lsm429362938(12, %__ls_eta_221, %__ls_eta_222, %__ls_eta_223, %__ls_eta_224, %__ls_eta_225, %__ls_eta_226, %__ls_eta_227, %__ls_eta_228, %__ls_eta_229, %__ls_eta_230, %__ls_eta_231, %__ls_eta_232, %__ls_eta_233, %__ls_eta_234)
-  ret %_t4
-}
-
-fn r13__lsm113059283(__ls_eta_235: i32, __ls_eta_236: i32, __ls_eta_237: i32, __ls_eta_238: i32, __ls_eta_239: i32, __ls_eta_240: i32, __ls_eta_241: i32, __ls_eta_242: i32, __ls_eta_243: i32, __ls_eta_244: i32, __ls_eta_245: i32, __ls_eta_246: i32, __ls_eta_247: i32) -> i32 {
-entry:
-  _t5 = call @r12__lsm569603228(13, %__ls_eta_235, %__ls_eta_236, %__ls_eta_237, %__ls_eta_238, %__ls_eta_239, %__ls_eta_240, %__ls_eta_241, %__ls_eta_242, %__ls_eta_243, %__ls_eta_244, %__ls_eta_245, %__ls_eta_246, %__ls_eta_247)
-  ret %_t5
-}
-
-fn r14__lsm659230605(__ls_eta_248: i32, __ls_eta_249: i32, __ls_eta_250: i32, __ls_eta_251: i32, __ls_eta_252: i32, __ls_eta_253: i32, __ls_eta_254: i32, __ls_eta_255: i32, __ls_eta_256: i32, __ls_eta_257: i32, __ls_eta_258: i32, __ls_eta_259: i32) -> i32 {
-entry:
-  _t6 = call @r13__lsm113059283(14, %__ls_eta_248, %__ls_eta_249, %__ls_eta_250, %__ls_eta_251, %__ls_eta_252, %__ls_eta_253, %__ls_eta_254, %__ls_eta_255, %__ls_eta_256, %__ls_eta_257, %__ls_eta_258, %__ls_eta_259)
-  ret %_t6
-}
-
-fn r15__lsm731383728(__ls_eta_260: i32, __ls_eta_261: i32, __ls_eta_262: i32, __ls_eta_263: i32, __ls_eta_264: i32, __ls_eta_265: i32, __ls_eta_266: i32, __ls_eta_267: i32, __ls_eta_268: i32, __ls_eta_269: i32, __ls_eta_270: i32) -> i32 {
-entry:
-  _t7 = call @r14__lsm659230605(15, %__ls_eta_260, %__ls_eta_261, %__ls_eta_262, %__ls_eta_263, %__ls_eta_264, %__ls_eta_265, %__ls_eta_266, %__ls_eta_267, %__ls_eta_268, %__ls_eta_269, %__ls_eta_270)
-  ret %_t7
-}
-
-fn r16__lsm664935318(__ls_eta_271: i32, __ls_eta_272: i32, __ls_eta_273: i32, __ls_eta_274: i32, __ls_eta_275: i32, __ls_eta_276: i32, __ls_eta_277: i32, __ls_eta_278: i32, __ls_eta_279: i32, __ls_eta_280: i32) -> i32 {
-entry:
-  _t8 = call @r15__lsm731383728(16, %__ls_eta_271, %__ls_eta_272, %__ls_eta_273, %__ls_eta_274, %__ls_eta_275, %__ls_eta_276, %__ls_eta_277, %__ls_eta_278, %__ls_eta_279, %__ls_eta_280)
+  _t6 = raw_malloc(4)
+  _t7 = env_store %_t6[0] = %x
+  _t8 = mkclos @add_three__ls_s1 env=%_t6 : clos(i32, i32) -> i32
   ret %_t8
 }
 
-fn r17__lsm312834881(__ls_eta_281: i32, __ls_eta_282: i32, __ls_eta_283: i32, __ls_eta_284: i32, __ls_eta_285: i32, __ls_eta_286: i32, __ls_eta_287: i32, __ls_eta_288: i32, __ls_eta_289: i32) -> i32 {
+fn add_three__ls_s1(_p3: rawptr, y: i32) -> clos(i32) -> i32 {
 entry:
-  _t9 = call @r16__lsm664935318(17, %__ls_eta_281, %__ls_eta_282, %__ls_eta_283, %__ls_eta_284, %__ls_eta_285, %__ls_eta_286, %__ls_eta_287, %__ls_eta_288, %__ls_eta_289)
-  ret %_t9
-}
-
-fn r18__lsm534347635(__ls_eta_290: i32, __ls_eta_291: i32, __ls_eta_292: i32, __ls_eta_293: i32, __ls_eta_294: i32, __ls_eta_295: i32, __ls_eta_296: i32, __ls_eta_297: i32) -> i32 {
-entry:
-  _t10 = call @r17__lsm312834881(18, %__ls_eta_290, %__ls_eta_291, %__ls_eta_292, %__ls_eta_293, %__ls_eta_294, %__ls_eta_295, %__ls_eta_296, %__ls_eta_297)
-  ret %_t10
-}
-
-fn r19__lsm768016045(__ls_eta_298: i32, __ls_eta_299: i32, __ls_eta_300: i32, __ls_eta_301: i32, __ls_eta_302: i32, __ls_eta_303: i32, __ls_eta_304: i32) -> i32 {
-entry:
-  _t11 = call @r18__lsm534347635(19, %__ls_eta_298, %__ls_eta_299, %__ls_eta_300, %__ls_eta_301, %__ls_eta_302, %__ls_eta_303, %__ls_eta_304)
-  ret %_t11
-}
-
-fn r2__lsm207876967(__ls_eta_26: i32, __ls_eta_27: i32, __ls_eta_28: i32, __ls_eta_29: i32, __ls_eta_30: i32, __ls_eta_31: i32, __ls_eta_32: i32, __ls_eta_33: i32, __ls_eta_34: i32, __ls_eta_35: i32, __ls_eta_36: i32, __ls_eta_37: i32, __ls_eta_38: i32, __ls_eta_39: i32, __ls_eta_40: i32, __ls_eta_41: i32, __ls_eta_42: i32, __ls_eta_43: i32, __ls_eta_44: i32, __ls_eta_45: i32, __ls_eta_46: i32, __ls_eta_47: i32, __ls_eta_48: i32, __ls_eta_49: i32) -> i32 {
-entry:
-  _t12 = call @r1__lsm918377380(2, %__ls_eta_26, %__ls_eta_27, %__ls_eta_28, %__ls_eta_29, %__ls_eta_30, %__ls_eta_31, %__ls_eta_32, %__ls_eta_33, %__ls_eta_34, %__ls_eta_35, %__ls_eta_36, %__ls_eta_37, %__ls_eta_38, %__ls_eta_39, %__ls_eta_40, %__ls_eta_41, %__ls_eta_42, %__ls_eta_43, %__ls_eta_44, %__ls_eta_45, %__ls_eta_46, %__ls_eta_47, %__ls_eta_48, %__ls_eta_49)
-  ret %_t12
-}
-
-fn r20__lsm16355563(__ls_eta_305: i32, __ls_eta_306: i32, __ls_eta_307: i32, __ls_eta_308: i32, __ls_eta_309: i32, __ls_eta_310: i32) -> i32 {
-entry:
-  _t13 = call @r19__lsm768016045(20, %__ls_eta_305, %__ls_eta_306, %__ls_eta_307, %__ls_eta_308, %__ls_eta_309, %__ls_eta_310)
+  _t9 = raw_malloc(8)
+  _t10 = env_load %_p3[0]
+  _t11 = env_store %_t9[0] = %_t10
+  _t12 = env_store %_t9[1] = %y
+  _t13 = mkclos @add_three__ls_s2 env=%_t9 : clos(i32) -> i32
   ret %_t13
 }
 
-fn r21__lsm589228993(__ls_eta_311: i32, __ls_eta_312: i32, __ls_eta_313: i32, __ls_eta_314: i32, __ls_eta_315: i32) -> i32 {
+fn add_three__ls_s2(_p1: rawptr, z: i32) -> i32 {
 entry:
-  _t14 = call @r20__lsm16355563(21, %__ls_eta_311, %__ls_eta_312, %__ls_eta_313, %__ls_eta_314, %__ls_eta_315)
-  ret %_t14
+  _t3 = env_load %_p1[0]
+  _t4 = env_load %_p1[1]
+  _t5 = call @add_three(%_t3, %_t4, %z)
+  ret %_t5
 }
 
-fn r22__lsm385162459(__ls_eta_316: i32, __ls_eta_317: i32, __ls_eta_318: i32, __ls_eta_319: i32) -> i32 {
+fn add_three(x: i32, y: i32, z: i32) -> i32 {
 entry:
-  _t15 = call @r21__lsm589228993(22, %__ls_eta_316, %__ls_eta_317, %__ls_eta_318, %__ls_eta_319)
-  ret %_t15
+  _t1 = add %x, %y
+  _t2 = add %_t1, %z
+  ret %_t2
 }
 
-fn r23__lsm509404921(__ls_eta_320: i32, __ls_eta_321: i32, __ls_eta_322: i32) -> i32 {
+fn add__ls_s0(_p5: rawptr, x: i32) -> clos(i32) -> i32 {
 entry:
-  _t16 = call @r22__lsm385162459(23, %__ls_eta_320, %__ls_eta_321, %__ls_eta_322)
-  ret %_t16
-}
-
-fn r24__lsm76640768(__ls_eta_323: i32, __ls_eta_324: i32) -> i32 {
-entry:
-  _t17 = call @r23__lsm509404921(24, %__ls_eta_323, %__ls_eta_324)
-  ret %_t17
-}
-
-fn r25__lsm966650245(__ls_eta_325: i32) -> i32 {
-entry:
-  _t18 = call @r24__lsm76640768(25, %__ls_eta_325)
-  ret %_t18
-}
-
-fn r3__lsm993500072(__ls_eta_50: i32, __ls_eta_51: i32, __ls_eta_52: i32, __ls_eta_53: i32, __ls_eta_54: i32, __ls_eta_55: i32, __ls_eta_56: i32, __ls_eta_57: i32, __ls_eta_58: i32, __ls_eta_59: i32, __ls_eta_60: i32, __ls_eta_61: i32, __ls_eta_62: i32, __ls_eta_63: i32, __ls_eta_64: i32, __ls_eta_65: i32, __ls_eta_66: i32, __ls_eta_67: i32, __ls_eta_68: i32, __ls_eta_69: i32, __ls_eta_70: i32, __ls_eta_71: i32, __ls_eta_72: i32) -> i32 {
-entry:
-  _t19 = call @r2__lsm207876967(3, %__ls_eta_50, %__ls_eta_51, %__ls_eta_52, %__ls_eta_53, %__ls_eta_54, %__ls_eta_55, %__ls_eta_56, %__ls_eta_57, %__ls_eta_58, %__ls_eta_59, %__ls_eta_60, %__ls_eta_61, %__ls_eta_62, %__ls_eta_63, %__ls_eta_64, %__ls_eta_65, %__ls_eta_66, %__ls_eta_67, %__ls_eta_68, %__ls_eta_69, %__ls_eta_70, %__ls_eta_71, %__ls_eta_72)
+  _t17 = raw_malloc(4)
+  _t18 = env_store %_t17[0] = %x
+  _t19 = mkclos @add__ls_s1 env=%_t17 : clos(i32) -> i32
   ret %_t19
 }
 
-fn r4__lsm959669970(__ls_eta_73: i32, __ls_eta_74: i32, __ls_eta_75: i32, __ls_eta_76: i32, __ls_eta_77: i32, __ls_eta_78: i32, __ls_eta_79: i32, __ls_eta_80: i32, __ls_eta_81: i32, __ls_eta_82: i32, __ls_eta_83: i32, __ls_eta_84: i32, __ls_eta_85: i32, __ls_eta_86: i32, __ls_eta_87: i32, __ls_eta_88: i32, __ls_eta_89: i32, __ls_eta_90: i32, __ls_eta_91: i32, __ls_eta_92: i32, __ls_eta_93: i32, __ls_eta_94: i32) -> i32 {
+fn add__ls_s1(_p4: rawptr, y: i32) -> i32 {
 entry:
-  _t20 = call @r3__lsm993500072(4, %__ls_eta_73, %__ls_eta_74, %__ls_eta_75, %__ls_eta_76, %__ls_eta_77, %__ls_eta_78, %__ls_eta_79, %__ls_eta_80, %__ls_eta_81, %__ls_eta_82, %__ls_eta_83, %__ls_eta_84, %__ls_eta_85, %__ls_eta_86, %__ls_eta_87, %__ls_eta_88, %__ls_eta_89, %__ls_eta_90, %__ls_eta_91, %__ls_eta_92, %__ls_eta_93, %__ls_eta_94)
-  ret %_t20
+  _t15 = env_load %_p4[0]
+  _t16 = call @add(%_t15, %y)
+  ret %_t16
 }
 
-fn r5__lsm64737554(__ls_eta_95: i32, __ls_eta_96: i32, __ls_eta_97: i32, __ls_eta_98: i32, __ls_eta_99: i32, __ls_eta_100: i32, __ls_eta_101: i32, __ls_eta_102: i32, __ls_eta_103: i32, __ls_eta_104: i32, __ls_eta_105: i32, __ls_eta_106: i32, __ls_eta_107: i32, __ls_eta_108: i32, __ls_eta_109: i32, __ls_eta_110: i32, __ls_eta_111: i32, __ls_eta_112: i32, __ls_eta_113: i32, __ls_eta_114: i32, __ls_eta_115: i32) -> i32 {
+fn add(x: i32, y: i32) -> i32 {
 entry:
-  _t21 = call @r4__lsm959669970(5, %__ls_eta_95, %__ls_eta_96, %__ls_eta_97, %__ls_eta_98, %__ls_eta_99, %__ls_eta_100, %__ls_eta_101, %__ls_eta_102, %__ls_eta_103, %__ls_eta_104, %__ls_eta_105, %__ls_eta_106, %__ls_eta_107, %__ls_eta_108, %__ls_eta_109, %__ls_eta_110, %__ls_eta_111, %__ls_eta_112, %__ls_eta_113, %__ls_eta_114, %__ls_eta_115)
-  ret %_t21
+  _t14 = add %x, %y
+  ret %_t14
 }
 
-fn r6__lsm148357567(__ls_eta_116: i32, __ls_eta_117: i32, __ls_eta_118: i32, __ls_eta_119: i32, __ls_eta_120: i32, __ls_eta_121: i32, __ls_eta_122: i32, __ls_eta_123: i32, __ls_eta_124: i32, __ls_eta_125: i32, __ls_eta_126: i32, __ls_eta_127: i32, __ls_eta_128: i32, __ls_eta_129: i32, __ls_eta_130: i32, __ls_eta_131: i32, __ls_eta_132: i32, __ls_eta_133: i32, __ls_eta_134: i32, __ls_eta_135: i32) -> i32 {
+fn apply__ls_s0(_p7: rawptr, f: clos(i32, i32) -> i32) -> clos(i32, i32) -> i32 {
 entry:
-  _t22 = call @r5__lsm64737554(6, %__ls_eta_116, %__ls_eta_117, %__ls_eta_118, %__ls_eta_119, %__ls_eta_120, %__ls_eta_121, %__ls_eta_122, %__ls_eta_123, %__ls_eta_124, %__ls_eta_125, %__ls_eta_126, %__ls_eta_127, %__ls_eta_128, %__ls_eta_129, %__ls_eta_130, %__ls_eta_131, %__ls_eta_132, %__ls_eta_133, %__ls_eta_134, %__ls_eta_135)
-  ret %_t22
+  _t25 = raw_malloc(8)
+  _t26 = env_store %_t25[0] = %f
+  _t27 = mkclos @apply__ls_s1 env=%_t25 : clos(i32, i32) -> i32
+  ret %_t27
 }
 
-fn r7__lsm798861623(__ls_eta_136: i32, __ls_eta_137: i32, __ls_eta_138: i32, __ls_eta_139: i32, __ls_eta_140: i32, __ls_eta_141: i32, __ls_eta_142: i32, __ls_eta_143: i32, __ls_eta_144: i32, __ls_eta_145: i32, __ls_eta_146: i32, __ls_eta_147: i32, __ls_eta_148: i32, __ls_eta_149: i32, __ls_eta_150: i32, __ls_eta_151: i32, __ls_eta_152: i32, __ls_eta_153: i32, __ls_eta_154: i32) -> i32 {
+fn apply__ls_s1(_p8: rawptr, x: i32) -> clos(i32) -> i32 {
 entry:
-  _t23 = call @r6__lsm148357567(7, %__ls_eta_136, %__ls_eta_137, %__ls_eta_138, %__ls_eta_139, %__ls_eta_140, %__ls_eta_141, %__ls_eta_142, %__ls_eta_143, %__ls_eta_144, %__ls_eta_145, %__ls_eta_146, %__ls_eta_147, %__ls_eta_148, %__ls_eta_149, %__ls_eta_150, %__ls_eta_151, %__ls_eta_152, %__ls_eta_153, %__ls_eta_154)
-  ret %_t23
+  _t28 = raw_malloc(12)
+  _t29 = env_load %_p8[0]
+  _t30 = env_store %_t28[0] = %_t29
+  _t31 = env_store %_t28[1] = %x
+  _t32 = mkclos @apply__ls_s2 env=%_t28 : clos(i32) -> i32
+  ret %_t32
 }
 
-fn r8__lsm702434834(__ls_eta_155: i32, __ls_eta_156: i32, __ls_eta_157: i32, __ls_eta_158: i32, __ls_eta_159: i32, __ls_eta_160: i32, __ls_eta_161: i32, __ls_eta_162: i32, __ls_eta_163: i32, __ls_eta_164: i32, __ls_eta_165: i32, __ls_eta_166: i32, __ls_eta_167: i32, __ls_eta_168: i32, __ls_eta_169: i32, __ls_eta_170: i32, __ls_eta_171: i32, __ls_eta_172: i32) -> i32 {
+fn apply__ls_s2(_p6: rawptr, y: i32) -> i32 {
 entry:
-  _t24 = call @r7__lsm798861623(8, %__ls_eta_155, %__ls_eta_156, %__ls_eta_157, %__ls_eta_158, %__ls_eta_159, %__ls_eta_160, %__ls_eta_161, %__ls_eta_162, %__ls_eta_163, %__ls_eta_164, %__ls_eta_165, %__ls_eta_166, %__ls_eta_167, %__ls_eta_168, %__ls_eta_169, %__ls_eta_170, %__ls_eta_171, %__ls_eta_172)
+  _t22 = env_load %_p6[0]
+  _t23 = env_load %_p6[1]
+  _t24 = call @apply(%_t22, %_t23, %y)
   ret %_t24
 }
 
-fn r9__lsm128942792(__ls_eta_173: i32, __ls_eta_174: i32, __ls_eta_175: i32, __ls_eta_176: i32, __ls_eta_177: i32, __ls_eta_178: i32, __ls_eta_179: i32, __ls_eta_180: i32, __ls_eta_181: i32, __ls_eta_182: i32, __ls_eta_183: i32, __ls_eta_184: i32, __ls_eta_185: i32, __ls_eta_186: i32, __ls_eta_187: i32, __ls_eta_188: i32, __ls_eta_189: i32) -> i32 {
+fn apply(f: clos(i32, i32) -> i32, x: i32, y: i32) -> i32 {
 entry:
-  _t25 = call @r8__lsm702434834(9, %__ls_eta_173, %__ls_eta_174, %__ls_eta_175, %__ls_eta_176, %__ls_eta_177, %__ls_eta_178, %__ls_eta_179, %__ls_eta_180, %__ls_eta_181, %__ls_eta_182, %__ls_eta_183, %__ls_eta_184, %__ls_eta_185, %__ls_eta_186, %__ls_eta_187, %__ls_eta_188, %__ls_eta_189)
-  ret %_t25
+  _t20 = clos_apply %f (%x) -> clos(i32) -> i32
+  _t21 = clos_apply %_t20 (%y) -> i32
+  ret %_t21
 }
 
 fn main() -> unit {
 entry:
-  _t26 = call @r25__lsm966650245(26)
-  r26 = %_t26
-  _t27 = call @int_to_str(%r26)
-  void call @println(%_t27)
+  _t34 = raw_malloc(4)
+  _t35 = env_store %_t34[0] = 1
+  _t33 = mkclos @add_three__ls_s1 env=%_t34 : clos(i32, i32) -> i32
+  _t36 = call @apply(%_t33, 2, 3)
+  done = %_t36
+  _t37 = call @int_to_str(%done)
+  void call @println(%_t37)
   ret void
 }

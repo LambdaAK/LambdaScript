@@ -18,6 +18,25 @@ void ls_println(const char *s) {
   puts(s);
 }
 
+void *ls_malloc(size_t n) {
+  if (n == 0)
+    n = 1;
+  return malloc(n);
+}
+
+void *ls_mkclos(void *code, void *env) {
+  struct ls_clos {
+    void *code;
+    void *env;
+  };
+  struct ls_clos *p = (struct ls_clos *)malloc(sizeof(struct ls_clos));
+  if (!p)
+    return NULL;
+  p->code = code;
+  p->env = env;
+  return (void *)p;
+}
+
 char *ls_int_to_str(int32_t x) {
   char buf[32];
   int n = snprintf(buf, sizeof buf, "%d", (int)x);

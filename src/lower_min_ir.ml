@@ -1,17 +1,16 @@
 (** Lower a subset of {!Cexpr.c_expr} to {!Min_ir}.
 
     Top-level [let rec] / [let rec … and …] use a fixup environment: callable
-    stubs (parameter and return types from the typechecker) are installed before
-    lowering bodies so direct calls resolve. Value-only recursive bindings are
-    unsupported.
+    stubs are installed before lowering bodies so direct calls resolve.
 
-    Top-level [let f x y = e] becomes a separate [func_def]; [main] sequences
-    value bindings and calls. Curried calls support **partial application**: names
-    can bind to a [callable] with a prefix of arguments fixed; further
-    [EApp] supplies the rest until a direct [Call]/[VoidCall] or indirect call is
-    emitted. Saturated function values ([fn] with no free locals, or references to
-    static functions only) may be passed as arguments. Partial applications as
-    values remain unsupported.
+    Multi-argument functions compile to a **direct** multi-arg [func_def] for
+    saturated calls (including recursive calls) plus curried **step** functions
+    that build heap environments and [MkClos]/[ClosApply] values for partial
+    application and first-class use. Lambdas use the same shape and thread
+    captured values in step environments.
+
+    Single-argument functions without captures use a plain direct function and
+    [Fun]/[FnAddr] when used as values.
 
     [&&] and [||] lower to [IAnd]/[IOr] (both operands evaluated; not short-circuit). *)
 
@@ -104,7 +103,7 @@ and mono_to_min (m : mono_type) : ty =
   | UnitType -> Unit
   | FunctionType _ ->
       let ps, rt = peel_function_chain_to_min [] m in
-      Fun (ps, rt)
+      if List.length ps >= 2 then Clos (ps, rt) else Fun (ps, rt)
   | TypeVar _ ->
       unsupported
         "Polymorphic type in native compile (e.g. 'a -> 'a): add monomorphic \
@@ -115,8 +114,12 @@ and mono_to_min (m : mono_type) : ty =
 
 let rec ty_equal (a : ty) (b : ty) : bool =
   match (a, b) with
-  | I32, I32 | I1, I1 | String, String | Unit, Unit -> true
+  | I32, I32 | I1, I1 | String, String | Unit, Unit | RawPtr, RawPtr -> true
   | Fun (p1, r1), Fun (p2, r2) ->
+      List.length p1 = List.length p2
+      && List.for_all2 ty_equal p1 p2
+      && ty_equal r1 r2
+  | Clos (p1, r1), Clos (p2, r2) ->
       List.length p1 = List.length p2
       && List.for_all2 ty_equal p1 p2
       && ty_equal r1 r2
@@ -183,15 +186,14 @@ let map_cmp : c_bop -> icmp option = function
   | CGE -> Some Sge
   | _ -> None
 
-(** Callee is either a module symbol or an SSA value of function-pointer type. *)
-type callee_repr =
-  | Static of string
-  | Dynamic of operand
-
-(** A callable: callee plus a prefix of already-applied arguments. [param_tys] is
-    the *full* parameter list of the callee. *)
+(** Multi-arg / lambda callable: saturated calls use [multi_direct]; for curried
+    values, [step_codes].([k]) matches [k] already-fixed arguments. Lambdas store
+    captures in [cap_tys] / [cap_ops]. *)
 type callable = {
-  callee : callee_repr;
+  multi_direct : string;
+  step_codes : string list;
+  cap_tys : ty list;
+  cap_ops : operand list;
   fixed : operand list;
   param_tys : ty list;
   ret_ty : ty;
@@ -234,20 +236,93 @@ let rec free_vars_cexpr : c_expr -> S.t = function
   | _ ->
       unsupported "expression in lambda (closure analysis) not supported for compilation"
 
-let check_lambda_free_vars (env : env) (fv : S.t) =
-  S.iter
+let rec list_take n xs =
+  if n <= 0 then []
+  else match xs with [] -> [] | h :: t -> h :: list_take (n - 1) t
+
+let rec list_drop n xs =
+  if n <= 0 then xs else match xs with [] -> [] | _ :: t -> list_drop (n - 1) t
+
+let layout_byte_size_lower (xs : ty list) : int =
+  let align_up x a =
+    if x mod a = 0 then x else x + (a - (x mod a))
+  in
+  let sz_al = function
+    | I32 -> (4, 4)
+    | I1 -> (4, 4)
+    | String | RawPtr | Clos _ -> (8, 8)
+    | Unit -> (1, 8)
+    | Fun _ -> (8, 8)
+  in
+  let acc = ref 0 in
+  List.iter
+    (fun t ->
+      let sz, al = sz_al t in
+      acc := align_up !acc al + sz)
+    xs;
+  max !acc 1
+
+let rec capture_operand_for_var (env : env) (ctx : fn_ctx) (v : string) :
+    ty * operand =
+  match List.assoc_opt v env with
+  | None -> unsupported ("Lambda captures unbound `" ^ v ^ "`")
+  | Some (Val (op, t)) -> (t, op)
+  | Some (C c) ->
+      let op, clo_ty = materialize_clos_lower env ctx c in
+      (clo_ty, op)
+
+and materialize_clos_lower _env ctx (c : callable) :
+    operand * ty =
+  let k = List.length c.fixed in
+  let n = List.length c.param_tys in
+  if n = 1 && c.cap_tys = [] && k = 0 then
+    (FnAddr (c.multi_direct, c.param_tys, c.ret_ty), Fun (c.param_tys, c.ret_ty))
+  else if n = 1 && k <> 0 then
+    unsupported "Internal: partial one-arg function without captures"
+  else
+    let step = List.nth c.step_codes k in
+    let layout = c.cap_tys @ list_take k c.param_tys in
+    let vals = c.cap_ops @ c.fixed in
+    if List.length layout <> List.length vals then
+      unsupported "Internal: env layout/values length mismatch";
+    let clo_ty = Clos (list_drop k c.param_tys, c.ret_ty) in
+    let tmp_c = fresh () in
+    if layout = [] then (
+      emit_instr ctx
+        (Assign
+           ( tmp_c,
+             MkClos { code = step; env_ptr = RawNull; clo_ty } ));
+      (Local tmp_c, clo_ty))
+    else (
+      let sz = layout_byte_size_lower layout in
+      let tmp_e = fresh () in
+      emit_instr ctx (Assign (tmp_e, RawMalloc sz));
+      List.iteri
+        (fun i op ->
+          let d = fresh () in
+          emit_instr ctx
+            (Assign
+               ( d,
+                 EnvStore
+                   {
+                     env = Local tmp_e;
+                     layout;
+                     index = i;
+                     value = op;
+                   } )))
+        vals;
+      emit_instr ctx
+        (Assign (tmp_c, MkClos { code = step; env_ptr = Local tmp_e; clo_ty }));
+      (Local tmp_c, clo_ty))
+
+let lambda_captures (env : env) (ctx : fn_ctx) (fv : S.t) :
+    (string * ty * operand) list =
+  let names = List.sort String.compare (S.elements fv) in
+  List.map
     (fun v ->
-      match List.assoc_opt v env with
-      | None -> ()
-      | Some (Val _) ->
-          unsupported "Lambda closes over a local value (closures not implemented)"
-      | Some (C c) -> (
-          match c.callee with
-          | Static _ -> ()
-          | Dynamic _ ->
-              unsupported
-                "Lambda closes over a function parameter (closures not implemented)"))
-    fv
+      let t, op = capture_operand_for_var env ctx v in
+      (v, t, op))
+    names
 
 (** After [n] curried arrow parameters, the monomorphic result type of the binding. *)
 let rec mono_after_n_fun_args (n : int) (m : mono_type) : mono_type =
@@ -281,7 +356,7 @@ let min_ty_to_mono_opt : ty -> mono_type option = function
   | I1 -> Some BoolType
   | String -> Some StringType
   | Unit -> Some UnitType
-  | Fun _ -> None
+  | Fun _ | RawPtr | Clos _ -> None
 
 (** Extend the global static environment with locals so [mono_fun_type_of_binary_app]
     sees parameters and [let]-bound names in the current lowering scope. *)
@@ -610,12 +685,29 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
       | c -> c)
     (List.rev !all)
 
-(** Callable shape for [name] before lowering its body (recursive / mutual fixup). *)
-let callable_stub (name : string) (param_anns : c_type option list)
-    (static_env : static_env) : callable =
-  let param_tys = param_min_ir_tys name param_anns static_env in
-  let ret_ty = ret_min_ty_of_user_fn name (List.length param_tys) static_env in
-  { callee = Static name; fixed = []; param_tys; ret_ty }
+(** Callable shape before lowering a body (recursive / mutual fixup).
+    [emit_direct] is the LLVM symbol for the multi-arg direct function; [ty_key]
+    names the binding for parameter type lookup. *)
+let callable_stub ~(ty_key : string) ~(emit_direct : string)
+    (param_anns : c_type option list) (static_env : static_env) : callable =
+  let param_tys = param_min_ir_tys ty_key param_anns static_env in
+  let ret_ty =
+    ret_min_ty_of_user_fn ty_key (List.length param_tys) static_env
+  in
+  let n = List.length param_tys in
+  let step_codes =
+    if n >= 2 then List.init n (fun k -> emit_direct ^ "__ls_s" ^ string_of_int k)
+    else []
+  in
+  {
+    multi_direct = emit_direct;
+    step_codes;
+    cap_tys = [];
+    cap_ops = [];
+    fixed = [];
+    param_tys;
+    ret_ty;
+  }
 
 let build_mono_instance_env (instances : (string * mono_type) list)
     (defs : c_defn list) (static_env : static_env) : env =
@@ -626,33 +718,129 @@ let build_mono_instance_env (instances : (string * mono_type) list)
       | Some (_, anns, _) ->
           let emit = mangle_poly_instance name mono in
           let stub =
-            callable_stub emit anns ((emit, Mono mono) :: static_env)
+            callable_stub ~ty_key:emit ~emit_direct:emit anns
+              ((emit, Mono mono) :: static_env)
           in
           (emit, C stub) :: acc)
     [] instances
 
-let arity_remaining c =
+let callable_remaining c =
   List.length c.param_tys - List.length c.fixed
 
 let blocks_assoc (ctx : fn_ctx) : (string * block) list =
   List.map (fun b -> (b.label, b)) ctx.completed
+
+let emit_curried_step_intermediate ~(emit : string) (k : int) (cap_tys : ty list)
+    (param_tys : ty list) (params : string list) (ret_ty : ty) : func_def =
+  let name_s = emit ^ "__ls_s" ^ string_of_int k in
+  let ctx_s = create_fn_ctx () in
+  let env_nm = fresh_param () in
+  let x_nm = List.nth params k in
+  let old_layout = cap_tys @ list_take k param_tys in
+  let new_layout = cap_tys @ list_take (k + 1) param_tys in
+  let sz_new = layout_byte_size_lower new_layout in
+  let tmp_r = fresh () in
+  emit_instr ctx_s (Assign (tmp_r, RawMalloc sz_new));
+  let n_old = List.length old_layout in
+  for i = 0 to n_old - 1 do
+    let ld = fresh () in
+    let st = fresh () in
+    emit_instr ctx_s
+      (Assign
+         ( ld,
+           EnvLoad { env = Local env_nm; layout = old_layout; index = i } ));
+    emit_instr ctx_s
+      (Assign
+         ( st,
+           EnvStore
+             {
+               env = Local tmp_r;
+               layout = new_layout;
+               index = i;
+               value = Local ld;
+             } ))
+  done;
+  let stx = fresh () in
+  emit_instr ctx_s
+    (Assign
+       ( stx,
+         EnvStore
+           {
+             env = Local tmp_r;
+             layout = new_layout;
+             index = n_old;
+             value = Local x_nm;
+           } ));
+  let clo_ty = Clos (list_drop (k + 1) param_tys, ret_ty) in
+  let out = fresh () in
+  let next_s = emit ^ "__ls_s" ^ string_of_int (k + 1) in
+  emit_instr ctx_s
+    (Assign
+       ( out,
+         MkClos { code = next_s; env_ptr = Local tmp_r; clo_ty } ));
+  close_block ctx_s (Ret (Some (Local out)));
+  {
+    name = name_s;
+    params = [ (env_nm, RawPtr); (x_nm, List.nth param_tys k) ];
+    ret = clo_ty;
+    entry = "entry";
+    blocks = blocks_assoc ctx_s;
+  }
+
+let emit_curried_step_final ~(emit : string) (k : int) (cap_tys : ty list)
+    (param_tys : ty list) (params : string list) (ret_ty : ty) : func_def =
+  let name_s = emit ^ "__ls_s" ^ string_of_int k in
+  let ctx_s = create_fn_ctx () in
+  let env_nm = fresh_param () in
+  let x_nm = List.nth params k in
+  let old_layout = cap_tys @ list_take k param_tys in
+  let m = List.length cap_tys in
+  let n = List.length param_tys in
+  let call_ops : operand list ref = ref [] in
+  for i = 0 to m - 1 do
+    let ld = fresh () in
+    emit_instr ctx_s
+      (Assign
+         ( ld,
+           EnvLoad { env = Local env_nm; layout = old_layout; index = i } ));
+    call_ops := !call_ops @ [ Local ld ]
+  done;
+  for j = 0 to n - 2 do
+    let ld = fresh () in
+    emit_instr ctx_s
+      (Assign
+         ( ld,
+           EnvLoad
+             { env = Local env_nm; layout = old_layout; index = m + j } ));
+    call_ops := !call_ops @ [ Local ld ]
+  done;
+  call_ops := !call_ops @ [ Local x_nm ];
+  let term : term =
+    if ret_ty = Unit then (
+      emit_instr ctx_s (VoidCall (emit, !call_ops));
+      Ret None)
+    else (
+      let t = fresh () in
+      emit_instr ctx_s (Assign (t, Call (emit, !call_ops)));
+      Ret (Some (Local t)))
+  in
+  close_block ctx_s term;
+  {
+    name = name_s;
+    params = [ (env_nm, RawPtr); (x_nm, List.nth param_tys k) ];
+    ret = ret_ty;
+    entry = "entry";
+    blocks = blocks_assoc ctx_s;
+  }
 
 let rec lower_expr_val (e : c_expr) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) : operand * ty =
   match lower_expr e env ctx static_env type_env with
   | LVal (o, t) -> (o, t)
   | LPartial c -> (
-      if List.length c.fixed <> 0 then
-        unsupported
-          "Expected a value here, not a partially applied function (cannot pass a \
-           partial application as an argument)";
-      let ft = Fun (c.param_tys, c.ret_ty) in
-      let op =
-        match c.callee with
-        | Static name -> FnAddr (name, c.param_tys, c.ret_ty)
-        | Dynamic o -> o
-      in
-      (op, ft))
+      if callable_remaining c <= 0 then
+        unsupported "Internal: saturated callable where a value was expected";
+      materialize_clos_lower env ctx c)
 
 and lower_builtin_print name arg env ctx static_env type_env =
   let o2, t2 = lower_expr_val arg env ctx static_env type_env in
@@ -681,10 +869,9 @@ and apply_call_args (env : env) (ctx : fn_ctx) (static_env : static_env)
     expr_result =
   let rec go c = function
     | [] ->
-        if arity_remaining c = 0 then emit_saturated_call ctx c
-        else LPartial c
+        if callable_remaining c = 0 then emit_saturated_call ctx c else LPartial c
     | arg :: rest -> (
-        if arity_remaining c = 0 then unsupported "Too many arguments in call";
+        if callable_remaining c = 0 then unsupported "Too many arguments in call";
         let i = List.length c.fixed in
         let expect = List.nth c.param_tys i in
         let op, got = lower_expr_val arg env ctx static_env type_env in
@@ -692,32 +879,61 @@ and apply_call_args (env : env) (ctx : fn_ctx) (static_env : static_env)
         let c' = { c with fixed = c.fixed @ [ op ] } in
         match rest with
         | [] ->
-            if arity_remaining c' = 0 then emit_saturated_call ctx c' else LPartial c'
+            if callable_remaining c' = 0 then emit_saturated_call ctx c'
+            else LPartial c'
         | _ -> go c' rest)
   in
   go c args
 
 and emit_saturated_call ctx (c : callable) : expr_result =
-  if List.length c.fixed <> List.length c.param_tys then
+  let cap_n = List.length c.cap_tys in
+  let all_args = c.cap_ops @ c.fixed in
+  if List.length all_args <> cap_n + List.length c.param_tys then
     unsupported "Internal: saturated call length mismatch";
-  match c.callee with
-  | Static name ->
-      if c.ret_ty = Unit then (
-        emit_instr ctx (VoidCall (name, c.fixed));
+  if c.ret_ty = Unit then (
+    emit_instr ctx (VoidCall (c.multi_direct, all_args));
+    LVal (ConstUnit, Unit))
+  else (
+    let t = fresh () in
+    emit_instr ctx (Assign (t, Call (c.multi_direct, all_args)));
+    LVal (Local t, c.ret_ty))
+
+and apply_fun1 env ctx static_env type_env callee_op a_ty ret_ty args :
+    expr_result =
+  match args with
+  | [ arg ] ->
+      let oa, ta = lower_expr_val arg env ctx static_env type_env in
+      if not (ty_equal ta a_ty) then unsupported "function call argument type mismatch";
+      if ret_ty = Unit then (
+        emit_instr ctx (VoidIndirectCall (callee_op, [ a_ty ], [ oa ]));
         LVal (ConstUnit, Unit))
       else (
         let t = fresh () in
-        emit_instr ctx (Assign (t, Call (name, c.fixed)));
-        LVal (Local t, c.ret_ty))
-  | Dynamic callee_op ->
-      if c.ret_ty = Unit then (
-        emit_instr ctx (VoidIndirectCall (callee_op, c.param_tys, c.fixed));
-        LVal (ConstUnit, Unit))
-      else (
-        let t = fresh () in
+        emit_instr ctx (Assign (t, IndirectCall (callee_op, [ a_ty ], ret_ty, [ oa ])));
+        LVal (Local t, ret_ty))
+  | _ -> unsupported "simple function expects exactly one argument in this call"
+
+and apply_clos_chain env ctx static_env type_env clos_op ps ret_ty args :
+    expr_result =
+  let rec go clo_op ps_left args_left =
+    match (ps_left, args_left) with
+    | [], _ :: _ -> unsupported "Too many arguments in closure call"
+    | _ :: _, [] -> unsupported "Internal: closure chain needs an argument"
+    | p :: prest, arg :: arest ->
+        let oa, ta = lower_expr_val arg env ctx static_env type_env in
+        if not (ty_equal ta p) then unsupported "closure argument type mismatch";
+        let next_ty =
+          match prest with [] -> ret_ty | _ -> Clos (prest, ret_ty)
+        in
+        let tmp = fresh () in
         emit_instr ctx
-          (Assign (t, IndirectCall (callee_op, c.param_tys, c.ret_ty, c.fixed)));
-        LVal (Local t, c.ret_ty))
+          (Assign
+             ( tmp,
+               ClosApply { clo = clo_op; arg = oa; result_ty = next_ty } ));
+        if prest = [] then LVal (Local tmp, ret_ty) else go (Local tmp) prest arest
+    | [], [] -> unsupported "Internal: empty closure arity"
+  in
+  go clos_op ps args
 
 and resolve_callable (name : string) (env : env) : callable option =
   match List.assoc_opt name env with
@@ -735,7 +951,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       match List.assoc_opt x env with
       | Some (Val (o, t)) -> LVal (o, t)
       | Some (C c) ->
-          if arity_remaining c > 0 then LPartial c
+          if callable_remaining c > 0 then LPartial c
           else unsupported ("`" ^ x ^ "` is already fully applied (compiler bug)")
       | None ->
           if is_poly_static x static_env then
@@ -803,10 +1019,18 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
   | EBlock parts -> lower_block parts env ctx static_env type_env
   | EApp (e1, e2) ->
       let head, args = peel_app_spine e1 [ e2 ] in
-      (match head with
+      begin match head with
       | `Other e_fn -> (
           match lower_expr e_fn env ctx static_env type_env with
           | LPartial c -> apply_call_args env ctx static_env type_env c args
+          | LVal (op_f, Fun (f_ps, r_ty)) -> (
+              match f_ps with
+              | [ a_ty ] ->
+                  apply_fun1 env ctx static_env type_env op_f a_ty r_ty args
+              | _ ->
+                  unsupported "Call of a non-unary function pointer value")
+          | LVal (op_c, Clos (ps, r_ty)) ->
+              apply_clos_chain env ctx static_env type_env op_c ps r_ty args
           | LVal _ -> unsupported "Call of a non-function value")
       | `Id name -> (
           match name with
@@ -825,48 +1049,72 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               | [ arg ] ->
                   lower_builtin_int_to_str arg env ctx static_env type_env
               | _ -> unsupported "int_to_str expects exactly one argument")
-          | _ -> (
+          | _ -> begin
               match resolve_callable name env with
               | Some c ->
                   apply_call_args env ctx static_env type_env c args
-              | None ->
-                  if is_poly_static name static_env then
-                    match args with
-                    | [] ->
-                        unsupported "Internal: polymorphic call with empty arg list"
-                    | first_arg :: rest_args -> (
-                        let static_for_mono =
-                          static_env_for_mono_call static_env env
-                        in
-                        let all_args = first_arg :: rest_args in
-                        match
-                          Typecheck.mono_fun_type_of_curried_app static_for_mono
-                            type_env name all_args
-                        with
-                        | Error err ->
+              | None -> begin
+                  match List.assoc_opt name env with
+                  | Some (Val (op, Fun ([ a_ty ], r_ty))) ->
+                      apply_fun1 env ctx static_env type_env op a_ty r_ty args
+                  | Some (Val (op, Clos (ps, r_ty))) ->
+                      apply_clos_chain env ctx static_env type_env op ps r_ty args
+                  | Some (C _) ->
+                      unsupported
+                        "Internal: callable binding not resolved as callable"
+                  | Some (Val _) | None -> begin
+                      if is_poly_static name static_env then
+                        match args with
+                        | [] ->
                             unsupported
-                              ("monomorph: "
-                              ^ Typecheck.string_of_type_check_error err)
-                        | Ok m_fun when not (Typecheck.mono_type_fully_concrete m_fun)
-                          ->
-                            unsupported
-                              "Polymorphic partial application is not supported \
-                               for native compilation (call the function with \
-                               concrete arguments on all parameters)"
-                        | Ok m_fun ->
-                            let mangle = mangle_poly_instance name m_fun in
-                            match resolve_callable mangle env with
-                            | Some c ->
-                                apply_call_args env ctx static_env type_env c
-                                  all_args
-                            | None ->
-                                unsupported
-                                  ("Missing monomorphized specialization for `"
-                                 ^ name ^ "` — compiler bug"))
-                  else
-                    unsupported
-                      ("Unknown function `" ^ name
-                     ^ "` — declare it above the call, or it is not a function"))))
+                              "Internal: polymorphic call with empty arg list"
+                        | first_arg :: rest_args ->
+                            let static_for_mono =
+                              static_env_for_mono_call static_env env
+                            in
+                            let all_args = first_arg :: rest_args in
+                            begin
+                              match
+                                Typecheck.mono_fun_type_of_curried_app
+                                  static_for_mono type_env name all_args
+                              with
+                              | Error err ->
+                                  unsupported
+                                    ("monomorph: "
+                                    ^ Typecheck.string_of_type_check_error err)
+                              | Ok m_fun
+                                when not
+                                       (Typecheck.mono_type_fully_concrete m_fun)
+                                ->
+                                  unsupported
+                                    "Polymorphic partial application is not supported \
+                                     for native compilation (call the function with \
+                                     concrete arguments on all parameters)"
+                              | Ok m_fun ->
+                                  let mangle =
+                                    mangle_poly_instance name m_fun
+                                  in
+                                  begin
+                                    match resolve_callable mangle env with
+                                    | Some c ->
+                                        apply_call_args env ctx static_env
+                                          type_env c all_args
+                                    | None ->
+                                        unsupported
+                                          ("Missing monomorphized specialization for `"
+                                          ^ name ^ "` — compiler bug")
+                                  end
+                            end
+                      else
+                        unsupported
+                          ("Unknown function `" ^ name
+                         ^ "` — declare it above the call, or it is not a \
+                            function")
+                  end
+                end
+            end
+      )
+      end
   | ETernary (cond, e_then, e_else) -> (
       let o_c, t_c = lower_expr_val cond env ctx static_env type_env in
       if t_c <> I1 then unsupported "if condition must be bool";
@@ -878,8 +1126,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       let o1, ty1 =
         match lower_expr e_then env ctx static_env type_env with
         | LVal (o, t) -> (o, t)
-        | LPartial _ ->
-            unsupported "if branch cannot be a partially applied function value"
+        | LPartial c -> materialize_clos_lower env ctx c
       in
       let l_then_exit = ctx.cur_label in
       close_block ctx (Br l_merge);
@@ -887,14 +1134,13 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       let o2, ty2 =
         match lower_expr e_else env ctx static_env type_env with
         | LVal (o, t) -> (o, t)
-        | LPartial _ ->
-            unsupported "if branch cannot be a partially applied function value"
+        | LPartial c -> materialize_clos_lower env ctx c
       in
       let l_else_exit = ctx.cur_label in
       if not (ty_equal ty1 ty2) then
         unsupported "if branches must have the same type";
       (match ty1 with
-      | Fun _ -> unsupported "if branches cannot be function values yet"
+      | Fun _ -> unsupported "if branches cannot be raw function pointer values"
       | _ -> ());
       close_block ctx (Br l_merge);
       open_block ctx l_merge;
@@ -934,8 +1180,9 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           | _ :: _ ->
               let static_here = (name, fn_ct) :: static_env in
               let emit = mangle_nested_emit name in
-              let c0 = callable_stub name anns static_here in
-              let stub = { c0 with callee = Static emit } in
+              let stub =
+                callable_stub ~ty_key:name ~emit_direct:emit anns static_here
+              in
               let outer_env = (name, C stub) :: env in
               let fn, nested =
                 lower_user_function ~ty_key:name ~emit param_pats anns inner
@@ -954,7 +1201,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
         param_pats;
       let bound = List.concat (List.map pat_bound_simple param_pats) in
       let fv = S.diff (free_vars_cexpr inner_most) (S.of_list bound) in
-      check_lambda_free_vars env fv;
+      let cap_entries = lambda_captures env ctx fv in
       match Typecheck.type_of_c_expr static_env type_env lam with
       | Error err ->
           unsupported ("lambda: " ^ Typecheck.string_of_type_check_error err)
@@ -964,21 +1211,36 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           let static_here = (syn_key, Mono mono_full) :: static_env in
           let mangled = mangle_nested_emit "lam" in
           let fn, nested =
-            lower_user_function ~ty_key:syn_key ~emit:mangled param_pats anns
-              inner_most env static_here type_env
+            lower_user_function ~captures:cap_entries ~ty_key:syn_key ~emit:mangled
+              param_pats anns inner_most env static_here type_env
           in
           ctx.nested_funcs <- ctx.nested_funcs @ nested @ [ fn ];
-          let param_tys = List.map snd fn.params in
-          let ret_ty = fn.ret in
+          let param_tys = param_min_ir_tys syn_key anns static_here in
+          let ret_ty =
+            ret_min_ty_of_user_fn syn_key (List.length param_tys) static_here
+          in
+          let n_fn = List.length param_tys in
+          let cap_tys = List.map (fun (_, t, _) -> t) cap_entries in
+          let cap_ops = List.map (fun (_, _, o) -> o) cap_entries in
+          let step_codes =
+            if n_fn >= 2 then
+              List.init n_fn (fun k ->
+                  mangled ^ "__ls_s" ^ string_of_int k)
+            else if cap_tys <> [] then [ mangled ^ "__ls_s0" ]
+            else []
+          in
           let c =
             {
-              callee = Static mangled;
+              multi_direct = mangled;
+              step_codes;
+              cap_tys;
+              cap_ops;
               fixed = [];
               param_tys;
               ret_ty;
             }
           in
-          if arity_remaining c > 0 then LPartial c
+          if callable_remaining c > 0 then LPartial c
           else unsupported "Internal: zero-arity lambda")
   | EBindMutRec _ | ESwitch _ | ENil
   | EListEnumeration _ | EListComprehension _ | EVector _ | ERecordLit _
@@ -998,31 +1260,31 @@ and lower_block (parts : c_expr_or_c_defn list) (env : env) (ctx : fn_ctx)
           unsupported
             "Sequencing discard of a partially applied function is not supported")
 
-and lower_user_function ~(ty_key : string) ~(emit : string)
+and lower_user_function ?(captures : (string * ty * operand) list = [])
+    ~(ty_key : string) ~(emit : string)
     (param_pats : c_pat list) (param_anns : c_type option list) (inner : c_expr)
     (outer_env : env) (static_env : static_env) (type_env : Typecheck.type_env) :
     func_def * func_def list =
   let param_tys = param_min_ir_tys ty_key param_anns static_env in
   if List.length param_pats <> List.length param_tys then
     unsupported "Internal: parameter pattern count mismatch";
+  let cap_pairs = List.map (fun (v, t, _) -> (v, t)) captures in
+  let cap_tys = List.map snd cap_pairs in
+  let m_cap = List.length cap_pairs in
   let param_names_and_frags =
     List.map2
       (fun pat pt ->
         match pat with
         | CIdPat s -> (
             match pt with
-            | Fun (param_tys, ret_ty) ->
-                ( s,
-                  [
-                    ( s,
-                      C
-                        {
-                          callee = Dynamic (Local s);
-                          fixed = [];
-                          param_tys;
-                          ret_ty;
-                        } );
-                  ] )
+            | Clos (ps, r) -> (s, [ (s, Val (Local s, Clos (ps, r))) ])
+            | Fun (ps, r) -> (
+                match ps with
+                | [ _ ] -> (s, [ (s, Val (Local s, Fun (ps, r))) ])
+                | _ ->
+                    unsupported
+                      "Curried higher-order parameter not supported for native \
+                       compilation")
             | _ -> (s, [ (s, Val (Local s, pt)) ]))
         | CUnitPat ->
             let p = fresh_param () in
@@ -1038,19 +1300,17 @@ and lower_user_function ~(ty_key : string) ~(emit : string)
   in
   let params = List.map fst param_names_and_frags in
   let env_params = List.concat (List.map snd param_names_and_frags) in
+  let direct_params = cap_pairs @ List.combine params param_tys in
+  let merged =
+    List.map (fun (v, t) -> (v, Val (Local v, t))) cap_pairs @ env_params
+    @ outer_env
+  in
   let ctx = create_fn_ctx () in
-  let merged = env_params @ outer_env in
   let op, ret_ty =
     match lower_expr inner merged ctx static_env type_env with
     | LVal (o, t) -> (o, t)
     | LPartial c when List.length c.fixed = 0 ->
-        let ft = Fun (c.param_tys, c.ret_ty) in
-        let op =
-          match c.callee with
-          | Static name -> FnAddr (name, c.param_tys, c.ret_ty)
-          | Dynamic o -> o
-        in
-        (op, ft)
+        materialize_clos_lower merged ctx c
     | LPartial _ ->
         unsupported
           "Returning a partially applied function is not supported"
@@ -1059,15 +1319,27 @@ and lower_user_function ~(ty_key : string) ~(emit : string)
     match ret_ty with Unit -> Ret None | _ -> Ret (Some op)
   in
   close_block ctx term;
-  let nested = ctx.nested_funcs in
-  ( {
+  let nested_from_body = ctx.nested_funcs in
+  let direct_fn =
+    {
       name = emit;
-      params = List.combine params param_tys;
+      params = direct_params;
       ret = ret_ty;
       entry = "entry";
       blocks = blocks_assoc ctx;
-    },
-    nested )
+    }
+  in
+  let n = List.length param_tys in
+  let aux_steps =
+    if n >= 2 then
+      List.init (n - 1) (fun k ->
+          emit_curried_step_intermediate ~emit k cap_tys param_tys params ret_ty)
+      @ [ emit_curried_step_final ~emit (n - 1) cap_tys param_tys params ret_ty ]
+    else if m_cap > 0 then
+      [ emit_curried_step_final ~emit 0 cap_tys param_tys params ret_ty ]
+    else []
+  in
+  (direct_fn, nested_from_body @ aux_steps)
 
 let lower_c_expr_to_main (e : c_expr) : (func_def, string) result =
   try
@@ -1137,7 +1409,9 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                   unsupported
                     "Polymorphic let rec is not supported for native compilation yet"
               | _ :: _ ->
-                  let stub = callable_stub name anns static_env in
+                  let stub =
+                    callable_stub ~ty_key:name ~emit_direct:name anns static_env
+                  in
                   let fn, nested =
                     lower_user_function ~ty_key:name ~emit:name param_pats anns
                       inner ((name, C stub) :: env) static_env type_env
@@ -1175,7 +1449,9 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
             parsed;
           let stubs =
             List.map
-              (fun (name, _, anns, _) -> (name, callable_stub name anns static_env))
+              (fun (name, _, anns, _) ->
+                ( name,
+                  callable_stub ~ty_key:name ~emit_direct:name anns static_env ))
               parsed
           in
           let env_with_stubs =
@@ -1213,20 +1489,15 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                       walk env' rest)
               | _ :: _ when is_poly_static name static_env -> walk env rest
               | _ :: _ ->
+                  let stub =
+                    callable_stub ~ty_key:name ~emit_direct:name anns static_env
+                  in
                   let fn, nested =
                     lower_user_function ~ty_key:name ~emit:name param_pats anns
                       inner env static_env type_env
                   in
                   user_funs := !user_funs @ nested @ [ fn ];
-                  let c =
-                    {
-                      callee = Static name;
-                      fixed = [];
-                      param_tys = List.map snd fn.params;
-                      ret_ty = fn.ret;
-                    }
-                  in
-                  walk ((name, C c) :: env) rest)
+                  walk ((name, C stub) :: env) rest)
           | CUnitPat | CWildcardPat -> (
               match lower_expr body env ctx_main static_env type_env with
               | LVal _ -> walk env rest
