@@ -42,30 +42,16 @@ merge_3:
   ret %_t5
 }
 
-fn unwrap__lsm966650245(y: i32) -> i32 {
-entry:
-  _t17 = call @wrap__lsm966650245(%y)
-  ret %_t17
-}
-
-fn wrap__lsm966650245(x: i32) -> i32 {
-entry:
-
-  ret %x
-}
-
 fn inc(t: i32) -> i32 {
 entry:
-  _t18 = add %t, 1
-  ret %_t18
+  _t17 = add %t, 1
+  ret %_t17
 }
 
 fn main() -> unit {
 entry:
-  _t19 = call @deep__lsm385162459(2, &inc : fn(i32) -> i32, 0)
-  _t20 = call @unwrap__lsm966650245(1)
-  _t21 = add %_t19, %_t20
-  _t22 = call @int_to_str(%_t21)
-  void call @println(%_t22)
+  _t18 = call @deep__lsm385162459(4, &inc : fn(i32) -> i32, 0)
+  _t19 = call @int_to_str(%_t18)
+  void call @println(%_t19)
   ret void
 }

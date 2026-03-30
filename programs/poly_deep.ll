@@ -71,29 +71,16 @@ else_2:
   br label %merge_3
 }
 
-define i32 @unwrap__lsm966650245(i32 %y) {
-entry:
-  %_t17 = call i32 @wrap__lsm966650245(i32 %y)
-  ret i32 %_t17
-}
-
-define i32 @wrap__lsm966650245(i32 %x) {
-entry:
-  ret i32 %x
-}
-
 define i32 @inc(i32 %t) {
 entry:
-  %_t18 = add nsw i32 %t, 1
-  ret i32 %_t18
+  %_t17 = add nsw i32 %t, 1
+  ret i32 %_t17
 }
 
 define i32 @main() {
 entry:
-  %_t19 = call i32 @deep__lsm385162459(i32 2, i32 (i32)* @inc, i32 0)
-  %_t20 = call i32 @unwrap__lsm966650245(i32 1)
-  %_t21 = add nsw i32 %_t19, %_t20
-  %_t22 = call i8* @ls_int_to_str(i32 %_t21)
-  call void @ls_println(i8* %_t22)
+  %_t18 = call i32 @deep__lsm385162459(i32 4, i32 (i32)* @inc, i32 0)
+  %_t19 = call i8* @ls_int_to_str(i32 %_t18)
+  call void @ls_println(i8* %_t19)
   ret i32 0
 }

@@ -1293,6 +1293,33 @@ and mono_fun_type_of_curried_app (env : static_env) (type_env : type_env)
 
 and mono_type_fully_concrete (m : mono_type) : bool = get_type_vars m = []
 
+(** Replace every [TypeVar] with [IntType] (deep). Used to build a native
+    monomorph key when a call spine leaves unconstrained type variables;
+    distinct logical instantiations may collapse — programs relying on that
+    distinction should use explicit type annotations. *)
+and mono_default_type_vars_to_int (m : mono_type) : mono_type =
+  let rec go = function
+    | TypeVar _ -> IntType
+    | IntType -> IntType
+    | BoolType -> BoolType
+    | StringType -> StringType
+    | UnitType -> UnitType
+    | FloatType -> FloatType
+    | CharType -> CharType
+    | TypeName _ as t -> t
+    | FunctionType (a, r) -> FunctionType (go a, go r)
+    | VectorType ts -> VectorType (List.map go ts)
+    | CListType e -> CListType (go e)
+    | CTypeApp (n, args) -> CTypeApp (n, List.map go args)
+    | FixedPoint (n, b) -> FixedPoint (n, go b)
+    | RecordType fields ->
+        RecordType (List.map (fun (nm, t) -> (nm, go t)) fields)
+  in
+  go m
+
+and mono_concrete_or_int_default (m : mono_type) : mono_type =
+  if mono_type_fully_concrete m then m else mono_default_type_vars_to_int m
+
 (* swap all variables for new variables *)
 and swap_all_variables_in_type (t : mono_type) : mono_type type_check_result =
   (* First generalize the type to quantify over all variables *)

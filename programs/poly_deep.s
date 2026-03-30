@@ -98,18 +98,6 @@ LBB3_2:                                 ; %merge_3
 	ret
 	.cfi_endproc
                                         ; -- End function
-	.globl	_unwrap__lsm966650245           ; -- Begin function unwrap__lsm966650245
-	.p2align	2
-_unwrap__lsm966650245:                  ; @unwrap__lsm966650245
-; %bb.0:                                ; %entry
-	ret
-                                        ; -- End function
-	.globl	_wrap__lsm966650245             ; -- Begin function wrap__lsm966650245
-	.p2align	2
-_wrap__lsm966650245:                    ; @wrap__lsm966650245
-; %bb.0:                                ; %entry
-	ret
-                                        ; -- End function
 	.globl	_inc                            ; -- Begin function inc
 	.p2align	2
 _inc:                                   ; @inc
@@ -130,10 +118,9 @@ Lloh4:
 	adrp	x1, _inc@PAGE
 Lloh5:
 	add	x1, x1, _inc@PAGEOFF
-	mov	w0, #2                          ; =0x2
+	mov	w0, #4                          ; =0x4
 	mov	w2, #0                          ; =0x0
 	bl	_deep__lsm385162459
-	add	w0, w0, #1
 	bl	_ls_int_to_str
 	bl	_ls_println
 	mov	w0, #0                          ; =0x0
