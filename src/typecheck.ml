@@ -456,7 +456,12 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
   if is_inside_rec_function then
     (* Don't generalize - use the type directly *)
     let- t2, c2, _ =
-      generate ((fst (List.hd pat_env), Mono t1) :: env) type_env e2
+      match pat_env with
+      | [] ->
+          (* e.g. [let () = e1 in e2]: no identifiers bound; do not call [List.hd] *)
+          generate env type_env e2
+      | _ ->
+          generate ((fst (List.hd pat_env), Mono t1) :: env) type_env e2
     in
     return
       ( t2,
@@ -467,7 +472,10 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
     let- generalized_type =
       generalize (return_type_constraints @ new_constraint :: c1) env type_env t1 in
     let- t2, c2, _ =
-      generate ((fst (List.hd pat_env), generalized_type) :: env) type_env e2
+      match pat_env with
+      | [] -> generate env type_env e2
+      | _ ->
+          generate ((fst (List.hd pat_env), generalized_type) :: env) type_env e2
     in
     return
       ( t2,
