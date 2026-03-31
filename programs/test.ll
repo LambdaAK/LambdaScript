@@ -12,39 +12,45 @@ declare i32 @strcmp(i8*, i8*)
 declare i8* @ls_malloc(i64)
 declare i8* @ls_mkclos(i8*, i8*)
 
-%ls.tuple.1 = type { i32, i32 }
-@.str.0 = private unnamed_addr constant [4 x i8] c"two\00"
-@.str.1 = private unnamed_addr constant [4 x i8] c"one\00"
-@.str.2 = private unnamed_addr constant [6 x i8] c"other\00"
+%ls.lcell.1 = type { i32, i8* }
 define i32 @main() {
 entry:
-  %_t1_pk0 = insertvalue %ls.tuple.1 undef, i32 1, 0
-  %_t1 = insertvalue %ls.tuple.1 %_t1_pk0, i32 2, 1
-  %_t2 = extractvalue %ls.tuple.1 %_t1, 0
-  %_t3 = icmp eq i32 %_t2, 2
-  %_t4 = extractvalue %ls.tuple.1 %_t1, 1
-  %_t5 = icmp eq i32 %_t4, 1
-  %_t6 = and i1 %_t3, %_t5
-  br i1 %_t6, label %swm_2, label %swn_3
-swm_2:
-  %_t7 = getelementptr inbounds [4 x i8], [4 x i8]* @.str.0, i64 0, i64 0
-  br label %swm_1
-swm_1:
-  %_t15 = phi i8* [ %_t7, %swm_2 ], [ %_t13, %swm_4 ], [ %_t14, %swn_5 ]
-  %a = bitcast i8* %_t15 to i8*
-  call void @ls_println(i8* %a)
+  %_t1 = bitcast i8* null to i8*
+  %_t2_raw = call i8* @ls_malloc(i64 16)
+  %_t2_cp = bitcast i8* %_t2_raw to %ls.lcell.1*
+  %_t2_gh = getelementptr inbounds %ls.lcell.1, %ls.lcell.1* %_t2_cp, i32 0, i32 0
+  store i32 5, i32* %_t2_gh
+  %_t2_gt = getelementptr inbounds %ls.lcell.1, %ls.lcell.1* %_t2_cp, i32 0, i32 1
+  store i8* %_t1, i8** %_t2_gt
+  %_t2 = bitcast %ls.lcell.1* %_t2_cp to i8*
+  %_t3_raw = call i8* @ls_malloc(i64 16)
+  %_t3_cp = bitcast i8* %_t3_raw to %ls.lcell.1*
+  %_t3_gh = getelementptr inbounds %ls.lcell.1, %ls.lcell.1* %_t3_cp, i32 0, i32 0
+  store i32 4, i32* %_t3_gh
+  %_t3_gt = getelementptr inbounds %ls.lcell.1, %ls.lcell.1* %_t3_cp, i32 0, i32 1
+  store i8* %_t2, i8** %_t3_gt
+  %_t3 = bitcast %ls.lcell.1* %_t3_cp to i8*
+  %_t4_raw = call i8* @ls_malloc(i64 16)
+  %_t4_cp = bitcast i8* %_t4_raw to %ls.lcell.1*
+  %_t4_gh = getelementptr inbounds %ls.lcell.1, %ls.lcell.1* %_t4_cp, i32 0, i32 0
+  store i32 3, i32* %_t4_gh
+  %_t4_gt = getelementptr inbounds %ls.lcell.1, %ls.lcell.1* %_t4_cp, i32 0, i32 1
+  store i8* %_t3, i8** %_t4_gt
+  %_t4 = bitcast %ls.lcell.1* %_t4_cp to i8*
+  %_t5_raw = call i8* @ls_malloc(i64 16)
+  %_t5_cp = bitcast i8* %_t5_raw to %ls.lcell.1*
+  %_t5_gh = getelementptr inbounds %ls.lcell.1, %ls.lcell.1* %_t5_cp, i32 0, i32 0
+  store i32 2, i32* %_t5_gh
+  %_t5_gt = getelementptr inbounds %ls.lcell.1, %ls.lcell.1* %_t5_cp, i32 0, i32 1
+  store i8* %_t4, i8** %_t5_gt
+  %_t5 = bitcast %ls.lcell.1* %_t5_cp to i8*
+  %_t6_raw = call i8* @ls_malloc(i64 16)
+  %_t6_cp = bitcast i8* %_t6_raw to %ls.lcell.1*
+  %_t6_gh = getelementptr inbounds %ls.lcell.1, %ls.lcell.1* %_t6_cp, i32 0, i32 0
+  store i32 1, i32* %_t6_gh
+  %_t6_gt = getelementptr inbounds %ls.lcell.1, %ls.lcell.1* %_t6_cp, i32 0, i32 1
+  store i8* %_t5, i8** %_t6_gt
+  %_t6 = bitcast %ls.lcell.1* %_t6_cp to i8*
+  %my_list = bitcast i8* %_t6 to i8*
   ret i32 0
-swn_3:
-  %_t8 = extractvalue %ls.tuple.1 %_t1, 0
-  %_t9 = icmp eq i32 %_t8, 1
-  %_t10 = extractvalue %ls.tuple.1 %_t1, 1
-  %_t11 = icmp eq i32 %_t10, 2
-  %_t12 = and i1 %_t9, %_t11
-  br i1 %_t12, label %swm_4, label %swn_5
-swm_4:
-  %_t13 = getelementptr inbounds [4 x i8], [4 x i8]* @.str.1, i64 0, i64 0
-  br label %swm_1
-swn_5:
-  %_t14 = getelementptr inbounds [6 x i8], [6 x i8]* @.str.2, i64 0, i64 0
-  br label %swm_1
 }

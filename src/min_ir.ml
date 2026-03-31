@@ -3,8 +3,9 @@
     Intended pipeline (later): [Cexpr] or surface AST -> [Min_ir] -> LLVM IR.
 
     Scope of this IR (intentionally tiny):
-    - Types [i32], [i1], [string], [unit]. [string] is an opaque value (LLVM
-      will use something like [i8*] + runtime allocation for literals).
+    - Types [i32], [i1], [string], [unit], homogeneous [list] (opaque [i8*] in
+      LLVM: cons nodes via [ls_malloc], see list struct layout in codegen).
+    - [string] is an opaque value (LLVM will use something like [i8*] + runtime).
     - Local bindings via [Assign]; every intermediate has a name (LLVM-friendly)
     - Side-effecting I/O via [VoidCall] (see {!runtime_void_symbols})
     - String conversion matching LambdaScript builtins: [int_to_str] as [Call]
@@ -29,6 +30,8 @@ type ty =
   | RawPtr
   (** First-class curried function: [args] remaining left-to-right, then [ret]. *)
   | Clos of ty list * ty
+  (** Homogeneous linked list ([nil] is null; cons cells are heap-allocated). *)
+  | List of ty
 
 type ibin = Add | Sub | Mul | Div | Mod
 
@@ -72,6 +75,13 @@ type rhs =
   (* Tuple value; [elem_tys] matches operand element types in order. *)
   | TuplePack of ty list * operand list
   | TupleProj of { tup : operand; index : int; elem_tys : ty list }
+  (** Empty list of element type [elem_ty] (null [i8*] at codegen). *)
+  | ListNil of ty
+  (** Allocate a cons cell [{ head; tail }] with [tail] already a list value. *)
+  | ListCons of { elem_ty : ty; head : operand; tail : operand }
+  (** [unsafe]: non-[nil] list only. *)
+  | ListHead of { elem_ty : ty; lst : operand }
+  | ListTail of { elem_ty : ty; lst : operand }
 
 type instr =
   | Assign of string * rhs
@@ -141,6 +151,7 @@ let rec string_of_ty = function
   | Fun (ps, r) ->
       let ps_s = String.concat ", " (List.map string_of_ty ps) in
       Printf.sprintf "fn(%s) -> %s" ps_s (string_of_ty r)
+  | List e -> Printf.sprintf "list %s" (string_of_ty e)
 
 let string_of_ibin = function
   | Add -> "add"
@@ -222,6 +233,16 @@ let string_of_rhs = function
   | TupleProj { tup; index; elem_tys } ->
       Printf.sprintf "tuple_proj %s[%d] : %s" (string_of_operand tup) index
         (String.concat "," (List.map string_of_ty elem_tys))
+  | ListNil e -> Printf.sprintf "list_nil %s" (string_of_ty e)
+  | ListCons { elem_ty; head; tail } ->
+      Printf.sprintf "list_cons(%s head=%s tail=%s)"
+        (string_of_ty elem_ty) (string_of_operand head) (string_of_operand tail)
+  | ListHead { elem_ty; lst } ->
+      Printf.sprintf "list_head %s %s" (string_of_ty elem_ty)
+        (string_of_operand lst)
+  | ListTail { elem_ty; lst } ->
+      Printf.sprintf "list_tail %s %s" (string_of_ty elem_ty)
+        (string_of_operand lst)
 
 let string_of_instr = function
   | Assign (dst, rhs) -> Printf.sprintf "  %s = %s" dst (string_of_rhs rhs)

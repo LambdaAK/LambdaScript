@@ -1,32 +1,12 @@
 entry: @main
 fn main() -> unit {
 entry:
-  _t1 = tuple_pack [i32, i32] (1, 2)
-  _t2 = tuple_proj %_t1[0] : i32,i32
-  _t3 = icmp eq %_t2, 2
-  _t4 = tuple_proj %_t1[1] : i32,i32
-  _t5 = icmp eq %_t4, 1
-  _t6 = and %_t3, %_t5
-  br %_t6 ? swm_2 : swn_3
-swm_2:
-  _t7 = "two"
-  br swm_1
-swn_3:
-  _t8 = tuple_proj %_t1[0] : i32,i32
-  _t9 = icmp eq %_t8, 1
-  _t10 = tuple_proj %_t1[1] : i32,i32
-  _t11 = icmp eq %_t10, 2
-  _t12 = and %_t9, %_t11
-  br %_t12 ? swm_4 : swn_5
-swm_4:
-  _t13 = "one"
-  br swm_1
-swn_5:
-  _t14 = "other"
-  br swm_1
-swm_1:
-  _t15 = phi string [ swm_2, %_t7 ], [ swm_4, %_t13 ], [ swn_5, %_t14 ]
-  a = %_t15
-  void call @println(%a)
+  _t1 = list_nil i32
+  _t2 = list_cons(i32 head=5 tail=%_t1)
+  _t3 = list_cons(i32 head=4 tail=%_t2)
+  _t4 = list_cons(i32 head=3 tail=%_t3)
+  _t5 = list_cons(i32 head=2 tail=%_t4)
+  _t6 = list_cons(i32 head=1 tail=%_t5)
+  my_list = %_t6
   ret void
 }

@@ -108,9 +108,10 @@ and mono_to_min (m : mono_type) : ty =
       unsupported
         "Polymorphic type in native compile (e.g. 'a -> 'a): add monomorphic \
          type annotations on parameters and result, e.g. let f (x : int) : int = x"
-  | FloatType | CharType | TypeName _ | CListType _ | CTypeApp _ | FixedPoint _
-  | RecordType _ ->
+  | FloatType | CharType | TypeName _ | CTypeApp _ | FixedPoint _ | RecordType _
+    ->
       unsupported "Type not supported for native parameter/return yet"
+  | CListType et -> List (mono_to_min et)
   | VectorType ts -> Tuple (List.map mono_to_min ts)
 
 let rec ty_equal (a : ty) (b : ty) : bool =
@@ -126,6 +127,7 @@ let rec ty_equal (a : ty) (b : ty) : bool =
       List.length p1 = List.length p2
       && List.for_all2 ty_equal p1 p2
       && ty_equal r1 r2
+  | List e1, List e2 -> ty_equal e1 e2
   | _ -> false
 
 (** [peel_inferred_param_monos n m] takes the first [n] argument types from a
@@ -210,7 +212,8 @@ type env = (string * env_binding) list
 
 let rec pat_bound_simple : c_pat -> string list = function
   | CIdPat x -> [ x ]
-  | CUnitPat | CWildcardPat -> []
+  | CUnitPat | CWildcardPat | CNilPat -> []
+  | CConsPat (a, b) -> pat_bound_simple a @ pat_bound_simple b
   | CVectorPat ps -> List.concat (List.map pat_bound_simple ps)
   | _ ->
       unsupported "lambda parameter pattern not supported for native compilation"
@@ -237,6 +240,13 @@ let rec free_vars_cexpr : c_expr -> S.t = function
           | Defn _ ->
               unsupported "definition in block during closure analysis")
         S.empty parts
+  | ENil -> S.empty
+  | ESwitch (e0, branches) ->
+      List.fold_left
+        (fun acc (_, be) -> S.union acc (free_vars_cexpr be))
+        (free_vars_cexpr e0) branches
+  | EListEnumeration (a, b) ->
+      S.union (free_vars_cexpr a) (free_vars_cexpr b)
   | _ ->
       unsupported "expression in lambda (closure analysis) not supported for compilation"
 
@@ -254,7 +264,7 @@ let rec layout_byte_size_lower (xs : ty list) : int =
   let sz_al = function
     | I32 -> (4, 4)
     | I1 -> (4, 4)
-    | String | RawPtr | Clos _ -> (8, 8)
+    | String | RawPtr | Clos _ | List _ -> (8, 8)
     | Unit -> (1, 8)
     | Fun _ -> (8, 8)
     | Tuple ts ->
@@ -374,6 +384,7 @@ let rec min_ty_to_mono (t : ty) : mono_type =
       List.fold_right
         (fun p acc -> FunctionType (min_ty_to_mono p, acc))
         ps (min_ty_to_mono r)
+  | List e -> CListType (min_ty_to_mono e)
   | RawPtr ->
       unsupported
         "Internal: expected type for polymorphic instantiation used RawPtr"
@@ -385,6 +396,7 @@ and min_ty_to_mono_opt : ty -> mono_type option = function
   | Unit -> Some UnitType
   | Tuple ts ->
       Some (VectorType (List.map min_ty_to_mono ts))
+  | List e -> Some (CListType (min_ty_to_mono e))
   | Fun _ | RawPtr | Clos _ -> None
 
 (** Extend the global static environment with locals so [mono_fun_type_of_binary_app]
@@ -1125,7 +1137,37 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
       | _ ->
           unsupported
             "tuple pattern in native pattern match requires a tuple scrutinee")
-  | CNilPat | CConsPat _ | CCharPat _ | CVariantPat _ ->
+  | CNilPat -> (
+      match t_s with
+      | List _elem_ty ->
+          let c = fresh () in
+          emit_instr ctx (Assign (c, ICmp (Eq, o_s, RawNull)));
+          (env, Local c)
+      | _ ->
+          unsupported
+            "[] pattern requires a list scrutinee in native pattern match")
+  | CConsPat (ph, ptail) -> (
+      match t_s with
+      | List elem_ty ->
+          let c_nn = fresh () in
+          emit_instr ctx (Assign (c_nn, ICmp (Ne, o_s, RawNull)));
+          let h = fresh () in
+          emit_instr ctx
+            (Assign (h, ListHead { elem_ty; lst = o_s }));
+          let tl = fresh () in
+          emit_instr ctx
+            (Assign (tl, ListTail { elem_ty; lst = o_s }));
+          let env1, c1 =
+            emit_native_pat_test env ctx (Local h) elem_ty ph
+          in
+          let env2, c2 =
+            emit_native_pat_test env1 ctx (Local tl) (List elem_ty) ptail
+          in
+          (env2, iand_operands ctx [ Local c_nn; c1; c2 ])
+      | _ ->
+          unsupported
+            ":: pattern requires a list scrutinee in native pattern match")
+  | CCharPat _ | CVariantPat _ ->
       unsupported "this pattern is not supported for native compilation"
 
 and lower_switch_merge_arm (body : c_expr) (env : env) (ctx : fn_ctx)
@@ -1242,6 +1284,44 @@ and lower_switch_branches (o_s : operand) (t_s : ty)
   | _ :: _ :: _ as multi ->
       lower_switch_branches_multi o_s t_s multi env ctx static_env type_env
 
+and lower_list_int_enumeration (env : env) (ctx : fn_ctx)
+    (static_env : static_env) (type_env : Typecheck.type_env) (e_lo : c_expr)
+    (e_hi : c_expr) : expr_result =
+  let o_lo, _ = lower_expr_val e_lo env ctx static_env type_env in
+  let o_hi, _ = lower_expr_val e_hi env ctx static_env type_env in
+  let elem_ty = I32 in
+  let nil_tmp = fresh () in
+  emit_instr ctx (Assign (nil_tmp, ListNil elem_ty));
+  let loop_hdr = fresh_lbl ctx "lrh" in
+  let loop_body = fresh_lbl ctx "lrb" in
+  let loop_end = fresh_lbl ctx "lre" in
+  let pred0 = ctx.cur_label in
+  close_block ctx (Br loop_hdr);
+  open_block ctx loop_hdr;
+  let v_cur = fresh () in
+  let v_acc = fresh () in
+  let v_cur1 = fresh () in
+  let v_acc_new = fresh () in
+  emit_instr ctx
+    (Phi (v_cur, I32, [ (pred0, o_hi); (loop_body, Local v_cur1) ]));
+  emit_instr ctx
+    (Phi
+       ( v_acc,
+         List elem_ty,
+         [ (pred0, Local nil_tmp); (loop_body, Local v_acc_new) ] ));
+  let cont = fresh () in
+  emit_instr ctx (Assign (cont, ICmp (Sge, Local v_cur, o_lo)));
+  close_block ctx (BrCond (Local cont, loop_body, loop_end));
+  open_block ctx loop_body;
+  emit_instr ctx
+    (Assign
+       ( v_acc_new,
+         ListCons { elem_ty; head = Local v_cur; tail = Local v_acc } ));
+  emit_instr ctx (Assign (v_cur1, Binop (Sub, Local v_cur, ConstI32 1)));
+  close_block ctx (Br loop_hdr);
+  open_block ctx loop_end;
+  LVal (Local v_acc, List elem_ty)
+
 and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
     (type_env : Typecheck.type_env) : expr_result =
   match e with
@@ -1249,6 +1329,23 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
   | EBool b -> LVal (ConstI1 b, I1)
   | EString s -> LVal (ConstStr s, String)
   | EUnit -> LVal (ConstUnit, Unit)
+  | ENil -> (
+      let se = static_env_for_mono_call static_env env in
+      match Typecheck.type_of_c_expr se type_env ENil with
+      | Ok ct -> (
+          let m = Typecheck.instantiate ct in
+          match m with
+          | CListType em ->
+              let elem_ty = mono_to_min em in
+              let t = fresh () in
+              emit_instr ctx (Assign (t, ListNil elem_ty));
+              LVal (Local t, List elem_ty)
+          | _ -> unsupported "internal: [] did not infer as list type")
+      | Error err ->
+          unsupported
+            ("[]: " ^ Typecheck.string_of_type_check_error err))
+  | EListEnumeration (e_lo, e_hi) ->
+      lower_list_int_enumeration env ctx static_env type_env e_lo e_hi
   | EId x -> (
       match List.assoc_opt x env with
       | Some (Val (o, t)) -> LVal (o, t)
@@ -1318,6 +1415,37 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
                   let t = fresh () in
                   emit_instr ctx (Assign (t, Call ("str_concat", [ o1; o2 ])));
                   LVal (Local t, String)
+              | CCons ->
+                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env in
+                  (match e2 with
+                  | ENil ->
+                      let tnil = fresh () in
+                      emit_instr ctx (Assign (tnil, ListNil t1));
+                      let t = fresh () in
+                      emit_instr ctx
+                        (Assign
+                           ( t,
+                             ListCons
+                               { elem_ty = t1; head = o1; tail = Local tnil }
+                           ));
+                      LVal (Local t, List t1)
+                  | _ ->
+                      let o2, t2 = lower_expr_val e2 env ctx static_env type_env in
+                      (match t2 with
+                      | List elem_ty ->
+                          if not (ty_equal t1 elem_ty) then
+                            unsupported
+                              ":: expects element and list of the same element type";
+                          let t = fresh () in
+                          emit_instr ctx
+                            (Assign
+                               ( t,
+                                 ListCons
+                                   { elem_ty; head = o1; tail = o2 } ));
+                          LVal (Local t, List elem_ty)
+                      | _ ->
+                          unsupported
+                            "right-hand side of :: must be a list in native lowering"))
               | _ -> unsupported ("Binary operator not supported in Min_IR lowering yet"))))
   | EBind (CIdPat x, _ta, e1, e2, _rt) -> (
       match lower_expr e1 env ctx static_env type_env with
@@ -1328,13 +1456,11 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       | LPartial c ->
           let env' = (x, C c) :: env in
           lower_expr e2 env' ctx static_env type_env)
-  | EBind (CVectorPat subs, _ta, e1, e2, _rt) -> (
+  | EBind (pat, _ta, e1, e2, _rt) when pat <> CWildcardPat && not (match pat with CIdPat _ -> true | _ -> false) -> (
       match lower_expr e1 env ctx static_env type_env with
-      | LVal (o1, Tuple elem_tys) ->
-          if List.length subs <> List.length elem_tys then
-            unsupported "tuple let pattern arity mismatch";
+      | LVal (o1, t1) ->
           let env', cond =
-            emit_native_pat_test env ctx o1 (Tuple elem_tys) (CVectorPat subs)
+            emit_native_pat_test env ctx o1 t1 pat
           in
           (match cond with
           | ConstI1 true -> lower_expr e2 env' ctx static_env type_env
@@ -1347,10 +1473,16 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               close_block ctx Unreachable;
               open_block ctx l_ok;
               lower_expr e2 env' ctx static_env type_env)
-      | LVal _ -> unsupported "tuple let requires a tuple-valued right-hand side"
       | LPartial _ ->
-          unsupported "tuple let does not support a partially applied function on the right")
-  | EBind _ -> unsupported "let: only simple identifier or tuple patterns supported"
+          unsupported
+            "let with this pattern does not support a partially applied function on the right")
+  | EBind (CWildcardPat, _ta, e1, e2, _rt) -> (
+      match lower_expr e1 env ctx static_env type_env with
+      | LVal _ -> lower_expr e2 env ctx static_env type_env
+      | LPartial _ ->
+          unsupported
+            "Discarded let binding cannot be a partially applied function")
+  | EBind _ -> unsupported "let: pattern not supported for native compilation"
   | EBlock parts -> lower_block parts env ctx static_env type_env
   | EApp (e1, e2) ->
       let head, args = peel_app_spine e1 [ e2 ] in
@@ -1611,8 +1743,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               emit_instr ctx (Assign (t, TuplePack (elem_tys, ops)));
               LVal (Local t, Tuple elem_tys)
           | _ -> unsupported "internal: vector literal type is not a vector"))
-  | EBindMutRec _ | ENil
-  | EListEnumeration _ | EListComprehension _ | ERecordLit _
+  | EBindMutRec _ | EListComprehension _ | ERecordLit _
   | ERecordUpdate _ | EFieldAccess _ | EChar _ | EFloat _ ->
       unsupported "Expression form not supported in Min_IR lowering yet"
 
@@ -1678,7 +1809,11 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
             let p = fresh_param () in
             param_pat_checks := (p, pt, lit_pat) :: !param_pat_checks;
             (p, [])
-        | CNilPat | CConsPat _ | CCharPat _ | CVariantPat _ ->
+        | (CNilPat | CConsPat _) as lit_lst_pat ->
+            let p = fresh_param () in
+            param_pat_checks := (p, pt, lit_lst_pat) :: !param_pat_checks;
+            (p, [])
+        | CCharPat _ | CVariantPat _ ->
             unsupported
               "Function parameter pattern not supported for native compilation")
       param_pats param_tys
@@ -1781,14 +1916,11 @@ let lower_c_expr_to_prog (e : c_expr) : (prog, string) result =
   | Ok fn -> Ok { funcs = [ fn ]; entry = Some "main" }
   | Error e -> Error e
 
-(** [Env.code_mapping] defines polymorphic helpers ([map], [tuple_fst], …) as
-    surface expressions, not user [CDefn]s. Native monomorphization needs bodies
-    for helpers we may **instantiate** during lowering.
-
-    We only append definitions that are **tuple-only** (no lists) here. Adding
-    e.g. [map] would pull [CListType] into monomorphization and fail in
-    {!mono_to_min}. Other poly helpers stay ETA/closure-unsupported until lists
-    compile. *)
+(** [Env.code_mapping] defines polymorphic helpers ([tuple_fst], …) as surface
+    expressions. Bodies are only injected for helpers that monomorphize inside
+    tuple-only code; list helpers ([map], …) stay as interpreter definitions only
+    so [collect_mono_instantiations] does not type-check their full recursive
+    bodies on every program. *)
 let code_mapping_poly_defns (static_env : static_env) : c_defn list =
   let allow_native_mono = function "tuple_fst" | "tuple_snd" -> true | _ -> false in
   List.fold_left

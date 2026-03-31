@@ -9,6 +9,8 @@ type emit_ctx = {
   mutable env_layout_id : int;
   mutable tuple_id : int;
   mutable tuple_registry : (ty list * string) list;
+  mutable list_id : int;
+  mutable list_registry : (ty * string) list;
 }
 
 let ctx_create () =
@@ -18,6 +20,8 @@ let ctx_create () =
     env_layout_id = 0;
     tuple_id = 0;
     tuple_registry = [];
+    list_id = 0;
+    list_registry = [];
   }
 
 let rec ty_list_equal_ll (a : ty list) (b : ty list) : bool =
@@ -30,6 +34,7 @@ and ty_equal_ll (a : ty) (b : ty) : bool =
   match (a, b) with
   | I32, I32 | I1, I1 | String, String | Unit, Unit | RawPtr, RawPtr -> true
   | Tuple ts1, Tuple ts2 -> ty_list_equal_ll ts1 ts2
+  | List e1, List e2 -> ty_equal_ll e1 e2
   | Fun (p1, r1), Fun (p2, r2) ->
       ty_list_equal_ll p1 p2 && ty_equal_ll r1 r2
   | Clos (p1, r1), Clos (p2, r2) ->
@@ -69,6 +74,7 @@ and llvm_ll_ty_ctx (ctx : emit_ctx) (t : ty) : string =
   | Unit -> "void"
   | RawPtr -> "i8*"
   | Clos _ -> "i8*"
+  | List _ -> "i8*"
   | Tuple ts -> "%" ^ register_tuple_layout ctx ts
   | Fun (ps, r) -> llvm_fun_ptr_ty_ctx ctx ps r
 
@@ -77,7 +83,10 @@ and register_tuple_layout (ctx : emit_ctx) (ts : ty list) : string =
   | Some n -> n
   | None ->
       List.iter
-        (function Tuple inner -> ignore (register_tuple_layout ctx inner) | _ -> ())
+        (function
+          | Tuple inner -> ignore (register_tuple_layout ctx inner)
+          | List e -> ignore (register_list_cell_layout ctx e)
+          | _ -> ())
         ts;
       ctx.tuple_id <- ctx.tuple_id + 1;
       let name = Printf.sprintf "ls.tuple.%d" ctx.tuple_id in
@@ -89,11 +98,32 @@ and register_tuple_layout (ctx : emit_ctx) (ts : ty list) : string =
       ctx.tuple_registry <- (ts, name) :: ctx.tuple_registry;
       name
 
+and register_list_cell_layout (ctx : emit_ctx) (elem_ty : ty) : string =
+  match
+    List.find_map
+      (fun (k, n) -> if ty_equal_ll k elem_ty then Some n else None)
+      ctx.list_registry
+  with
+  | Some n -> n
+  | None ->
+      (* Ensure nested tuple / list LLVM types exist before defining the cell. *)
+      (match elem_ty with
+      | Tuple ts -> ignore (register_tuple_layout ctx ts)
+      | List e -> ignore (register_list_cell_layout ctx e)
+      | _ -> ());
+      ctx.list_id <- ctx.list_id + 1;
+      let name = Printf.sprintf "ls.lcell.%d" ctx.list_id in
+      let head_ll = llvm_struct_elem_ty ctx elem_ty in
+      let line = Printf.sprintf "%%%s = type { %s, i8* }" name head_ll in
+      ctx.prelude <- line :: ctx.prelude;
+      ctx.list_registry <- (elem_ty, name) :: ctx.list_registry;
+      name
+
 and llvm_struct_elem_ty (ctx : emit_ctx) (t : ty) : string =
   match t with
   | I32 -> "i32"
   | I1 -> "i1"
-  | String | RawPtr | Clos _ -> "i8*"
+  | String | RawPtr | Clos _ | List _ -> "i8*"
   | Unit -> "i8"
   | Fun (ps, r) -> llvm_fun_ptr_ty_ctx ctx ps r
   | Tuple ts ->
@@ -114,7 +144,7 @@ let llvm_env_field_ll_ty (ctx : emit_ctx) (t : ty) : string =
   match t with
   | I1 -> "i32"
   | I32 -> "i32"
-  | String | RawPtr | Clos _ -> "i8*"
+  | String | RawPtr | Clos _ | List _ -> "i8*"
   | Unit -> "i8"
   | Fun (ps, r) -> llvm_fun_ptr_ty_ctx ctx ps r
   | Tuple _ as tup -> llvm_struct_elem_ty ctx tup
@@ -136,7 +166,7 @@ let rec layout_byte_size (xs : ty list) : int =
   let sz_al = function
     | I32 -> (4, 4)
     | I1 -> (4, 4)
-    | String | RawPtr | Clos _ -> (8, 8)
+    | String | RawPtr | Clos _ | List _ -> (8, 8)
     | Unit -> (1, 8)
     | Fun _ -> (8, 8)
     | Tuple ts ->
@@ -150,6 +180,8 @@ let rec layout_byte_size (xs : ty list) : int =
       acc := align_up !acc al + sz)
     xs;
   max !acc 1
+
+let list_cell_byte_size (elem_ty : ty) : int = layout_byte_size [ elem_ty; RawPtr ]
 
 let step_fn_ptr_ty (ctx : emit_ctx) (fd : func_def) : string =
   let pl =
@@ -427,8 +459,8 @@ let phi_incoming_val (h : (string, ty) H.t) (exp_ty : ty) (op : operand) :
       failwith "llvm_emit: phi cannot use function address; materialize to a local"
   | RawNull ->
       (match exp_ty with
-      | RawPtr | Clos _ -> ()
-      | _ -> failwith "llvm_emit: phi null only for rawptr or closure type");
+      | RawPtr | Clos _ | List _ -> ()
+      | _ -> failwith "llvm_emit: phi null only for rawptr, closure, or list type");
       "i8* null"
 
 let emit_instr ctx (fn_sigs : (string, func_def) H.t)
@@ -514,17 +546,28 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
       | ICmp (c, o1, o2) ->
           let t1, v1 = emit_operand ctx h o1 in
           let t2, v2 = emit_operand ctx h o2 in
-          let ty_s =
-            if t1 = t2 && (t1 = "i32" || t1 = "i1" || t1 = "i8") then t1
-            else failwith "llvm_emit: icmp expects matching i32, i1, or i8 operands"
-          in
-          lines :=
-            !lines
-            @ [
-                Printf.sprintf "  %%%s = icmp %s %s %s, %s" dst (icmp_ll c) ty_s v1
-                  v2;
-              ];
-          H.replace h dst I1
+          if t1 = "i8*" && t2 = "i8*" then (
+            if c <> Eq && c <> Ne then
+              failwith "llvm_emit: icmp on pointers supports eq/ne only";
+            lines :=
+              !lines
+              @ [
+                  Printf.sprintf "  %%%s = icmp %s i8* %s, %s" dst (icmp_ll c) v1
+                    v2;
+                ];
+            H.replace h dst I1)
+          else
+            let ty_s =
+              if t1 = t2 && (t1 = "i32" || t1 = "i1" || t1 = "i8") then t1
+              else failwith "llvm_emit: icmp expects matching i32, i1, i8, or i8* operands"
+            in
+            lines :=
+              !lines
+              @ [
+                  Printf.sprintf "  %%%s = icmp %s %s %s, %s" dst (icmp_ll c) ty_s
+                    v1 v2;
+                ];
+            H.replace h dst I1
       | IAnd (o1, o2) | IOr (o1, o2) as rhs_logic ->
           let t1, v1 = emit_operand ctx h o1 in
           let t2, v2 = emit_operand ctx h o2 in
@@ -668,14 +711,128 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
                   index;
               ];
           H.replace h dst (List.nth elem_tys index)
-  | RawMalloc n ->
-      lines :=
-        !lines
-        @ [
-            Printf.sprintf "  %%%s = call i8* @ls_malloc(i64 %d)" dst n;
-          ];
-      H.replace h dst RawPtr
-  | EnvLoad { env; layout; index } ->
+      | ListNil elem_ty ->
+          lines :=
+            !lines
+            @ [ Printf.sprintf "  %%%s = bitcast i8* null to i8*" dst ];
+          H.replace h dst (List elem_ty)
+      | ListCons { elem_ty; head; tail } ->
+          let struct_n = register_list_cell_layout ctx elem_ty in
+          let bytes = list_cell_byte_size elem_ty in
+          let raw = dst ^ "_raw" in
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf "  %%%s = call i8* @ls_malloc(i64 %d)" raw bytes;
+              ];
+          let cp = dst ^ "_cp" in
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf "  %%%s = bitcast i8* %%%s to %%%s*" cp raw
+                  struct_n;
+              ];
+          let head_ll = llvm_struct_elem_ty ctx elem_ty in
+          let ht, hv = emit_operand ctx h head in
+          if ht <> head_ll then failwith "llvm_emit: list cons head type mismatch";
+          let gh = dst ^ "_gh" in
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf
+                  "  %%%s = getelementptr inbounds %%%s, %%%s* %%%s, i32 0, i32 0"
+                  gh struct_n struct_n cp;
+              ];
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf "  store %s %s, %s* %%%s" head_ll hv head_ll gh;
+              ];
+          let tt, tv = emit_operand ctx h tail in
+          if tt <> "i8*" then failwith "llvm_emit: list cons tail must be i8*";
+          let gt = dst ^ "_gt" in
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf
+                  "  %%%s = getelementptr inbounds %%%s, %%%s* %%%s, i32 0, i32 1"
+                  gt struct_n struct_n cp;
+              ];
+          lines :=
+            !lines
+            @ [ Printf.sprintf "  store i8* %s, i8** %%%s" tv gt ];
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf "  %%%s = bitcast %%%s* %%%s to i8*" dst struct_n
+                  cp;
+              ];
+          H.replace h dst (List elem_ty)
+      | ListHead { elem_ty; lst } ->
+          let struct_n = register_list_cell_layout ctx elem_ty in
+          let lt, lv = emit_operand ctx h lst in
+          if lt <> "i8*" then failwith "llvm_emit: list head expects list i8*";
+          let cp = dst ^ "_lcp" in
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf "  %%%s = bitcast i8* %s to %%%s*" cp lv struct_n;
+              ];
+          let gh = dst ^ "_gh" in
+          let head_ll = llvm_struct_elem_ty ctx elem_ty in
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf
+                  "  %%%s = getelementptr inbounds %%%s, %%%s* %%%s, i32 0, i32 0"
+                  gh struct_n struct_n cp;
+              ];
+          if head_ll = "i1" then (
+            let w = dst ^ "_lb" in
+            lines :=
+              !lines
+              @ [
+                  Printf.sprintf "  %%%s = load i1, i1* %%%s" w gh;
+                  Printf.sprintf "  %%%s = xor i1 %%%s, false" dst w;
+                ];
+            H.replace h dst I1)
+          else (
+            lines :=
+              !lines
+              @ [
+                  Printf.sprintf "  %%%s = load %s, %s* %%%s" dst head_ll head_ll gh;
+                ];
+            H.replace h dst elem_ty)
+      | ListTail { elem_ty; lst } ->
+          let struct_n = register_list_cell_layout ctx elem_ty in
+          let lt, lv = emit_operand ctx h lst in
+          if lt <> "i8*" then failwith "llvm_emit: list tail expects list i8*";
+          let cp = dst ^ "_tcp" in
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf "  %%%s = bitcast i8* %s to %%%s*" cp lv struct_n;
+              ];
+          let gt = dst ^ "_tg" in
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf
+                  "  %%%s = getelementptr inbounds %%%s, %%%s* %%%s, i32 0, i32 1"
+                  gt struct_n struct_n cp;
+              ];
+          lines :=
+            !lines
+            @ [ Printf.sprintf "  %%%s = load i8*, i8** %%%s" dst gt ];
+          H.replace h dst (List elem_ty)
+      | RawMalloc n ->
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf "  %%%s = call i8* @ls_malloc(i64 %d)" dst n;
+              ];
+          H.replace h dst RawPtr
+      | EnvLoad { env; layout; index } ->
       let struct_n = register_env_layout ctx layout in
       let res_min = List.nth layout index in
       let fld_ll = llvm_env_field_ll_ty ctx res_min in
@@ -809,6 +966,9 @@ let emit_term (ctx : emit_ctx) (h : (string, ty) H.t)
     | false, Tuple _, Some o ->
         let ty, v = emit_operand ctx h o in
         lines := !lines @ [ Printf.sprintf "  ret %s %s" ty v ]
+    | false, List _, Some o ->
+        let _ty, v = emit_operand ctx h o in
+        lines := !lines @ [ Printf.sprintf "  ret i8* %s" v ]
     | false, (RawPtr | Clos _), Some o ->
         let _ty, v = emit_operand ctx h o in
         lines := !lines @ [ Printf.sprintf "  ret i8* %s" v ]
