@@ -24,5 +24,5 @@ let list = [1, 2, 3, 4, 5]
 
 let reversed_list = reverse list
 
-
+let () = print_list reversed_list
 

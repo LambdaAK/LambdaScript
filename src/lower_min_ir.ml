@@ -720,7 +720,31 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
         | Error _ -> collect_visit_expr env body)
     | ESwitch (e0, branches) ->
         collect_visit_expr env e0;
-        List.iter (fun (_, be) -> collect_visit_expr env be) branches
+        (match Typecheck.type_of_c_expr env type_env e0 with
+        | Ok scrut_ct ->
+            let scrut_mono = Typecheck.instantiate scrut_ct in
+            List.iter
+              (fun (pat, be) ->
+                let pat_ty, pat_env, pat_eqs =
+                  Typecheck.type_of_pat env type_env pat
+                in
+                let all_eqs = (pat_ty, scrut_mono) :: pat_eqs in
+                let env_for_branch =
+                  try
+                    let sol = Typecheck.reduce_eq all_eqs type_env in
+                    List.fold_right
+                      (fun (id, ct) acc ->
+                        let m0 = Typecheck.instantiate ct in
+                        match Typecheck.get_type m0 sol type_env with
+                        | Ok m_res -> (id, Mono m_res) :: acc
+                        | Error _ -> acc)
+                      pat_env []
+                  with Typecheck.TypeFailure -> []
+                in
+                collect_visit_expr (env_for_branch @ env) be)
+              branches
+        | Error _ ->
+            List.iter (fun (_, be) -> collect_visit_expr env be) branches)
     | EVector es -> List.iter (collect_visit_expr env) es
     | EListEnumeration (a, b) ->
         collect_visit_expr env a;
@@ -746,9 +770,24 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
     | CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _ -> ()
   and visit_def_body (env : static_env) (pat : c_pat) (body : c_expr) : unit =
     match pat with
-    | CIdPat _ ->
-        let _, _, inner = peel_efun [] [] body in
-        collect_visit_expr env inner
+    | CIdPat fn_name ->
+        let param_pats, _, inner = peel_efun [] [] body in
+        let env_for_body =
+          match List.assoc_opt fn_name env with
+          | Some ct when param_pats <> [] -> (
+              let m = Typecheck.instantiate ct in
+              try
+                let param_monos = peel_inferred_param_monos (List.length param_pats) m in
+                List.fold_left2
+                  (fun acc p pm ->
+                    match bind_static p (Mono pm) with
+                    | Some b -> b @ acc
+                    | None -> acc)
+                  env param_pats param_monos
+              with Unsupported _ -> env)
+          | _ -> env
+        in
+        collect_visit_expr env_for_body inner
     | CUnitPat | CWildcardPat | CVectorPat _ -> collect_visit_expr env body
     | _ -> ()
   in
