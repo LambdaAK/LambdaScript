@@ -22,6 +22,6 @@ Lloh1:
                                         ; -- End function
 	.section	__TEXT,__cstring,cstring_literals
 l_.str.1:                               ; @.str.1
-	.asciz	"positive"
+	.asciz	"one"
 
 .subsections_via_symbols

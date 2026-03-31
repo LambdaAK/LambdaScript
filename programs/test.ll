@@ -8,34 +8,43 @@ declare void @ls_println(i8*)
 declare void @ls_abort()
 declare i8* @ls_int_to_str(i32)
 declare i8* @ls_str_concat(i8*, i8*)
+declare i32 @strcmp(i8*, i8*)
 declare i8* @ls_malloc(i64)
 declare i8* @ls_mkclos(i8*, i8*)
 
-@.str.0 = private unnamed_addr constant [5 x i8] c"zero\00"
-@.str.1 = private unnamed_addr constant [9 x i8] c"positive\00"
-@.str.2 = private unnamed_addr constant [9 x i8] c"negative\00"
+%ls.tuple.1 = type { i32, i32 }
+@.str.0 = private unnamed_addr constant [4 x i8] c"two\00"
+@.str.1 = private unnamed_addr constant [4 x i8] c"one\00"
+@.str.2 = private unnamed_addr constant [6 x i8] c"other\00"
 define i32 @main() {
 entry:
-  %_t1 = icmp eq i32 1, 0
-  br i1 %_t1, label %swm_2, label %swn_3
+  %_t1_pk0 = insertvalue %ls.tuple.1 undef, i32 1, 0
+  %_t1 = insertvalue %ls.tuple.1 %_t1_pk0, i32 2, 1
+  %_t2 = extractvalue %ls.tuple.1 %_t1, 0
+  %_t3 = icmp eq i32 %_t2, 2
+  %_t4 = extractvalue %ls.tuple.1 %_t1, 1
+  %_t5 = icmp eq i32 %_t4, 1
+  %_t6 = and i1 %_t3, %_t5
+  br i1 %_t6, label %swm_2, label %swn_3
 swm_2:
-  %_t2 = getelementptr inbounds [5 x i8], [5 x i8]* @.str.0, i64 0, i64 0
+  %_t7 = getelementptr inbounds [4 x i8], [4 x i8]* @.str.0, i64 0, i64 0
   br label %swm_1
 swm_1:
-  %_t7 = phi i8* [ %_t2, %swm_2 ], [ %_t6, %merge_6 ]
-  %a = bitcast i8* %_t7 to i8*
+  %_t15 = phi i8* [ %_t7, %swm_2 ], [ %_t13, %swm_4 ], [ %_t14, %swn_5 ]
+  %a = bitcast i8* %_t15 to i8*
   call void @ls_println(i8* %a)
   ret i32 0
 swn_3:
-  %_t3 = icmp slt i32 0, 1
-  br i1 %_t3, label %then_4, label %else_5
-then_4:
-  %_t4 = getelementptr inbounds [9 x i8], [9 x i8]* @.str.1, i64 0, i64 0
-  br label %merge_6
-merge_6:
-  %_t6 = phi i8* [ %_t4, %then_4 ], [ %_t5, %else_5 ]
+  %_t8 = extractvalue %ls.tuple.1 %_t1, 0
+  %_t9 = icmp eq i32 %_t8, 1
+  %_t10 = extractvalue %ls.tuple.1 %_t1, 1
+  %_t11 = icmp eq i32 %_t10, 2
+  %_t12 = and i1 %_t9, %_t11
+  br i1 %_t12, label %swm_4, label %swn_5
+swm_4:
+  %_t13 = getelementptr inbounds [4 x i8], [4 x i8]* @.str.1, i64 0, i64 0
   br label %swm_1
-else_5:
-  %_t5 = getelementptr inbounds [9 x i8], [9 x i8]* @.str.2, i64 0, i64 0
-  br label %merge_6
+swn_5:
+  %_t14 = getelementptr inbounds [6 x i8], [6 x i8]* @.str.2, i64 0, i64 0
+  br label %swm_1
 }

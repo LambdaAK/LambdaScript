@@ -184,6 +184,7 @@ let callee_ll : string -> string = function
   | "abort" -> "ls_abort"
   | "int_to_str" -> "ls_int_to_str"
   | "str_concat" -> "ls_str_concat"
+  | "strcmp" -> "strcmp"
   | n -> n
 
 let llvm_c_escape s =
@@ -237,6 +238,7 @@ let runtime_declarations : string =
    declare void @ls_abort()\n\
    declare i8* @ls_int_to_str(i32)\n\
    declare i8* @ls_str_concat(i8*, i8*)\n\
+   declare i32 @strcmp(i8*, i8*)\n\
    declare i8* @ls_malloc(i64)\n\
    declare i8* @ls_mkclos(i8*, i8*)\n"
 
@@ -512,11 +514,16 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
       | ICmp (c, o1, o2) ->
           let t1, v1 = emit_operand ctx h o1 in
           let t2, v2 = emit_operand ctx h o2 in
-          if t1 <> "i32" || t2 <> "i32" then
-            failwith "llvm_emit: icmp expects i32";
+          let ty_s =
+            if t1 = t2 && (t1 = "i32" || t1 = "i1" || t1 = "i8") then t1
+            else failwith "llvm_emit: icmp expects matching i32, i1, or i8 operands"
+          in
           lines :=
             !lines
-            @ [ Printf.sprintf "  %%%s = icmp %s i32 %s, %s" dst (icmp_ll c) v1 v2 ];
+            @ [
+                Printf.sprintf "  %%%s = icmp %s %s %s, %s" dst (icmp_ll c) ty_s v1
+                  v2;
+              ];
           H.replace h dst I1
       | IAnd (o1, o2) | IOr (o1, o2) as rhs_logic ->
           let t1, v1 = emit_operand ctx h o1 in
@@ -557,6 +564,22 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
                       ];
                   H.replace h dst String
               | _ -> failwith "llvm_emit: str_concat arity")
+          | "strcmp" -> (
+              match args with
+              | [ a; b ] ->
+                  let ta, va = emit_operand ctx h a in
+                  let tb, vb = emit_operand ctx h b in
+                  if ta <> "i8*" || tb <> "i8*" then
+                    failwith "llvm_emit: strcmp expects two strings";
+                  let c = callee_ll "strcmp" in
+                  lines :=
+                    !lines
+                    @ [
+                        Printf.sprintf "  %%%s = call i32 @%s(i8* %s, i8* %s)" dst c
+                          va vb;
+                      ];
+                  H.replace h dst I32
+              | _ -> failwith "llvm_emit: strcmp arity")
           | _ ->
               let fd = H.find fn_sigs name in
               if fd.ret = Unit then

@@ -1,26 +1,32 @@
 entry: @main
 fn main() -> unit {
 entry:
-  _t1 = icmp eq 1, 0
-  br %_t1 ? swm_2 : swn_3
+  _t1 = tuple_pack [i32, i32] (1, 2)
+  _t2 = tuple_proj %_t1[0] : i32,i32
+  _t3 = icmp eq %_t2, 2
+  _t4 = tuple_proj %_t1[1] : i32,i32
+  _t5 = icmp eq %_t4, 1
+  _t6 = and %_t3, %_t5
+  br %_t6 ? swm_2 : swn_3
 swm_2:
-  _t2 = "zero"
+  _t7 = "two"
   br swm_1
 swn_3:
-  _t3 = icmp slt 0, 1
-  br %_t3 ? then_4 : else_5
-then_4:
-  _t4 = "positive"
-  br merge_6
-else_5:
-  _t5 = "negative"
-  br merge_6
-merge_6:
-  _t6 = phi string [ then_4, %_t4 ], [ else_5, %_t5 ]
+  _t8 = tuple_proj %_t1[0] : i32,i32
+  _t9 = icmp eq %_t8, 1
+  _t10 = tuple_proj %_t1[1] : i32,i32
+  _t11 = icmp eq %_t10, 2
+  _t12 = and %_t9, %_t11
+  br %_t12 ? swm_4 : swn_5
+swm_4:
+  _t13 = "one"
+  br swm_1
+swn_5:
+  _t14 = "other"
   br swm_1
 swm_1:
-  _t7 = phi string [ swm_2, %_t2 ], [ merge_6, %_t6 ]
-  a = %_t7
+  _t15 = phi string [ swm_2, %_t7 ], [ swm_4, %_t13 ], [ swn_5, %_t14 ]
+  a = %_t15
   void call @println(%a)
   ret void
 }

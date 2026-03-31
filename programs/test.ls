@@ -1,5 +1,6 @@
 let a = case (1, 2) do
-  | (0, 0) -> "zero"
-  | (n, m) -> if n > 0 then "positive" else "negative"
+  | (2, 1) -> "two"
+  | (1, 2) -> "one"
+  | _ -> "other"
 
 let () = println a

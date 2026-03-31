@@ -1048,34 +1048,85 @@ and resolve_callable (name : string) (env : env) : callable option =
   | Some (C c) -> Some c
   | Some (Val _) | None -> None
 
-and tuple_subpat_trivial : c_pat -> bool = function
-  | CIdPat _ | CWildcardPat | CUnitPat -> true
-  | _ -> false
-
-and extend_env_tuple_pats (env : env) (ctx : fn_ctx) (o_scrut : operand)
-    (full_elem_tys : ty list) (subpats : c_pat list) : env =
-  let rec go env i subs tys_left =
-    match (subs, tys_left) with
-    | [], [] -> env
-    | p :: ps, ty :: ts ->
-        let proj = fresh () in
-        emit_instr ctx
-          (Assign
-             ( proj,
-               TupleProj
-                 { tup = o_scrut; index = i; elem_tys = full_elem_tys } ));
-        let env' =
-          match p with
-          | CIdPat x -> (x, Val (Local proj, ty)) :: env
-          | CWildcardPat | CUnitPat -> env
-          | _ ->
-              unsupported
-                "tuple bind/case: only variables or wildcards as sub-patterns in native mode"
-        in
-        go env' (i + 1) ps ts
-    | _ -> unsupported "tuple pattern arity mismatch"
+(** Combine boolean SSA operands (short-circuit not required). *)
+and iand_operands (ctx : fn_ctx) (conds : operand list) : operand =
+  let rec strip_true = function
+    | [] -> []
+    | ConstI1 true :: rest -> strip_true rest
+    | x :: rest -> x :: strip_true rest
   in
-  go env 0 subpats full_elem_tys
+  match strip_true conds with
+  | [] -> ConstI1 true
+  | [ c ] -> c
+  | c1 :: c2 :: rest ->
+      let t = fresh () in
+      emit_instr ctx (Assign (t, IAnd (c1, c2)));
+      iand_operands ctx (Local t :: rest)
+
+(** Emit tests and projections so that [pat] matches [o_s : t_s]; returns an
+    extended environment (for [CIdPat] / tuple fields) and an [i1] operand that
+    is true iff the pattern matches. *)
+and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
+    (pat : c_pat) : env * operand =
+  match pat with
+  | CWildcardPat -> (env, ConstI1 true)
+  | CIdPat x -> ((x, Val (o_s, t_s)) :: env, ConstI1 true)
+  | CUnitPat ->
+      if t_s <> Unit then
+        unsupported "native pattern match: unit pattern does not match scrutinee type";
+      let c = fresh () in
+      emit_instr ctx (Assign (c, ICmp (Eq, o_s, ConstUnit)));
+      (env, Local c)
+  | CIntPat k ->
+      if t_s <> I32 then
+        unsupported "native pattern match: integer literal pattern expects int scrutinee";
+      let c = fresh () in
+      emit_instr ctx (Assign (c, ICmp (Eq, o_s, ConstI32 k)));
+      (env, Local c)
+  | CBoolPat b ->
+      if t_s <> I1 then
+        unsupported "native pattern match: boolean literal pattern expects bool scrutinee";
+      let c = fresh () in
+      emit_instr ctx (Assign (c, ICmp (Eq, o_s, ConstI1 b)));
+      (env, Local c)
+  | CStringPat s ->
+      if t_s <> String then
+        unsupported "native pattern match: string literal pattern expects string scrutinee";
+      let tmp = fresh () in
+      emit_instr ctx (Assign (tmp, Call ("strcmp", [ o_s; ConstStr s ])));
+      let c = fresh () in
+      emit_instr ctx (Assign (c, ICmp (Eq, Local tmp, ConstI32 0)));
+      (env, Local c)
+  | CVectorPat subs -> (
+      match t_s with
+      | Tuple elem_tys ->
+          if List.length subs <> List.length elem_tys then
+            unsupported "tuple pattern arity mismatch in native pattern match";
+          let env_cond_acc =
+            List.fold_left
+              (fun (env_acc, conds) i ->
+                let sub = List.nth subs i in
+                let ty_i = List.nth elem_tys i in
+                let pj = fresh () in
+                emit_instr ctx
+                  (Assign
+                     ( pj,
+                       TupleProj
+                         { tup = o_s; index = i; elem_tys = elem_tys } ));
+                let env', c_sub =
+                  emit_native_pat_test env_acc ctx (Local pj) ty_i sub
+                in
+                (env', c_sub :: conds))
+              (env, [])
+              (List.init (List.length subs) (fun i -> i))
+          in
+          let env', conds_rev = env_cond_acc in
+          (env', iand_operands ctx (List.rev conds_rev))
+      | _ ->
+          unsupported
+            "tuple pattern in native pattern match requires a tuple scrutinee")
+  | CNilPat | CConsPat _ | CCharPat _ | CVariantPat _ ->
+      unsupported "this pattern is not supported for native compilation"
 
 and lower_switch_merge_arm (body : c_expr) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) (merge_lbl : string) :
@@ -1132,81 +1183,34 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
     match brs with
     | [] -> assert false
     | [ (pat, body) ] -> acc @ finish_last pat body
-    | (pat, body) :: rest -> (
-        match (t_s, pat) with
-        | I32, CIntPat k ->
-            let l_ok = fresh_lbl ctx "swm" in
-            let l_next = fresh_lbl ctx "swn" in
-            let c = fresh () in
-            emit_instr ctx (Assign (c, ICmp (Eq, o_s, ConstI32 k)));
-            close_block ctx (BrCond (Local c, l_ok, l_next));
-            open_block ctx l_ok;
-            let p = lower_switch_merge_arm body env ctx static_env type_env merge_lbl in
-            open_block ctx l_next;
-            walk rest (acc @ [ p ])
-        | I1, CBoolPat b ->
-            let l_ok = fresh_lbl ctx "swm" in
-            let l_next = fresh_lbl ctx "swn" in
-            let c = fresh () in
-            emit_instr ctx (Assign (c, ICmp (Eq, o_s, ConstI1 b)));
-            close_block ctx (BrCond (Local c, l_ok, l_next));
-            open_block ctx l_ok;
-            let p = lower_switch_merge_arm body env ctx static_env type_env merge_lbl in
-            open_block ctx l_next;
-            walk rest (acc @ [ p ])
-        | _ ->
-            unsupported
-              "native multi-branch case: patterns before the last branch must be \
-               integer or boolean literals")
+    | (pat, body) :: rest ->
+        let env', cond = emit_native_pat_test env ctx o_s t_s pat in
+        let l_ok = fresh_lbl ctx "swm" in
+        let l_next = fresh_lbl ctx "swn" in
+        close_block ctx (BrCond (cond, l_ok, l_next));
+        open_block ctx l_ok;
+        let p =
+          lower_switch_merge_arm body env' ctx static_env type_env merge_lbl
+        in
+        open_block ctx l_next;
+        walk rest (acc @ [ p ])
   and finish_last pat body : (string * operand * ty) list =
-    match (t_s, pat) with
-    | _, CWildcardPat ->
-        [ lower_switch_merge_arm body env ctx static_env type_env merge_lbl ]
-    | _, CIdPat x ->
-        let env' = (x, Val (o_s, t_s)) :: env in
+    let env', cond = emit_native_pat_test env ctx o_s t_s pat in
+    match cond with
+    | ConstI1 true ->
         [ lower_switch_merge_arm body env' ctx static_env type_env merge_lbl ]
-    | Tuple elem_tys, CVectorPat subs -> (
-        match t_s with
-        | Tuple _ ->
-            if List.length subs <> List.length elem_tys then
-              unsupported "tuple pattern arity mismatch in case";
-            if not (List.for_all tuple_subpat_trivial subs) then
-              unsupported
-                "native case on tuple with literal sub-patterns needs multiple \
-                 branches (not implemented yet)";
-            let env' = extend_env_tuple_pats env ctx o_s elem_tys subs in
-            [ lower_switch_merge_arm body env' ctx static_env type_env merge_lbl ]
-        | _ ->
-            unsupported
-              "tuple pattern requires a tuple scrutinee in native compilation")
-    | I32, CIntPat k ->
-        let l_ok = fresh_lbl ctx "swm" in
-        let l_fail = fresh_lbl ctx "swf" in
-        let c = fresh () in
-        emit_instr ctx (Assign (c, ICmp (Eq, o_s, ConstI32 k)));
-        close_block ctx (BrCond (Local c, l_ok, l_fail));
-        open_block ctx l_ok;
-        let p = lower_switch_merge_arm body env ctx static_env type_env merge_lbl in
-        open_block ctx l_fail;
-        emit_instr ctx (VoidCall ("abort", []));
-        close_block ctx Unreachable;
-        [ p ]
-    | I1, CBoolPat b ->
-        let l_ok = fresh_lbl ctx "swm" in
-        let l_fail = fresh_lbl ctx "swf" in
-        let c = fresh () in
-        emit_instr ctx (Assign (c, ICmp (Eq, o_s, ConstI1 b)));
-        close_block ctx (BrCond (Local c, l_ok, l_fail));
-        open_block ctx l_ok;
-        let p = lower_switch_merge_arm body env ctx static_env type_env merge_lbl in
-        open_block ctx l_fail;
-        emit_instr ctx (VoidCall ("abort", []));
-        close_block ctx Unreachable;
-        [ p ]
     | _ ->
-        unsupported
-          "native multi-branch case: last branch needs a variable, wildcard, tuple \
-           (variable subpatterns), or a boolean/int literal with preceding branches"
+        let l_ok = fresh_lbl ctx "swm" in
+        let l_fail = fresh_lbl ctx "swf" in
+        close_block ctx (BrCond (cond, l_ok, l_fail));
+        open_block ctx l_ok;
+        let p =
+          lower_switch_merge_arm body env' ctx static_env type_env merge_lbl
+        in
+        open_block ctx l_fail;
+        emit_instr ctx (VoidCall ("abort", []));
+        close_block ctx Unreachable;
+        [ p ]
   in
   let preds = walk branches [] in
   open_block ctx merge_lbl;
@@ -1217,27 +1221,24 @@ and lower_switch_branches (o_s : operand) (t_s : ty)
     (static_env : static_env) (type_env : Typecheck.type_env) : expr_result =
   match branches with
   | [] -> unsupported "empty case/switch"
-  | [ (pat, body) ] -> (
-      match pat with
-      | CWildcardPat -> lower_expr body env ctx static_env type_env
-      | CIdPat x ->
-          lower_expr body ((x, Val (o_s, t_s)) :: env) ctx static_env type_env
-      | CVectorPat subs -> (
-          match t_s with
-          | Tuple elem_tys ->
-              if List.length subs <> List.length elem_tys then
-                unsupported "tuple pattern arity mismatch in case";
-              if not (List.for_all tuple_subpat_trivial subs) then
-                unsupported
-                  "native case on tuple with literal sub-patterns needs multiple \
-                   branches (not implemented yet)";
-              let env' = extend_env_tuple_pats env ctx o_s elem_tys subs in
-              lower_expr body env' ctx static_env type_env
-          | _ ->
-              unsupported
-                "tuple pattern requires a tuple scrutinee in native compilation")
+  | [ (pat, body) ] ->
+      let env', cond = emit_native_pat_test env ctx o_s t_s pat in
+      (match cond with
+      | ConstI1 true -> lower_expr body env' ctx static_env type_env
       | _ ->
-          unsupported "this case pattern is not supported for native compilation")
+          let merge_lbl = fresh_lbl ctx "swm" in
+          let l_ok = fresh_lbl ctx "sws" in
+          let l_fail = fresh_lbl ctx "swf" in
+          close_block ctx (BrCond (cond, l_ok, l_fail));
+          open_block ctx l_fail;
+          emit_instr ctx (VoidCall ("abort", []));
+          close_block ctx Unreachable;
+          open_block ctx l_ok;
+          let preds =
+            [ lower_switch_merge_arm body env' ctx static_env type_env merge_lbl ]
+          in
+          open_block ctx merge_lbl;
+          merge_switch_predecessors preds ctx)
   | _ :: _ :: _ as multi ->
       lower_switch_branches_multi o_s t_s multi env ctx static_env type_env
 
@@ -1332,11 +1333,20 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       | LVal (o1, Tuple elem_tys) ->
           if List.length subs <> List.length elem_tys then
             unsupported "tuple let pattern arity mismatch";
-          if not (List.for_all tuple_subpat_trivial subs) then
-            unsupported
-              "tuple let with non-variable sub-patterns is not supported for native compilation";
-          let env' = extend_env_tuple_pats env ctx o1 elem_tys subs in
-          lower_expr e2 env' ctx static_env type_env
+          let env', cond =
+            emit_native_pat_test env ctx o1 (Tuple elem_tys) (CVectorPat subs)
+          in
+          (match cond with
+          | ConstI1 true -> lower_expr e2 env' ctx static_env type_env
+          | _ ->
+              let l_ok = fresh_lbl ctx "letp" in
+              let l_fail = fresh_lbl ctx "letf" in
+              close_block ctx (BrCond (cond, l_ok, l_fail));
+              open_block ctx l_fail;
+              emit_instr ctx (VoidCall ("abort", []));
+              close_block ctx Unreachable;
+              open_block ctx l_ok;
+              lower_expr e2 env' ctx static_env type_env)
       | LVal _ -> unsupported "tuple let requires a tuple-valued right-hand side"
       | LPartial _ ->
           unsupported "tuple let does not support a partially applied function on the right")
@@ -1633,6 +1643,7 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
   let tuple_param_unpacks : (string * c_pat list * ty list) list ref =
     ref []
   in
+  let param_pat_checks : (string * ty * c_pat) list ref = ref [] in
   let param_names_and_frags =
     List.map2
       (fun pat pt ->
@@ -1663,8 +1674,11 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
             | _ ->
                 unsupported
                   "tuple function parameter requires a tuple type in native compilation")
-        | CIntPat _ | CBoolPat _ | CNilPat | CConsPat _ | CCharPat _
-        | CStringPat _ | CVariantPat _ ->
+        | CIntPat _ | CBoolPat _ | CStringPat _ as lit_pat ->
+            let p = fresh_param () in
+            param_pat_checks := (p, pt, lit_pat) :: !param_pat_checks;
+            (p, [])
+        | CNilPat | CConsPat _ | CCharPat _ | CVariantPat _ ->
             unsupported
               "Function parameter pattern not supported for native compilation")
       param_pats param_tys
@@ -1677,13 +1691,32 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
     @ outer_env
   in
   let ctx = create_fn_ctx () in
-  let merged =
-    List.fold_left
-      (fun acc (pname, subs, etys) ->
-        extend_env_tuple_pats acc ctx (Local pname) etys subs)
-      merged0
+  let tuple_checks =
+    List.map
+      (fun (pname, subs, etys) -> (pname, Tuple etys, CVectorPat subs))
       (List.rev !tuple_param_unpacks)
   in
+  let merged, guard_conds =
+    List.fold_left
+      (fun (acc_env, conds) (pname, pty, pat) ->
+        let env', c =
+          emit_native_pat_test acc_env ctx (Local pname) pty pat
+        in
+        (env', c :: conds))
+      (merged0, [])
+      (tuple_checks @ List.rev !param_pat_checks)
+  in
+  let guard_combined = iand_operands ctx (List.rev guard_conds) in
+  (match guard_combined with
+  | ConstI1 true -> ()
+  | cond ->
+      let l_ok = fresh_lbl ctx "pok" in
+      let l_fail = fresh_lbl ctx "pfl" in
+      close_block ctx (BrCond (cond, l_ok, l_fail));
+      open_block ctx l_fail;
+      emit_instr ctx (VoidCall ("abort", []));
+      close_block ctx Unreachable;
+      open_block ctx l_ok);
   let op, ret_ty =
     match lower_expr inner merged ctx static_env type_env with
     | LVal (o, t) -> (o, t)
@@ -1912,13 +1945,21 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                   | LVal (o, Tuple elem_tys) ->
                       if List.length subs <> List.length elem_tys then
                         unsupported "top-level tuple let pattern arity mismatch";
-                      if not (List.for_all tuple_subpat_trivial subs) then
-                        unsupported
-                          "top-level tuple let: only variable or wildcard sub-patterns";
-                      let env' =
-                        extend_env_tuple_pats env ctx_main o elem_tys subs
+                      let env', cond =
+                        emit_native_pat_test env ctx_main o (Tuple elem_tys)
+                          (CVectorPat subs)
                       in
-                      walk env' rest
+                      (match cond with
+                      | ConstI1 true -> walk env' rest
+                      | _ ->
+                          let l_ok = fresh_lbl ctx_main "tlp" in
+                          let l_fail = fresh_lbl ctx_main "tlf" in
+                          close_block ctx_main (BrCond (cond, l_ok, l_fail));
+                          open_block ctx_main l_fail;
+                          emit_instr ctx_main (VoidCall ("abort", []));
+                          close_block ctx_main Unreachable;
+                          open_block ctx_main l_ok;
+                          walk env' rest)
                   | LVal _ ->
                       unsupported "top-level tuple let requires a tuple on the right"
                   | LPartial _ ->
