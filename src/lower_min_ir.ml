@@ -130,6 +130,14 @@ let rec ty_equal (a : ty) (b : ty) : bool =
   | List e1, List e2 -> ty_equal e1 e2
   | _ -> false
 
+(** Instantiate a binding type from the static environment, then force any type
+    variables the constraint solver left in {!Mono} types to concrete types
+    ([int] by default), matching {!Typecheck.mono_concrete_or_int_default} for
+    monomorphization keys. Otherwise {!mono_to_min} can fail on nested
+    {!Typecheck.TypeVar} (e.g. list cases with [[]] branches). *)
+let static_mono_for_native (ct : c_type) : mono_type =
+  Typecheck.mono_concrete_or_int_default (Typecheck.instantiate ct)
+
 (** [peel_inferred_param_monos n m] takes the first [n] argument types from a
     curried [FunctionType] chain ([m] must be the typechecker's type for the
     binding, instantiated). *)
@@ -154,14 +162,15 @@ let param_min_ir_tys (name : string) (param_anns : c_type option list)
         unsupported
           ("Missing type for `" ^ name ^ "` in static environment (compiler bug)")
     | Some ct ->
-        let m = Typecheck.instantiate ct in
+        let m = static_mono_for_native ct in
         peel_inferred_param_monos n m
   in
   List.map2
     (fun ann inf_m ->
       match ann with
       | None -> mono_to_min inf_m
-      | Some (Mono m) -> mono_to_min m
+      | Some (Mono m) ->
+          mono_to_min (Typecheck.mono_concrete_or_int_default m)
       | Some (PolyType _) ->
           unsupported
             "Polymorphic parameter annotation not supported for compilation")
@@ -358,7 +367,7 @@ let ret_min_ty_of_user_fn (name : string) (num_params : int)
       unsupported
         ("Missing type for `" ^ name ^ "` in static environment (compiler bug)")
   | Some ct ->
-      let m = Typecheck.instantiate ct in
+      let m = static_mono_for_native ct in
       mono_to_min (mono_after_n_fun_args num_params m)
 
 let is_poly_static (name : string) (static_env : static_env) : bool =
@@ -1333,7 +1342,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       let se = static_env_for_mono_call static_env env in
       match Typecheck.type_of_c_expr se type_env ENil with
       | Ok ct -> (
-          let m = Typecheck.instantiate ct in
+          let m = static_mono_for_native ct in
           match m with
           | CListType em ->
               let elem_ty = mono_to_min em in
@@ -1684,7 +1693,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       | Error err ->
           unsupported ("lambda: " ^ Typecheck.string_of_type_check_error err)
       | Ok ct ->
-          let mono_full = Typecheck.instantiate ct in
+          let mono_full = static_mono_for_native ct in
           let syn_key = fresh_lambda_ty_key () in
           let static_here = (syn_key, Mono mono_full) :: static_env in
           let mangled = mangle_nested_emit "lam" in
@@ -1729,7 +1738,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       | Error err ->
           unsupported ("vector/tuple: " ^ Typecheck.string_of_type_check_error err)
       | Ok ct -> (
-          let m = Typecheck.instantiate ct in
+          let m = static_mono_for_native ct in
           match m with
           | VectorType ms ->
               let elem_tys = List.map mono_to_min ms in

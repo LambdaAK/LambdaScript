@@ -1,12 +1,61 @@
 entry: @main
+fn double_each(lst: list i32) -> list i32 {
+entry:
+  _t1 = icmp eq %lst, nullptr
+  br %_t1 ? swm_2 : swn_3
+swm_2:
+  _t2 = list_nil i32
+  br swm_1
+swn_3:
+  _t3 = icmp ne %lst, nullptr
+  _t4 = list_head i32 %lst
+  _t5 = list_tail i32 %lst
+  br %_t3 ? swm_4 : swf_5
+swm_4:
+  _t6 = mul 2, %_t4
+  _t7 = call @double_each(%_t5)
+  _t8 = list_cons(i32 head=%_t6 tail=%_t7)
+  br swm_1
+swf_5:
+  void call @abort()
+  unreachable
+swm_1:
+  _t9 = phi list i32 [ swm_2, %_t2 ], [ swm_4, %_t8 ]
+  ret %_t9
+}
+
+fn print_list(lst: list i32) -> unit {
+entry:
+  _t16 = icmp eq %lst, nullptr
+  br %_t16 ? swm_2 : swn_3
+swm_2:
+
+  br swm_1
+swn_3:
+  _t17 = icmp ne %lst, nullptr
+  _t18 = list_head i32 %lst
+  _t19 = list_tail i32 %lst
+  br %_t17 ? swm_4 : swf_5
+swm_4:
+  _t20 = call @int_to_str(%_t18)
+  void call @println(%_t20)
+  br swm_1
+swf_5:
+  void call @abort()
+  unreachable
+swm_1:
+
+  ret void
+}
+
 fn main() -> unit {
 entry:
-  _t1 = list_nil i32
-  _t2 = list_cons(i32 head=5 tail=%_t1)
-  _t3 = list_cons(i32 head=4 tail=%_t2)
-  _t4 = list_cons(i32 head=3 tail=%_t3)
-  _t5 = list_cons(i32 head=2 tail=%_t4)
-  _t6 = list_cons(i32 head=1 tail=%_t5)
-  my_list = %_t6
+  _t10 = list_nil i32
+  _t11 = list_cons(i32 head=5 tail=%_t10)
+  _t12 = list_cons(i32 head=4 tail=%_t11)
+  _t13 = list_cons(i32 head=3 tail=%_t12)
+  _t14 = list_cons(i32 head=2 tail=%_t13)
+  _t15 = list_cons(i32 head=1 tail=%_t14)
+  my_list = %_t15
   ret void
 }
