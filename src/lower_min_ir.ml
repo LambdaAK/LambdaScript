@@ -219,6 +219,23 @@ type env_binding = Val of operand * ty | C of callable
 
 type env = (string * env_binding) list
 
+(** Names handled by dedicated [EApp [`Id]] lowering; they are not stored in [env]
+    but resolve as global runtime symbols when used as values or inside lambdas. *)
+let is_native_builtin_name : string -> bool = function
+  | "print" | "println" | "int_to_str" -> true
+  | _ -> false
+
+(** LLVM symbols [ls_print], [ls_println], [ls_int_to_str] (see runtime). *)
+let native_builtin_as_fun_ptr (name : string) : (operand * ty) option =
+  match name with
+  | "print" ->
+      Some (FnAddr ("ls_print", [ String ], Unit), Fun ([ String ], Unit))
+  | "println" ->
+      Some (FnAddr ("ls_println", [ String ], Unit), Fun ([ String ], Unit))
+  | "int_to_str" ->
+      Some (FnAddr ("ls_int_to_str", [ I32 ], String), Fun ([ I32 ], String))
+  | _ -> None
+
 let rec pat_bound_simple : c_pat -> string list = function
   | CIdPat x -> [ x ]
   | CUnitPat | CWildcardPat | CNilPat -> []
@@ -1088,6 +1105,18 @@ and emit_saturated_call ctx (c : callable) : expr_result =
     emit_instr ctx (Assign (t, Call (c.multi_direct, all_args)));
     LVal (Local t, c.ret_ty))
 
+(** Indirect LLVM calls cannot pass string literals as [i8*] the way
+    {!lower_builtin_print} explicitly copies them to a local. *)
+and operand_for_indirect_call ctx (oa : operand) (a_ty : ty) : operand =
+  if a_ty = String then
+    match oa with
+    | ConstStr _ ->
+        let t = fresh () in
+        emit_instr ctx (Assign (t, Copy oa));
+        Local t
+    | o -> o
+  else oa
+
 and apply_fun1 env ctx static_env type_env callee_op a_ty ret_ty args :
     expr_result =
   match args with
@@ -1095,6 +1124,7 @@ and apply_fun1 env ctx static_env type_env callee_op a_ty ret_ty args :
       let oa, _ta =
         lower_expr_val_as_call_arg arg a_ty env ctx static_env type_env
       in
+      let oa = operand_for_indirect_call ctx oa a_ty in
       if ret_ty = Unit then (
         emit_instr ctx (VoidIndirectCall (callee_op, [ a_ty ], [ oa ]));
         LVal (ConstUnit, Unit))
@@ -1424,15 +1454,18 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       | Some (C c) ->
           if callable_remaining c > 0 then LPartial c
           else unsupported ("`" ^ x ^ "` is already fully applied (compiler bug)")
-      | None ->
-          if is_poly_static x static_env then
-            match eta_poly_partial_spine static_env x [] with
-            | Some e_eta -> lower_expr e_eta env ctx static_env type_env
-            | None ->
-                unsupported
-                  ("Polymorphic function `" ^ x
-                 ^ "` cannot be used as a value here; call it fully applied")
-          else unsupported ("Unbound name `" ^ x ^ "` (not a lowering target)"))
+      | None -> (
+          match native_builtin_as_fun_ptr x with
+          | Some (op, t) -> LVal (op, t)
+          | None ->
+              if is_poly_static x static_env then
+                match eta_poly_partial_spine static_env x [] with
+                | Some e_eta -> lower_expr e_eta env ctx static_env type_env
+                | None ->
+                    unsupported
+                      ("Polymorphic function `" ^ x
+                     ^ "` cannot be used as a value here; call it fully applied")
+              else unsupported ("Unbound name `" ^ x ^ "` (not a lowering target)")))
   | EBop (op, e1, e2) -> (
       match map_arith_bop op with
       | Some b ->
@@ -1749,7 +1782,10 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       let fv = S.diff (free_vars_cexpr inner_most) (S.of_list bound) in
       (* Top-level polymorphic defs are not env-bound; call sites monomorphize. *)
       let fv =
-        S.filter (fun v -> not (is_poly_static v static_env)) fv
+        S.filter
+          (fun v ->
+            (not (is_poly_static v static_env)) && not (is_native_builtin_name v))
+          fv
       in
       let cap_entries = lambda_captures env ctx fv in
       match Typecheck.type_of_c_expr static_env type_env lam with

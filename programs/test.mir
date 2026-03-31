@@ -1,118 +1,13 @@
 entry: @main
-fn extend_list__lsm592479740(lst: list i32) -> list i32 {
-entry:
-  _t1 = icmp eq %lst, nullptr
-  br %_t1 ? swm_2 : swn_3
-swm_2:
-  _t2 = list_nil i32
-  br swm_1
-swn_3:
-  _t3 = icmp ne %lst, nullptr
-  _t4 = list_head i32 %lst
-  _t5 = list_tail i32 %lst
-  br %_t3 ? swm_4 : swf_5
-swm_4:
-  _t6 = call @extend_list__lsm592479740(%_t5)
-  _t7 = list_cons(i32 head=%_t4 tail=%_t6)
-  _t8 = list_cons(i32 head=%_t4 tail=%_t7)
-  br swm_1
-swf_5:
-  void call @abort()
-  unreachable
-swm_1:
-  _t9 = phi list i32 [ swm_2, %_t2 ], [ swm_4, %_t8 ]
-  ret %_t9
-}
-
-fn id__lsm966650245(x: i32) -> i32 {
+fn id__lsm344658615(x: string) -> string {
 entry:
 
   ret %x
 }
 
-fn map__lsm495454961__ls_s0(_p2: rawptr, f: fn(i32) -> i32) -> clos(list i32) -> list i32 {
-entry:
-  _t21 = raw_malloc(8)
-  _t22 = env_store %_t21[0] = %f
-  _t23 = mkclos @map__lsm495454961__ls_s1 env=%_t21 : clos(list i32) -> list i32
-  ret %_t23
-}
-
-fn map__lsm495454961__ls_s1(_p1: rawptr, lst: list i32) -> list i32 {
-entry:
-  _t19 = env_load %_p1[0]
-  _t20 = call @map__lsm495454961(%_t19, %lst)
-  ret %_t20
-}
-
-fn map__lsm495454961(f: fn(i32) -> i32, lst: list i32) -> list i32 {
-entry:
-  _t10 = icmp eq %lst, nullptr
-  br %_t10 ? swm_2 : swn_3
-swm_2:
-  _t11 = list_nil i32
-  br swm_1
-swn_3:
-  _t12 = icmp ne %lst, nullptr
-  _t13 = list_head i32 %lst
-  _t14 = list_tail i32 %lst
-  br %_t12 ? swm_4 : swf_5
-swm_4:
-  _t15 = indirect_call %f(%_t13) -> i32
-  _t16 = call @map__lsm495454961(%f, %_t14)
-  _t17 = list_cons(i32 head=%_t15 tail=%_t16)
-  br swm_1
-swf_5:
-  void call @abort()
-  unreachable
-swm_1:
-  _t18 = phi list i32 [ swm_2, %_t11 ], [ swm_4, %_t17 ]
-  ret %_t18
-}
-
-fn print_list(lst: list i32) -> unit {
-entry:
-  _t24 = icmp eq %lst, nullptr
-  br %_t24 ? swm_2 : swn_3
-swm_2:
-
-  br swm_1
-swn_3:
-  _t25 = icmp ne %lst, nullptr
-  _t26 = list_head i32 %lst
-  _t27 = list_tail i32 %lst
-  br %_t25 ? swm_4 : swf_5
-swm_4:
-  _t28 = call @int_to_str(%_t26)
-  void call @println(%_t28)
-  _t29 = icmp eq (), ()
-  br %_t29 ? letp_6 : letf_7
-letf_7:
-  void call @abort()
-  unreachable
-letp_6:
-  void call @print_list(%_t27)
-  br swm_1
-swf_5:
-  void call @abort()
-  unreachable
-swm_1:
-
-  ret void
-}
-
 fn main() -> unit {
 entry:
-  _t30 = list_nil i32
-  _t31 = list_cons(i32 head=5 tail=%_t30)
-  _t32 = list_cons(i32 head=4 tail=%_t31)
-  _t33 = list_cons(i32 head=3 tail=%_t32)
-  _t34 = list_cons(i32 head=2 tail=%_t33)
-  _t35 = list_cons(i32 head=1 tail=%_t34)
-  my_lst = %_t35
-  _t36 = call @map__lsm495454961(&id__lsm966650245 : fn(i32) -> i32, %my_lst)
-  _t37 = call @extend_list__lsm592479740(%_t36)
-  result = %_t37
-  void call @print_list(%result)
+  _t1 = call @id__lsm344658615("a")
+  _ = %_t1
   ret void
 }
