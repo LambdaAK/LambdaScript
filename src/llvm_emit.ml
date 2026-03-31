@@ -11,6 +11,8 @@ type emit_ctx = {
   mutable tuple_registry : (ty list * string) list;
   mutable list_id : int;
   mutable list_registry : (ty * string) list;
+  (** Fresh SSA names for temps introduced while emitting call operands. *)
+  mutable emit_aux_id : int;
 }
 
 let ctx_create () =
@@ -22,7 +24,12 @@ let ctx_create () =
     tuple_registry = [];
     list_id = 0;
     list_registry = [];
+    emit_aux_id = 0;
   }
+
+let fresh_emit_aux (ctx : emit_ctx) : string =
+  ctx.emit_aux_id <- ctx.emit_aux_id + 1;
+  "ls_aux" ^ string_of_int ctx.emit_aux_id
 
 let rec ty_list_equal_ll (a : ty list) (b : ty list) : bool =
   match (a, b) with
@@ -322,8 +329,8 @@ let emit_operand (ctx : emit_ctx) (h : (string, ty) H.t) (op : operand) :
   | RawNull -> ("i8*", "null")
   | Local x -> (llvm_value_ty_ctx ctx (H.find h x), "%" ^ x)
 
-let map_call_args (ctx : emit_ctx) (h : (string, ty) H.t) (fd : func_def)
-    (args : Min_ir.operand list) : string list =
+let map_call_args (ctx : emit_ctx) (h : (string, ty) H.t) (lines : string list ref)
+    (fd : func_def) (args : Min_ir.operand list) : string list =
   if List.length args <> List.length fd.params then
     failwith "llvm_emit: call arity mismatch";
   List.map2
@@ -334,6 +341,11 @@ let map_call_args (ctx : emit_ctx) (h : (string, ty) H.t) (fd : func_def)
           if H.find h x <> Unit then
             failwith "llvm_emit: unit call argument local must have unit type";
           Printf.sprintf "i8 %%%s" x
+      | String, ConstStr s ->
+          let tmp = fresh_emit_aux ctx in
+          lines := !lines @ [ emit_global_string ctx tmp s ];
+          H.replace h tmp String;
+          Printf.sprintf "i8* %%%s" tmp
       | _ ->
           let got_ll, v = emit_operand ctx h op in
           let exp_ll = llvm_value_ty_ctx ctx pty in
@@ -483,7 +495,15 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
       | "print" | "println" -> (
           match args with
           | [ arg ] ->
-              let at, av = emit_operand ctx h arg in
+              let at, av =
+                match arg with
+                | ConstStr s ->
+                    let tmp = fresh_emit_aux ctx in
+                    lines := !lines @ [ emit_global_string ctx tmp s ];
+                    H.replace h tmp String;
+                    ("i8*", "%" ^ tmp)
+                | _ -> emit_operand ctx h arg
+              in
               if at <> "i8*" then failwith "llvm_emit: print/println expect i8*";
               let c = callee_ll name in
               lines :=
@@ -499,7 +519,7 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
           let fd = H.find fn_sigs name in
           if fd.ret <> Unit then
             failwith "llvm_emit: value-returning call must use Assign, not void";
-          let parts = map_call_args ctx h fd args in
+          let parts = map_call_args ctx h lines fd args in
           lines :=
             !lines
             @ [ Printf.sprintf "  call void @%s(%s)" name (String.concat ", " parts) ]
@@ -518,11 +538,16 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
                 if H.find h x <> Unit then
                   failwith "llvm_emit: unit indirect arg must be unit local";
                 Printf.sprintf "i8 %%%s" x
+            | String, ConstStr s ->
+                let tmp = fresh_emit_aux ctx in
+                lines := !lines @ [ emit_global_string ctx tmp s ];
+                H.replace h tmp String;
+                Printf.sprintf "i8* %%%s" tmp
             | _ ->
                 let got_ll, v = emit_operand ctx h op in
                 let exp_ll =
-                  if pty = Unit then "i8" else llvm_ll_ty_ctx ctx pty
-                in
+                    if pty = Unit then "i8" else llvm_ll_ty_ctx ctx pty
+                  in
                 if got_ll <> exp_ll then
                   failwith "llvm_emit: void indirect call arg type mismatch";
                 Printf.sprintf "%s %s" exp_ll v)
@@ -627,7 +652,7 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
               let fd = H.find fn_sigs name in
               if fd.ret = Unit then
                 failwith "llvm_emit: void call should use VoidCall";
-              let parts = map_call_args ctx h fd args in
+              let parts = map_call_args ctx h lines fd args in
               let ret_ll = llvm_ll_ty_ctx ctx fd.ret in
               lines :=
                 !lines
@@ -653,6 +678,11 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
                         if H.find h x <> Unit then
                           failwith "llvm_emit: unit indirect arg must be unit local";
                         Printf.sprintf "i8 %%%s" x
+                    | String, ConstStr s ->
+                        let tmp = fresh_emit_aux ctx in
+                        lines := !lines @ [ emit_global_string ctx tmp s ];
+                        H.replace h tmp String;
+                        Printf.sprintf "i8* %%%s" tmp
                     | _ ->
                         let got_ll, v = emit_operand ctx h op in
                         let exp_ll =

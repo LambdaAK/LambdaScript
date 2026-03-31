@@ -12,14 +12,16 @@ declare i32 @strcmp(i8*, i8*)
 declare i8* @ls_malloc(i64)
 declare i8* @ls_mkclos(i8*, i8*)
 
-define i32 @f__lsm966650245(i32 %x) {
+@.str.0 = private unnamed_addr constant [2 x i8] c"a\00"
+define i8* @id__lsm344658615(i8* %x) {
 entry:
-  ret i32 %x
+  ret i8* %x
 }
 
 define i32 @main() {
 entry:
-  %_t1 = call i32 @f__lsm966650245(i32 1)
-  %_ = add nsw i32 %_t1, 0
+  %ls_aux1 = getelementptr inbounds [2 x i8], [2 x i8]* @.str.0, i64 0, i64 0
+  %_t1 = call i8* @id__lsm344658615(i8* %ls_aux1)
+  %_ = bitcast i8* %_t1 to i8*
   ret i32 0
 }

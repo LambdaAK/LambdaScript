@@ -1134,28 +1134,25 @@ and apply_fun1 env ctx static_env type_env callee_op a_ty ret_ty args :
         LVal (Local t, ret_ty))
   | _ -> unsupported "simple function expects exactly one argument in this call"
 
-and apply_clos_chain env ctx static_env type_env clos_op ps ret_ty args :
-    expr_result =
-  let rec go clo_op ps_left args_left =
-    match (ps_left, args_left) with
-    | [], _ :: _ -> unsupported "Too many arguments in closure call"
-    | _ :: _, [] -> unsupported "Internal: closure chain needs an argument"
-    | p :: prest, arg :: arest ->
-        let oa, _ta =
-          lower_expr_val_as_call_arg arg p env ctx static_env type_env
-        in
-        let next_ty =
-          match prest with [] -> ret_ty | _ -> Clos (prest, ret_ty)
-        in
-        let tmp = fresh () in
-        emit_instr ctx
-          (Assign
-             ( tmp,
-               ClosApply { clo = clo_op; arg = oa; result_ty = next_ty } ));
-        if prest = [] then LVal (Local tmp, ret_ty) else go (Local tmp) prest arest
-    | [], [] -> unsupported "Internal: empty closure arity"
-  in
-  go clos_op ps args
+(** Apply one curried argument to a closure value (possibly multi-arg). *)
+and apply_clos1 env ctx static_env type_env clos_op ps ret_ty arg : expr_result =
+  match ps with
+  | [] -> unsupported "Internal: closure has no parameters"
+  | p :: prest ->
+      let oa, _ta =
+        lower_expr_val_as_call_arg arg p env ctx static_env type_env
+      in
+      let oa = operand_for_indirect_call ctx oa p in
+      let next_ty =
+        match prest with [] -> ret_ty | _ -> Clos (prest, ret_ty)
+      in
+      let tmp = fresh () in
+      emit_instr ctx
+        (Assign
+           ( tmp,
+             ClosApply { clo = clos_op; arg = oa; result_ty = next_ty } ));
+      if prest = [] then LVal (Local tmp, ret_ty)
+      else LVal (Local tmp, next_ty)
 
 and resolve_callable (name : string) (env : env) : callable option =
   match List.assoc_opt name env with
@@ -1424,6 +1421,43 @@ and lower_list_int_enumeration (env : env) (ctx : fn_ctx)
   open_block ctx loop_end;
   LVal (Local v_acc, List elem_ty)
 
+and lower_expr_app_curried env ctx static_env type_env e1 e2 : expr_result =
+  match lower_expr e1 env ctx static_env type_env with
+  | LPartial c ->
+      apply_call_args env ctx static_env type_env c [ e2 ]
+  | LVal (op_f, Fun (f_ps, r_ty)) -> (
+      match f_ps with
+      | [ a_ty ] ->
+          apply_fun1 env ctx static_env type_env op_f a_ty r_ty [ e2 ]
+      | _ ->
+          unsupported "Call of a non-unary function pointer value")
+  | LVal (op_c, Clos (ps, r_ty)) ->
+      apply_clos1 env ctx static_env type_env op_c ps r_ty e2
+  | LVal _ -> unsupported "Call of a non-function value"
+
+and lower_expr_poly_id_call env ctx static_env type_env name args : expr_result =
+  let static_for_mono = static_env_for_mono_call static_env env in
+  match
+    Typecheck.mono_fun_type_of_curried_app static_for_mono type_env name args
+  with
+  | Error err ->
+      unsupported ("monomorph: " ^ Typecheck.string_of_type_check_error err)
+  | Ok m_fun ->
+      let m_fun = Typecheck.mono_concrete_or_int_default m_fun in
+      if not (Typecheck.mono_type_fully_concrete m_fun) then
+        unsupported
+          "Polymorphic call could not be monomorphized for native compilation \
+           (try explicit type annotations or more concrete arguments)"
+      else
+        let mangle = mangle_poly_instance name m_fun in
+        match resolve_callable mangle env with
+        | Some c ->
+            apply_call_args env ctx static_env type_env c args
+        | None ->
+            unsupported
+              ("Missing monomorphized specialization for `" ^ name
+             ^ "` — compiler bug")
+
 and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
     (type_env : Typecheck.type_env) : expr_result =
   match e with
@@ -1589,107 +1623,23 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
             "Discarded let binding cannot be a partially applied function")
   | EBind _ -> unsupported "let: pattern not supported for native compilation"
   | EBlock parts -> lower_block parts env ctx static_env type_env
-  | EApp (e1, e2) ->
+  | EApp (e1, e2) -> (
+      (* Peel a left-associated spine so polymorphic heads monomorphize from
+         all reachable arguments ([const true false], [flip sub 3 10]), except
+         when the peel has more arguments than the poly arity ([(id f) x] gives
+         [[f;x]] for unary [id] — use one curried step). *)
       let head, args = peel_app_spine e1 [ e2 ] in
-      begin match head with
-      | `Other e_fn -> (
-          match lower_expr e_fn env ctx static_env type_env with
-          | LPartial c -> apply_call_args env ctx static_env type_env c args
-          | LVal (op_f, Fun (f_ps, r_ty)) -> (
-              match f_ps with
-              | [ a_ty ] ->
-                  apply_fun1 env ctx static_env type_env op_f a_ty r_ty args
-              | _ ->
-                  unsupported "Call of a non-unary function pointer value")
-          | LVal (op_c, Clos (ps, r_ty)) ->
-              apply_clos_chain env ctx static_env type_env op_c ps r_ty args
-          | LVal _ -> unsupported "Call of a non-function value")
-      | `Id name -> (
-          match name with
-          | "print" -> (
-              match args with
-              | [ arg ] ->
-                  lower_builtin_print "print" arg env ctx static_env type_env
-              | _ -> unsupported "print expects exactly one argument")
-          | "println" -> (
-              match args with
-              | [ arg ] ->
-                  lower_builtin_print "println" arg env ctx static_env type_env
-              | _ -> unsupported "println expects exactly one argument")
-          | "int_to_str" -> (
-              match args with
-              | [ arg ] ->
-                  lower_builtin_int_to_str arg env ctx static_env type_env
-              | _ -> unsupported "int_to_str expects exactly one argument")
-          | _ -> begin
-              match resolve_callable name env with
-              | Some c ->
-                  apply_call_args env ctx static_env type_env c args
-              | None -> begin
-                  match List.assoc_opt name env with
-                  | Some (Val (op, Fun ([ a_ty ], r_ty))) ->
-                      apply_fun1 env ctx static_env type_env op a_ty r_ty args
-                  | Some (Val (op, Clos (ps, r_ty))) ->
-                      apply_clos_chain env ctx static_env type_env op ps r_ty args
-                  | Some (C _) ->
-                      unsupported
-                        "Internal: callable binding not resolved as callable"
-                  | Some (Val _) | None -> begin
-                      if is_poly_static name static_env then
-                        match args with
-                        | [] ->
-                            unsupported
-                              "Internal: polymorphic call with empty arg list"
-                        | first_arg :: rest_args ->
-                            let static_for_mono =
-                              static_env_for_mono_call static_env env
-                            in
-                            let all_args = first_arg :: rest_args in
-                            begin
-                              match
-                                Typecheck.mono_fun_type_of_curried_app
-                                  static_for_mono type_env name all_args
-                              with
-                              | Error err ->
-                                  unsupported
-                                    ("monomorph: "
-                                    ^ Typecheck.string_of_type_check_error err)
-                              | Ok m_fun ->
-                                  let m_fun =
-                                    Typecheck.mono_concrete_or_int_default m_fun
-                                  in
-                                  if
-                                    not (Typecheck.mono_type_fully_concrete m_fun)
-                                  then
-                                    unsupported
-                                      "Polymorphic call could not be monomorphized \
-                                       for native compilation (try explicit type \
-                                       annotations or more concrete arguments)"
-                                  else
-                                  let mangle =
-                                    mangle_poly_instance name m_fun
-                                  in
-                                  begin
-                                    match resolve_callable mangle env with
-                                    | Some c ->
-                                        apply_call_args env ctx static_env
-                                          type_env c all_args
-                                    | None ->
-                                        unsupported
-                                          ("Missing monomorphized specialization for `"
-                                          ^ name ^ "` — compiler bug")
-                                  end
-                            end
-                      else
-                        unsupported
-                          ("Unknown function `" ^ name
-                         ^ "` — declare it above the call, or it is not a \
-                            function")
-                  end
-                end
-            end
-      )
-      end
+      match head with
+      | `Id name when is_poly_static name static_env -> (
+          let poly_n =
+            match List.assoc_opt name static_env with
+            | Some ct -> curried_fun_arity_mono (Typecheck.instantiate ct)
+            | None -> 0
+          in
+          if List.length args > poly_n then
+            lower_expr_app_curried env ctx static_env type_env e1 e2
+          else lower_expr_poly_id_call env ctx static_env type_env name args)
+      | _ -> lower_expr_app_curried env ctx static_env type_env e1 e2)
   | ETernary (cond, e_then, e_else) -> (
       let o_c, t_c = lower_expr_val cond env ctx static_env type_env in
       if t_c <> I1 then unsupported "if condition must be bool";
