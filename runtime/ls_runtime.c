@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+/** Called when a non-exhaustive native [case] falls through (should not happen
+    if the program typechecks). */
+void ls_abort(void) { abort(); }
+
 void ls_print(const char *s) {
   if (!s)
     return;

@@ -118,10 +118,10 @@ filter|}
       {|let rec nth lst n = case lst do | h :: t -> if n == 0 then h else nth t (n - 1) in nth|}
     );
     ( "tuple_fst",
-      {|let fst = fn p -> case p do | (a, b) -> a in fst|}
+      {|fn p -> case p do | (a, b) -> a|}
     );
     ( "tuple_snd",
-      {|let snd = fn p -> case p do | (a, b) -> b in snd|}
+      {|fn p -> case p do | (a, b) -> b|}
     );
   ]
 

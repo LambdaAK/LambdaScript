@@ -1,10 +1,26 @@
 entry: @main
 fn main() -> unit {
 entry:
-  s1 = "hello"
-  s2 = " world!"
-  _t1 = call @str_concat(%s1, %s2)
-  s3 = %_t1
-  void call @println(%s3)
+  _t1 = icmp eq 1, 0
+  br %_t1 ? swm_2 : swn_3
+swm_2:
+  _t2 = "zero"
+  br swm_1
+swn_3:
+  _t3 = icmp slt 0, 1
+  br %_t3 ? then_4 : else_5
+then_4:
+  _t4 = "positive"
+  br merge_6
+else_5:
+  _t5 = "negative"
+  br merge_6
+merge_6:
+  _t6 = phi string [ then_4, %_t4 ], [ else_5, %_t5 ]
+  br swm_1
+swm_1:
+  _t7 = phi string [ swm_2, %_t2 ], [ merge_6, %_t6 ]
+  a = %_t7
+  void call @println(%a)
   ret void
 }

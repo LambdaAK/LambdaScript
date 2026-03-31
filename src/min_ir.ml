@@ -20,6 +20,8 @@ type ty =
   | I1
   | String
   | Unit
+  (** Heterogeneous tuple; lowered to an LLVM struct type. *)
+  | Tuple of ty list
   (** Monomorphic function pointer ([param types], return). LLVM: e.g. [i32
       (i32)*]. *)
   | Fun of ty list * ty
@@ -67,6 +69,9 @@ type rhs =
   | EnvStore of { env : operand; layout : ty list; index : int; value : operand }
   (* [byte_size] must match [sizeof layout] for the LLVM field layout. *)
   | RawMalloc of int
+  (* Tuple value; [elem_tys] matches operand element types in order. *)
+  | TuplePack of ty list * operand list
+  | TupleProj of { tup : operand; index : int; elem_tys : ty list }
 
 type instr =
   | Assign of string * rhs
@@ -82,6 +87,7 @@ type term =
   | Ret of operand option (* [None] = return void / unit *)
   | Br of string (* unconditional jump to label *)
   | BrCond of operand * string * string (* if i1 then label1 else label2 *)
+  | Unreachable
 
 type block = {
   label : string;
@@ -126,6 +132,8 @@ let rec string_of_ty = function
   | I1 -> "i1"
   | String -> "string"
   | Unit -> "unit"
+  | Tuple ts ->
+      "(" ^ String.concat ", " (List.map string_of_ty ts) ^ ")"
   | RawPtr -> "rawptr"
   | Clos (ps, r) ->
       let ps_s = String.concat ", " (List.map string_of_ty ps) in
@@ -207,6 +215,13 @@ let string_of_rhs = function
       Printf.sprintf "env_store %s[%d] = %s" (string_of_operand env) index
         (string_of_operand value)
   | RawMalloc n -> Printf.sprintf "raw_malloc(%d)" n
+  | TuplePack (ts, ops) ->
+      let ts_s = String.concat ", " (List.map string_of_ty ts) in
+      let ops_s = String.concat ", " (List.map string_of_operand ops) in
+      Printf.sprintf "tuple_pack [%s] (%s)" ts_s ops_s
+  | TupleProj { tup; index; elem_tys } ->
+      Printf.sprintf "tuple_proj %s[%d] : %s" (string_of_operand tup) index
+        (String.concat "," (List.map string_of_ty elem_tys))
 
 let string_of_instr = function
   | Assign (dst, rhs) -> Printf.sprintf "  %s = %s" dst (string_of_rhs rhs)
@@ -233,6 +248,7 @@ let string_of_term = function
   | Br lbl -> Printf.sprintf "  br %s" lbl
   | BrCond (cond, t, f) ->
       Printf.sprintf "  br %s ? %s : %s" (string_of_operand cond) t f
+  | Unreachable -> "  unreachable"
 
 let string_of_block (b : block) : string =
   let body = List.map string_of_instr b.instrs |> String.concat "\n" in

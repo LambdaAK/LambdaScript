@@ -1,9 +1,5 @@
-let s1 = "hello"
+let a = case (1, 2) do
+  | (0, 0) -> "zero"
+  | (n, m) -> if n > 0 then "positive" else "negative"
 
-let s2 = " world!"
-
-let s3 = s1 ^ s2
-
-
-
-let () = println s3
+let () = println a

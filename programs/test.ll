@@ -5,19 +5,37 @@ source_filename = "lambdascript"
 
 declare void @ls_print(i8*)
 declare void @ls_println(i8*)
+declare void @ls_abort()
 declare i8* @ls_int_to_str(i32)
 declare i8* @ls_str_concat(i8*, i8*)
 declare i8* @ls_malloc(i64)
 declare i8* @ls_mkclos(i8*, i8*)
 
-@.str.0 = private unnamed_addr constant [6 x i8] c"hello\00"
-@.str.1 = private unnamed_addr constant [8 x i8] c" world!\00"
+@.str.0 = private unnamed_addr constant [5 x i8] c"zero\00"
+@.str.1 = private unnamed_addr constant [9 x i8] c"positive\00"
+@.str.2 = private unnamed_addr constant [9 x i8] c"negative\00"
 define i32 @main() {
 entry:
-  %s1 = getelementptr inbounds [6 x i8], [6 x i8]* @.str.0, i64 0, i64 0
-  %s2 = getelementptr inbounds [8 x i8], [8 x i8]* @.str.1, i64 0, i64 0
-  %_t1 = call i8* @ls_str_concat(i8* %s1, i8* %s2)
-  %s3 = bitcast i8* %_t1 to i8*
-  call void @ls_println(i8* %s3)
+  %_t1 = icmp eq i32 1, 0
+  br i1 %_t1, label %swm_2, label %swn_3
+swm_2:
+  %_t2 = getelementptr inbounds [5 x i8], [5 x i8]* @.str.0, i64 0, i64 0
+  br label %swm_1
+swm_1:
+  %_t7 = phi i8* [ %_t2, %swm_2 ], [ %_t6, %merge_6 ]
+  %a = bitcast i8* %_t7 to i8*
+  call void @ls_println(i8* %a)
   ret i32 0
+swn_3:
+  %_t3 = icmp slt i32 0, 1
+  br i1 %_t3, label %then_4, label %else_5
+then_4:
+  %_t4 = getelementptr inbounds [9 x i8], [9 x i8]* @.str.1, i64 0, i64 0
+  br label %merge_6
+merge_6:
+  %_t6 = phi i8* [ %_t4, %then_4 ], [ %_t5, %else_5 ]
+  br label %swm_1
+else_5:
+  %_t5 = getelementptr inbounds [9 x i8], [9 x i8]* @.str.2, i64 0, i64 0
+  br label %merge_6
 }
