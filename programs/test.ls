@@ -1,3 +1,8 @@
+let rec map f lst =
+  case lst do
+    | [] -> []
+    | h :: t -> f h :: map f t
+
 let rec print_list lst =
   case lst do
     | [] -> ()
@@ -5,24 +10,15 @@ let rec print_list lst =
       let () = println (int_to_str h) in
         print_list t
 
-let rec double_list lst =
+let rec extend_list lst =
   case lst do
     | [] -> []
-    | h :: t -> h :: h :: double_list t
+    | h :: t -> h :: h :: extend_list t
 
-let rec append lst1 lst2 =
-  case lst1 do
-    | [] -> lst2
-    | h :: t -> h :: append t lst2
+let id x = x
 
-let rec reverse lst =
-  case lst do
-    | [] -> []
-    | h :: t -> append (reverse t) ([h])
+let my_lst = [1, 2, 3, 4, 5]
 
-let list = [1, 2, 3, 4, 5]
+let result = extend_list (map id my_lst)
 
-let reversed_list = reverse list
-
-let () = print_list reversed_list
-
+let () = print_list result

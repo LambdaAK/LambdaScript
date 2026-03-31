@@ -1,116 +1,97 @@
 entry: @main
-fn append__lsm251484351__ls_s0(_p2: rawptr, lst1: list i32) -> clos(list i32) -> list i32 {
+fn extend_list__lsm592479740(lst: list i32) -> list i32 {
 entry:
-  _t10 = raw_malloc(8)
-  _t11 = env_store %_t10[0] = %lst1
-  _t12 = mkclos @append__lsm251484351__ls_s1 env=%_t10 : clos(list i32) -> list i32
-  ret %_t12
-}
-
-fn append__lsm251484351__ls_s1(_p1: rawptr, lst2: list i32) -> list i32 {
-entry:
-  _t8 = env_load %_p1[0]
-  _t9 = call @append__lsm251484351(%_t8, %lst2)
+  _t1 = icmp eq %lst, nullptr
+  br %_t1 ? swm_2 : swn_3
+swm_2:
+  _t2 = list_nil i32
+  br swm_1
+swn_3:
+  _t3 = icmp ne %lst, nullptr
+  _t4 = list_head i32 %lst
+  _t5 = list_tail i32 %lst
+  br %_t3 ? swm_4 : swf_5
+swm_4:
+  _t6 = call @extend_list__lsm592479740(%_t5)
+  _t7 = list_cons(i32 head=%_t4 tail=%_t6)
+  _t8 = list_cons(i32 head=%_t4 tail=%_t7)
+  br swm_1
+swf_5:
+  void call @abort()
+  unreachable
+swm_1:
+  _t9 = phi list i32 [ swm_2, %_t2 ], [ swm_4, %_t8 ]
   ret %_t9
 }
 
-fn append__lsm251484351(lst1: list i32, lst2: list i32) -> list i32 {
+fn id__lsm966650245(x: i32) -> i32 {
 entry:
-  _t1 = icmp eq %lst1, nullptr
-  br %_t1 ? swm_2 : swn_3
-swm_2:
 
-  br swm_1
-swn_3:
-  _t2 = icmp ne %lst1, nullptr
-  _t3 = list_head i32 %lst1
-  _t4 = list_tail i32 %lst1
-  br %_t2 ? swm_4 : swf_5
-swm_4:
-  _t5 = call @append__lsm251484351(%_t4, %lst2)
-  _t6 = list_cons(i32 head=%_t3 tail=%_t5)
-  br swm_1
-swf_5:
-  void call @abort()
-  unreachable
-swm_1:
-  _t7 = phi list i32 [ swm_2, %lst2 ], [ swm_4, %_t6 ]
-  ret %_t7
+  ret %x
 }
 
-fn double_list__lsm592479740(lst: list i32) -> list i32 {
+fn map__lsm495454961__ls_s0(_p2: rawptr, f: fn(i32) -> i32) -> clos(list i32) -> list i32 {
 entry:
-  _t13 = icmp eq %lst, nullptr
-  br %_t13 ? swm_2 : swn_3
-swm_2:
-  _t14 = list_nil i32
-  br swm_1
-swn_3:
-  _t15 = icmp ne %lst, nullptr
-  _t16 = list_head i32 %lst
-  _t17 = list_tail i32 %lst
-  br %_t15 ? swm_4 : swf_5
-swm_4:
-  _t18 = call @double_list__lsm592479740(%_t17)
-  _t19 = list_cons(i32 head=%_t16 tail=%_t18)
-  _t20 = list_cons(i32 head=%_t16 tail=%_t19)
-  br swm_1
-swf_5:
-  void call @abort()
-  unreachable
-swm_1:
-  _t21 = phi list i32 [ swm_2, %_t14 ], [ swm_4, %_t20 ]
-  ret %_t21
+  _t21 = raw_malloc(8)
+  _t22 = env_store %_t21[0] = %f
+  _t23 = mkclos @map__lsm495454961__ls_s1 env=%_t21 : clos(list i32) -> list i32
+  ret %_t23
 }
 
-fn reverse__lsm592479740(lst: list i32) -> list i32 {
+fn map__lsm495454961__ls_s1(_p1: rawptr, lst: list i32) -> list i32 {
 entry:
-  _t22 = icmp eq %lst, nullptr
-  br %_t22 ? swm_2 : swn_3
+  _t19 = env_load %_p1[0]
+  _t20 = call @map__lsm495454961(%_t19, %lst)
+  ret %_t20
+}
+
+fn map__lsm495454961(f: fn(i32) -> i32, lst: list i32) -> list i32 {
+entry:
+  _t10 = icmp eq %lst, nullptr
+  br %_t10 ? swm_2 : swn_3
 swm_2:
-  _t23 = list_nil i32
+  _t11 = list_nil i32
   br swm_1
 swn_3:
-  _t24 = icmp ne %lst, nullptr
-  _t25 = list_head i32 %lst
-  _t26 = list_tail i32 %lst
-  br %_t24 ? swm_4 : swf_5
+  _t12 = icmp ne %lst, nullptr
+  _t13 = list_head i32 %lst
+  _t14 = list_tail i32 %lst
+  br %_t12 ? swm_4 : swf_5
 swm_4:
-  _t27 = call @reverse__lsm592479740(%_t26)
-  _t28 = list_nil i32
-  _t29 = list_cons(i32 head=%_t25 tail=%_t28)
-  _t30 = call @append__lsm251484351(%_t27, %_t29)
+  _t15 = indirect_call %f(%_t13) -> i32
+  _t16 = call @map__lsm495454961(%f, %_t14)
+  _t17 = list_cons(i32 head=%_t15 tail=%_t16)
   br swm_1
 swf_5:
   void call @abort()
   unreachable
 swm_1:
-  _t31 = phi list i32 [ swm_2, %_t23 ], [ swm_4, %_t30 ]
-  ret %_t31
+  _t18 = phi list i32 [ swm_2, %_t11 ], [ swm_4, %_t17 ]
+  ret %_t18
 }
 
 fn print_list(lst: list i32) -> unit {
 entry:
-  _t32 = icmp eq %lst, nullptr
-  br %_t32 ? swm_2 : swn_3
+  _t24 = icmp eq %lst, nullptr
+  br %_t24 ? swm_2 : swn_3
 swm_2:
 
   br swm_1
 swn_3:
-  _t33 = icmp ne %lst, nullptr
-  _t34 = list_head i32 %lst
-  _t35 = list_tail i32 %lst
-  br %_t33 ? swm_4 : swf_5
+  _t25 = icmp ne %lst, nullptr
+  _t26 = list_head i32 %lst
+  _t27 = list_tail i32 %lst
+  br %_t25 ? swm_4 : swf_5
 swm_4:
-  _t36 = call @int_to_str(%_t34)
-  void call @println(%_t36)
-  _t37 = icmp eq (), ()
-  br %_t37 ? letp_6 : letf_7
+  _t28 = call @int_to_str(%_t26)
+  void call @println(%_t28)
+  _t29 = icmp eq (), ()
+  br %_t29 ? letp_6 : letf_7
 letf_7:
   void call @abort()
   unreachable
 letp_6:
-  void call @print_list(%_t35)
+  void call @print_list(%_t27)
   br swm_1
 swf_5:
   void call @abort()
@@ -122,15 +103,16 @@ swm_1:
 
 fn main() -> unit {
 entry:
-  _t38 = list_nil i32
-  _t39 = list_cons(i32 head=5 tail=%_t38)
-  _t40 = list_cons(i32 head=4 tail=%_t39)
-  _t41 = list_cons(i32 head=3 tail=%_t40)
-  _t42 = list_cons(i32 head=2 tail=%_t41)
-  _t43 = list_cons(i32 head=1 tail=%_t42)
-  list = %_t43
-  _t44 = call @reverse__lsm592479740(%list)
-  reversed_list = %_t44
-  void call @print_list(%reversed_list)
+  _t30 = list_nil i32
+  _t31 = list_cons(i32 head=5 tail=%_t30)
+  _t32 = list_cons(i32 head=4 tail=%_t31)
+  _t33 = list_cons(i32 head=3 tail=%_t32)
+  _t34 = list_cons(i32 head=2 tail=%_t33)
+  _t35 = list_cons(i32 head=1 tail=%_t34)
+  my_lst = %_t35
+  _t36 = call @map__lsm495454961(&id__lsm966650245 : fn(i32) -> i32, %my_lst)
+  _t37 = call @extend_list__lsm592479740(%_t36)
+  result = %_t37
+  void call @print_list(%result)
   ret void
 }

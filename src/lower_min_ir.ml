@@ -466,6 +466,20 @@ let find_cdefn_function (name : string) (defs : c_defn list) :
   in
   find defs
 
+(** Top-level [let name = e] where [e] is not a function (no nested [EFunction]). *)
+let find_cdefn_value_rhs (name : string) (defs : c_defn list) : c_expr option =
+  let rec find = function
+    | [] -> None
+    | CDefn (pat, _, body, _, _) :: rest -> (
+        match pat with
+        | CIdPat n when n = name ->
+            let param_pats, _, inner = peel_efun [] [] body in
+            if param_pats = [] then Some inner else find rest
+        | _ -> find rest)
+    | _ :: rest -> find rest
+  in
+  find defs
+
 (** Curried application spine: left-most head and arguments left-to-right. *)
 let rec peel_app_spine e acc =
   match e with
@@ -795,7 +809,6 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
   while not (Queue.is_empty q) do
     let name, mono = Queue.pop q in
     match find_cdefn_function name defs with
-    | None -> ()
     | Some (param_pats, _, inner) ->
         let static_inst = replace_static_binding name (Mono mono) static_env in
         let param_monos =
@@ -811,6 +824,12 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
             (List.combine param_pats param_monos)
         in
         collect_visit_expr env_inst inner
+    | None -> (
+        match find_cdefn_value_rhs name defs with
+        | Some inner ->
+            let static_inst = replace_static_binding name (Mono mono) static_env in
+            collect_visit_expr static_inst inner
+        | None -> ())
   done;
   List.sort
     (fun (a, ma) (b, mb) ->
@@ -991,8 +1010,13 @@ and lower_expr_val_as_call_arg (arg : c_expr) (expect : ty) (env : env)
            this site for native compilation";
       let mangle = mangle_poly_instance x m_expect in
       begin
-        match resolve_callable mangle env with
-        | Some c ->
+        match List.assoc_opt mangle env with
+        | Some (Val (op, got)) ->
+            if not (ty_equal got expect) then
+              unsupported
+                "Internal: monomorphized polymorphic value type mismatch at call";
+            (op, got)
+        | Some (C c) ->
             let op, got = materialize_clos_lower env ctx c in
             if not (ty_equal got expect) then
               unsupported
@@ -2008,6 +2032,35 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
             user_funs := !user_funs @ nested @ [ fn ])
       instances;
     let ctx_main = create_fn_ctx () in
+    let env_with_values =
+      List.fold_left
+        (fun env_acc (name, mono) ->
+          match find_cdefn_function name defs with
+          | Some _ -> env_acc
+          | None -> (
+              match find_cdefn_value_rhs name defs with
+              | None -> env_acc
+              | Some inner ->
+                  let emit = mangle_poly_instance name mono in
+                  if List.mem_assoc emit env_acc then env_acc
+                  else
+                    let static_inst =
+                      replace_static_binding name (Mono mono) static_env
+                    in
+                    match lower_expr inner env_acc ctx_main static_inst type_env with
+                    | LPartial _ ->
+                        unsupported
+                          "Monomorphized top-level value specialization is a partial \
+                           application (compiler bug)"
+                    | LVal (o, t) ->
+                        let t_expect = mono_to_min mono in
+                        if not (ty_equal t t_expect) then
+                          unsupported
+                            "Internal: monomorphized value type does not match key";
+                        emit_instr ctx_main (Assign (emit, Copy o));
+                        (emit, Val (Local emit, t)) :: env_acc))
+        env_mono instances
+    in
     let rec walk env = function
       | [] -> ()
       | (CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _) :: rest
@@ -2152,7 +2205,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
               unsupported
                 "Top-level let only supports identifier, unit, wildcard, or tuple patterns in Min_IR lowering")
     in
-    walk env_mono defs;
+    walk env_with_values defs;
     close_block ctx_main (Ret None);
     let main_fn : func_def =
       {
