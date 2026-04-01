@@ -444,6 +444,23 @@ let static_env_for_mono_call (global : static_env) (env : env) : static_env =
     [] env
   @ global
 
+(** Domain/codomain of [e_fn] in application [(e_fn e_arg)], from the typechecker
+    (matches the interpreter). Used so native lowering does not rely on
+    [Min_ir] [param_tys] that over-defaulted flex type vars (e.g. [int] instead
+    of [int -> int]) before later arguments are seen. *)
+let min_dom_ret_of_binary_app (global : static_env) (type_env : Typecheck.type_env)
+    (env : env) (e_fn : c_expr) (e_arg : c_expr) : (ty * ty) option =
+  let se = static_env_for_mono_call global env in
+  match Typecheck.mono_fun_type_of_binary_app se type_env e_fn e_arg with
+  | Ok m -> (
+      match m with
+      | FunctionType (d, c) ->
+          let d' = Typecheck.mono_concrete_or_int_default d in
+          let c' = Typecheck.mono_concrete_or_int_default c in
+          Some (mono_to_min d', mono_to_min c')
+      | _ -> None)
+  | Error _ -> None
+
 let replace_static_binding (name : string) (ct : c_type) (static_env : static_env)
     : static_env =
   (name, ct) :: List.remove_assoc name static_env
@@ -1045,7 +1062,11 @@ and lower_expr_val_as_call_arg (arg : c_expr) (expect : ty) (env : env)
       end
   | _ ->
       let o, got = lower_expr_val arg env ctx static_env type_env in
-      if not (ty_equal got expect) then unsupported "call argument type mismatch";
+      if not (ty_equal got expect) then
+        unsupported
+          ("call argument type mismatch (expected "
+          ^ string_of_ty expect ^ ", got " ^ string_of_ty got
+          ^ ")");
       (o, got)
 
 and lower_builtin_print name arg env ctx static_env type_env =
@@ -1070,16 +1091,23 @@ and lower_builtin_int_to_str arg env ctx static_env type_env =
   LVal (Local t, String)
 
 (** Apply call arguments [args] (already in order) to [c]; emit a call when saturated. *)
-and apply_call_args (env : env) (ctx : fn_ctx) (static_env : static_env)
-    (type_env : Typecheck.type_env) (c : callable) (args : c_expr list) :
-    expr_result =
+and apply_call_args ?(callee_fn_expr : c_expr option) (env : env) (ctx : fn_ctx)
+    (static_env : static_env) (type_env : Typecheck.type_env) (c : callable)
+    (args : c_expr list) : expr_result =
   let rec go c = function
     | [] ->
         if callable_remaining c = 0 then emit_saturated_call ctx c else LPartial c
     | arg :: rest -> (
         if callable_remaining c = 0 then unsupported "Too many arguments in call";
         let i = List.length c.fixed in
-        let expect = List.nth c.param_tys i in
+        let expect =
+          match callee_fn_expr with
+          | Some e_fn when i = 0 -> (
+              match min_dom_ret_of_binary_app static_env type_env env e_fn arg with
+              | Some (d, _) -> d
+              | None -> List.nth c.param_tys i)
+          | _ -> List.nth c.param_tys i
+        in
         let op, _got =
           lower_expr_val_as_call_arg arg expect env ctx static_env type_env
         in
@@ -1117,32 +1145,50 @@ and operand_for_indirect_call ctx (oa : operand) (a_ty : ty) : operand =
     | o -> o
   else oa
 
-and apply_fun1 env ctx static_env type_env callee_op a_ty ret_ty args :
-    expr_result =
+and apply_fun1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
+    callee_op a_ty ret_ty args : expr_result =
   match args with
   | [ arg ] ->
-      let oa, _ta =
-        lower_expr_val_as_call_arg arg a_ty env ctx static_env type_env
+      let a_ty', ret_ty' =
+        match callee_fn_expr with
+        | Some e_fn -> (
+            match min_dom_ret_of_binary_app static_env type_env env e_fn arg with
+            | Some (d, r) -> (d, r)
+            | None -> (a_ty, ret_ty))
+        | None -> (a_ty, ret_ty)
       in
-      let oa = operand_for_indirect_call ctx oa a_ty in
-      if ret_ty = Unit then (
-        emit_instr ctx (VoidIndirectCall (callee_op, [ a_ty ], [ oa ]));
+      let oa, _ta =
+        lower_expr_val_as_call_arg arg a_ty' env ctx static_env type_env
+      in
+      let oa = operand_for_indirect_call ctx oa a_ty' in
+      if ret_ty' = Unit then (
+        emit_instr ctx (VoidIndirectCall (callee_op, [ a_ty' ], [ oa ]));
         LVal (ConstUnit, Unit))
       else (
         let t = fresh () in
-        emit_instr ctx (Assign (t, IndirectCall (callee_op, [ a_ty ], ret_ty, [ oa ])));
-        LVal (Local t, ret_ty))
+        emit_instr ctx
+          (Assign (t, IndirectCall (callee_op, [ a_ty' ], ret_ty', [ oa ])));
+        LVal (Local t, ret_ty'))
   | _ -> unsupported "simple function expects exactly one argument in this call"
 
 (** Apply one curried argument to a closure value (possibly multi-arg). *)
-and apply_clos1 env ctx static_env type_env clos_op ps ret_ty arg : expr_result =
+and apply_clos1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
+    clos_op ps ret_ty arg : expr_result =
   match ps with
   | [] -> unsupported "Internal: closure has no parameters"
   | p :: prest ->
-      let oa, _ta =
-        lower_expr_val_as_call_arg arg p env ctx static_env type_env
+      let p' =
+        match callee_fn_expr with
+        | Some e_fn -> (
+            match min_dom_ret_of_binary_app static_env type_env env e_fn arg with
+            | Some (d, _) -> d
+            | None -> p)
+        | None -> p
       in
-      let oa = operand_for_indirect_call ctx oa p in
+      let oa, _ta =
+        lower_expr_val_as_call_arg arg p' env ctx static_env type_env
+      in
+      let oa = operand_for_indirect_call ctx oa p' in
       let next_ty =
         match prest with [] -> ret_ty | _ -> Clos (prest, ret_ty)
       in
@@ -1424,15 +1470,16 @@ and lower_list_int_enumeration (env : env) (ctx : fn_ctx)
 and lower_expr_app_curried env ctx static_env type_env e1 e2 : expr_result =
   match lower_expr e1 env ctx static_env type_env with
   | LPartial c ->
-      apply_call_args env ctx static_env type_env c [ e2 ]
+      apply_call_args ~callee_fn_expr:e1 env ctx static_env type_env c [ e2 ]
   | LVal (op_f, Fun (f_ps, r_ty)) -> (
       match f_ps with
       | [ a_ty ] ->
-          apply_fun1 env ctx static_env type_env op_f a_ty r_ty [ e2 ]
+          apply_fun1 ~callee_fn_expr:e1 env ctx static_env type_env op_f a_ty r_ty
+            [ e2 ]
       | _ ->
           unsupported "Call of a non-unary function pointer value")
   | LVal (op_c, Clos (ps, r_ty)) ->
-      apply_clos1 env ctx static_env type_env op_c ps r_ty e2
+      apply_clos1 ~callee_fn_expr:e1 env ctx static_env type_env op_c ps r_ty e2
   | LVal _ -> unsupported "Call of a non-function value"
 
 and lower_expr_poly_id_call env ctx static_env type_env name args : expr_result =
@@ -1452,7 +1499,8 @@ and lower_expr_poly_id_call env ctx static_env type_env name args : expr_result 
         let mangle = mangle_poly_instance name m_fun in
         match resolve_callable mangle env with
         | Some c ->
-            apply_call_args env ctx static_env type_env c args
+            apply_call_args ~callee_fn_expr:(EId name) env ctx static_env type_env
+              c args
         | None ->
             unsupported
               ("Missing monomorphized specialization for `" ^ name

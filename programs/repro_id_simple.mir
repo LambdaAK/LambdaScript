@@ -1,0 +1,57 @@
+entry: @main
+fn id__lsm76640768__ls_s0(_p2: rawptr, x: i32) -> clos(i32) -> i32 {
+entry:
+  _t3 = raw_malloc(4)
+  _t4 = env_store %_t3[0] = %x
+  _t5 = mkclos @id__lsm76640768__ls_s1 env=%_t3 : clos(i32) -> i32
+  ret %_t5
+}
+
+fn id__lsm76640768__ls_s1(_p1: rawptr, y: i32) -> i32 {
+entry:
+  _t1 = env_load %_p1[0]
+  _t2 = call @id__lsm76640768(%_t1, %y)
+  ret %_t2
+}
+
+fn id__lsm76640768(x: i32, y: i32) -> i32 {
+entry:
+
+  ret %x
+}
+
+fn id__lsm509404921__ls_s0(_p4: rawptr, x: i32) -> clos(fn(i32) -> i32) -> i32 {
+entry:
+  _t8 = raw_malloc(4)
+  _t9 = env_store %_t8[0] = %x
+  _t10 = mkclos @id__lsm509404921__ls_s1 env=%_t8 : clos(fn(i32) -> i32) -> i32
+  ret %_t10
+}
+
+fn id__lsm509404921__ls_s1(_p3: rawptr, y: fn(i32) -> i32) -> i32 {
+entry:
+  _t6 = env_load %_p3[0]
+  _t7 = call @id__lsm509404921(%_t6, %y)
+  ret %_t7
+}
+
+fn id__lsm509404921(x: i32, y: fn(i32) -> i32) -> i32 {
+entry:
+
+  ret %x
+}
+
+fn lam__lsn1(x: i32) -> i32 {
+entry:
+
+  ret %x
+}
+
+fn main() -> unit {
+entry:
+  _t11 = call @id__lsm509404921(1, &lam__lsn1 : fn(i32) -> i32)
+  a = %_t11
+  _t12 = indirect_call &ls_int_to_str : fn(i32) -> string(%a) -> string
+  void indirect &ls_println : fn(string) -> unit(%_t12)
+  ret void
+}

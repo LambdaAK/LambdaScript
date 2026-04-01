@@ -20,8 +20,6 @@ declare i8* @ls_mkclos(i8*, i8*)
 %ls.env.6 = type { i8* }
 %ls.env.7 = type { i8* }
 %ls.env.8 = type { i8* }
-%ls.env.9 = type { i8* }
-%ls.env.10 = type { i8* }
 define i8* @id__lsm76640768__ls_s0(i8* %_p2, i32 %x) {
 entry:
   %_t3 = call i8* @ls_malloc(i64 4)
@@ -72,77 +70,52 @@ entry:
   ret i8* %x
 }
 
-define i8* @id__lsm16355563__ls_s0(i8* %_p6, i8* %x) {
+define i8* @id__lsm999492867__ls_s0(i8* %_p6, i8* %x) {
 entry:
   %_t13 = call i8* @ls_malloc(i64 8)
   %_t14_esb = bitcast i8* %_t13 to %ls.env.5*
   %_t14_esg = getelementptr inbounds %ls.env.5, %ls.env.5* %_t14_esb, i32 0, i32 0
   store i8* %x, i8** %_t14_esg
-  %_t15_codep = bitcast i8* (i8*, i32)* @id__lsm16355563__ls_s1 to i8*
+  %_t15_codep = bitcast i8* (i8*, i1)* @id__lsm999492867__ls_s1 to i8*
   %_t15 = call i8* @ls_mkclos(i8* %_t15_codep, i8* %_t13)
   ret i8* %_t15
 }
 
-define i8* @id__lsm16355563__ls_s1(i8* %_p5, i32 %y) {
+define i8* @id__lsm999492867__ls_s1(i8* %_p5, i1 %y) {
 entry:
   %_t11_ebuf = bitcast i8* %_p5 to %ls.env.6*
   %_t11_eg = getelementptr inbounds %ls.env.6, %ls.env.6* %_t11_ebuf, i32 0, i32 0
   %_t11 = load i8*, i8** %_t11_eg
-  %_t12 = call i8* @id__lsm16355563(i8* %_t11, i32 %y)
+  %_t12 = call i8* @id__lsm999492867(i8* %_t11, i1 %y)
   ret i8* %_t12
 }
 
-define i8* @id__lsm16355563(i8* %x, i32 %y) {
+define i8* @id__lsm999492867(i8* %x, i1 %y) {
 entry:
   ret i8* %x
 }
 
-define i8* @id__lsm534347635__ls_s0(i8* %_p8, i8* %x) {
+define i8* @id__lsm16355563__ls_s0(i8* %_p8, i8* %x) {
 entry:
   %_t18 = call i8* @ls_malloc(i64 8)
   %_t19_esb = bitcast i8* %_t18 to %ls.env.7*
   %_t19_esg = getelementptr inbounds %ls.env.7, %ls.env.7* %_t19_esb, i32 0, i32 0
   store i8* %x, i8** %_t19_esg
-  %_t20_codep = bitcast i8* (i8*, i8*)* @id__lsm534347635__ls_s1 to i8*
+  %_t20_codep = bitcast i8* (i8*, i32)* @id__lsm16355563__ls_s1 to i8*
   %_t20 = call i8* @ls_mkclos(i8* %_t20_codep, i8* %_t18)
   ret i8* %_t20
 }
 
-define i8* @id__lsm534347635__ls_s1(i8* %_p7, i8* %y) {
+define i8* @id__lsm16355563__ls_s1(i8* %_p7, i32 %y) {
 entry:
   %_t16_ebuf = bitcast i8* %_p7 to %ls.env.8*
   %_t16_eg = getelementptr inbounds %ls.env.8, %ls.env.8* %_t16_ebuf, i32 0, i32 0
   %_t16 = load i8*, i8** %_t16_eg
-  %_t17 = call i8* @id__lsm534347635(i8* %_t16, i8* %y)
+  %_t17 = call i8* @id__lsm16355563(i8* %_t16, i32 %y)
   ret i8* %_t17
 }
 
-define i8* @id__lsm534347635(i8* %x, i8* %y) {
-entry:
-  ret i8* %x
-}
-
-define i8* @id__lsm664935318__ls_s0(i8* %_p10, i8* %x) {
-entry:
-  %_t23 = call i8* @ls_malloc(i64 8)
-  %_t24_esb = bitcast i8* %_t23 to %ls.env.9*
-  %_t24_esg = getelementptr inbounds %ls.env.9, %ls.env.9* %_t24_esb, i32 0, i32 0
-  store i8* %x, i8** %_t24_esg
-  %_t25_codep = bitcast i8* (i8*, i8*)* @id__lsm664935318__ls_s1 to i8*
-  %_t25 = call i8* @ls_mkclos(i8* %_t25_codep, i8* %_t23)
-  ret i8* %_t25
-}
-
-define i8* @id__lsm664935318__ls_s1(i8* %_p9, i8* %y) {
-entry:
-  %_t21_ebuf = bitcast i8* %_p9 to %ls.env.10*
-  %_t21_eg = getelementptr inbounds %ls.env.10, %ls.env.10* %_t21_ebuf, i32 0, i32 0
-  %_t21 = load i8*, i8** %_t21_eg
-  %_t22 = call i8* @id__lsm664935318(i8* %_t21, i8* %y)
-  ret i8* %_t22
-}
-
-define i8* @id__lsm664935318(i8* %x, i8* %y) {
+define i8* @id__lsm16355563(i8* %x, i32 %y) {
 entry:
   ret i8* %x
 }
@@ -154,28 +127,26 @@ entry:
 
 define i32 @main() {
 entry:
-  %_t26_codep = bitcast i8* (i8*, i32)* @id__lsm76640768__ls_s0 to i8*
-  %_t26 = call i8* @ls_mkclos(i8* %_t26_codep, i8* null)
-  %_t27 = call i8* @id__lsm265992483(i8* %_t26, i1 true)
-  %_t28_codep = bitcast i8* (i8*, i32)* @id__lsm76640768__ls_s0 to i8*
-  %_t28 = call i8* @ls_mkclos(i8* %_t28_codep, i8* null)
-  %_t29 = call i8* @id__lsm534347635(i8* %_t27, i8* %_t28)
-  %_t30_cp = bitcast i8* %_t29 to %ls.clos*
-  %_t30_gcd = getelementptr inbounds %ls.clos, %ls.clos* %_t30_cp, i32 0, i32 0
-  %_t30_vcd = load i8*, i8** %_t30_gcd
-  %_t30_gen = getelementptr inbounds %ls.clos, %ls.clos* %_t30_cp, i32 0, i32 1
-  %_t30_ven = load i8*, i8** %_t30_gen
-  %_t30_fn = bitcast i8* %_t30_vcd to i8* (i8*, i32)*
-  %_t30 = call i8* %_t30_fn(i8* %_t30_ven, i32 1)
-  %_t31_cp = bitcast i8* %_t30 to %ls.clos*
-  %_t31_gcd = getelementptr inbounds %ls.clos, %ls.clos* %_t31_cp, i32 0, i32 0
-  %_t31_vcd = load i8*, i8** %_t31_gcd
-  %_t31_gen = getelementptr inbounds %ls.clos, %ls.clos* %_t31_cp, i32 0, i32 1
-  %_t31_ven = load i8*, i8** %_t31_gen
-  %_t31_fn = bitcast i8* %_t31_vcd to i32 (i8*, i32 (i32)*)*
-  %_t31 = call i32 %_t31_fn(i8* %_t31_ven, i32 (i32)* @lam__lsn1)
-  %a = add nsw i32 %_t31, 0
-  %_t32 = call i8* @ls_int_to_str(i32 %a)
-  call void @ls_println(i8* %_t32)
+  %_t21_codep = bitcast i8* (i8*, i32)* @id__lsm76640768__ls_s0 to i8*
+  %_t21 = call i8* @ls_mkclos(i8* %_t21_codep, i8* null)
+  %_t22 = call i8* @id__lsm16355563(i8* %_t21, i32 10)
+  %_t23 = call i8* @id__lsm265992483(i8* %_t22, i1 true)
+  %_t24_cp = bitcast i8* %_t23 to %ls.clos*
+  %_t24_gcd = getelementptr inbounds %ls.clos, %ls.clos* %_t24_cp, i32 0, i32 0
+  %_t24_vcd = load i8*, i8** %_t24_gcd
+  %_t24_gen = getelementptr inbounds %ls.clos, %ls.clos* %_t24_cp, i32 0, i32 1
+  %_t24_ven = load i8*, i8** %_t24_gen
+  %_t24_fn = bitcast i8* %_t24_vcd to i8* (i8*, i32)*
+  %_t24 = call i8* %_t24_fn(i8* %_t24_ven, i32 1)
+  %_t25_cp = bitcast i8* %_t24 to %ls.clos*
+  %_t25_gcd = getelementptr inbounds %ls.clos, %ls.clos* %_t25_cp, i32 0, i32 0
+  %_t25_vcd = load i8*, i8** %_t25_gcd
+  %_t25_gen = getelementptr inbounds %ls.clos, %ls.clos* %_t25_cp, i32 0, i32 1
+  %_t25_ven = load i8*, i8** %_t25_gen
+  %_t25_fn = bitcast i8* %_t25_vcd to i32 (i8*, i32 (i32)*)*
+  %_t25 = call i32 %_t25_fn(i8* %_t25_ven, i32 (i32)* @lam__lsn1)
+  %a = add nsw i32 %_t25, 0
+  %_t26 = call i8* @ls_int_to_str(i32 %a)
+  call void @ls_println(i8* %_t26)
   ret i32 0
 }

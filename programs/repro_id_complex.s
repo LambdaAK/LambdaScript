@@ -80,6 +80,46 @@ _id__lsm265992483:                      ; @id__lsm265992483
 ; %bb.0:                                ; %entry
 	ret
                                         ; -- End function
+	.globl	_id__lsm999492867__ls_s0        ; -- Begin function id__lsm999492867__ls_s0
+	.p2align	2
+_id__lsm999492867__ls_s0:               ; @id__lsm999492867__ls_s0
+	.cfi_startproc
+; %bb.0:                                ; %entry
+	stp	x20, x19, [sp, #-32]!           ; 16-byte Folded Spill
+	stp	x29, x30, [sp, #16]             ; 16-byte Folded Spill
+	.cfi_def_cfa_offset 32
+	.cfi_offset w30, -8
+	.cfi_offset w29, -16
+	.cfi_offset w19, -24
+	.cfi_offset w20, -32
+	mov	x19, x1
+	mov	w0, #8                          ; =0x8
+	bl	_ls_malloc
+	mov	x1, x0
+	str	x19, [x0]
+Lloh4:
+	adrp	x0, _id__lsm999492867__ls_s1@PAGE
+Lloh5:
+	add	x0, x0, _id__lsm999492867__ls_s1@PAGEOFF
+	ldp	x29, x30, [sp, #16]             ; 16-byte Folded Reload
+	ldp	x20, x19, [sp], #32             ; 16-byte Folded Reload
+	b	_ls_mkclos
+	.loh AdrpAdd	Lloh4, Lloh5
+	.cfi_endproc
+                                        ; -- End function
+	.globl	_id__lsm999492867__ls_s1        ; -- Begin function id__lsm999492867__ls_s1
+	.p2align	2
+_id__lsm999492867__ls_s1:               ; @id__lsm999492867__ls_s1
+; %bb.0:                                ; %entry
+	ldr	x0, [x0]
+	ret
+                                        ; -- End function
+	.globl	_id__lsm999492867               ; -- Begin function id__lsm999492867
+	.p2align	2
+_id__lsm999492867:                      ; @id__lsm999492867
+; %bb.0:                                ; %entry
+	ret
+                                        ; -- End function
 	.globl	_id__lsm16355563__ls_s0         ; -- Begin function id__lsm16355563__ls_s0
 	.p2align	2
 _id__lsm16355563__ls_s0:                ; @id__lsm16355563__ls_s0
@@ -97,14 +137,14 @@ _id__lsm16355563__ls_s0:                ; @id__lsm16355563__ls_s0
 	bl	_ls_malloc
 	mov	x1, x0
 	str	x19, [x0]
-Lloh4:
+Lloh6:
 	adrp	x0, _id__lsm16355563__ls_s1@PAGE
-Lloh5:
+Lloh7:
 	add	x0, x0, _id__lsm16355563__ls_s1@PAGEOFF
 	ldp	x29, x30, [sp, #16]             ; 16-byte Folded Reload
 	ldp	x20, x19, [sp], #32             ; 16-byte Folded Reload
 	b	_ls_mkclos
-	.loh AdrpAdd	Lloh4, Lloh5
+	.loh AdrpAdd	Lloh6, Lloh7
 	.cfi_endproc
                                         ; -- End function
 	.globl	_id__lsm16355563__ls_s1         ; -- Begin function id__lsm16355563__ls_s1
@@ -120,86 +160,6 @@ _id__lsm16355563:                       ; @id__lsm16355563
 ; %bb.0:                                ; %entry
 	ret
                                         ; -- End function
-	.globl	_id__lsm534347635__ls_s0        ; -- Begin function id__lsm534347635__ls_s0
-	.p2align	2
-_id__lsm534347635__ls_s0:               ; @id__lsm534347635__ls_s0
-	.cfi_startproc
-; %bb.0:                                ; %entry
-	stp	x20, x19, [sp, #-32]!           ; 16-byte Folded Spill
-	stp	x29, x30, [sp, #16]             ; 16-byte Folded Spill
-	.cfi_def_cfa_offset 32
-	.cfi_offset w30, -8
-	.cfi_offset w29, -16
-	.cfi_offset w19, -24
-	.cfi_offset w20, -32
-	mov	x19, x1
-	mov	w0, #8                          ; =0x8
-	bl	_ls_malloc
-	mov	x1, x0
-	str	x19, [x0]
-Lloh6:
-	adrp	x0, _id__lsm534347635__ls_s1@PAGE
-Lloh7:
-	add	x0, x0, _id__lsm534347635__ls_s1@PAGEOFF
-	ldp	x29, x30, [sp, #16]             ; 16-byte Folded Reload
-	ldp	x20, x19, [sp], #32             ; 16-byte Folded Reload
-	b	_ls_mkclos
-	.loh AdrpAdd	Lloh6, Lloh7
-	.cfi_endproc
-                                        ; -- End function
-	.globl	_id__lsm534347635__ls_s1        ; -- Begin function id__lsm534347635__ls_s1
-	.p2align	2
-_id__lsm534347635__ls_s1:               ; @id__lsm534347635__ls_s1
-; %bb.0:                                ; %entry
-	ldr	x0, [x0]
-	ret
-                                        ; -- End function
-	.globl	_id__lsm534347635               ; -- Begin function id__lsm534347635
-	.p2align	2
-_id__lsm534347635:                      ; @id__lsm534347635
-; %bb.0:                                ; %entry
-	ret
-                                        ; -- End function
-	.globl	_id__lsm664935318__ls_s0        ; -- Begin function id__lsm664935318__ls_s0
-	.p2align	2
-_id__lsm664935318__ls_s0:               ; @id__lsm664935318__ls_s0
-	.cfi_startproc
-; %bb.0:                                ; %entry
-	stp	x20, x19, [sp, #-32]!           ; 16-byte Folded Spill
-	stp	x29, x30, [sp, #16]             ; 16-byte Folded Spill
-	.cfi_def_cfa_offset 32
-	.cfi_offset w30, -8
-	.cfi_offset w29, -16
-	.cfi_offset w19, -24
-	.cfi_offset w20, -32
-	mov	x19, x1
-	mov	w0, #8                          ; =0x8
-	bl	_ls_malloc
-	mov	x1, x0
-	str	x19, [x0]
-Lloh8:
-	adrp	x0, _id__lsm664935318__ls_s1@PAGE
-Lloh9:
-	add	x0, x0, _id__lsm664935318__ls_s1@PAGEOFF
-	ldp	x29, x30, [sp, #16]             ; 16-byte Folded Reload
-	ldp	x20, x19, [sp], #32             ; 16-byte Folded Reload
-	b	_ls_mkclos
-	.loh AdrpAdd	Lloh8, Lloh9
-	.cfi_endproc
-                                        ; -- End function
-	.globl	_id__lsm664935318__ls_s1        ; -- Begin function id__lsm664935318__ls_s1
-	.p2align	2
-_id__lsm664935318__ls_s1:               ; @id__lsm664935318__ls_s1
-; %bb.0:                                ; %entry
-	ldr	x0, [x0]
-	ret
-                                        ; -- End function
-	.globl	_id__lsm664935318               ; -- Begin function id__lsm664935318
-	.p2align	2
-_id__lsm664935318:                      ; @id__lsm664935318
-; %bb.0:                                ; %entry
-	ret
-                                        ; -- End function
 	.globl	_lam__lsn1                      ; -- Begin function lam__lsn1
 	.p2align	2
 _lam__lsn1:                             ; @lam__lsn1
@@ -211,41 +171,32 @@ _lam__lsn1:                             ; @lam__lsn1
 _main:                                  ; @main
 	.cfi_startproc
 ; %bb.0:                                ; %entry
-	stp	x20, x19, [sp, #-32]!           ; 16-byte Folded Spill
-	stp	x29, x30, [sp, #16]             ; 16-byte Folded Spill
-	.cfi_def_cfa_offset 32
+	stp	x29, x30, [sp, #-16]!           ; 16-byte Folded Spill
+	.cfi_def_cfa_offset 16
 	.cfi_offset w30, -8
 	.cfi_offset w29, -16
-	.cfi_offset w19, -24
-	.cfi_offset w20, -32
-Lloh10:
-	adrp	x19, _id__lsm76640768__ls_s0@PAGE
-Lloh11:
-	add	x19, x19, _id__lsm76640768__ls_s0@PAGEOFF
-	mov	x0, x19
+Lloh8:
+	adrp	x0, _id__lsm76640768__ls_s0@PAGE
+Lloh9:
+	add	x0, x0, _id__lsm76640768__ls_s0@PAGEOFF
 	mov	x1, #0                          ; =0x0
 	bl	_ls_mkclos
-	mov	x20, x0
-	mov	x0, x19
-	mov	x1, #0                          ; =0x0
-	bl	_ls_mkclos
-	ldp	x8, x0, [x20]
+	ldp	x8, x0, [x0]
 	mov	w1, #1                          ; =0x1
 	blr	x8
 	ldp	x8, x0, [x0]
-Lloh12:
+Lloh10:
 	adrp	x1, _lam__lsn1@PAGE
-Lloh13:
+Lloh11:
 	add	x1, x1, _lam__lsn1@PAGEOFF
 	blr	x8
 	bl	_ls_int_to_str
 	bl	_ls_println
 	mov	w0, #0                          ; =0x0
-	ldp	x29, x30, [sp, #16]             ; 16-byte Folded Reload
-	ldp	x20, x19, [sp], #32             ; 16-byte Folded Reload
+	ldp	x29, x30, [sp], #16             ; 16-byte Folded Reload
 	ret
-	.loh AdrpAdd	Lloh12, Lloh13
 	.loh AdrpAdd	Lloh10, Lloh11
+	.loh AdrpAdd	Lloh8, Lloh9
 	.cfi_endproc
                                         ; -- End function
 .subsections_via_symbols
