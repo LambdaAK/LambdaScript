@@ -1,22 +1,24 @@
 entry: @main
 fn main() -> unit {
 entry:
-  _t1 = tuple_pack [i32, i1] (1, true)
-  re = %_t1
-  _t2 = tuple_proj %re[0] : i32,i1
-  _t3 = icmp eq %_t2, 1
-  _t4 = tuple_proj %re[1] : i32,i1
-  br %_t3 ? swm_2 : swn_3
+  _t1 = tuple_pack [i32, string, string] (30, "New York", "John")
+  person = %_t1
+  _t2 = tuple_proj %person[0] : i32,string,string
+  _t3 = tuple_proj %person[1] : i32,string,string
+  _t4 = tuple_proj %person[2] : i32,string,string
+  _t5 = call @strcmp(%_t4, "Alex")
+  _t6 = icmp eq %_t5, 0
+  br %_t6 ? swm_2 : swn_3
 swm_2:
 
   br swm_1
 swn_3:
-  _t5 = tuple_proj %re[0] : i32,i1
-  _t6 = icmp eq %_t5, 1
-  _t7 = tuple_proj %re[1] : i32,i1
-  _t8 = icmp eq %_t7, true
-  _t9 = and %_t6, %_t8
-  br %_t9 ? swm_4 : swn_5
+  _t7 = tuple_proj %person[0] : i32,string,string
+  _t8 = tuple_proj %person[1] : i32,string,string
+  _t9 = tuple_proj %person[2] : i32,string,string
+  _t10 = call @strcmp(%_t9, "John")
+  _t11 = icmp eq %_t10, 0
+  br %_t11 ? swm_4 : swn_5
 swm_4:
 
   br swm_1
@@ -24,9 +26,9 @@ swn_5:
 
   br swm_1
 swm_1:
-  _t10 = phi i32 [ swm_2, 1 ], [ swm_4, 2 ], [ swn_5, 3 ]
-  v = %_t10
-  _t11 = indirect_call &ls_int_to_str : fn(i32) -> string(%v) -> string
-  void indirect &ls_println : fn(string) -> unit(%_t11)
+  _t12 = phi i32 [ swm_2, 1 ], [ swm_4, %_t7 ], [ swn_5, 3 ]
+  v = %_t12
+  _t13 = indirect_call &ls_int_to_str : fn(i32) -> string(%v) -> string
+  void indirect &ls_println : fn(string) -> unit(%_t13)
   ret void
 }

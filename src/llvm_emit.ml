@@ -635,16 +635,26 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
           | "strcmp" -> (
               match args with
               | [ a; b ] ->
-                  let ta, va = emit_operand ctx h a in
-                  let tb, vb = emit_operand ctx h b in
-                  if ta <> "i8*" || tb <> "i8*" then
-                    failwith "llvm_emit: strcmp expects two strings";
+                  let i8star_arg op =
+                    match op with
+                    | ConstStr s ->
+                        let tmp = fresh_emit_aux ctx in
+                        lines := !lines @ [ emit_global_string ctx tmp s ];
+                        H.replace h tmp String;
+                        Printf.sprintf "i8* %%%s" tmp
+                    | _ ->
+                        let ta, va = emit_operand ctx h op in
+                        if ta <> "i8*" then
+                          failwith "llvm_emit: strcmp expects two strings";
+                        Printf.sprintf "i8* %s" va
+                  in
+                  let aa = i8star_arg a in
+                  let ab = i8star_arg b in
                   let c = callee_ll "strcmp" in
                   lines :=
                     !lines
                     @ [
-                        Printf.sprintf "  %%%s = call i32 @%s(i8* %s, i8* %s)" dst c
-                          va vb;
+                        Printf.sprintf "  %%%s = call i32 @%s(%s, %s)" dst c aa ab;
                       ];
                   H.replace h dst I32
               | _ -> failwith "llvm_emit: strcmp arity")

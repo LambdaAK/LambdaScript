@@ -1,13 +1,12 @@
-let re = {
-  x : 1,
-  y: true
+let person = {
+  name: "John",
+  age: 30,
+  city: "New York"
 }
 
-let v = case re do
-  | {x : 1} -> 1
-  | {x : 1, y: true} -> 2
+let v = case person do
+  | {name: "Alex"} -> 1
+  | {name: "John", age: x} -> x
   | _ -> 3
 
-
 let () = println (int_to_str v)
-
