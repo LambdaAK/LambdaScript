@@ -1,0 +1,13 @@
+entry: @main
+fn lam__lsn1(y: i32) -> i32 {
+entry:
+  _t1 = add %y, 1
+  ret %_t1
+}
+
+fn main() -> unit {
+entry:
+  _t2 = indirect_call &ls_int_to_str : fn(i32) -> string(4) -> string
+  void indirect &ls_println : fn(string) -> unit(%_t2)
+  ret void
+}

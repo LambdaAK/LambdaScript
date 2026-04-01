@@ -696,90 +696,120 @@ let is_top_poly_identity (name : string) (static_env : static_env) : bool =
     | Some ([ CIdPat p ], _, inner) -> inner = EId p
     | Some ([], _, _) | Some ([ _ ], _, _) | Some (_ :: _, _, _) | None -> false
 
+let shadow_add_pat (pat : c_pat) (shadows : S.t) : S.t =
+  S.union shadows (S.of_list (pat_bound_simple pat))
+
 (**β-reduce [id e → e] for top-level polymorphic identity [id].
 
     Without this, chains like [(id id id) n] monomorphize [(id id)] to a concrete
     [int → int] value too early; the next application then emits an indirect
-    call with the wrong LLVM callee type (function pointer arity mismatch). *)
-let rec reduce_poly_identity_apps (static_env : static_env) (e : c_expr) :
-    c_expr =
+    call with the wrong LLVM callee type (function pointer arity mismatch).
+
+    [shadows] holds names bound inner to the current scope; [EId] occurrences
+    that shadow the top-level [id] must not be folded (e.g. [let id y = y + 1
+    in id 4]). *)
+let rec reduce_poly_identity_apps (static_env : static_env)
+    ?(shadows : S.t = S.empty) (e : c_expr) : c_expr =
   match e with
   | EApp (a, b) ->
-      let a' = reduce_poly_identity_apps static_env a in
-      let b' = reduce_poly_identity_apps static_env b in
+      let a' = reduce_poly_identity_apps static_env ~shadows a in
+      let b' = reduce_poly_identity_apps static_env ~shadows b in
       (match a' with
-      | EId name when is_top_poly_identity name static_env -> b'
+      | EId name when
+          (not (S.mem name shadows)) && is_top_poly_identity name static_env ->
+          b'
       | _ -> EApp (a', b'))
   | EBind (pat, ta, e1, e2, rt) ->
       EBind
         ( pat,
           ta,
-          reduce_poly_identity_apps static_env e1,
-          reduce_poly_identity_apps static_env e2,
+          reduce_poly_identity_apps static_env ~shadows e1,
+          reduce_poly_identity_apps static_env
+            ~shadows:(shadow_add_pat pat shadows) e2,
           rt )
   | EBindRec (pat, ta, e1, e2, rt) ->
+      let s' = shadow_add_pat pat shadows in
       EBindRec
         ( pat,
           ta,
-          reduce_poly_identity_apps static_env e1,
-          reduce_poly_identity_apps static_env e2,
+          reduce_poly_identity_apps static_env ~shadows:s' e1,
+          reduce_poly_identity_apps static_env ~shadows:s' e2,
           rt )
   | EBindMutRec (binds, body) ->
+      let s_rec =
+        List.fold_left
+          (fun acc (pat, _, _, _, _) -> shadow_add_pat pat acc)
+          shadows binds
+      in
       EBindMutRec
         ( List.map
             (fun (pat, ta, e1, rt, n) ->
-              (pat, ta, reduce_poly_identity_apps static_env e1, rt, n))
+              ( pat,
+                ta,
+                reduce_poly_identity_apps static_env ~shadows:s_rec e1,
+                rt,
+                n ))
             binds,
-          reduce_poly_identity_apps static_env body )
+          reduce_poly_identity_apps static_env ~shadows:s_rec body )
   | EFunction (pat, ann, body) ->
-      EFunction (pat, ann, reduce_poly_identity_apps static_env body)
+      EFunction
+        ( pat,
+          ann,
+          reduce_poly_identity_apps static_env
+            ~shadows:(shadow_add_pat pat shadows) body )
   | EBop (op, a, b) ->
       EBop
         ( op,
-          reduce_poly_identity_apps static_env a,
-          reduce_poly_identity_apps static_env b )
+          reduce_poly_identity_apps static_env ~shadows a,
+          reduce_poly_identity_apps static_env ~shadows b )
   | ETernary (a, b, c) ->
       ETernary
-        ( reduce_poly_identity_apps static_env a,
-          reduce_poly_identity_apps static_env b,
-          reduce_poly_identity_apps static_env c )
+        ( reduce_poly_identity_apps static_env ~shadows a,
+          reduce_poly_identity_apps static_env ~shadows b,
+          reduce_poly_identity_apps static_env ~shadows c )
   | EBlock parts ->
       EBlock
         (List.map
            (function
-             | Expr ex -> Expr (reduce_poly_identity_apps static_env ex)
+             | Expr ex -> Expr (reduce_poly_identity_apps static_env ~shadows ex)
              | Defn d -> Defn d)
            parts)
   | ESwitch (e0, branches) ->
       ESwitch
-        ( reduce_poly_identity_apps static_env e0,
+        ( reduce_poly_identity_apps static_env ~shadows e0,
           List.map
-            (fun (p, be) -> (p, reduce_poly_identity_apps static_env be))
+            (fun (p, be) ->
+              (p, reduce_poly_identity_apps static_env ~shadows be))
             branches )
   | EVector es ->
-      EVector (List.map (reduce_poly_identity_apps static_env) es)
+      EVector (List.map (reduce_poly_identity_apps static_env ~shadows) es)
   | EListEnumeration (a, b) ->
       EListEnumeration
-        (reduce_poly_identity_apps static_env a, reduce_poly_identity_apps static_env b)
+        ( reduce_poly_identity_apps static_env ~shadows a,
+          reduce_poly_identity_apps static_env ~shadows b )
   | EListComprehension (e0, gens) ->
       EListComprehension
-        ( reduce_poly_identity_apps static_env e0,
+        ( reduce_poly_identity_apps static_env ~shadows e0,
           List.map
-            (fun (pat, ge) -> (pat, reduce_poly_identity_apps static_env ge))
+            (fun (pat, ge) ->
+              ( pat,
+                reduce_poly_identity_apps static_env ~shadows ge ))
             gens )
   | ERecordLit fields ->
       ERecordLit
         (List.map
-           (fun (s, ex) -> (s, reduce_poly_identity_apps static_env ex))
+           (fun (s, ex) ->
+             (s, reduce_poly_identity_apps static_env ~shadows ex))
            fields)
   | ERecordUpdate (base, upd) ->
       ERecordUpdate
-        ( reduce_poly_identity_apps static_env base,
+        ( reduce_poly_identity_apps static_env ~shadows base,
           List.map
-            (fun (s, ex) -> (s, reduce_poly_identity_apps static_env ex))
+            (fun (s, ex) ->
+              (s, reduce_poly_identity_apps static_env ~shadows ex))
             upd )
   | EFieldAccess (e0, fld) ->
-      EFieldAccess (reduce_poly_identity_apps static_env e0, fld)
+      EFieldAccess (reduce_poly_identity_apps static_env ~shadows e0, fld)
   | EInt _ | EBool _ | EString _ | EUnit | EChar _ | EFloat _ | ENil | EId _ ->
       e
 
@@ -1120,8 +1150,9 @@ let emit_curried_step_final ~(emit : string) (k : int) (cap_tys : ty list)
   }
 
 let rec lower_expr_val (e : c_expr) (env : env) (ctx : fn_ctx)
-    (static_env : static_env) (type_env : Typecheck.type_env) : operand * ty =
-  match lower_expr e env ctx static_env type_env with
+    (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t) :
+    operand * ty =
+  match lower_expr e env ctx static_env type_env shadows with
   | LVal (o, t) -> (o, t)
   | LPartial c -> (
       if callable_remaining c <= 0 then
@@ -1132,8 +1163,8 @@ let rec lower_expr_val (e : c_expr) (env : env) (ctx : fn_ctx)
     expected parameter type so polymorphic top-level names can be monomorphized
     without a synthetic lambda ([use id], etc.). *)
 and lower_expr_val_as_call_arg (arg : c_expr) (expect : ty) (env : env)
-    (ctx : fn_ctx) (static_env : static_env) (type_env : Typecheck.type_env) :
-    operand * ty =
+    (ctx : fn_ctx) (static_env : static_env) (type_env : Typecheck.type_env)
+    (shadows : S.t) : operand * ty =
   match arg with
   | EId x when is_poly_static x static_env ->
       let m_expect = min_ty_to_mono expect in
@@ -1160,7 +1191,7 @@ and lower_expr_val_as_call_arg (arg : c_expr) (expect : ty) (env : env)
               ("Missing monomorphized specialization `" ^ mangle ^ "`")
       end
   | _ ->
-      let o, got = lower_expr_val arg env ctx static_env type_env in
+      let o, got = lower_expr_val arg env ctx static_env type_env shadows in
       if not (ty_equal got expect) then
         unsupported
           ("call argument type mismatch (expected "
@@ -1168,8 +1199,9 @@ and lower_expr_val_as_call_arg (arg : c_expr) (expect : ty) (env : env)
           ^ ")");
       (o, got)
 
-and lower_builtin_print name arg env ctx static_env type_env =
-  let o2, t2 = lower_expr_val arg env ctx static_env type_env in
+and lower_builtin_print name arg env ctx static_env type_env (shadows : S.t)
+    =
+  let o2, t2 = lower_expr_val arg env ctx static_env type_env shadows in
   if t2 <> String then unsupported "print/println expect a string argument";
   let arg_op =
     match o2 with
@@ -1182,8 +1214,9 @@ and lower_builtin_print name arg env ctx static_env type_env =
   emit_instr ctx (VoidCall (name, [ arg_op ]));
   LVal (ConstUnit, Unit)
 
-and lower_builtin_int_to_str arg env ctx static_env type_env =
-  let o2, t2 = lower_expr_val arg env ctx static_env type_env in
+and lower_builtin_int_to_str arg env ctx static_env type_env (shadows : S.t)
+    =
+  let o2, t2 = lower_expr_val arg env ctx static_env type_env shadows in
   if t2 <> I32 then unsupported "int_to_str expects i32";
   let t = fresh () in
   emit_instr ctx (Assign (t, Call ("int_to_str", [ o2 ])));
@@ -1192,7 +1225,7 @@ and lower_builtin_int_to_str arg env ctx static_env type_env =
 (** Apply call arguments [args] (already in order) to [c]; emit a call when saturated. *)
 and apply_call_args ?(callee_fn_expr : c_expr option) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) (c : callable)
-    (args : c_expr list) : expr_result =
+    (args : c_expr list) (shadows : S.t) : expr_result =
   let rec go c = function
     | [] ->
         if callable_remaining c = 0 then emit_saturated_call ctx c else LPartial c
@@ -1209,6 +1242,7 @@ and apply_call_args ?(callee_fn_expr : c_expr option) (env : env) (ctx : fn_ctx)
         in
         let op, _got =
           lower_expr_val_as_call_arg arg expect env ctx static_env type_env
+            shadows
         in
         let c' = { c with fixed = c.fixed @ [ op ] } in
         match rest with
@@ -1245,7 +1279,7 @@ and operand_for_indirect_call ctx (oa : operand) (a_ty : ty) : operand =
   else oa
 
 and apply_fun1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
-    callee_op a_ty ret_ty args : expr_result =
+    callee_op a_ty ret_ty args (shadows : S.t) : expr_result =
   match args with
   | [ arg ] ->
       let a_ty', ret_ty' =
@@ -1258,6 +1292,7 @@ and apply_fun1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
       in
       let oa, _ta =
         lower_expr_val_as_call_arg arg a_ty' env ctx static_env type_env
+          shadows
       in
       let oa = operand_for_indirect_call ctx oa a_ty' in
       if ret_ty' = Unit then (
@@ -1272,7 +1307,7 @@ and apply_fun1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
 
 (** Apply one curried argument to a closure value (possibly multi-arg). *)
 and apply_clos1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
-    clos_op ps ret_ty arg : expr_result =
+    clos_op ps ret_ty arg (shadows : S.t) : expr_result =
   match ps with
   | [] -> unsupported "Internal: closure has no parameters"
   | p :: prest ->
@@ -1285,7 +1320,7 @@ and apply_clos1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
         | None -> p
       in
       let oa, _ta =
-        lower_expr_val_as_call_arg arg p' env ctx static_env type_env
+        lower_expr_val_as_call_arg arg p' env ctx static_env type_env shadows
       in
       let oa = operand_for_indirect_call ctx oa p' in
       let next_ty =
@@ -1415,10 +1450,10 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
       unsupported "this pattern is not supported for native compilation"
 
 and lower_switch_merge_arm (body : c_expr) (env : env) (ctx : fn_ctx)
-    (static_env : static_env) (type_env : Typecheck.type_env) (merge_lbl : string) :
-    string * operand * ty =
+    (static_env : static_env) (type_env : Typecheck.type_env) (merge_lbl : string)
+    (shadows : S.t) : string * operand * ty =
   let o, ty =
-    match lower_expr body env ctx static_env type_env with
+    match lower_expr body env ctx static_env type_env shadows with
     | LVal (o, t) -> (o, t)
     | LPartial c -> materialize_clos_lower env ctx c
   in
@@ -1462,7 +1497,8 @@ and merge_switch_predecessors (preds : (string * operand * ty) list)
 
 and lower_switch_branches_multi (o_s : operand) (t_s : ty)
     (branches : (c_pat * c_expr) list) (env : env) (ctx : fn_ctx)
-    (static_env : static_env) (type_env : Typecheck.type_env) : expr_result =
+    (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t) :
+    expr_result =
   let merge_lbl = fresh_lbl ctx "swm" in
   let rec walk (brs : (c_pat * c_expr) list) (acc : (string * operand * ty) list) :
       (string * operand * ty) list =
@@ -1477,6 +1513,7 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
         open_block ctx l_ok;
         let p =
           lower_switch_merge_arm body env' ctx static_env type_env merge_lbl
+            shadows
         in
         open_block ctx l_next;
         walk rest (acc @ [ p ])
@@ -1484,7 +1521,10 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
     let env', cond = emit_native_pat_test env ctx o_s t_s pat in
     match cond with
     | ConstI1 true ->
-        [ lower_switch_merge_arm body env' ctx static_env type_env merge_lbl ]
+        [
+          lower_switch_merge_arm body env' ctx static_env type_env merge_lbl
+            shadows;
+        ]
     | _ ->
         let l_ok = fresh_lbl ctx "swm" in
         let l_fail = fresh_lbl ctx "swf" in
@@ -1492,6 +1532,7 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
         open_block ctx l_ok;
         let p =
           lower_switch_merge_arm body env' ctx static_env type_env merge_lbl
+            shadows
         in
         open_block ctx l_fail;
         emit_instr ctx (VoidCall ("abort", []));
@@ -1504,13 +1545,14 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
 
 and lower_switch_branches (o_s : operand) (t_s : ty)
     (branches : (c_pat * c_expr) list) (env : env) (ctx : fn_ctx)
-    (static_env : static_env) (type_env : Typecheck.type_env) : expr_result =
+    (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t) :
+    expr_result =
   match branches with
   | [] -> unsupported "empty case/switch"
   | [ (pat, body) ] ->
       let env', cond = emit_native_pat_test env ctx o_s t_s pat in
       (match cond with
-      | ConstI1 true -> lower_expr body env' ctx static_env type_env
+      | ConstI1 true -> lower_expr body env' ctx static_env type_env shadows
       | _ ->
           let merge_lbl = fresh_lbl ctx "swm" in
           let l_ok = fresh_lbl ctx "sws" in
@@ -1521,18 +1563,22 @@ and lower_switch_branches (o_s : operand) (t_s : ty)
           close_block ctx Unreachable;
           open_block ctx l_ok;
           let preds =
-            [ lower_switch_merge_arm body env' ctx static_env type_env merge_lbl ]
+            [
+              lower_switch_merge_arm body env' ctx static_env type_env merge_lbl
+                shadows;
+            ]
           in
           open_block ctx merge_lbl;
           merge_switch_predecessors preds ctx)
   | _ :: _ :: _ as multi ->
       lower_switch_branches_multi o_s t_s multi env ctx static_env type_env
+        shadows
 
 and lower_list_int_enumeration (env : env) (ctx : fn_ctx)
-    (static_env : static_env) (type_env : Typecheck.type_env) (e_lo : c_expr)
-    (e_hi : c_expr) : expr_result =
-  let o_lo, _ = lower_expr_val e_lo env ctx static_env type_env in
-  let o_hi, _ = lower_expr_val e_hi env ctx static_env type_env in
+    (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t)
+    (e_lo : c_expr) (e_hi : c_expr) : expr_result =
+  let o_lo, _ = lower_expr_val e_lo env ctx static_env type_env shadows in
+  let o_hi, _ = lower_expr_val e_hi env ctx static_env type_env shadows in
   let elem_ty = I32 in
   let nil_tmp = fresh () in
   emit_instr ctx (Assign (nil_tmp, ListNil elem_ty));
@@ -1566,22 +1612,26 @@ and lower_list_int_enumeration (env : env) (ctx : fn_ctx)
   open_block ctx loop_end;
   LVal (Local v_acc, List elem_ty)
 
-and lower_expr_app_curried env ctx static_env type_env e1 e2 : expr_result =
-  match lower_expr e1 env ctx static_env type_env with
+and lower_expr_app_curried env ctx static_env type_env (shadows : S.t) e1 e2
+    : expr_result =
+  match lower_expr e1 env ctx static_env type_env shadows with
   | LPartial c ->
       apply_call_args ~callee_fn_expr:e1 env ctx static_env type_env c [ e2 ]
+        shadows
   | LVal (op_f, Fun (f_ps, r_ty)) -> (
       match f_ps with
       | [ a_ty ] ->
           apply_fun1 ~callee_fn_expr:e1 env ctx static_env type_env op_f a_ty r_ty
-            [ e2 ]
+            [ e2 ] shadows
       | _ ->
           unsupported "Call of a non-unary function pointer value")
   | LVal (op_c, Clos (ps, r_ty)) ->
       apply_clos1 ~callee_fn_expr:e1 env ctx static_env type_env op_c ps r_ty e2
+        shadows
   | LVal _ -> unsupported "Call of a non-function value"
 
-and lower_expr_poly_id_call env ctx static_env type_env name args : expr_result =
+and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
+    args : expr_result =
   let static_for_mono = static_env_for_mono_call static_env env in
   match
     Typecheck.mono_fun_type_of_curried_app static_for_mono type_env name args
@@ -1599,14 +1649,14 @@ and lower_expr_poly_id_call env ctx static_env type_env name args : expr_result 
         match resolve_callable mangle env with
         | Some c ->
             apply_call_args ~callee_fn_expr:(EId name) env ctx static_env type_env
-              c args
+              c args shadows
         | None ->
             unsupported
               ("Missing monomorphized specialization for `" ^ name
              ^ "` — compiler bug")
 
 and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
-    (type_env : Typecheck.type_env) : expr_result =
+    (type_env : Typecheck.type_env) (shadows : S.t) : expr_result =
   match e with
   | EInt n -> LVal (ConstI32 n, I32)
   | EBool b -> LVal (ConstI1 b, I1)
@@ -1628,7 +1678,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           unsupported
             ("[]: " ^ Typecheck.string_of_type_check_error err))
   | EListEnumeration (e_lo, e_hi) ->
-      lower_list_int_enumeration env ctx static_env type_env e_lo e_hi
+      lower_list_int_enumeration env ctx static_env type_env shadows e_lo e_hi
   | EId x -> (
       match List.assoc_opt x env with
       | Some (Val (o, t)) -> LVal (o, t)
@@ -1641,7 +1691,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           | None ->
               if is_poly_static x static_env then
                 match eta_poly_partial_spine static_env x [] with
-                | Some e_eta -> lower_expr e_eta env ctx static_env type_env
+                | Some e_eta -> lower_expr e_eta env ctx static_env type_env shadows
                 | None ->
                     unsupported
                       ("Polymorphic function `" ^ x
@@ -1650,8 +1700,8 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
   | EBop (op, e1, e2) -> (
       match map_arith_bop op with
       | Some b ->
-          let o1, t1 = lower_expr_val e1 env ctx static_env type_env in
-          let o2, t2 = lower_expr_val e2 env ctx static_env type_env in
+          let o1, t1 = lower_expr_val e1 env ctx static_env type_env shadows in
+          let o2, t2 = lower_expr_val e2 env ctx static_env type_env shadows in
           if t1 <> I32 || t2 <> I32 then
             unsupported "Arithmetic expects i32 operands";
           let t = fresh () in
@@ -1660,8 +1710,8 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       | None -> (
           match map_cmp op with
           | Some c ->
-              let o1, t1 = lower_expr_val e1 env ctx static_env type_env in
-              let o2, t2 = lower_expr_val e2 env ctx static_env type_env in
+              let o1, t1 = lower_expr_val e1 env ctx static_env type_env shadows in
+              let o2, t2 = lower_expr_val e2 env ctx static_env type_env shadows in
               if t1 <> I32 || t2 <> I32 then
                 unsupported "Integer comparison expects i32 operands";
               let t = fresh () in
@@ -1670,39 +1720,39 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           | None -> (
               match op with
               | CGT ->
-                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env in
-                  let o2, t2 = lower_expr_val e2 env ctx static_env type_env in
+                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env shadows in
+                  let o2, t2 = lower_expr_val e2 env ctx static_env type_env shadows in
                   if t1 <> I32 || t2 <> I32 then
                     unsupported "Integer comparison expects i32 operands";
                   let t = fresh () in
                   emit_instr ctx (Assign (t, ICmp (Slt, o2, o1)));
                   LVal (Local t, I1)
               | CAnd ->
-                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env in
-                  let o2, t2 = lower_expr_val e2 env ctx static_env type_env in
+                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env shadows in
+                  let o2, t2 = lower_expr_val e2 env ctx static_env type_env shadows in
                   if t1 <> I1 || t2 <> I1 then
                     unsupported "&& expects bool operands";
                   let t = fresh () in
                   emit_instr ctx (Assign (t, IAnd (o1, o2)));
                   LVal (Local t, I1)
               | COr ->
-                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env in
-                  let o2, t2 = lower_expr_val e2 env ctx static_env type_env in
+                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env shadows in
+                  let o2, t2 = lower_expr_val e2 env ctx static_env type_env shadows in
                   if t1 <> I1 || t2 <> I1 then
                     unsupported "|| expects bool operands";
                   let t = fresh () in
                   emit_instr ctx (Assign (t, IOr (o1, o2)));
                   LVal (Local t, I1)
               | CConcat ->
-                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env in
-                  let o2, t2 = lower_expr_val e2 env ctx static_env type_env in
+                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env shadows in
+                  let o2, t2 = lower_expr_val e2 env ctx static_env type_env shadows in
                   if t1 <> String || t2 <> String then
                     unsupported "string concatenation (^) expects string operands";
                   let t = fresh () in
                   emit_instr ctx (Assign (t, Call ("str_concat", [ o1; o2 ])));
                   LVal (Local t, String)
               | CCons ->
-                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env in
+                  let o1, t1 = lower_expr_val e1 env ctx static_env type_env shadows in
                   (match e2 with
                   | ENil ->
                       let tnil = fresh () in
@@ -1716,7 +1766,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
                            ));
                       LVal (Local t, List t1)
                   | _ ->
-                      let o2, t2 = lower_expr_val e2 env ctx static_env type_env in
+                      let o2, t2 = lower_expr_val e2 env ctx static_env type_env shadows in
                       (match t2 with
                       | List elem_ty ->
                           if not (ty_equal t1 elem_ty) then
@@ -1734,22 +1784,26 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
                             "right-hand side of :: must be a list in native lowering"))
               | _ -> unsupported ("Binary operator not supported in Min_IR lowering yet"))))
   | EBind (CIdPat x, _ta, e1, e2, _rt) -> (
-      match lower_expr e1 env ctx static_env type_env with
+      match lower_expr e1 env ctx static_env type_env shadows with
       | LVal (o1, t1) ->
           emit_instr ctx (Assign (x, Copy o1));
           let env' = (x, Val (Local x, t1)) :: env in
           lower_expr e2 env' ctx static_env type_env
+            (shadow_add_pat (CIdPat x) shadows)
       | LPartial c ->
           let env' = (x, C c) :: env in
-          lower_expr e2 env' ctx static_env type_env)
+          lower_expr e2 env' ctx static_env type_env
+            (shadow_add_pat (CIdPat x) shadows))
   | EBind (pat, _ta, e1, e2, _rt) when pat <> CWildcardPat && not (match pat with CIdPat _ -> true | _ -> false) -> (
-      match lower_expr e1 env ctx static_env type_env with
+      match lower_expr e1 env ctx static_env type_env shadows with
       | LVal (o1, t1) ->
           let env', cond =
             emit_native_pat_test env ctx o1 t1 pat
           in
           (match cond with
-          | ConstI1 true -> lower_expr e2 env' ctx static_env type_env
+          | ConstI1 true ->
+              lower_expr e2 env' ctx static_env type_env
+                (shadow_add_pat pat shadows)
           | _ ->
               let l_ok = fresh_lbl ctx "letp" in
               let l_fail = fresh_lbl ctx "letf" in
@@ -1758,20 +1812,23 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               emit_instr ctx (VoidCall ("abort", []));
               close_block ctx Unreachable;
               open_block ctx l_ok;
-              lower_expr e2 env' ctx static_env type_env)
+              lower_expr e2 env' ctx static_env type_env
+                (shadow_add_pat pat shadows))
       | LPartial _ ->
           unsupported
             "let with this pattern does not support a partially applied function on the right")
   | EBind (CWildcardPat, _ta, e1, e2, _rt) -> (
-      match lower_expr e1 env ctx static_env type_env with
-      | LVal _ -> lower_expr e2 env ctx static_env type_env
+      match lower_expr e1 env ctx static_env type_env shadows with
+      | LVal _ -> lower_expr e2 env ctx static_env type_env shadows
       | LPartial _ ->
           unsupported
             "Discarded let binding cannot be a partially applied function")
   | EBind _ -> unsupported "let: pattern not supported for native compilation"
-  | EBlock parts -> lower_block parts env ctx static_env type_env
+  | EBlock parts -> lower_block parts env ctx static_env type_env shadows
   | EApp (e1, e2) -> (
-      let e_app = reduce_poly_identity_apps static_env (EApp (e1, e2)) in
+      let e_app =
+        reduce_poly_identity_apps static_env ~shadows (EApp (e1, e2))
+      in
       match e_app with
       | EApp (e1', e2') -> (
           (* Peel a left-associated spine so polymorphic heads monomorphize from
@@ -1780,19 +1837,26 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
              [[f;x]] for unary [id] — use one curried step). *)
           let head, args = peel_app_spine e1' [ e2' ] in
           match head with
-          | `Id name when is_poly_static name static_env -> (
+          | `Id name
+            when is_poly_static name static_env
+                 && (not (S.mem name shadows))
+                 && not (List.mem_assoc name env) -> (
               let poly_n =
                 match List.assoc_opt name static_env with
                 | Some ct -> curried_fun_arity_mono (Typecheck.instantiate ct)
                 | None -> 0
               in
               if List.length args > poly_n then
-                lower_expr_app_curried env ctx static_env type_env e1' e2'
-              else lower_expr_poly_id_call env ctx static_env type_env name args)
-          | _ -> lower_expr_app_curried env ctx static_env type_env e1' e2')
-      | other -> lower_expr other env ctx static_env type_env)
+                lower_expr_app_curried env ctx static_env type_env shadows e1'
+                  e2'
+              else
+                lower_expr_poly_id_call env ctx static_env type_env shadows name
+                  args)
+          | _ ->
+              lower_expr_app_curried env ctx static_env type_env shadows e1' e2')
+      | other -> lower_expr other env ctx static_env type_env shadows)
   | ETernary (cond, e_then, e_else) -> (
-      let o_c, t_c = lower_expr_val cond env ctx static_env type_env in
+      let o_c, t_c = lower_expr_val cond env ctx static_env type_env shadows in
       if t_c <> I1 then unsupported "if condition must be bool";
       let l_then = fresh_lbl ctx "then" in
       let l_else = fresh_lbl ctx "else" in
@@ -1812,7 +1876,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       close_block ctx (BrCond (o_c, l_then, l_else));
       open_block ctx l_then;
       let o1, ty1 =
-        match lower_expr e_then env ctx static_env type_env with
+        match lower_expr e_then env ctx static_env type_env shadows with
         | LVal (o, t) -> (o, t)
         | LPartial c -> materialize_clos_lower env ctx c
       in
@@ -1821,7 +1885,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       close_block ctx (Br l_merge);
       open_block ctx l_else;
       let o2, ty2 =
-        match lower_expr e_else env ctx static_env type_env with
+        match lower_expr e_else env ctx static_env type_env shadows with
         | LVal (o, t) -> (o, t)
         | LPartial c -> materialize_clos_lower env ctx c
       in
@@ -1866,10 +1930,11 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               let outer_env = (name, C stub) :: env in
               let fn, nested =
                 lower_user_function ~ty_key:name ~emit param_pats anns inner
-                  outer_env static_here type_env
+                  outer_env static_here type_env shadows
               in
               ctx.nested_funcs <- ctx.nested_funcs @ nested @ [ fn ];
-              lower_expr e2 outer_env ctx static_here type_env))
+              lower_expr e2 outer_env ctx static_here type_env
+                (shadow_add_pat (CIdPat name) shadows)))
   | EBindRec _ ->
       unsupported "let rec: only simple identifier patterns supported for compilation"
   | EFunction _ as lam -> (
@@ -1899,7 +1964,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           let mangled = mangle_nested_emit "lam" in
           let fn, nested =
             lower_user_function ~captures:cap_entries ~ty_key:syn_key ~emit:mangled
-              param_pats anns inner_most env static_here type_env
+              param_pats anns inner_most env static_here type_env shadows
           in
           ctx.nested_funcs <- ctx.nested_funcs @ nested @ [ fn ];
           let param_tys = param_min_ir_tys syn_key anns static_here in
@@ -1930,8 +1995,9 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           if callable_remaining c > 0 then LPartial c
           else unsupported "Internal: zero-arity lambda")
   | ESwitch (scrut, branches) -> (
-      let o_s, t_s = lower_expr_val scrut env ctx static_env type_env in
-      lower_switch_branches o_s t_s branches env ctx static_env type_env)
+      let o_s, t_s = lower_expr_val scrut env ctx static_env type_env shadows in
+      lower_switch_branches o_s t_s branches env ctx static_env type_env
+        shadows)
   | EVector es -> (
       let se = static_env_for_mono_call static_env env in
       match Typecheck.type_of_c_expr se type_env (EVector es) with
@@ -1945,7 +2011,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               let ops =
                 List.map
                   (fun e ->
-                    fst (lower_expr_val e env ctx static_env type_env))
+                    fst (lower_expr_val e env ctx static_env type_env shadows))
                   es
               in
               let t = fresh () in
@@ -1957,14 +2023,15 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       unsupported "Expression form not supported in Min_IR lowering yet"
 
 and lower_block (parts : c_expr_or_c_defn list) (env : env) (ctx : fn_ctx)
-    (static_env : static_env) (type_env : Typecheck.type_env) : expr_result =
+    (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t) :
+    expr_result =
   match parts with
   | [] -> LVal (ConstUnit, Unit)
-  | [ Expr e ] -> lower_expr e env ctx static_env type_env
+  | [ Expr e ] -> lower_expr e env ctx static_env type_env shadows
   | Defn _ :: _ -> unsupported "Definitions inside blocks are not supported yet"
   | Expr e :: rest -> (
-      match lower_expr e env ctx static_env type_env with
-      | LVal _ -> lower_block rest env ctx static_env type_env
+      match lower_expr e env ctx static_env type_env shadows with
+      | LVal _ -> lower_block rest env ctx static_env type_env shadows
       | LPartial _ ->
           unsupported
             "Sequencing discard of a partially applied function is not supported")
@@ -1972,8 +2039,11 @@ and lower_block (parts : c_expr_or_c_defn list) (env : env) (ctx : fn_ctx)
 and lower_user_function ?(captures : (string * ty * operand) list = [])
     ~(ty_key : string) ~(emit : string)
     (param_pats : c_pat list) (param_anns : c_type option list) (inner : c_expr)
-    (outer_env : env) (static_env : static_env) (type_env : Typecheck.type_env) :
-    func_def * func_def list =
+    (outer_env : env) (static_env : static_env) (type_env : Typecheck.type_env)
+    (shadows : S.t) : func_def * func_def list =
+  let shadows_for_body =
+    List.fold_left (fun acc pat -> shadow_add_pat pat acc) shadows param_pats
+  in
   let param_tys = param_min_ir_tys ty_key param_anns static_env in
   if List.length param_pats <> List.length param_tys then
     unsupported "Internal: parameter pattern count mismatch";
@@ -2062,7 +2132,7 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
       close_block ctx Unreachable;
       open_block ctx l_ok);
   let op, ret_ty =
-    match lower_expr inner merged ctx static_env type_env with
+    match lower_expr inner merged ctx static_env type_env shadows_for_body with
     | LVal (o, t) -> (o, t)
     | LPartial c when List.length c.fixed = 0 ->
         materialize_clos_lower merged ctx c
@@ -2101,7 +2171,7 @@ let lower_c_expr_to_main (e : c_expr) : (func_def, string) result =
     reset_fresh ();
     let ctx = create_fn_ctx () in
     let op, ret_ty =
-      match lower_expr e [] ctx [] [] with
+      match lower_expr e [] ctx [] [] S.empty with
       | LVal (o, t) -> (o, t)
       | LPartial _ ->
           unsupported "Expression must be a value, not a bare or partial function"
@@ -2165,7 +2235,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
             let fn, nested =
               lower_user_function ~ty_key:emit ~emit param_pats anns inner env_mono
                 ((emit, Mono mono) :: static_env)
-                type_env
+                type_env S.empty
             in
             user_funs := !user_funs @ nested @ [ fn ])
       instances;
@@ -2185,7 +2255,9 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                     let static_inst =
                       replace_static_binding name (Mono mono) static_env
                     in
-                    match lower_expr inner env_acc ctx_main static_inst type_env with
+                    match lower_expr inner env_acc ctx_main static_inst type_env
+                            S.empty
+                    with
                     | LPartial _ ->
                         unsupported
                           "Monomorphized top-level value specialization is a partial \
@@ -2219,7 +2291,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                   in
                   let fn, nested =
                     lower_user_function ~ty_key:name ~emit:name param_pats anns
-                      inner ((name, C stub) :: env) static_env type_env
+                      inner ((name, C stub) :: env) static_env type_env S.empty
                   in
                   user_funs := !user_funs @ nested @ [ fn ];
                   walk ((name, C stub) :: env) rest)
@@ -2267,7 +2339,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
               (fun (name, param_pats, anns, inner) ->
                 let fn, nested =
                   lower_user_function ~ty_key:name ~emit:name param_pats anns
-                    inner env_with_stubs static_env type_env
+                    inner env_with_stubs static_env type_env S.empty
                 in
                 user_funs := !user_funs @ nested @ [ fn ])
               parsed;
@@ -2283,7 +2355,8 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
               let param_pats, anns, inner = peel_efun [] [] body in
               match param_pats with
               | [] -> (
-                  match lower_expr inner env ctx_main static_env type_env with
+                  match lower_expr inner env ctx_main static_env type_env S.empty
+                  with
                   | LVal (o, t) ->
                       emit_instr ctx_main (Assign (name, Copy o));
                       let env' = (name, Val (Local name, t)) :: env in
@@ -2298,12 +2371,12 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                   in
                   let fn, nested =
                     lower_user_function ~ty_key:name ~emit:name param_pats anns
-                      inner env static_env type_env
+                      inner env static_env type_env S.empty
                   in
                   user_funs := !user_funs @ nested @ [ fn ];
                   walk ((name, C stub) :: env) rest)
           | CUnitPat | CWildcardPat -> (
-              match lower_expr body env ctx_main static_env type_env with
+              match lower_expr body env ctx_main static_env type_env S.empty with
               | LVal _ -> walk env rest
               | LPartial _ ->
                   unsupported
@@ -2312,7 +2385,8 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
               let param_pats, _anns, inner = peel_efun [] [] body in
               match param_pats with
               | [] -> (
-                  match lower_expr inner env ctx_main static_env type_env with
+                  match lower_expr inner env ctx_main static_env type_env S.empty
+                  with
                   | LVal (o, Tuple elem_tys) ->
                       if List.length subs <> List.length elem_tys then
                         unsupported "top-level tuple let pattern arity mismatch";
