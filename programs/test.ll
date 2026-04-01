@@ -12,59 +12,36 @@ declare i32 @strcmp(i8*, i8*)
 declare i8* @ls_malloc(i64)
 declare i8* @ls_mkclos(i8*, i8*)
 
-%ls.tuple.1 = type { i32 (i32)*, i32 (i32)*, i32, i32, i32 }
-define i32 @lam__lsn1(i32 %x) {
-entry:
-  %_t1 = add nsw i32 %x, 1
-  ret i32 %_t1
-}
-
-define i32 @lam__lsn2(i32 %x) {
-entry:
-  %_t2 = add nsw i32 %x, 2
-  ret i32 %_t2
-}
-
+%ls.tuple.1 = type { i32, i1 }
 define i32 @main() {
 entry:
-  %_t3_pk0 = insertvalue %ls.tuple.1 undef, i32 (i32)* @lam__lsn1, 0
-  %_t3_pk1 = insertvalue %ls.tuple.1 %_t3_pk0, i32 (i32)* @lam__lsn2, 1
-  %_t3_pk2 = insertvalue %ls.tuple.1 %_t3_pk1, i32 1, 2
-  %_t3_pk3 = insertvalue %ls.tuple.1 %_t3_pk2, i32 2, 3
-  %_t3 = insertvalue %ls.tuple.1 %_t3_pk3, i32 3, 4
-  %re_ev0 = extractvalue %ls.tuple.1 %_t3, 0
-  %re_agg0 = insertvalue %ls.tuple.1 undef, i32 (i32)* %re_ev0, 0
-  %re_ev1 = extractvalue %ls.tuple.1 %_t3, 1
-  %re_agg1 = insertvalue %ls.tuple.1 %re_agg0, i32 (i32)* %re_ev1, 1
-  %re_ev2 = extractvalue %ls.tuple.1 %_t3, 2
-  %re_agg2 = insertvalue %ls.tuple.1 %re_agg1, i32 %re_ev2, 2
-  %re_ev3 = extractvalue %ls.tuple.1 %_t3, 3
-  %re_agg3 = insertvalue %ls.tuple.1 %re_agg2, i32 %re_ev3, 3
-  %re_ev4 = extractvalue %ls.tuple.1 %_t3, 4
-  %re = insertvalue %ls.tuple.1 %re_agg3, i32 %re_ev4, 4
-  %_t4 = extractvalue %ls.tuple.1 %re, 2
-  %x = add nsw i32 %_t4, 0
-  %_t5 = extractvalue %ls.tuple.1 %re, 3
-  %y = add nsw i32 %_t5, 0
-  %_t6 = extractvalue %ls.tuple.1 %re, 4
-  %z = add nsw i32 %_t6, 0
-  %_t7 = extractvalue %ls.tuple.1 %re, 0
-  %f = bitcast i32 (i32)* %_t7 to i32 (i32)*
-  %_t8 = extractvalue %ls.tuple.1 %re, 1
-  %g = bitcast i32 (i32)* %_t8 to i32 (i32)*
-  %_t9 = call i8* @ls_int_to_str(i32 %x)
-  call void @ls_println(i8* %_t9)
-  %_t10 = call i8* @ls_int_to_str(i32 %y)
-  call void @ls_println(i8* %_t10)
-  %_t11 = call i8* @ls_int_to_str(i32 %z)
+  %_t1_pk0 = insertvalue %ls.tuple.1 undef, i32 1, 0
+  %_t1 = insertvalue %ls.tuple.1 %_t1_pk0, i1 true, 1
+  %re_ev0 = extractvalue %ls.tuple.1 %_t1, 0
+  %re_agg0 = insertvalue %ls.tuple.1 undef, i32 %re_ev0, 0
+  %re_ev1 = extractvalue %ls.tuple.1 %_t1, 1
+  %re = insertvalue %ls.tuple.1 %re_agg0, i1 %re_ev1, 1
+  %_t2 = extractvalue %ls.tuple.1 %re, 0
+  %_t3 = icmp eq i32 %_t2, 1
+  %_t4 = extractvalue %ls.tuple.1 %re, 1
+  br i1 %_t3, label %swm_2, label %swn_3
+swm_2:
+  br label %swm_1
+swm_1:
+  %_t10 = phi i32 [ 1, %swm_2 ], [ 2, %swm_4 ], [ 3, %swn_5 ]
+  %v = add nsw i32 %_t10, 0
+  %_t11 = call i8* @ls_int_to_str(i32 %v)
   call void @ls_println(i8* %_t11)
-  %_t12 = call i32 %f(i32 1)
-  %_t13 = call i32 %f(i32 %_t12)
-  %_t14 = call i8* @ls_int_to_str(i32 %_t13)
-  call void @ls_println(i8* %_t14)
-  %_t15 = call i32 %g(i32 1)
-  %_t16 = call i32 %g(i32 %_t15)
-  %_t17 = call i8* @ls_int_to_str(i32 %_t16)
-  call void @ls_println(i8* %_t17)
   ret i32 0
+swn_3:
+  %_t5 = extractvalue %ls.tuple.1 %re, 0
+  %_t6 = icmp eq i32 %_t5, 1
+  %_t7 = extractvalue %ls.tuple.1 %re, 1
+  %_t8 = icmp eq i1 %_t7, true
+  %_t9 = and i1 %_t6, %_t8
+  br i1 %_t9, label %swm_4, label %swn_5
+swm_4:
+  br label %swm_1
+swn_5:
+  br label %swm_1
 }

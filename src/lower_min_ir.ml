@@ -1376,16 +1376,22 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
             let sorted = Cexpr.record_fields_sorted rfields in
             let type_names = List.map fst sorted in
             let pat_names = List.map fst field_pats in
-            if not (Cexpr.record_field_sets_equal type_names pat_names) then
+            if
+              not
+                (List.for_all (fun pn -> List.mem pn type_names) pat_names)
+            then
               unsupported
-                "native record pattern must list exactly the fields of the \
-                 record type (same names as in the type / literal)";
+                "native record pattern mentions a field that is not in the record \
+                 type";
+            (* Match interpreter semantics: only listed fields are tested; others
+               behave like wildcards. Layout is still the full tuple in [type_names]
+               order. *)
             let subs =
               List.map
                 (fun nm ->
                   match List.assoc_opt nm field_pats with
-                  | None -> unsupported "internal: record pattern field"
-                  | Some p -> p)
+                  | Some p -> p
+                  | None -> CWildcardPat)
                 type_names
             in
             CVectorPat subs

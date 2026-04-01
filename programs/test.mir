@@ -1,43 +1,32 @@
 entry: @main
-fn lam__lsn1(x: i32) -> i32 {
-entry:
-  _t1 = add %x, 1
-  ret %_t1
-}
-
-fn lam__lsn2(x: i32) -> i32 {
-entry:
-  _t2 = add %x, 2
-  ret %_t2
-}
-
 fn main() -> unit {
 entry:
-  _t3 = tuple_pack [fn(i32) -> i32, fn(i32) -> i32, i32, i32, i32] (&lam__lsn1 : fn(i32) -> i32, &lam__lsn2 : fn(i32) -> i32, 1, 2, 3)
-  re = %_t3
-  _t4 = tuple_proj %re[2] : fn(i32) -> i32,fn(i32) -> i32,i32,i32,i32
-  x = %_t4
-  _t5 = tuple_proj %re[3] : fn(i32) -> i32,fn(i32) -> i32,i32,i32,i32
-  y = %_t5
-  _t6 = tuple_proj %re[4] : fn(i32) -> i32,fn(i32) -> i32,i32,i32,i32
-  z = %_t6
-  _t7 = tuple_proj %re[0] : fn(i32) -> i32,fn(i32) -> i32,i32,i32,i32
-  f = %_t7
-  _t8 = tuple_proj %re[1] : fn(i32) -> i32,fn(i32) -> i32,i32,i32,i32
-  g = %_t8
-  _t9 = indirect_call &ls_int_to_str : fn(i32) -> string(%x) -> string
-  void indirect &ls_println : fn(string) -> unit(%_t9)
-  _t10 = indirect_call &ls_int_to_str : fn(i32) -> string(%y) -> string
-  void indirect &ls_println : fn(string) -> unit(%_t10)
-  _t11 = indirect_call &ls_int_to_str : fn(i32) -> string(%z) -> string
+  _t1 = tuple_pack [i32, i1] (1, true)
+  re = %_t1
+  _t2 = tuple_proj %re[0] : i32,i1
+  _t3 = icmp eq %_t2, 1
+  _t4 = tuple_proj %re[1] : i32,i1
+  br %_t3 ? swm_2 : swn_3
+swm_2:
+
+  br swm_1
+swn_3:
+  _t5 = tuple_proj %re[0] : i32,i1
+  _t6 = icmp eq %_t5, 1
+  _t7 = tuple_proj %re[1] : i32,i1
+  _t8 = icmp eq %_t7, true
+  _t9 = and %_t6, %_t8
+  br %_t9 ? swm_4 : swn_5
+swm_4:
+
+  br swm_1
+swn_5:
+
+  br swm_1
+swm_1:
+  _t10 = phi i32 [ swm_2, 1 ], [ swm_4, 2 ], [ swn_5, 3 ]
+  v = %_t10
+  _t11 = indirect_call &ls_int_to_str : fn(i32) -> string(%v) -> string
   void indirect &ls_println : fn(string) -> unit(%_t11)
-  _t12 = indirect_call %f(1) -> i32
-  _t13 = indirect_call %f(%_t12) -> i32
-  _t14 = indirect_call &ls_int_to_str : fn(i32) -> string(%_t13) -> string
-  void indirect &ls_println : fn(string) -> unit(%_t14)
-  _t15 = indirect_call %g(1) -> i32
-  _t16 = indirect_call %g(%_t15) -> i32
-  _t17 = indirect_call &ls_int_to_str : fn(i32) -> string(%_t16) -> string
-  void indirect &ls_println : fn(string) -> unit(%_t17)
   ret void
 }
