@@ -14,6 +14,8 @@ and condense_sub_pat : sub_pat -> c_pat = function
   | IdPat s -> CIdPat s
   | NilPat -> CNilPat
   | VectorPat pats -> CVectorPat (List.map condense_pat pats)
+  | RecordPat fields ->
+      CRecordPat (List.map (fun (name, p) -> (name, condense_pat p)) fields)
   | WildcardPat -> CWildcardPat
   | Pat pat -> condense_pat pat
   | InfixPat s -> CIdPat s

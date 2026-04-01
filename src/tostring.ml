@@ -27,6 +27,14 @@ and string_of_sub_pat : sub_pat -> string = function
           (List.map string_of_pat patterns)
       ^ indentations_with_newline 0
       ^ ")"
+  | RecordPat fields ->
+      "Record Pattern ({"
+      ^ indentations_with_newline 1
+      ^ String.concat
+          (",\n" ^ indentations_with_newline 1)
+          (List.map (fun (name, p) -> name ^ ": " ^ string_of_pat p) fields)
+      ^ indentations_with_newline 0
+      ^ "})"
   | IntPat n -> "Int Pattern (" ^ string_of_int n ^ ")"
   | BoolPat b -> "Bool Pattern (" ^ string_of_bool b ^ ")"
   | CharPat c -> "Char Pattern (" ^ String.make 1 c ^ ")"

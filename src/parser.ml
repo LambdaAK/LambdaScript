@@ -402,6 +402,22 @@ end = struct
       let* () = expect_token RParen in
       return (VectorPat pats)
 
+    let record_pat_parser : sub_pat parser =
+      let* () = expect_token LBrace in
+      let parse_field () =
+        let* field_name =
+          expect_token_get_data (function
+            | Id id -> Some id
+            | _ -> None)
+        in
+        let* () = expect_token Colon in
+        let* p = PatParser.pat_parser in
+        return (field_name, p)
+      in
+      let* fields = parse_sep_delim (parse_field ()) Comma in
+      let* () = expect_token RBrace in
+      return (RecordPat fields)
+
     let sub_pat_parser : sub_pat parser =
       combine_parsers
         [
@@ -416,6 +432,7 @@ end = struct
           paren_infix_pat_parser;
           wildcard_pat_parser;
           vector_pat_parser;
+          record_pat_parser;
         ]
   end
 

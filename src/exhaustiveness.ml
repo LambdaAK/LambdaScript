@@ -47,7 +47,7 @@ let is_constructor (pat : c_pat) : bool =
   | CCharPat _ -> true
   | CStringPat _ -> true
   | CUnitPat -> true
-  | CVectorPat _ -> true
+  | CVectorPat _ | CRecordPat _ -> true
   | _ -> false
 
 (* Get the constructor name from a pattern *)
@@ -62,6 +62,7 @@ let get_constructor_name (pat : c_pat) : string option =
   | CStringPat s -> Some s
   | CUnitPat -> Some "()"
   | CVectorPat _ -> Some "Vector"
+  | CRecordPat _ -> Some "Record"
   | _ -> None
 
 (* Get the arity of a pattern constructor *)
@@ -77,6 +78,7 @@ let get_pattern_arity (pat : c_pat) : int =
   | CStringPat _ -> 0
   | CUnitPat -> 0
   | CVectorPat pats -> List.length pats
+  | CRecordPat pats -> List.length pats
   | _ -> 0
 
 (* Expand a pattern into a list of subpatterns *)
@@ -86,6 +88,8 @@ let expand_pattern (pat : c_pat) : c_pat list =
   | CVariantPat (_, Some p) -> [p]
   | CConsPat (p1, p2) -> [p1; p2]
   | CVectorPat pats -> pats
+  | CRecordPat pats ->
+      List.map snd (List.sort (fun (a, _) (b, _) -> String.compare a b) pats)
   | _ -> []
 
 (* Create n wildcard patterns *)
@@ -175,6 +179,16 @@ let rec get_pattern_type (pat : c_pat) (static_env : (string * c_type) list) : m
       (* Get types of all patterns in vector *)
       let types = List.filter_map (fun p -> get_pattern_type p static_env) pats in
       Some (VectorType types)
+  | CRecordPat field_pats ->
+      let types =
+        List.map
+          (fun (nm, p) ->
+            match get_pattern_type p static_env with
+            | Some t -> (nm, t)
+            | None -> (nm, TypeVar "a"))
+          field_pats
+      in
+      Some (RecordType types)
   | CWildcardPat -> None  (* Cannot determine type from wildcard *)
   | CIdPat _ -> None  (* Cannot determine type from variable *)
 
@@ -252,6 +266,13 @@ let rec check_exhaustiveness
         ] in
         check_all_constructors matrix column_types constructors constructor_env static_env
 
+    | Some (RecordType fields) ->
+        let sorted = Cexpr.record_fields_sorted fields in
+        let constructors = [
+          { name = "Record"; arity = List.length sorted; type_name = "Record" };
+        ] in
+        check_all_constructors matrix column_types constructors constructor_env static_env
+
     | Some IntType | Some CharType | Some StringType ->
         (* Infinite types - check if there's a wildcard in default matrix *)
         let default = default_matrix matrix in
@@ -289,6 +310,15 @@ and generate_witness_for_type (t : mono_type) (constructor_env : (string * strin
         (* Generate witness for each component *)
         let witnesses = List.map (fun ty -> generate_witness_for_type ty constructor_env (depth - 1)) types in
         "(" ^ String.concat ", " witnesses ^ ")"
+    | RecordType fields ->
+        let sorted = Cexpr.record_fields_sorted fields in
+        let inner =
+          List.map
+            (fun (_, ty) ->
+              generate_witness_for_type ty constructor_env (depth - 1))
+            sorted
+        in
+        "{" ^ String.concat ", " inner ^ "}"
     | CTypeApp (type_name, _) | TypeName type_name | FixedPoint (type_name, _) ->
         (* Find a constructor for this type, prefer nullary ones *)
         let constructors = List.filter (fun (_, tname, _, _) -> tname = type_name) constructor_env in
@@ -303,7 +333,6 @@ and generate_witness_for_type (t : mono_type) (constructor_env : (string * strin
              let witness = generate_witness_for_type payload_mono constructor_env (depth - 1) in
              cons_name ^ " " ^ witness)
     | FunctionType _ -> "_"
-    | RecordType _ -> "_"
 
 (* Generate a missing pattern example for a constructor *)
 and generate_missing_pattern (cons_name : string) (constructor_env : (string * string * string list * c_type option) list) : string =
@@ -343,6 +372,15 @@ and get_constructor_column_types
   else if cons_name = "Nil" then
     (* Nil has no payload *)
     rest_column_types
+  else if cons_name = "Vector" then
+    match first_column_type with
+    | Some (VectorType types) -> types @ rest_column_types
+    | _ -> TypeVar "a" :: rest_column_types
+  else if cons_name = "Record" then
+    match first_column_type with
+    | Some (RecordType fields) ->
+        List.map snd (Cexpr.record_fields_sorted fields) @ rest_column_types
+    | _ -> TypeVar "a" :: rest_column_types
   else
     (* Look up constructor payload type *)
     let payload_opt = List.find_map (fun (name, _, _, payload) ->

@@ -146,6 +146,18 @@ and bind_pat (p : c_pat) (v : value) : env option =
               | None -> None
               | Some bindings' -> Some (bindings @ bindings')))
       | _ -> None)
+  | CRecordPat field_pats, RecordValue fields ->
+      let rec go acc = function
+        | [] -> Some acc
+        | (nm, p) :: rest -> (
+            match List.assoc_opt nm fields with
+            | None -> None
+            | Some v -> (
+                match bind_pat p v with
+                | None -> None
+                | Some b -> go (b @ acc) rest))
+      in
+      go [] field_pats
   | CVariantPat (cons_name, None), VariantValue (v_cons_name, None) ->
       if cons_name = v_cons_name then Some [] else None
   | ( CVariantPat (cons_name, Some payload_pat),
@@ -201,6 +213,21 @@ and bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
                   | None -> None
                   | Some bindings' -> Some (bindings @ bindings')))
           | _ -> None)
+      | _ -> None)
+  | CRecordPat field_pats -> (
+      match get_mono_type t with
+      | Some (RecordType rfields) ->
+          let rec go acc = function
+            | [] -> Some acc
+            | (nm, p) :: rest -> (
+                match List.assoc_opt nm rfields with
+                | None -> None
+                | Some rt -> (
+                    match bind_static p (Mono rt) with
+                    | None -> None
+                    | Some b -> go (b @ acc) rest))
+          in
+          go [] field_pats
       | _ -> None)
   | CVariantPat (_cons_name, payload_pat_opt) -> (
       (* For constructor patterns, we need to check if the type is a sum type *)
@@ -628,6 +655,19 @@ and create_generic_type : c_pat -> c_type = function
                       "Polymorphic types not supported in create_generic_type \
                        for vectors")
               patterns))
+  | CRecordPat fields ->
+      Mono
+        (RecordType
+           (List.map
+              (fun (name, p) ->
+                ( name,
+                  match create_generic_type p with
+                  | Mono t -> t
+                  | PolyType (_, _) ->
+                      failwith
+                        "Polymorphic types not supported in create_generic_type \
+                         for records" ))
+              fields))
   | CVariantPat (_cons_name, payload_pat_opt) -> (
       match payload_pat_opt with
       | None -> Mono (fresh_type_var ()) (* Nullary constructor *)
@@ -653,6 +693,8 @@ and expr_of_pat : c_pat -> c_expr = function
   | CNilPat -> ENil
   | CConsPat (p1, p2) -> EBop (CCons, expr_of_pat p1, expr_of_pat p2)
   | CVectorPat patterns -> EVector (List.map expr_of_pat patterns)
+  | CRecordPat fields ->
+      ERecordLit (List.map (fun (name, p) -> (name, expr_of_pat p)) fields)
   | CVariantPat (cons_name, payload_pat_opt) -> (
       (* Constructor patterns can't be directly converted to expressions *)
       (* For now, we'll create an identifier expression for the constructor *)
@@ -843,6 +885,11 @@ and string_of_pat = function
   | CNilPat -> "[]"
   | CConsPat (p1, p2) -> string_of_pat p1 ^ " :: " ^ string_of_pat p2
   | CVectorPat ps -> "(" ^ String.concat ", " (List.map string_of_pat ps) ^ ")"
+  | CRecordPat fs ->
+      "{"
+      ^ String.concat ", "
+          (List.map (fun (n, p) -> n ^ ": " ^ string_of_pat p) fs)
+      ^ "}"
   | CVariantPat (cons_name, None) -> cons_name
   | CVariantPat (cons_name, Some payload_pat) ->
       cons_name ^ " " ^ string_of_pat payload_pat

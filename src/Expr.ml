@@ -6,6 +6,7 @@ and sub_pat =
   | IdPat of string
   | UnitPat
   | VectorPat of pat list
+  | RecordPat of (string * pat) list (* { x: pat, y: pat } *)
   | WildcardPat
   | IntPat of int
   | CharPat of char

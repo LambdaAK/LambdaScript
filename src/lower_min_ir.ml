@@ -112,9 +112,11 @@ and mono_to_min (m : mono_type) : ty =
       unsupported
         "Polymorphic type in native compile (e.g. 'a -> 'a): add monomorphic \
          type annotations on parameters and result, e.g. let f (x : int) : int = x"
-  | FloatType | CharType | TypeName _ | CTypeApp _ | FixedPoint _ | RecordType _
-    ->
+  | FloatType | CharType | TypeName _ | CTypeApp _ | FixedPoint _ ->
       unsupported "Type not supported for native parameter/return yet"
+  | RecordType fields ->
+      let sorted = Cexpr.record_fields_sorted fields in
+      Tuple (List.map (fun (_, t) -> mono_to_min t) sorted)
   | CListType et -> List (mono_to_min et)
   | VectorType ts -> Tuple (List.map mono_to_min ts)
 
@@ -219,7 +221,7 @@ type callable = {
 
 type expr_result = LVal of operand * ty | LPartial of callable
 
-type env_binding = Val of operand * ty | C of callable
+type env_binding = Val of operand * ty * mono_type option | C of callable
 
 type env = (string * env_binding) list
 
@@ -245,6 +247,8 @@ let rec pat_bound_simple : c_pat -> string list = function
   | CUnitPat | CWildcardPat | CNilPat -> []
   | CConsPat (a, b) -> pat_bound_simple a @ pat_bound_simple b
   | CVectorPat ps -> List.concat (List.map pat_bound_simple ps)
+  | CRecordPat fs ->
+      List.concat (List.map (fun (_, p) -> pat_bound_simple p) fs)
   | _ ->
       unsupported "lambda parameter pattern not supported for native compilation"
 
@@ -313,7 +317,7 @@ let rec capture_operand_for_var (env : env) (ctx : fn_ctx) (v : string) :
     ty * operand =
   match List.assoc_opt v env with
   | None -> unsupported ("Lambda captures unbound `" ^ v ^ "`")
-  | Some (Val (op, t)) -> (t, op)
+  | Some (Val (op, t, _)) -> (t, op)
   | Some (C c) ->
       let op, clo_ty = materialize_clos_lower env ctx c in
       (clo_ty, op)
@@ -435,7 +439,8 @@ let static_env_for_mono_call (global : static_env) (env : env) : static_env =
   List.fold_left
     (fun acc (name, b) ->
       match b with
-      | Val (_, t) -> (
+      | Val (_, _, Some m) -> (name, Mono m) :: acc
+      | Val (_, t, None) -> (
           try
             let m =
               match min_ty_to_mono_opt t with
@@ -965,7 +970,8 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
           | _ -> env
         in
         collect_visit_expr env_for_body inner
-    | CUnitPat | CWildcardPat | CVectorPat _ -> collect_visit_expr env body
+    | CUnitPat | CWildcardPat | CVectorPat _ | CRecordPat _ ->
+        collect_visit_expr env body
     | _ -> ()
   in
   List.iter (collect_visit_defn static_env) defs;
@@ -1175,7 +1181,7 @@ and lower_expr_val_as_call_arg (arg : c_expr) (expect : ty) (env : env)
       let mangle = mangle_poly_instance x m_expect in
       begin
         match List.assoc_opt mangle env with
-        | Some (Val (op, got)) ->
+        | Some (Val (op, got, _)) ->
             if not (ty_equal got expect) then
               unsupported
                 "Internal: monomorphized polymorphic value type mismatch at call";
@@ -1356,12 +1362,42 @@ and iand_operands (ctx : fn_ctx) (conds : operand list) : operand =
 
 (** Emit tests and projections so that [pat] matches [o_s : t_s]; returns an
     extended environment (for [CIdPat] / tuple fields) and an [i1] operand that
-    is true iff the pattern matches. *)
+    is true iff the pattern matches.
+
+    [scrut_mono] is the monomorphic type of the scrutinee (used for record and
+    tuple subpatterns, and list tails). *)
 and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
-    (pat : c_pat) : env * operand =
+    (scrut_mono : mono_type) (pat : c_pat) : env * operand =
+  let pat =
+    match pat with
+    | CRecordPat field_pats -> (
+        match scrut_mono with
+        | RecordType rfields ->
+            let sorted = Cexpr.record_fields_sorted rfields in
+            let type_names = List.map fst sorted in
+            let pat_names = List.map fst field_pats in
+            if not (Cexpr.record_field_sets_equal type_names pat_names) then
+              unsupported
+                "native record pattern must list exactly the fields of the \
+                 record type (same names as in the type / literal)";
+            let subs =
+              List.map
+                (fun nm ->
+                  match List.assoc_opt nm field_pats with
+                  | None -> unsupported "internal: record pattern field"
+                  | Some p -> p)
+                type_names
+            in
+            CVectorPat subs
+        | _ ->
+            unsupported
+              "native pattern: record pattern requires a record-typed scrutinee")
+    | p -> p
+  in
   match pat with
   | CWildcardPat -> (env, ConstI1 true)
-  | CIdPat x -> ((x, Val (o_s, t_s)) :: env, ConstI1 true)
+  | CIdPat x ->
+      ((x, Val (o_s, t_s, Some scrut_mono)) :: env, ConstI1 true)
   | CUnitPat ->
       if t_s <> Unit then
         unsupported "native pattern match: unit pattern does not match scrutinee type";
@@ -1390,14 +1426,27 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
       (env, Local c)
   | CVectorPat subs -> (
       match t_s with
-      | Tuple elem_tys ->
+      | Tuple elem_tys -> (
+          let ms =
+            match scrut_mono with
+            | VectorType ms -> ms
+            | RecordType rfields ->
+                List.map snd (Cexpr.record_fields_sorted rfields)
+            | _ ->
+                unsupported
+                  "native pattern: tuple pattern needs a vector or record type \
+                   for the scrutinee"
+          in
           if List.length subs <> List.length elem_tys then
             unsupported "tuple pattern arity mismatch in native pattern match";
+          if List.length ms <> List.length elem_tys then
+            unsupported "internal: tuple pattern type arity mismatch";
           let env_cond_acc =
             List.fold_left
               (fun (env_acc, conds) i ->
                 let sub = List.nth subs i in
                 let ty_i = List.nth elem_tys i in
+                let m_i = List.nth ms i in
                 let pj = fresh () in
                 emit_instr ctx
                   (Assign
@@ -1405,14 +1454,14 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
                        TupleProj
                          { tup = o_s; index = i; elem_tys = elem_tys } ));
                 let env', c_sub =
-                  emit_native_pat_test env_acc ctx (Local pj) ty_i sub
+                  emit_native_pat_test env_acc ctx (Local pj) ty_i m_i sub
                 in
                 (env', c_sub :: conds))
               (env, [])
               (List.init (List.length subs) (fun i -> i))
           in
           let env', conds_rev = env_cond_acc in
-          (env', iand_operands ctx (List.rev conds_rev))
+          (env', iand_operands ctx (List.rev conds_rev)))
       | _ ->
           unsupported
             "tuple pattern in native pattern match requires a tuple scrutinee")
@@ -1426,8 +1475,8 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
           unsupported
             "[] pattern requires a list scrutinee in native pattern match")
   | CConsPat (ph, ptail) -> (
-      match t_s with
-      | List elem_ty ->
+      match (t_s, scrut_mono) with
+      | List elem_ty, CListType m_el ->
           let c_nn = fresh () in
           emit_instr ctx (Assign (c_nn, ICmp (Ne, o_s, RawNull)));
           let h = fresh () in
@@ -1437,17 +1486,23 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
           emit_instr ctx
             (Assign (tl, ListTail { elem_ty; lst = o_s }));
           let env1, c1 =
-            emit_native_pat_test env ctx (Local h) elem_ty ph
+            emit_native_pat_test env ctx (Local h) elem_ty m_el ph
           in
           let env2, c2 =
-            emit_native_pat_test env1 ctx (Local tl) (List elem_ty) ptail
+            emit_native_pat_test env1 ctx (Local tl) (List elem_ty)
+              (CListType m_el) ptail
           in
           (env2, iand_operands ctx [ Local c_nn; c1; c2 ])
+      | List _, _ ->
+          unsupported
+            "native pattern: :: pattern needs a list-typed scrutinee (mono)"
       | _ ->
           unsupported
             ":: pattern requires a list scrutinee in native pattern match")
   | CCharPat _ | CVariantPat _ ->
       unsupported "this pattern is not supported for native compilation"
+  | CRecordPat _ ->
+      unsupported "internal: record pattern should have been desugared to a tuple"
 
 and lower_switch_merge_arm (body : c_expr) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) (merge_lbl : string)
@@ -1496,9 +1551,9 @@ and merge_switch_predecessors (preds : (string * operand * ty) list)
           LVal (Local res, t0)
 
 and lower_switch_branches_multi (o_s : operand) (t_s : ty)
-    (branches : (c_pat * c_expr) list) (env : env) (ctx : fn_ctx)
-    (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t) :
-    expr_result =
+    (scrut_mono : mono_type) (branches : (c_pat * c_expr) list) (env : env)
+    (ctx : fn_ctx) (static_env : static_env) (type_env : Typecheck.type_env)
+    (shadows : S.t) : expr_result =
   let merge_lbl = fresh_lbl ctx "swm" in
   let rec walk (brs : (c_pat * c_expr) list) (acc : (string * operand * ty) list) :
       (string * operand * ty) list =
@@ -1506,7 +1561,9 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
     | [] -> assert false
     | [ (pat, body) ] -> acc @ finish_last pat body
     | (pat, body) :: rest ->
-        let env', cond = emit_native_pat_test env ctx o_s t_s pat in
+        let env', cond =
+          emit_native_pat_test env ctx o_s t_s scrut_mono pat
+        in
         let l_ok = fresh_lbl ctx "swm" in
         let l_next = fresh_lbl ctx "swn" in
         close_block ctx (BrCond (cond, l_ok, l_next));
@@ -1518,7 +1575,9 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
         open_block ctx l_next;
         walk rest (acc @ [ p ])
   and finish_last pat body : (string * operand * ty) list =
-    let env', cond = emit_native_pat_test env ctx o_s t_s pat in
+    let env', cond =
+      emit_native_pat_test env ctx o_s t_s scrut_mono pat
+    in
     match cond with
     | ConstI1 true ->
         [
@@ -1543,14 +1602,16 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
   open_block ctx merge_lbl;
   merge_switch_predecessors preds ctx
 
-and lower_switch_branches (o_s : operand) (t_s : ty)
+and lower_switch_branches (o_s : operand) (t_s : ty) (scrut_mono : mono_type)
     (branches : (c_pat * c_expr) list) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t) :
     expr_result =
   match branches with
   | [] -> unsupported "empty case/switch"
   | [ (pat, body) ] ->
-      let env', cond = emit_native_pat_test env ctx o_s t_s pat in
+      let env', cond =
+        emit_native_pat_test env ctx o_s t_s scrut_mono pat
+      in
       (match cond with
       | ConstI1 true -> lower_expr body env' ctx static_env type_env shadows
       | _ ->
@@ -1571,8 +1632,8 @@ and lower_switch_branches (o_s : operand) (t_s : ty)
           open_block ctx merge_lbl;
           merge_switch_predecessors preds ctx)
   | _ :: _ :: _ as multi ->
-      lower_switch_branches_multi o_s t_s multi env ctx static_env type_env
-        shadows
+      lower_switch_branches_multi o_s t_s scrut_mono multi env ctx static_env
+        type_env shadows
 
 and lower_list_int_enumeration (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t)
@@ -1681,7 +1742,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       lower_list_int_enumeration env ctx static_env type_env shadows e_lo e_hi
   | EId x -> (
       match List.assoc_opt x env with
-      | Some (Val (o, t)) -> LVal (o, t)
+      | Some (Val (o, t, _)) -> LVal (o, t)
       | Some (C c) ->
           if callable_remaining c > 0 then LPartial c
           else unsupported ("`" ^ x ^ "` is already fully applied (compiler bug)")
@@ -1786,8 +1847,16 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
   | EBind (CIdPat x, _ta, e1, e2, _rt) -> (
       match lower_expr e1 env ctx static_env type_env shadows with
       | LVal (o1, t1) ->
+          let se0 = static_env_for_mono_call static_env env in
+          let m1 =
+            match Typecheck.type_of_c_expr se0 type_env e1 with
+            | Ok ct -> static_mono_for_native ct
+            | Error err ->
+                unsupported
+                  ("let: " ^ Typecheck.string_of_type_check_error err)
+          in
           emit_instr ctx (Assign (x, Copy o1));
-          let env' = (x, Val (Local x, t1)) :: env in
+          let env' = (x, Val (Local x, t1, Some m1)) :: env in
           lower_expr e2 env' ctx static_env type_env
             (shadow_add_pat (CIdPat x) shadows)
       | LPartial c ->
@@ -1797,9 +1866,15 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
   | EBind (pat, _ta, e1, e2, _rt) when pat <> CWildcardPat && not (match pat with CIdPat _ -> true | _ -> false) -> (
       match lower_expr e1 env ctx static_env type_env shadows with
       | LVal (o1, t1) ->
-          let env', cond =
-            emit_native_pat_test env ctx o1 t1 pat
+          let se = static_env_for_mono_call static_env env in
+          let m1 =
+            match Typecheck.type_of_c_expr se type_env e1 with
+            | Ok ct -> static_mono_for_native ct
+            | Error err ->
+                unsupported
+                  ("let pattern: " ^ Typecheck.string_of_type_check_error err)
           in
+          let env', cond = emit_native_pat_test env ctx o1 t1 m1 pat in
           (match cond with
           | ConstI1 true ->
               lower_expr e2 env' ctx static_env type_env
@@ -1941,7 +2016,8 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       let param_pats, anns, inner_most = peel_efun [] [] lam in
       List.iter
         (function
-          | CIdPat _ | CUnitPat | CWildcardPat | CVectorPat _ -> ()
+          | CIdPat _ | CUnitPat | CWildcardPat | CVectorPat _ | CRecordPat _ ->
+              ()
           | _ -> unsupported "lambda parameter pattern")
         param_pats;
       let bound = List.concat (List.map pat_bound_simple param_pats) in
@@ -1995,9 +2071,17 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           if callable_remaining c > 0 then LPartial c
           else unsupported "Internal: zero-arity lambda")
   | ESwitch (scrut, branches) -> (
+      let se = static_env_for_mono_call static_env env in
+      let scrut_mono =
+        match Typecheck.type_of_c_expr se type_env scrut with
+        | Ok ct -> static_mono_for_native ct
+        | Error err ->
+            unsupported
+              ("case/switch: " ^ Typecheck.string_of_type_check_error err)
+      in
       let o_s, t_s = lower_expr_val scrut env ctx static_env type_env shadows in
-      lower_switch_branches o_s t_s branches env ctx static_env type_env
-        shadows)
+      lower_switch_branches o_s t_s scrut_mono branches env ctx static_env
+        type_env shadows)
   | EVector es -> (
       let se = static_env_for_mono_call static_env env in
       match Typecheck.type_of_c_expr se type_env (EVector es) with
@@ -2018,9 +2102,111 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               emit_instr ctx (Assign (t, TuplePack (elem_tys, ops)));
               LVal (Local t, Tuple elem_tys)
           | _ -> unsupported "internal: vector literal type is not a vector"))
-  | EBindMutRec _ | EListComprehension _ | ERecordLit _
-  | ERecordUpdate _ | EFieldAccess _ | EChar _ | EFloat _ ->
+  | EBindMutRec _ | EListComprehension _ | EChar _ | EFloat _ ->
       unsupported "Expression form not supported in Min_IR lowering yet"
+  | ERecordLit fields -> (
+      let se = static_env_for_mono_call static_env env in
+      match Typecheck.type_of_c_expr se type_env (ERecordLit fields) with
+      | Error err ->
+          unsupported ("record: " ^ Typecheck.string_of_type_check_error err)
+      | Ok ct -> (
+          let m = static_mono_for_native ct in
+          match m with
+          | RecordType rfields ->
+              let sorted = Cexpr.record_fields_sorted rfields in
+              let lit_names = List.map fst fields in
+              let type_names = List.map fst sorted in
+              if not (Cexpr.record_field_sets_equal type_names lit_names) then
+                unsupported
+                  "internal: record literal fields do not match inferred type";
+              let ops =
+                List.map
+                  (fun (nm, _) ->
+                    let e = List.assoc nm fields in
+                    fst (lower_expr_val e env ctx static_env type_env shadows))
+                  sorted
+              in
+              let elem_tys = List.map (fun (_, t) -> mono_to_min t) sorted in
+              let t = fresh () in
+              emit_instr ctx (Assign (t, TuplePack (elem_tys, ops)));
+              LVal (Local t, Tuple elem_tys)
+          | _ -> unsupported "internal: record literal type is not a record"))
+  | ERecordUpdate (base, updates) -> (
+      let se = static_env_for_mono_call static_env env in
+      match Typecheck.type_of_c_expr se type_env (ERecordUpdate (base, updates)) with
+      | Error err ->
+          unsupported ("record update: " ^ Typecheck.string_of_type_check_error err)
+      | Ok ct -> (
+          let m = static_mono_for_native ct in
+          match m with
+          | RecordType rfields ->
+              let sorted = Cexpr.record_fields_sorted rfields in
+              let elem_tys = List.map (fun (_, t) -> mono_to_min t) sorted in
+              let o_base, t_base =
+                lower_expr_val base env ctx static_env type_env shadows
+              in
+              if t_base <> Tuple elem_tys then
+                unsupported "internal: record update base is not tuple layout";
+              let ops =
+                List.mapi
+                  (fun i (nm, _) ->
+                    match List.assoc_opt nm updates with
+                    | Some e ->
+                        fst (lower_expr_val e env ctx static_env type_env shadows)
+                    | None ->
+                        let pj = fresh () in
+                        emit_instr ctx
+                          (Assign
+                             ( pj,
+                               TupleProj
+                                 {
+                                   tup = o_base;
+                                   index = i;
+                                   elem_tys;
+                                 } ));
+                        Local pj)
+                  sorted
+              in
+              let t = fresh () in
+              emit_instr ctx (Assign (t, TuplePack (elem_tys, ops)));
+              LVal (Local t, Tuple elem_tys)
+          | _ -> unsupported "internal: record update type is not a record"))
+  | EFieldAccess (e0, fld) -> (
+      let se = static_env_for_mono_call static_env env in
+      match Typecheck.type_of_c_expr se type_env (EFieldAccess (e0, fld)) with
+      | Error err ->
+          unsupported ("field access: " ^ Typecheck.string_of_type_check_error err)
+      | Ok ct -> (
+          let m = static_mono_for_native ct in
+          let o_rec, t_rec =
+            lower_expr_val e0 env ctx static_env type_env shadows
+          in
+          match Typecheck.type_of_c_expr se type_env e0 with
+          | Error err2 ->
+              unsupported
+                ("field access base: " ^ Typecheck.string_of_type_check_error err2)
+          | Ok ct0 -> (
+              let m0 = static_mono_for_native ct0 in
+              match m0 with
+              | RecordType rfields ->
+                  let sorted = Cexpr.record_fields_sorted rfields in
+                  let elem_tys = List.map (fun (_, t) -> mono_to_min t) sorted in
+                  if t_rec <> Tuple elem_tys then
+                    unsupported "internal: record value is not tuple layout";
+                  let idx =
+                    match
+                      List.find_index (fun (nm, _) -> nm = fld) sorted
+                    with
+                    | Some i -> i
+                    | None -> unsupported ("unknown record field `" ^ fld ^ "`")
+                  in
+                  let pj = fresh () in
+                  emit_instr ctx
+                    (Assign
+                       ( pj,
+                         TupleProj { tup = o_rec; index = idx; elem_tys } ));
+                  LVal (Local pj, mono_to_min m)
+              | _ -> unsupported "internal: field access base is not a record")))
 
 and lower_block (parts : c_expr_or_c_defn list) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t) :
@@ -2047,28 +2233,37 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
   let param_tys = param_min_ir_tys ty_key param_anns static_env in
   if List.length param_pats <> List.length param_tys then
     unsupported "Internal: parameter pattern count mismatch";
+  let param_monos =
+    peel_inferred_param_monos (List.length param_pats)
+      (static_mono_for_native (List.assoc ty_key static_env))
+  in
   let cap_pairs = List.map (fun (v, t, _) -> (v, t)) captures in
   let cap_tys = List.map snd cap_pairs in
   let m_cap = List.length cap_pairs in
-  let tuple_param_unpacks : (string * c_pat list * ty list) list ref =
+  let tuple_param_unpacks : (string * c_pat list * ty list * mono_type) list ref
+      =
     ref []
   in
-  let param_pat_checks : (string * ty * c_pat) list ref = ref [] in
+  let param_pat_checks : (string * ty * c_pat * mono_type) list ref =
+    ref []
+  in
   let param_names_and_frags =
     List.map2
-      (fun pat pt ->
+      (fun pat (pt, pm) ->
         match pat with
         | CIdPat s -> (
             match pt with
-            | Clos (ps, r) -> (s, [ (s, Val (Local s, Clos (ps, r))) ])
+            | Clos (ps, r) ->
+                (s, [ (s, Val (Local s, Clos (ps, r), Some pm)) ])
             | Fun (ps, r) -> (
                 match ps with
-                | [ _ ] -> (s, [ (s, Val (Local s, Fun (ps, r))) ])
+                | [ _ ] ->
+                    (s, [ (s, Val (Local s, Fun (ps, r), Some pm)) ])
                 | _ ->
                     unsupported
                       "Curried higher-order parameter not supported for native \
                        compilation")
-            | _ -> (s, [ (s, Val (Local s, pt)) ]))
+            | _ -> (s, [ (s, Val (Local s, pt, Some pm)) ]))
         | CUnitPat ->
             let p = fresh_param () in
             (p, [])
@@ -2076,45 +2271,77 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
             let p = fresh_param () in
             (p, [])
         | CVectorPat subpats -> (
-            match pt with
-            | Tuple elem_tys ->
+            match (pt, pm) with
+            | Tuple elem_tys, VectorType _ ->
                 let p = fresh_param () in
-                tuple_param_unpacks := (p, subpats, elem_tys) :: !tuple_param_unpacks;
+                tuple_param_unpacks :=
+                  (p, subpats, elem_tys, pm) :: !tuple_param_unpacks;
                 (p, [])
             | _ ->
                 unsupported
                   "tuple function parameter requires a tuple type in native compilation")
+        | CRecordPat field_pats -> (
+            match (pt, pm) with
+            | Tuple elem_tys, RecordType rfields ->
+                let sorted = Cexpr.record_fields_sorted rfields in
+                let type_names = List.map fst sorted in
+                let pat_names = List.map fst field_pats in
+                if not (Cexpr.record_field_sets_equal type_names pat_names) then
+                  unsupported
+                    "record function parameter pattern must bind every field of \
+                     the record";
+                let sub_ordered =
+                  List.map
+                    (fun nm ->
+                      match List.assoc_opt nm field_pats with
+                      | None -> unsupported "internal: record parameter pattern"
+                      | Some p -> p)
+                    type_names
+                in
+                let p = fresh_param () in
+                tuple_param_unpacks :=
+                  ( p,
+                    sub_ordered,
+                    elem_tys,
+                    VectorType (List.map snd sorted) )
+                  :: !tuple_param_unpacks;
+                (p, [])
+            | _ ->
+                unsupported
+                  "record function parameter requires a record type in native compilation")
         | CIntPat _ | CBoolPat _ | CStringPat _ as lit_pat ->
             let p = fresh_param () in
-            param_pat_checks := (p, pt, lit_pat) :: !param_pat_checks;
+            param_pat_checks := (p, pt, lit_pat, pm) :: !param_pat_checks;
             (p, [])
         | (CNilPat | CConsPat _) as lit_lst_pat ->
             let p = fresh_param () in
-            param_pat_checks := (p, pt, lit_lst_pat) :: !param_pat_checks;
+            param_pat_checks := (p, pt, lit_lst_pat, pm) :: !param_pat_checks;
             (p, [])
         | CCharPat _ | CVariantPat _ ->
             unsupported
               "Function parameter pattern not supported for native compilation")
-      param_pats param_tys
+      param_pats
+      (List.combine param_tys param_monos)
   in
   let params = List.map fst param_names_and_frags in
   let env_params = List.concat (List.map snd param_names_and_frags) in
   let direct_params = cap_pairs @ List.combine params param_tys in
   let merged0 =
-    List.map (fun (v, t) -> (v, Val (Local v, t))) cap_pairs @ env_params
+    List.map (fun (v, t) -> (v, Val (Local v, t, None))) cap_pairs @ env_params
     @ outer_env
   in
   let ctx = create_fn_ctx () in
   let tuple_checks =
     List.map
-      (fun (pname, subs, etys) -> (pname, Tuple etys, CVectorPat subs))
+      (fun (pname, subs, etys, pm) ->
+        (pname, Tuple etys, CVectorPat subs, pm))
       (List.rev !tuple_param_unpacks)
   in
   let merged, guard_conds =
     List.fold_left
-      (fun (acc_env, conds) (pname, pty, pat) ->
+      (fun (acc_env, conds) (pname, pty, pat, pm) ->
         let env', c =
-          emit_native_pat_test acc_env ctx (Local pname) pty pat
+          emit_native_pat_test acc_env ctx (Local pname) pty pm pat
         in
         (env', c :: conds))
       (merged0, [])
@@ -2268,7 +2495,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                           unsupported
                             "Internal: monomorphized value type does not match key";
                         emit_instr ctx_main (Assign (emit, Copy o));
-                        (emit, Val (Local emit, t)) :: env_acc))
+                        (emit, Val (Local emit, t, Some mono)) :: env_acc))
         env_mono instances
     in
     let rec walk env = function
@@ -2358,8 +2585,19 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                   match lower_expr inner env ctx_main static_env type_env S.empty
                   with
                   | LVal (o, t) ->
+                      let se_tl = static_env_for_mono_call static_env env in
+                      let m_rhs =
+                        match Typecheck.type_of_c_expr se_tl type_env inner with
+                        | Ok ct -> static_mono_for_native ct
+                        | Error err ->
+                            unsupported
+                              ("top-level value: "
+                              ^ Typecheck.string_of_type_check_error err)
+                      in
                       emit_instr ctx_main (Assign (name, Copy o));
-                      let env' = (name, Val (Local name, t)) :: env in
+                      let env' =
+                        (name, Val (Local name, t, Some m_rhs)) :: env
+                      in
                       walk env' rest
                   | LPartial c ->
                       let env' = (name, C c) :: env in
@@ -2390,21 +2628,29 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                   | LVal (o, Tuple elem_tys) ->
                       if List.length subs <> List.length elem_tys then
                         unsupported "top-level tuple let pattern arity mismatch";
-                      let env', cond =
-                        emit_native_pat_test env ctx_main o (Tuple elem_tys)
-                          (CVectorPat subs)
-                      in
-                      (match cond with
-                      | ConstI1 true -> walk env' rest
-                      | _ ->
-                          let l_ok = fresh_lbl ctx_main "tlp" in
-                          let l_fail = fresh_lbl ctx_main "tlf" in
-                          close_block ctx_main (BrCond (cond, l_ok, l_fail));
-                          open_block ctx_main l_fail;
-                          emit_instr ctx_main (VoidCall ("abort", []));
-                          close_block ctx_main Unreachable;
-                          open_block ctx_main l_ok;
-                          walk env' rest)
+                      let se = static_env_for_mono_call static_env env in
+                      (match Typecheck.type_of_c_expr se type_env inner with
+                      | Error err ->
+                          unsupported
+                            ("top-level tuple let: "
+                            ^ Typecheck.string_of_type_check_error err)
+                      | Ok ct ->
+                          let m = static_mono_for_native ct in
+                          let env', cond =
+                            emit_native_pat_test env ctx_main o (Tuple elem_tys)
+                              m (CVectorPat subs)
+                          in
+                          (match cond with
+                          | ConstI1 true -> walk env' rest
+                          | _ ->
+                              let l_ok = fresh_lbl ctx_main "tlp" in
+                              let l_fail = fresh_lbl ctx_main "tlf" in
+                              close_block ctx_main (BrCond (cond, l_ok, l_fail));
+                              open_block ctx_main l_fail;
+                              emit_instr ctx_main (VoidCall ("abort", []));
+                              close_block ctx_main Unreachable;
+                              open_block ctx_main l_ok;
+                              walk env' rest))
                   | LVal _ ->
                       unsupported "top-level tuple let requires a tuple on the right"
                   | LPartial _ ->
@@ -2413,9 +2659,49 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
               | _ :: _ ->
                   unsupported
                     "top-level let with tuple pattern cannot define a function")
+          | CRecordPat rsubs -> (
+              let param_pats, _anns, inner = peel_efun [] [] body in
+              match param_pats with
+              | [] -> (
+                  match lower_expr inner env ctx_main static_env type_env S.empty
+                  with
+                  | LVal (o, Tuple elem_tys) ->
+                      let se = static_env_for_mono_call static_env env in
+                      (match Typecheck.type_of_c_expr se type_env inner with
+                      | Error err ->
+                          unsupported
+                            ("top-level record let: "
+                            ^ Typecheck.string_of_type_check_error err)
+                      | Ok ct ->
+                          let m = static_mono_for_native ct in
+                          let env', cond =
+                            emit_native_pat_test env ctx_main o (Tuple elem_tys)
+                              m (CRecordPat rsubs)
+                          in
+                          (match cond with
+                          | ConstI1 true -> walk env' rest
+                          | _ ->
+                              let l_ok = fresh_lbl ctx_main "rlp" in
+                              let l_fail = fresh_lbl ctx_main "rlf" in
+                              close_block ctx_main (BrCond (cond, l_ok, l_fail));
+                              open_block ctx_main l_fail;
+                              emit_instr ctx_main (VoidCall ("abort", []));
+                              close_block ctx_main Unreachable;
+                              open_block ctx_main l_ok;
+                              walk env' rest))
+                  | LVal _ ->
+                      unsupported
+                        "top-level record let requires a record value on the right"
+                  | LPartial _ ->
+                      unsupported
+                        "top-level record let cannot bind a partial application")
+              | _ :: _ ->
+                  unsupported
+                    "top-level let with record pattern cannot define a function")
           | _ ->
               unsupported
-                "Top-level let only supports identifier, unit, wildcard, or tuple patterns in Min_IR lowering")
+                "Top-level let only supports identifier, unit, wildcard, tuple, \
+                 or record patterns in Min_IR lowering")
     in
     walk env_with_values defs;
     close_block ctx_main (Ret None);

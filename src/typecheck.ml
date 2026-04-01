@@ -43,6 +43,15 @@ let unwrap_type_check_result (x : 'a type_check_result) : 'a =
 
 exception TypeFailure
 
+let assert_distinct_record_field_names (names : string list) : unit =
+  let sorted = List.sort String.compare names in
+  let rec nodups = function
+    | a :: b :: _ when String.compare a b = 0 -> raise TypeFailure
+    | _ :: r -> nodups r
+    | [] -> ()
+  in
+  nodups sorted
+
 (* maps type names to their types *)
 type type_env = (string * string list * mono_type) list
 
@@ -207,6 +216,9 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
       generate_e_list_comprehension env type_env e generators
   | ESwitch (e1, branches) -> generate_e_switch env type_env e1 branches
   | ERecordLit fields ->
+      let () =
+        assert_distinct_record_field_names (List.map fst fields)
+      in
       (* Generate constraints for each field expression *)
       let rec process_fields acc_types acc_equations = function
         | [] -> return (List.rev acc_types, acc_equations)
@@ -770,6 +782,16 @@ and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
         split3 (List.map (type_of_pat env type_env) patterns)
       in
       (VectorType types, List.flatten envs, List.flatten eqs)
+  | CRecordPat field_pats ->
+      let names = List.map fst field_pats in
+      let () = assert_distinct_record_field_names names in
+      let types, envs, eqs =
+        split3
+          (List.map (fun (_, p) -> type_of_pat env type_env p) field_pats)
+      in
+      ( RecordType (List.map2 (fun nm ty -> (nm, ty)) names types),
+        List.flatten envs,
+        List.flatten eqs )
   | CIntPat _ -> (IntType, [], [])
   | CBoolPat _ -> (BoolType, [], [])
   | CCharPat _ -> (CharType, [], [])

@@ -5,6 +5,7 @@ type c_pat =
   | CConsPat of c_pat * c_pat
   | CWildcardPat
   | CVectorPat of c_pat list
+  | CRecordPat of (string * c_pat) list (* { x: pat, y: pat } — field order in source is arbitrary *)
   | CCharPat of char
   | CStringPat of string
   | CIdPat of string
@@ -138,6 +139,13 @@ and env = (string * value) list
 
 type static_env = (string * c_type) list
 type c_program = c_defn list
+
+(** Deterministic field order for record layout (native codegen uses a tuple in this order). *)
+let record_fields_sorted (fields : (string * 'a) list) : (string * 'a) list =
+  List.sort (fun (a, _) (b, _) -> String.compare a b) fields
+
+let record_field_sets_equal (a : string list) (b : string list) : bool =
+  List.sort String.compare a = List.sort String.compare b
 
 let ( => ) (t1 : mono_type) (t2 : mono_type) : mono_type = FunctionType (t1, t2)
 let counter : int ref = ref 0

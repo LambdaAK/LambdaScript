@@ -57,6 +57,11 @@ let rec string_of_pat : c_pat -> string = function
   | CConsPat (p1, p2) -> string_of_pat p1 ^ " :: " ^ string_of_pat p2
   | CWildcardPat -> "_"
   | CVectorPat ps -> "(" ^ String.concat ", " (List.map string_of_pat ps) ^ ")"
+  | CRecordPat fields ->
+      "{"
+      ^ String.concat ", "
+          (List.map (fun (n, p) -> n ^ ": " ^ string_of_pat p) fields)
+      ^ "}"
   | CStringPat s -> "\"" ^ s ^ "\""
   | CCharPat c -> "'" ^ String.make 1 c ^ "'"
   | CIdPat id -> id
