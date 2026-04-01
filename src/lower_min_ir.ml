@@ -2030,7 +2030,8 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           fv
       in
       let cap_entries = lambda_captures env ctx fv in
-      match Typecheck.type_of_c_expr static_env type_env lam with
+      let se = static_env_for_mono_call static_env env in
+      match Typecheck.type_of_c_expr se type_env lam with
       | Error err ->
           unsupported ("lambda: " ^ Typecheck.string_of_type_check_error err)
       | Ok ct ->

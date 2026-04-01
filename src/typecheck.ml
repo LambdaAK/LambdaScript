@@ -1235,6 +1235,9 @@ and get_type_vars (t : mono_type) : mono_type list =
   | VectorType types -> List.flatten (List.map get_type_vars types)
   | CListType et -> get_type_vars et
   | CTypeApp (_, args) -> List.flatten (List.map get_type_vars args)
+  | RecordType fields ->
+      List.flatten (List.map (fun (_, ft) -> get_type_vars ft) fields)
+  | FixedPoint (_, body) -> get_type_vars body
   | _ -> []
 
 and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :

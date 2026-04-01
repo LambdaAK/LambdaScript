@@ -710,9 +710,20 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
           let acc = ref "" in
           List.iteri
             (fun i (op, ety) ->
-              let got_ll, ov = emit_operand ctx h op in
               let exp_ll = llvm_struct_elem_ty ctx ety in
-              if got_ll <> exp_ll then failwith "llvm_emit: tuple pack field type";
+              let ov =
+                match (ety, op) with
+                | String, ConstStr s ->
+                    let tmp = fresh_emit_aux ctx in
+                    lines := !lines @ [ emit_global_string ctx tmp s ];
+                    H.replace h tmp String;
+                    "%" ^ tmp
+                | _ ->
+                    let got_ll, raw = emit_operand ctx h op in
+                    if got_ll <> exp_ll then
+                      failwith "llvm_emit: tuple pack field type";
+                    raw
+              in
               let nm = if i = last then dst else dst ^ "_pk" ^ string_of_int i in
               let agg_in =
                 if i = 0 then "undef" else Printf.sprintf "%%%s" !acc
