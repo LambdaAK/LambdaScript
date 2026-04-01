@@ -6,7 +6,8 @@ open Build_env
 open Min_ir
 open Llvm_emit
 
-type typechecked_envs = Cexpr.static_env * Typecheck.type_env
+type typechecked_envs =
+  Cexpr.static_env * Typecheck.type_env * Typecheck.constructor_env
 
 let read_file filename =
   let ch = open_in filename in
@@ -41,13 +42,14 @@ let runtime_c_path () =
               "Cannot find runtime/ls_runtime.c — run from the LambdaScript repo \
                root or set LAMBDASCRIPT_ROOT")
 
-let rec typecheck_defns static_env type_env defns : (typechecked_envs, string) result =
+let rec typecheck_defns static_env type_env ctor_env defns
+    : (typechecked_envs, string) result =
   match defns with
-  | [] -> Ok (static_env, type_env)
+  | [] -> Ok (static_env, type_env, ctor_env)
   | defn :: rest -> (
       match generate_defn static_env type_env defn with
-      | Ok (nb, nte) ->
-          typecheck_defns (nb @ static_env) (nte @ type_env) rest
+      | Ok (nb, nte, nce) ->
+          typecheck_defns (nb @ static_env) (nte @ type_env) (nce @ ctor_env) rest
       | Error e -> Error (string_of_type_check_error e))
 
 let compile ?(quiet = false) (src_path : string) (out_path : string) :
@@ -65,10 +67,14 @@ let compile ?(quiet = false) (src_path : string) (out_path : string) :
       let condensed_program = List.map condense_defn program in
       let static_env = build_full_static_env () in
       let type_env : type_env = [] in
-      match typecheck_defns static_env type_env condensed_program with
+      let ctor_env : Typecheck.constructor_env = [] in
+      match typecheck_defns static_env type_env ctor_env condensed_program with
       | Error _ as e -> e
-      | Ok (static_env, type_env) -> (
-          match Lower_min_ir.lower_c_program condensed_program static_env type_env with
+      | Ok (static_env, type_env, ctor_env) -> (
+          match
+            Lower_min_ir.lower_c_program condensed_program static_env type_env
+              ctor_env
+          with
           | Error msg ->
               if not quiet then print_endline ("Lowering failed: " ^ msg);
               Error ("Lowering failed: " ^ msg)

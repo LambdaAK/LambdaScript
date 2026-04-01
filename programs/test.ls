@@ -1,12 +1,13 @@
-let person = {
-  name: "John",
-  age: 30,
-  city: "New York"
-}
+type Option<'a> = | None | Some of 'a
 
-let v = case person do
-  | {name: "Alex"} -> 1
-  | {name: "John", age: x} -> x
-  | _ -> 3
+let none = None
 
-let () = println (int_to_str v)
+let some = Some 1
+
+let extract_default default option =
+  case option do
+    | None -> default
+    | Some v -> v
+
+
+let () = println (int_to_str (extract_default 0 some))

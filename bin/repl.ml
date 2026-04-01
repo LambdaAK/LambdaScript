@@ -182,7 +182,7 @@ let handle_command cmd static_env dynamic_env type_env history =
             | Error e ->
                 print_error (string_of_type_check_error e);
                 NoChange
-            | Ok (new_static_bindings, new_type_env) ->
+            | Ok (new_static_bindings, new_type_env, _) ->
                 let new_dynamic_bindings =
                   unwrap_eval_result (eval_defn c_defn dynamic_env)
                 in
@@ -265,7 +265,7 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env)
         | Error e ->
             print_error (string_of_type_check_error e);
             (NoChange, new_history)
-        | Ok (new_static_bindings, new_type_env) ->
+        | Ok (new_static_bindings, new_type_env, _) ->
             let new_dynamic_bindings =
               unwrap_eval_result (eval_defn c_defn dynamic_env)
             in
@@ -321,7 +321,7 @@ let load_file_into_env filename static_env dynamic_env type_env =
           | [] -> (static_env, dynamic_env, type_env)
           | defn :: rest ->
               match generate_defn static_env type_env defn with
-              | Ok (new_static_bindings, new_type_env) ->
+              | Ok (new_static_bindings, new_type_env, _) ->
                   let new_dynamic_bindings =
                     unwrap_eval_result (eval_defn defn dynamic_env)
                   in

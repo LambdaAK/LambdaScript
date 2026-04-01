@@ -42,20 +42,23 @@ let dump_ir (filename : string) =
       let condensed_program = List.map condense_defn program in
       let static_env = build_full_static_env () in
       let type_env : type_env = [] in
-      let static_env, type_env =
+      let ctor_env : Language.Typecheck.constructor_env = [] in
+      let static_env, type_env, ctor_env =
         List.fold_left
-          (fun (static_env, type_env) defn ->
+          (fun (static_env, type_env, ctor_env) defn ->
             match generate_defn static_env type_env defn with
-            | Ok (new_bindings, new_type_env) ->
-                (new_bindings @ static_env, new_type_env @ type_env)
+            | Ok (new_bindings, new_type_env, new_ctor_env) ->
+                ( new_bindings @ static_env,
+                  new_type_env @ type_env,
+                  new_ctor_env @ ctor_env )
             | Error e ->
                 print_endline (string_of_type_check_error e);
                 exit 1)
-          (static_env, type_env) condensed_program
+          (static_env, type_env, ctor_env) condensed_program
       in
       match
         Language.Lower_min_ir.lower_c_program condensed_program static_env
-          type_env
+          type_env ctor_env
       with
       | Ok prog -> print_endline (string_of_prog prog)
       | Error msg ->

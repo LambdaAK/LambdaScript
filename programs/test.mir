@@ -1,34 +1,53 @@
 entry: @main
-fn main() -> unit {
+fn extract_default__lsm173919979__ls_s0(_p2: rawptr, default: i32) -> clos(rawptr) -> i32 {
 entry:
-  _t1 = tuple_pack [i32, string, string] (30, "New York", "John")
-  person = %_t1
-  _t2 = tuple_proj %person[0] : i32,string,string
-  _t3 = tuple_proj %person[1] : i32,string,string
-  _t4 = tuple_proj %person[2] : i32,string,string
-  _t5 = call @strcmp(%_t4, "Alex")
-  _t6 = icmp eq %_t5, 0
-  br %_t6 ? swm_2 : swn_3
+  _t10 = raw_malloc(4)
+  _t11 = env_store %_t10[0] = %default
+  _t12 = mkclos @extract_default__lsm173919979__ls_s1 env=%_t10 : clos(rawptr) -> i32
+  ret %_t12
+}
+
+fn extract_default__lsm173919979__ls_s1(_p1: rawptr, option: rawptr) -> i32 {
+entry:
+  _t8 = env_load %_p1[0]
+  _t9 = call @extract_default__lsm173919979(%_t8, %option)
+  ret %_t9
+}
+
+fn extract_default__lsm173919979(default: i32, option: rawptr) -> i32 {
+entry:
+  _t1 = variant_tag %option
+  _t2 = icmp eq %_t1, 0
+  br %_t2 ? swm_2 : swn_3
 swm_2:
 
   br swm_1
 swn_3:
-  _t7 = tuple_proj %person[0] : i32,string,string
-  _t8 = tuple_proj %person[1] : i32,string,string
-  _t9 = tuple_proj %person[2] : i32,string,string
-  _t10 = call @strcmp(%_t9, "John")
-  _t11 = icmp eq %_t10, 0
-  br %_t11 ? swm_4 : swn_5
+  _t3 = variant_tag %option
+  _t4 = icmp eq %_t3, 1
+  _t5 = variant_payload %option
+  _t6 = heap_unbox i32 %_t5
+  br %_t4 ? swm_4 : swf_5
 swm_4:
 
   br swm_1
-swn_5:
-
-  br swm_1
+swf_5:
+  void call @abort()
+  unreachable
 swm_1:
-  _t12 = phi i32 [ swm_2, 1 ], [ swm_4, %_t7 ], [ swn_5, 3 ]
-  v = %_t12
-  _t13 = indirect_call &ls_int_to_str : fn(i32) -> string(%v) -> string
-  void indirect &ls_println : fn(string) -> unit(%_t13)
+  _t7 = phi i32 [ swm_2, %default ], [ swm_4, %_t6 ]
+  ret %_t7
+}
+
+fn main() -> unit {
+entry:
+  _t13 = variant_mk 0 nullptr
+  none = %_t13
+  _t14 = heap_box i32 1
+  _t15 = variant_mk 1 %_t14
+  some = %_t15
+  _t16 = call @extract_default__lsm173919979(0, %some)
+  _t17 = indirect_call &ls_int_to_str : fn(i32) -> string(%_t16) -> string
+  void indirect &ls_println : fn(string) -> unit(%_t17)
   ret void
 }

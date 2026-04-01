@@ -1,4 +1,5 @@
 open Cexpr
+open Typecheck
 
 (* Pattern matrix type: a list of pattern rows *)
 type pattern_matrix = c_pat list list
@@ -15,19 +16,30 @@ type exhaustiveness_result =
   | Exhaustive
   | NonExhaustive of string  (* Missing pattern example *)
 
-(* Get all constructors for a given type *)
-let get_constructors_for_type (type_name : string) (constructor_env : (string * string * string list * c_type option) list) : constructor_info list =
-  (* Filter constructors that belong to this type *)
-  let type_constructors = List.filter (fun (_, tname, _, _) -> tname = type_name) constructor_env in
+(* Flatten [constructor_env] to legacy row form for lookups that need per-name rows. *)
+let flatten_constructor_rows (ctor_env : constructor_env) :
+    (string * string * string list * c_type option) list =
+  List.concat_map
+    (fun (type_name, type_params, ctors) ->
+      List.map
+        (fun (cons_name, payload_opt) ->
+          (cons_name, type_name, type_params, payload_opt))
+        ctors)
+    ctor_env
 
-  (* Convert to constructor_info *)
-  List.map (fun (cons_name, tname, _, payload_opt) ->
-    let arity = match payload_opt with
-      | None -> 0
-      | Some _ -> 1  (* For simplicity, we treat payloads as single arguments *)
-    in
-    { name = cons_name; arity; type_name = tname }
-  ) type_constructors
+(* Get all constructors for a given type *)
+let get_constructors_for_type (type_name : string) (ctor_env : constructor_env) :
+    constructor_info list =
+  List.concat_map
+    (fun (tn, _params, ctors) ->
+      if tn = type_name then
+        List.map
+          (fun (cons_name, payload_opt) ->
+            let arity = match payload_opt with None -> 0 | Some _ -> 1 in
+            { name = cons_name; arity; type_name = tn })
+          ctors
+      else [])
+    ctor_env
 
 (* Check if a pattern is a wildcard (matches everything) *)
 let is_wildcard (pat : c_pat) : bool =
@@ -196,7 +208,7 @@ let rec get_pattern_type (pat : c_pat) (static_env : (string * c_type) list) : m
 let rec check_exhaustiveness
     (matrix : pattern_matrix)
     (column_types : mono_type list)
-    (constructor_env : (string * string * string list * c_type option) list)
+    (constructor_env : constructor_env)
     (static_env : (string * c_type) list) : exhaustiveness_result =
 
   (* Base case 1: Empty matrix means no patterns match *)
@@ -292,7 +304,7 @@ let rec check_exhaustiveness
           check_exhaustiveness default rest_types constructor_env static_env
 
 (* Generate a witness example for a type *)
-and generate_witness_for_type (t : mono_type) (constructor_env : (string * string * string list * c_type option) list) (depth : int) : string =
+and generate_witness_for_type (t : mono_type) (constructor_env : constructor_env) (depth : int) : string =
   if depth <= 0 then "_"
   else
     match t with
@@ -321,7 +333,10 @@ and generate_witness_for_type (t : mono_type) (constructor_env : (string * strin
         "{" ^ String.concat ", " inner ^ "}"
     | CTypeApp (type_name, _) | TypeName type_name | FixedPoint (type_name, _) ->
         (* Find a constructor for this type, prefer nullary ones *)
-        let constructors = List.filter (fun (_, tname, _, _) -> tname = type_name) constructor_env in
+        let constructors =
+          flatten_constructor_rows constructor_env
+          |> List.filter (fun (_, tname, _, _) -> tname = type_name)
+        in
         (match constructors with
          | [] -> "_"
          | (cons_name, _, _, None) :: _ ->
@@ -335,12 +350,13 @@ and generate_witness_for_type (t : mono_type) (constructor_env : (string * strin
     | FunctionType _ -> "_"
 
 (* Generate a missing pattern example for a constructor *)
-and generate_missing_pattern (cons_name : string) (constructor_env : (string * string * string list * c_type option) list) : string =
+and generate_missing_pattern (cons_name : string) (constructor_env : constructor_env) : string =
   (* Look up the constructor in the environment to get payload info *)
   let payload_type_opt =
-    List.find_map (fun (name, _, _, payload) ->
-      if name = cons_name then Some payload else None
-    ) constructor_env
+    List.find_map
+      (fun (name, _, _, payload) ->
+        if name = cons_name then Some payload else None)
+      (flatten_constructor_rows constructor_env)
   in
 
   match payload_type_opt with
@@ -358,7 +374,7 @@ and get_constructor_column_types
     (cons_name : string)
     (first_column_type : mono_type option)
     (rest_column_types : mono_type list)
-    (constructor_env : (string * string * string list * c_type option) list) : mono_type list =
+    (constructor_env : constructor_env) : mono_type list =
 
   (* Special handling for built-in list constructors *)
   if cons_name = "Cons" then
@@ -383,9 +399,12 @@ and get_constructor_column_types
     | _ -> TypeVar "a" :: rest_column_types
   else
     (* Look up constructor payload type *)
-    let payload_opt = List.find_map (fun (name, _, _, payload) ->
-      if name = cons_name then Some payload else None
-    ) constructor_env in
+    let payload_opt =
+      List.find_map
+        (fun (name, _, _, payload) ->
+          if name = cons_name then Some payload else None)
+        (flatten_constructor_rows constructor_env)
+    in
 
     match payload_opt with
     | None | Some None ->
@@ -406,7 +425,7 @@ and check_all_constructors
     (matrix : pattern_matrix)
     (column_types : mono_type list)
     (constructors : constructor_info list)
-    (constructor_env : (string * string * string list * c_type option) list)
+    (constructor_env : constructor_env)
     (static_env : (string * c_type) list) : exhaustiveness_result =
 
   match constructors with
@@ -449,7 +468,7 @@ and check_all_constructors
 let check_switch_exhaustiveness
     (scrutinee_type : mono_type)
     (branches : (c_pat * c_expr) list)
-    (constructor_env : (string * string * string list * c_type option) list)
+    (constructor_env : constructor_env)
     (static_env : (string * c_type) list) : exhaustiveness_result =
 
   (* Extract just the patterns from the branches *)

@@ -93,7 +93,7 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env) :
       | Error e ->
           print_error (string_of_type_check_error e);
           NoChange
-      | Ok (new_static_bindings, new_type_env) ->
+      | Ok (new_static_bindings, new_type_env, _) ->
           (* pretty print all of the new bindings *)
           List.iter
             (fun (name, typ) ->

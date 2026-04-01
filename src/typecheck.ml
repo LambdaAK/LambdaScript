@@ -55,8 +55,11 @@ let assert_distinct_record_field_names (names : string list) : unit =
 (* maps type names to their types *)
 type type_env = (string * string list * mono_type) list
 
-(* maps constructor names to (type_name, type_params, payload_type_option) *)
-type constructor_env = (string * string * string list * c_type option) list
+(** Declared sum types: type name, type parameters, ordered constructors. *)
+type sum_type_decl = string * string list * (string * c_type option) list
+
+(** All sum type declarations in scope (for native lowering / exhaustiveness). *)
+type constructor_env = sum_type_decl list
 
 let string_of_type_env (env : type_env) : string =
   let rec aux acc = function
@@ -270,7 +273,7 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
             let rec process_defns acc_env acc_equations acc_type_env = function
               | [] -> return (acc_env, acc_equations, acc_type_env)
               | Defn d :: rest ->
-                  let- new_bindings, new_type_env =
+                  let- new_bindings, new_type_env, _new_ctor_env =
                     generate_defn acc_env acc_type_env d
                   in
                   process_defns (new_bindings @ acc_env) acc_equations
@@ -1362,7 +1365,7 @@ and swap_all_variables_in_type (t : mono_type) : mono_type type_check_result =
   return instantiated
 
 and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
-    (static_env * type_env) type_check_result =
+    (static_env * type_env * constructor_env) type_check_result =
   match defn with
   | CDefn (pat, type_annotation, body, return_type, num_explicit_params) ->
       (* Generate type and equations for the body *)
@@ -1422,7 +1425,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       in
 
       (* Return value bindings in static env and empty type env *)
-      return (new_bindings, [])
+      return (new_bindings, [], [])
   | CDefnRec (pat, type_annotation, body, return_type, num_explicit_params) ->
       (* For recursive definitions, we need to add the binding to the
          environment before type checking the body *)
@@ -1489,7 +1492,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       in
 
       (* Return value bindings in static env and empty type env *)
-      return (new_bindings, [])
+      return (new_bindings, [], [])
   | CDefnMutRec defns ->
       (* For mutually recursive definitions, we need to:
          1. Create fresh type variables for each definition
@@ -1587,10 +1590,10 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
           generalized_types
       in
 
-      return (all_bindings, [])
+      return (all_bindings, [], [])
   | CTypeAlias (name, params, body) ->
       (* Add the type alias to the type environment *)
-      return ([], [ (name, params, body) ])
+      return ([], [ (name, params, body) ], [])
   | CSumType (type_name, type_params, constructors) ->
       (* Add the sum type to the type environment *)
       (* Represent sum types as CTypeApp with their type parameters *)
@@ -1672,7 +1675,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                   make_poly_type type_params payload_with_vars sum_type_app ))
           constructors
       in
-      return (constructor_bindings, type_env_entry)
+      return (constructor_bindings, type_env_entry, [ (type_name, type_params, constructors) ])
   | CSumTypeRec (type_name, type_params, constructors) ->
       (* Recursive sum types use FixedPoint (μ) to represent the recursion *)
       (* For type rec List<a> = | Nil | Cons of a * List<a> *)
@@ -1767,7 +1770,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                   make_poly_type type_params payload_with_vars sum_type_app ))
           constructors
       in
-      return (constructor_bindings, type_env_entry)
+      return (constructor_bindings, type_env_entry, [ (type_name, type_params, constructors) ])
   | CSumTypeRecMutRec types ->
       (* Mutually recursive sum types - similar to CSumTypeRec but for multiple types *)
       (* For type rec Even = | Zero | SuccE of Odd and Odd = | SuccO of Even *)
@@ -1866,7 +1869,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
               constructors)
           types
       in
-      return (all_constructor_bindings, type_env_entries)
+      return (all_constructor_bindings, type_env_entries, types)
 
 (* Given a type with type names, simplify it by replacing the type names with
    the actual types

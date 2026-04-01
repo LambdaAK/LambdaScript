@@ -1321,7 +1321,7 @@ module ProgramTesting = struct
       | defn :: rest -> (
           match generate_defn static_env type_env defn with
           | Error e -> failwith ("Type error: " ^ string_of_type_check_error e)
-          | Ok (new_static_bindings, new_type_bindings) ->
+          | Ok (new_static_bindings, new_type_bindings, _) ->
               process_defns
                 (new_static_bindings @ static_env)
                 (new_type_bindings @ type_env)

@@ -36,6 +36,13 @@ let eta_expand_counter = ref 0
     {!lower_c_program}). *)
 let lowering_defs : c_defn list ref = ref []
 
+(** Set for the duration of {!lower_c_program} so {!mono_to_min} can classify
+    sum types without threading [type_env] through every helper. *)
+let lowering_type_env : Typecheck.type_env ref = ref []
+
+(** Sum type declarations for constructor tags / pattern matching. *)
+let lowering_ctor_env : Typecheck.constructor_env ref = ref []
+
 module S = Set.Make (String)
 
 let reset_fresh () =
@@ -43,7 +50,9 @@ let reset_fresh () =
   param_counter := 0;
   nested_emit_ctr := 0;
   lambda_ty_counter := 0;
-  eta_expand_counter := 0
+  eta_expand_counter := 0;
+  lowering_type_env := [];
+  lowering_ctor_env := []
 
 let fresh_lambda_ty_key () =
   incr lambda_ty_counter;
@@ -93,6 +102,15 @@ let open_block (ctx : fn_ctx) label =
   ctx.cur_label <- label;
   ctx.cur_instrs <- []
 
+let is_sum_type_name (type_env : Typecheck.type_env) (name : string) : bool =
+  match List.find_opt (fun (n, _, _) -> n = name) type_env with
+  | Some (_, _, body) -> (
+      match body with
+      | CTypeApp (bn, _) when bn = name -> true
+      | FixedPoint _ -> true
+      | _ -> false)
+  | None -> false
+
 let rec peel_function_chain_to_min (acc : ty list) (m : mono_type) : ty list * ty
     =
   match m with
@@ -100,6 +118,7 @@ let rec peel_function_chain_to_min (acc : ty list) (m : mono_type) : ty list * t
   | _ -> (List.rev acc, mono_to_min m)
 
 and mono_to_min (m : mono_type) : ty =
+  let type_env = !lowering_type_env in
   match m with
   | IntType -> I32
   | BoolType -> I1
@@ -112,6 +131,9 @@ and mono_to_min (m : mono_type) : ty =
       unsupported
         "Polymorphic type in native compile (e.g. 'a -> 'a): add monomorphic \
          type annotations on parameters and result, e.g. let f (x : int) : int = x"
+  | CTypeApp (name, _) when is_sum_type_name type_env name -> RawPtr
+  | FixedPoint (name, _) when is_sum_type_name type_env name -> RawPtr
+  | TypeName name when is_sum_type_name type_env name -> RawPtr
   | FloatType | CharType | TypeName _ | CTypeApp _ | FixedPoint _ ->
       unsupported "Type not supported for native parameter/return yet"
   | RecordType fields ->
@@ -1155,6 +1177,81 @@ let emit_curried_step_final ~(emit : string) (k : int) (cap_tys : ty list)
     blocks = blocks_assoc ctx_s;
   }
 
+let rec apply_subst_mono (sub : (string * mono_type) list) (t : mono_type) : mono_type =
+  match t with
+  | TypeVar v -> ( try List.assoc v sub with Not_found -> t)
+  | FunctionType (a, b) ->
+      FunctionType (apply_subst_mono sub a, apply_subst_mono sub b)
+  | VectorType ts -> VectorType (List.map (apply_subst_mono sub) ts)
+  | CListType e -> CListType (apply_subst_mono sub e)
+  | CTypeApp (n, args) -> CTypeApp (n, List.map (apply_subst_mono sub) args)
+  | FixedPoint (n, b) -> FixedPoint (n, apply_subst_mono sub b)
+  | RecordType fields ->
+      RecordType (List.map (fun (nm, t) -> (nm, apply_subst_mono sub t)) fields)
+  | _ -> t
+
+let rec as_ctype_app_args (m : mono_type) : (string * mono_type list) option =
+  let type_args_for_name (n : string) : mono_type list option =
+    match List.find_opt (fun (name, _, _) -> name = n) !lowering_type_env with
+    | Some (_, params, _) when params = [] -> Some []
+    | Some _ (* polymorphic type used without CTypeApp args in mono *) | None ->
+        None
+  in
+  match m with
+  | CTypeApp (n, a) -> Some (n, a)
+  | FixedPoint (_mu, inner) -> (
+      match as_ctype_app_args inner with
+      | Some x -> Some x
+      | None -> (
+          match inner with
+          | TypeName n -> (
+              match type_args_for_name n with
+              | Some args -> Some (n, args)
+              | None -> None)
+          | _ -> None))
+  | TypeName n -> (
+      match type_args_for_name n with
+      | Some args -> Some (n, args)
+      | None -> None)
+  | _ -> None
+
+let payload_mono_for_variant_constructor (scrut_mono : mono_type) (cons_name : string) :
+    mono_type option =
+  match as_ctype_app_args scrut_mono with
+  | None -> None
+  | Some (tname, targs) -> (
+      match
+        List.find_opt (fun (n, _, _) -> n = tname) !lowering_ctor_env
+      with
+      | Some (type_name, params, ctors) when type_name = tname -> (
+          match List.assoc_opt cons_name ctors with
+          | Some (Some payload_ct) ->
+              let m0 = Typecheck.instantiate payload_ct in
+              let m1 = apply_subst_mono (List.combine params targs) m0 in
+              Some (Typecheck.mono_concrete_or_int_default m1)
+          | Some None | None -> None)
+      | _ -> None)
+
+let emit_payload_opaque_ptr (ctx : fn_ctx) (op : operand) (ty_min : ty) : operand =
+  match ty_min with
+  | String | RawPtr | List _ | Clos _ -> op
+  | I32 | I1 | Unit | Tuple _ | Fun _ ->
+      let b = fresh () in
+      emit_instr ctx (Assign (b, HeapBox (ty_min, op)));
+      Local b
+
+let find_constructor_index (ctor_env : Typecheck.constructor_env) (cons_name : string) :
+    (int * string * c_type option) option =
+  let found = ref None in
+  List.iter
+    (fun (type_name, _params, ctors) ->
+      List.iteri
+        (fun tag (c, p) ->
+          if c = cons_name && !found = None then found := Some (tag, type_name, p))
+        ctors)
+    ctor_env;
+  !found
+
 let rec lower_expr_val (e : c_expr) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t) :
     operand * ty =
@@ -1505,7 +1602,40 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
       | _ ->
           unsupported
             ":: pattern requires a list scrutinee in native pattern match")
-  | CCharPat _ | CVariantPat _ ->
+  | CVariantPat (cons_name, payload_pat_opt) -> (
+      match (t_s, find_constructor_index !lowering_ctor_env cons_name) with
+      | RawPtr, Some (expected_tag, _type_name, ctor_payload_opt) ->
+          let tg = fresh () in
+          emit_instr ctx (Assign (tg, VariantTag o_s));
+          let c_tag = fresh () in
+          emit_instr ctx
+            (Assign (c_tag, ICmp (Eq, Local tg, ConstI32 expected_tag)));
+          (match (payload_pat_opt, ctor_payload_opt) with
+          | None, None -> (env, Local c_tag)
+          | Some _, None | None, Some _ ->
+              unsupported
+                "variant pattern arity mismatch (constructor vs pattern)"
+          | Some sub_pat, Some _payload_ct -> (
+              match payload_mono_for_variant_constructor scrut_mono cons_name with
+              | None ->
+                  unsupported
+                    "could not infer payload type for variant pattern (native)"
+              | Some payload_mono ->
+                  let pl = fresh () in
+                  emit_instr ctx (Assign (pl, VariantPayload o_s));
+                  let payload_min = mono_to_min payload_mono in
+                  let unboxed = fresh () in
+                  emit_instr ctx
+                    (Assign (unboxed, HeapUnbox (payload_min, Local pl)));
+                  let env', c_sub =
+                    emit_native_pat_test env ctx (Local unboxed) payload_min
+                      payload_mono sub_pat
+                  in
+                  (env', iand_operands ctx [ Local c_tag; c_sub ])))
+      | _ ->
+          unsupported
+            "variant pattern requires a sum-type scrutinee in native compilation")
+  | CCharPat _ ->
       unsupported "this pattern is not supported for native compilation"
   | CRecordPat _ ->
       unsupported "internal: record pattern should have been desugared to a tuple"
@@ -1681,46 +1811,126 @@ and lower_list_int_enumeration (env : env) (ctx : fn_ctx)
 
 and lower_expr_app_curried env ctx static_env type_env (shadows : S.t) e1 e2
     : expr_result =
-  match lower_expr e1 env ctx static_env type_env shadows with
-  | LPartial c ->
-      apply_call_args ~callee_fn_expr:e1 env ctx static_env type_env c [ e2 ]
-        shadows
-  | LVal (op_f, Fun (f_ps, r_ty)) -> (
-      match f_ps with
-      | [ a_ty ] ->
-          apply_fun1 ~callee_fn_expr:e1 env ctx static_env type_env op_f a_ty r_ty
-            [ e2 ] shadows
+  match e1 with
+  | EId name -> (
+      match find_constructor_index !lowering_ctor_env name with
+      | Some (tag, _, Some _) ->
+          let static_for_mono = static_env_for_mono_call static_env env in
+          (match
+             Typecheck.mono_fun_type_of_binary_app static_for_mono type_env e1 e2
+           with
+           | Error err ->
+               unsupported ("constructor: " ^ Typecheck.string_of_type_check_error err)
+           | Ok m_fun -> (
+               let m_fun = Typecheck.mono_concrete_or_int_default m_fun in
+               match m_fun with
+               | FunctionType (dom, _) ->
+                   let o, t_arg =
+                     lower_expr_val e2 env ctx static_env type_env shadows
+                   in
+                   let dom_min =
+                     mono_to_min (Typecheck.mono_concrete_or_int_default dom)
+                   in
+                   if not (ty_equal t_arg dom_min) then
+                     unsupported "Internal: constructor payload type mismatch";
+                   let payload_ptr = emit_payload_opaque_ptr ctx o t_arg in
+                   let vr = fresh () in
+                   emit_instr ctx (Assign (vr, VariantMk (tag, payload_ptr)));
+                   LVal (Local vr, RawPtr)
+               | _ ->
+                   unsupported "Internal: unary constructor is not an arrow type"))
       | _ ->
-          unsupported "Call of a non-unary function pointer value")
-  | LVal (op_c, Clos (ps, r_ty)) ->
-      apply_clos1 ~callee_fn_expr:e1 env ctx static_env type_env op_c ps r_ty e2
-        shadows
-  | LVal _ -> unsupported "Call of a non-function value"
+          match lower_expr e1 env ctx static_env type_env shadows with
+          | LPartial c ->
+              apply_call_args ~callee_fn_expr:e1 env ctx static_env type_env c [ e2 ]
+                shadows
+          | LVal (op_f, Fun (f_ps, r_ty)) -> (
+              match f_ps with
+              | [ a_ty ] ->
+                  apply_fun1 ~callee_fn_expr:e1 env ctx static_env type_env op_f a_ty
+                    r_ty [ e2 ] shadows
+              | _ ->
+                  unsupported "Call of a non-unary function pointer value")
+          | LVal (op_c, Clos (ps, r_ty)) ->
+              apply_clos1 ~callee_fn_expr:e1 env ctx static_env type_env op_c ps r_ty
+                e2 shadows
+          | LVal _ -> unsupported "Call of a non-function value")
+  | _ -> (
+      match lower_expr e1 env ctx static_env type_env shadows with
+      | LPartial c ->
+          apply_call_args ~callee_fn_expr:e1 env ctx static_env type_env c [ e2 ]
+            shadows
+      | LVal (op_f, Fun (f_ps, r_ty)) -> (
+          match f_ps with
+          | [ a_ty ] ->
+              apply_fun1 ~callee_fn_expr:e1 env ctx static_env type_env op_f a_ty r_ty
+                [ e2 ] shadows
+          | _ ->
+              unsupported "Call of a non-unary function pointer value")
+      | LVal (op_c, Clos (ps, r_ty)) ->
+          apply_clos1 ~callee_fn_expr:e1 env ctx static_env type_env op_c ps r_ty e2
+            shadows
+      | LVal _ -> unsupported "Call of a non-function value")
 
 and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
     args : expr_result =
   let static_for_mono = static_env_for_mono_call static_env env in
-  match
-    Typecheck.mono_fun_type_of_curried_app static_for_mono type_env name args
-  with
-  | Error err ->
-      unsupported ("monomorph: " ^ Typecheck.string_of_type_check_error err)
-  | Ok m_fun ->
-      let m_fun = Typecheck.mono_concrete_or_int_default m_fun in
-      if not (Typecheck.mono_type_fully_concrete m_fun) then
-        unsupported
-          "Polymorphic call could not be monomorphized for native compilation \
-           (try explicit type annotations or more concrete arguments)"
-      else
-        let mangle = mangle_poly_instance name m_fun in
-        match resolve_callable mangle env with
-        | Some c ->
-            apply_call_args ~callee_fn_expr:(EId name) env ctx static_env type_env
-              c args shadows
-        | None ->
+  match find_constructor_index !lowering_ctor_env name with
+  | Some (tag, _, Some _) -> (
+      match
+        Typecheck.mono_fun_type_of_curried_app static_for_mono type_env name args
+      with
+      | Error err ->
+          unsupported ("monomorph: " ^ Typecheck.string_of_type_check_error err)
+      | Ok m_fun ->
+          let m_fun = Typecheck.mono_concrete_or_int_default m_fun in
+          if not (Typecheck.mono_type_fully_concrete m_fun) then
             unsupported
-              ("Missing monomorphized specialization for `" ^ name
-             ^ "` — compiler bug")
+              "Polymorphic call could not be monomorphized for native compilation \
+               (try explicit type annotations or more concrete arguments)"
+          else
+            match m_fun with
+            | FunctionType (dom, _) ->
+                if List.length args <> 1 then
+                  unsupported
+                    "native constructor call expects exactly one argument (tuple \
+                     payload counts as one)";
+                let o, t_arg =
+                  lower_expr_val (List.hd args) env ctx static_env type_env shadows
+                in
+                let dom_min =
+                  mono_to_min (Typecheck.mono_concrete_or_int_default dom)
+                in
+                if not (ty_equal t_arg dom_min) then
+                  unsupported "Internal: constructor payload type mismatch";
+                let payload_ptr = emit_payload_opaque_ptr ctx o t_arg in
+                let vr = fresh () in
+                emit_instr ctx (Assign (vr, VariantMk (tag, payload_ptr)));
+                LVal (Local vr, RawPtr)
+            | _ ->
+                unsupported "Internal: unary constructor is not a function type")
+  | _ -> (
+      match
+        Typecheck.mono_fun_type_of_curried_app static_for_mono type_env name args
+      with
+      | Error err ->
+          unsupported ("monomorph: " ^ Typecheck.string_of_type_check_error err)
+      | Ok m_fun ->
+          let m_fun = Typecheck.mono_concrete_or_int_default m_fun in
+          if not (Typecheck.mono_type_fully_concrete m_fun) then
+            unsupported
+              "Polymorphic call could not be monomorphized for native compilation \
+               (try explicit type annotations or more concrete arguments)"
+          else
+            let mangle = mangle_poly_instance name m_fun in
+            match resolve_callable mangle env with
+            | Some c ->
+                apply_call_args ~callee_fn_expr:(EId name) env ctx static_env type_env
+                  c args shadows
+            | None ->
+                unsupported
+                  ("Missing monomorphized specialization for `" ^ name
+                 ^ "` — compiler bug"))
 
 and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
     (type_env : Typecheck.type_env) (shadows : S.t) : expr_result =
@@ -1753,17 +1963,31 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           if callable_remaining c > 0 then LPartial c
           else unsupported ("`" ^ x ^ "` is already fully applied (compiler bug)")
       | None -> (
-          match native_builtin_as_fun_ptr x with
-          | Some (op, t) -> LVal (op, t)
-          | None ->
-              if is_poly_static x static_env then
-                match eta_poly_partial_spine static_env x [] with
-                | Some e_eta -> lower_expr e_eta env ctx static_env type_env shadows
-                | None ->
-                    unsupported
-                      ("Polymorphic function `" ^ x
-                     ^ "` cannot be used as a value here; call it fully applied")
-              else unsupported ("Unbound name `" ^ x ^ "` (not a lowering target)")))
+          match find_constructor_index !lowering_ctor_env x with
+          | Some (tag, _, None) ->
+              let se = static_env_for_mono_call static_env env in
+              (match Typecheck.type_of_c_expr se type_env (EId x) with
+              | Ok ct ->
+                  let _ = mono_to_min (static_mono_for_native ct) in
+                  let vr = fresh () in
+                  emit_instr ctx (Assign (vr, VariantMk (tag, RawNull)));
+                  LVal (Local vr, RawPtr)
+              | Error err ->
+                  unsupported
+                    ("constructor: " ^ Typecheck.string_of_type_check_error err))
+          | _ -> (
+              match native_builtin_as_fun_ptr x with
+              | Some (op, t) -> LVal (op, t)
+              | None ->
+                  if is_poly_static x static_env then
+                    match eta_poly_partial_spine static_env x [] with
+                    | Some e_eta ->
+                        lower_expr e_eta env ctx static_env type_env shadows
+                    | None ->
+                        unsupported
+                          ("Polymorphic function `" ^ x
+                         ^ "` cannot be used as a value here; call it fully applied")
+                  else unsupported ("Unbound name `" ^ x ^ "` (not a lowering target)"))))
   | EBop (op, e1, e2) -> (
       match map_arith_bop op with
       | Some b ->
@@ -2324,7 +2548,11 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
             let p = fresh_param () in
             param_pat_checks := (p, pt, lit_lst_pat, pm) :: !param_pat_checks;
             (p, [])
-        | CCharPat _ | CVariantPat _ ->
+        | CVariantPat _ as vp ->
+            let p = fresh_param () in
+            param_pat_checks := (p, pt, vp, pm) :: !param_pat_checks;
+            (p, [])
+        | CCharPat _ ->
             unsupported
               "Function parameter pattern not supported for native compilation")
       param_pats
@@ -2403,6 +2631,8 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
 let lower_c_expr_to_main (e : c_expr) : (func_def, string) result =
   try
     reset_fresh ();
+    lowering_type_env := [];
+    lowering_ctor_env := [];
     let ctx = create_fn_ctx () in
     let op, ret_ty =
       match lower_expr e [] ctx [] [] S.empty with
@@ -2451,9 +2681,12 @@ let code_mapping_poly_defns (static_env : static_env) : c_defn list =
     [] Env.code_mapping
 
 let lower_c_program (defs : c_defn list) (static_env : static_env)
-    (type_env : Typecheck.type_env) : (prog, string) result =
+    (type_env : Typecheck.type_env) (ctor_env : Typecheck.constructor_env) :
+    (prog, string) result =
   try
     reset_fresh ();
+    lowering_type_env := type_env;
+    lowering_ctor_env := ctor_env;
     let defs = eta_expand_program static_env defs in
     let defs = defs @ code_mapping_poly_defns static_env in
     lowering_defs := defs;

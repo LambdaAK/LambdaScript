@@ -28,6 +28,33 @@ void *ls_malloc(size_t n) {
   return malloc(n);
 }
 
+/** Tagged sum type: discriminant + optional heap payload pointer. */
+typedef struct {
+  int32_t tag;
+  void *payload;
+} ls_variant;
+
+void *ls_variant_mk(int32_t tag, void *payload) {
+  ls_variant *p = (ls_variant *)malloc(sizeof(ls_variant));
+  if (!p)
+    return NULL;
+  p->tag = tag;
+  p->payload = payload;
+  return (void *)p;
+}
+
+int32_t ls_variant_tag(void *v) {
+  if (!v)
+    return -1;
+  return ((ls_variant *)v)->tag;
+}
+
+void *ls_variant_payload(void *v) {
+  if (!v)
+    return NULL;
+  return ((ls_variant *)v)->payload;
+}
+
 void *ls_mkclos(void *code, void *env) {
   struct ls_clos {
     void *code;

@@ -11,50 +11,67 @@ declare i8* @ls_str_concat(i8*, i8*)
 declare i32 @strcmp(i8*, i8*)
 declare i8* @ls_malloc(i64)
 declare i8* @ls_mkclos(i8*, i8*)
+declare i8* @ls_variant_mk(i32, i8*)
+declare i32 @ls_variant_tag(i8*)
+declare i8* @ls_variant_payload(i8*)
 
-%ls.tuple.1 = type { i32, i8*, i8* }
-@.str.0 = private unnamed_addr constant [9 x i8] c"New York\00"
-@.str.1 = private unnamed_addr constant [5 x i8] c"John\00"
-@.str.2 = private unnamed_addr constant [5 x i8] c"Alex\00"
-@.str.3 = private unnamed_addr constant [5 x i8] c"John\00"
-define i32 @main() {
+%ls.env.1 = type { i32 }
+%ls.env.2 = type { i32 }
+define i8* @extract_default__lsm173919979__ls_s0(i8* %_p2, i32 %default) {
 entry:
-  %_t1_pk0 = insertvalue %ls.tuple.1 undef, i32 30, 0
-  %ls_aux1 = getelementptr inbounds [9 x i8], [9 x i8]* @.str.0, i64 0, i64 0
-  %_t1_pk1 = insertvalue %ls.tuple.1 %_t1_pk0, i8* %ls_aux1, 1
-  %ls_aux2 = getelementptr inbounds [5 x i8], [5 x i8]* @.str.1, i64 0, i64 0
-  %_t1 = insertvalue %ls.tuple.1 %_t1_pk1, i8* %ls_aux2, 2
-  %person_ev0 = extractvalue %ls.tuple.1 %_t1, 0
-  %person_agg0 = insertvalue %ls.tuple.1 undef, i32 %person_ev0, 0
-  %person_ev1 = extractvalue %ls.tuple.1 %_t1, 1
-  %person_agg1 = insertvalue %ls.tuple.1 %person_agg0, i8* %person_ev1, 1
-  %person_ev2 = extractvalue %ls.tuple.1 %_t1, 2
-  %person = insertvalue %ls.tuple.1 %person_agg1, i8* %person_ev2, 2
-  %_t2 = extractvalue %ls.tuple.1 %person, 0
-  %_t3 = extractvalue %ls.tuple.1 %person, 1
-  %_t4 = extractvalue %ls.tuple.1 %person, 2
-  %ls_aux3 = getelementptr inbounds [5 x i8], [5 x i8]* @.str.2, i64 0, i64 0
-  %_t5 = call i32 @strcmp(i8* %_t4, i8* %ls_aux3)
-  %_t6 = icmp eq i32 %_t5, 0
-  br i1 %_t6, label %swm_2, label %swn_3
+  %_t10 = call i8* @ls_malloc(i64 4)
+  %_t11_esb = bitcast i8* %_t10 to %ls.env.1*
+  %_t11_esg = getelementptr inbounds %ls.env.1, %ls.env.1* %_t11_esb, i32 0, i32 0
+  store i32 %default, i32* %_t11_esg
+  %_t12_codep = bitcast i32 (i8*, i8*)* @extract_default__lsm173919979__ls_s1 to i8*
+  %_t12 = call i8* @ls_mkclos(i8* %_t12_codep, i8* %_t10)
+  ret i8* %_t12
+}
+
+define i32 @extract_default__lsm173919979__ls_s1(i8* %_p1, i8* %option) {
+entry:
+  %_t8_ebuf = bitcast i8* %_p1 to %ls.env.2*
+  %_t8_eg = getelementptr inbounds %ls.env.2, %ls.env.2* %_t8_ebuf, i32 0, i32 0
+  %_t8 = load i32, i32* %_t8_eg
+  %_t9 = call i32 @extract_default__lsm173919979(i32 %_t8, i8* %option)
+  ret i32 %_t9
+}
+
+define i32 @extract_default__lsm173919979(i32 %default, i8* %option) {
+entry:
+  %_t1 = call i32 @ls_variant_tag(i8* %option)
+  %_t2 = icmp eq i32 %_t1, 0
+  br i1 %_t2, label %swm_2, label %swn_3
 swm_2:
   br label %swm_1
 swm_1:
-  %_t12 = phi i32 [ 1, %swm_2 ], [ %_t7, %swm_4 ], [ 3, %swn_5 ]
-  %v = add nsw i32 %_t12, 0
-  %_t13 = call i8* @ls_int_to_str(i32 %v)
-  call void @ls_println(i8* %_t13)
-  ret i32 0
+  %_t7 = phi i32 [ %default, %swm_2 ], [ %_t6, %swm_4 ]
+  ret i32 %_t7
 swn_3:
-  %_t7 = extractvalue %ls.tuple.1 %person, 0
-  %_t8 = extractvalue %ls.tuple.1 %person, 1
-  %_t9 = extractvalue %ls.tuple.1 %person, 2
-  %ls_aux4 = getelementptr inbounds [5 x i8], [5 x i8]* @.str.3, i64 0, i64 0
-  %_t10 = call i32 @strcmp(i8* %_t9, i8* %ls_aux4)
-  %_t11 = icmp eq i32 %_t10, 0
-  br i1 %_t11, label %swm_4, label %swn_5
+  %_t3 = call i32 @ls_variant_tag(i8* %option)
+  %_t4 = icmp eq i32 %_t3, 1
+  %_t5 = call i8* @ls_variant_payload(i8* %option)
+  %_t6_uptr = bitcast i8* %_t5 to i32*
+  %_t6 = load i32, i32* %_t6_uptr
+  br i1 %_t4, label %swm_4, label %swf_5
 swm_4:
   br label %swm_1
-swn_5:
-  br label %swm_1
+swf_5:
+  call void @ls_abort()
+  unreachable
+}
+
+define i32 @main() {
+entry:
+  %_t13 = call i8* @ls_variant_mk(i32 0, i8* null)
+  %none = bitcast i8* %_t13 to i8*
+  %_t14 = call i8* @ls_malloc(i64 4)
+  %_t14_bptr = bitcast i8* %_t14 to i32*
+  store i32 1, i32* %_t14_bptr
+  %_t15 = call i8* @ls_variant_mk(i32 1, i8* %_t14)
+  %some = bitcast i8* %_t15 to i8*
+  %_t16 = call i32 @extract_default__lsm173919979(i32 0, i8* %some)
+  %_t17 = call i8* @ls_int_to_str(i32 %_t16)
+  call void @ls_println(i8* %_t17)
+  ret i32 0
 }

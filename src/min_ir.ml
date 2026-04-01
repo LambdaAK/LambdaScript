@@ -82,6 +82,16 @@ type rhs =
   (** [unsafe]: non-[nil] list only. *)
   | ListHead of { elem_ty : ty; lst : operand }
   | ListTail of { elem_ty : ty; lst : operand }
+  (** Heap-allocate a copy of a value of type [ty] (for variant payloads). *)
+  | HeapBox of ty * operand
+  (** Load a value of type [ty] from a heap box ([i8*]). *)
+  | HeapUnbox of ty * operand
+  (** Sum type: [ls_variant_mk(tag, payload_ptr)] — [payload_ptr] may be null. *)
+  | VariantMk of int * operand
+  (** Discriminant [i32] from a variant ([i8*]). *)
+  | VariantTag of operand
+  (** Untyped payload pointer from a variant ([i8*] → [i8*]). *)
+  | VariantPayload of operand
 
 type instr =
   | Assign of string * rhs
@@ -243,6 +253,15 @@ let string_of_rhs = function
   | ListTail { elem_ty; lst } ->
       Printf.sprintf "list_tail %s %s" (string_of_ty elem_ty)
         (string_of_operand lst)
+  | HeapBox (t, o) ->
+      Printf.sprintf "heap_box %s %s" (string_of_ty t) (string_of_operand o)
+  | HeapUnbox (t, o) ->
+      Printf.sprintf "heap_unbox %s %s" (string_of_ty t) (string_of_operand o)
+  | VariantMk (tag, p) ->
+      Printf.sprintf "variant_mk %d %s" tag (string_of_operand p)
+  | VariantTag o -> Printf.sprintf "variant_tag %s" (string_of_operand o)
+  | VariantPayload o ->
+      Printf.sprintf "variant_payload %s" (string_of_operand o)
 
 let string_of_instr = function
   | Assign (dst, rhs) -> Printf.sprintf "  %s = %s" dst (string_of_rhs rhs)
