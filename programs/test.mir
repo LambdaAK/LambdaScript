@@ -46,8 +46,10 @@ entry:
   _t14 = heap_box i32 1
   _t15 = variant_mk 1 %_t14
   some = %_t15
-  _t16 = call @extract_default__lsm173919979(0, %some)
-  _t17 = indirect_call &ls_int_to_str : fn(i32) -> string(%_t16) -> string
-  void indirect &ls_println : fn(string) -> unit(%_t17)
+  _t16 = heap_box i32 2
+  _t17 = variant_mk 1 %_t16
+  _t18 = call @extract_default__lsm173919979(0, %_t17)
+  _t19 = indirect_call &ls_int_to_str : fn(i32) -> string(%_t18) -> string
+  void indirect &ls_println : fn(string) -> unit(%_t19)
   ret void
 }

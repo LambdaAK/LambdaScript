@@ -123,6 +123,13 @@ _main:                                  ; @main
 	str	w8, [x0]
 	mov	w0, #1                          ; =0x1
 	bl	_ls_variant_mk
+	mov	w0, #4                          ; =0x4
+	bl	_ls_malloc
+	mov	x1, x0
+	mov	w8, #2                          ; =0x2
+	str	w8, [x0]
+	mov	w0, #1                          ; =0x1
+	bl	_ls_variant_mk
 	mov	x19, x0
 	bl	_ls_variant_tag
 	cbz	w0, LBB3_3

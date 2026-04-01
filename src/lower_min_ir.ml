@@ -492,6 +492,21 @@ let min_dom_ret_of_binary_app (global : static_env) (type_env : Typecheck.type_e
       | _ -> None)
   | Error _ -> None
 
+(** Monomorphic parameter type of [e_fn] in [(e_fn e_arg)] (e.g. [Option int] when
+    [e_fn : Option int -> int]). Used for polymorphic value monomorphization when
+    {!mono_to_min} maps every sum type to {!RawPtr} so {!min_ty_to_mono} cannot
+    recover type arguments.
+
+    Regression coverage: [test/compiler_cases/poly_option_none_arg.ls],
+    [test/compiler_cases/poly_option_none_let_bound.ls]. *)
+let mono_domain_of_binary_app (global : static_env) (type_env : Typecheck.type_env)
+    (env : env) (e_fn : c_expr) (e_arg : c_expr) : mono_type option =
+  let se = static_env_for_mono_call global env in
+  match Typecheck.mono_fun_type_of_binary_app se type_env e_fn e_arg with
+  | Ok (FunctionType (d, _)) ->
+      Some (Typecheck.mono_concrete_or_int_default d)
+  | _ -> None
+
 let replace_static_binding (name : string) (ct : c_type) (static_env : static_env)
     : static_env =
   (name, ct) :: List.remove_assoc name static_env
@@ -1264,13 +1279,24 @@ let rec lower_expr_val (e : c_expr) (env : env) (ctx : fn_ctx)
 
 (** Lower an expression used as the next argument in a call, using the callee's
     expected parameter type so polymorphic top-level names can be monomorphized
-    without a synthetic lambda ([use id], etc.). *)
-and lower_expr_val_as_call_arg (arg : c_expr) (expect : ty) (env : env)
-    (ctx : fn_ctx) (static_env : static_env) (type_env : Typecheck.type_env)
-    (shadows : S.t) : operand * ty =
+    without a synthetic lambda ([use id], etc.).
+
+    When [callee_fn_expr] is set, polymorphic ids use {!mono_domain_of_binary_app}
+    so sum types (min {!RawPtr}) still get a concrete monomorph key. Forward
+    [callee_fn_expr] from every call site that has it. *)
+and lower_expr_val_as_call_arg ?(callee_fn_expr : c_expr option) (arg : c_expr)
+    (expect : ty) (env : env) (ctx : fn_ctx) (static_env : static_env)
+    (type_env : Typecheck.type_env) (shadows : S.t) : operand * ty =
   match arg with
   | EId x when is_poly_static x static_env ->
-      let m_expect = min_ty_to_mono expect in
+      let m_expect =
+        match callee_fn_expr with
+        | Some e_fn -> (
+            match mono_domain_of_binary_app static_env type_env env e_fn arg with
+            | Some m -> m
+            | None -> min_ty_to_mono expect)
+        | None -> min_ty_to_mono expect
+      in
       if not (Typecheck.mono_type_fully_concrete m_expect) then
         unsupported
           "Polymorphic value passed to a call needs a concrete parameter type at \
@@ -1344,8 +1370,8 @@ and apply_call_args ?(callee_fn_expr : c_expr option) (env : env) (ctx : fn_ctx)
           | _ -> List.nth c.param_tys i
         in
         let op, _got =
-          lower_expr_val_as_call_arg arg expect env ctx static_env type_env
-            shadows
+          lower_expr_val_as_call_arg ?callee_fn_expr arg expect env ctx
+            static_env type_env shadows
         in
         let c' = { c with fixed = c.fixed @ [ op ] } in
         match rest with
@@ -1394,8 +1420,8 @@ and apply_fun1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
         | None -> (a_ty, ret_ty)
       in
       let oa, _ta =
-        lower_expr_val_as_call_arg arg a_ty' env ctx static_env type_env
-          shadows
+        lower_expr_val_as_call_arg ?callee_fn_expr arg a_ty' env ctx
+          static_env type_env shadows
       in
       let oa = operand_for_indirect_call ctx oa a_ty' in
       if ret_ty' = Unit then (
@@ -1423,7 +1449,8 @@ and apply_clos1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
         | None -> p
       in
       let oa, _ta =
-        lower_expr_val_as_call_arg arg p' env ctx static_env type_env shadows
+        lower_expr_val_as_call_arg ?callee_fn_expr arg p' env ctx static_env
+          type_env shadows
       in
       let oa = operand_for_indirect_call ctx oa p' in
       let next_ty =
@@ -2714,7 +2741,6 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
           | Some _ -> env_acc
           | None -> (
               match find_cdefn_value_rhs name defs with
-              | None -> env_acc
               | Some inner ->
                   let emit = mangle_poly_instance name mono in
                   if List.mem_assoc emit env_acc then env_acc
@@ -2722,9 +2748,10 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                     let static_inst =
                       replace_static_binding name (Mono mono) static_env
                     in
-                    match lower_expr inner env_acc ctx_main static_inst type_env
-                            S.empty
-                    with
+                    (match
+                       lower_expr inner env_acc ctx_main static_inst type_env
+                         S.empty
+                     with
                     | LPartial _ ->
                         unsupported
                           "Monomorphized top-level value specialization is a partial \
@@ -2735,7 +2762,19 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                           unsupported
                             "Internal: monomorphized value type does not match key";
                         emit_instr ctx_main (Assign (emit, Copy o));
-                        (emit, Val (Local emit, t, Some mono)) :: env_acc))
+                        (emit, Val (Local emit, t, Some mono)) :: env_acc)
+              | None -> (
+                  (* Polymorphic nullary ctor as value ([None] at a call site): no
+                     [let None = …]; see poly_option_none_arg.ls in compiler_cases. *)
+                  match find_constructor_index ctor_env name with
+                  | Some (tag, _, None) ->
+                      let emit = mangle_poly_instance name mono in
+                      if List.mem_assoc emit env_acc then env_acc
+                      else
+                        let t_expect = mono_to_min mono in
+                        emit_instr ctx_main (Assign (emit, VariantMk (tag, RawNull)));
+                        (emit, Val (Local emit, t_expect, Some mono)) :: env_acc
+                  | _ -> env_acc)))
         env_mono instances
     in
     let rec walk env = function

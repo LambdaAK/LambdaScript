@@ -70,8 +70,12 @@ entry:
   store i32 1, i32* %_t14_bptr
   %_t15 = call i8* @ls_variant_mk(i32 1, i8* %_t14)
   %some = bitcast i8* %_t15 to i8*
-  %_t16 = call i32 @extract_default__lsm173919979(i32 0, i8* %some)
-  %_t17 = call i8* @ls_int_to_str(i32 %_t16)
-  call void @ls_println(i8* %_t17)
+  %_t16 = call i8* @ls_malloc(i64 4)
+  %_t16_bptr = bitcast i8* %_t16 to i32*
+  store i32 2, i32* %_t16_bptr
+  %_t17 = call i8* @ls_variant_mk(i32 1, i8* %_t16)
+  %_t18 = call i32 @extract_default__lsm173919979(i32 0, i8* %_t17)
+  %_t19 = call i8* @ls_int_to_str(i32 %_t18)
+  call void @ls_println(i8* %_t19)
   ret i32 0
 }
