@@ -32,6 +32,10 @@ let lambda_ty_counter = ref 0
 
 let eta_expand_counter = ref 0
 
+(** Top-level definitions for [find_cdefn_function] during lowering (set in
+    {!lower_c_program}). *)
+let lowering_defs : c_defn list ref = ref []
+
 module S = Set.Make (String)
 
 let reset_fresh () =
@@ -683,6 +687,101 @@ and map_defn_eta (static_env : static_env) (d : c_defn) : c_defn =
 let eta_expand_program (static_env : static_env) (defs : c_defn list) : c_defn list
     =
   List.map (map_defn_eta static_env) defs
+
+(** [let id x = x] at top level, polymorphic in [static_env]. *)
+let is_top_poly_identity (name : string) (static_env : static_env) : bool =
+  if not (is_poly_static name static_env) then false
+  else
+    match find_cdefn_function name !lowering_defs with
+    | Some ([ CIdPat p ], _, inner) -> inner = EId p
+    | Some ([], _, _) | Some ([ _ ], _, _) | Some (_ :: _, _, _) | None -> false
+
+(**β-reduce [id e → e] for top-level polymorphic identity [id].
+
+    Without this, chains like [(id id id) n] monomorphize [(id id)] to a concrete
+    [int → int] value too early; the next application then emits an indirect
+    call with the wrong LLVM callee type (function pointer arity mismatch). *)
+let rec reduce_poly_identity_apps (static_env : static_env) (e : c_expr) :
+    c_expr =
+  match e with
+  | EApp (a, b) ->
+      let a' = reduce_poly_identity_apps static_env a in
+      let b' = reduce_poly_identity_apps static_env b in
+      (match a' with
+      | EId name when is_top_poly_identity name static_env -> b'
+      | _ -> EApp (a', b'))
+  | EBind (pat, ta, e1, e2, rt) ->
+      EBind
+        ( pat,
+          ta,
+          reduce_poly_identity_apps static_env e1,
+          reduce_poly_identity_apps static_env e2,
+          rt )
+  | EBindRec (pat, ta, e1, e2, rt) ->
+      EBindRec
+        ( pat,
+          ta,
+          reduce_poly_identity_apps static_env e1,
+          reduce_poly_identity_apps static_env e2,
+          rt )
+  | EBindMutRec (binds, body) ->
+      EBindMutRec
+        ( List.map
+            (fun (pat, ta, e1, rt, n) ->
+              (pat, ta, reduce_poly_identity_apps static_env e1, rt, n))
+            binds,
+          reduce_poly_identity_apps static_env body )
+  | EFunction (pat, ann, body) ->
+      EFunction (pat, ann, reduce_poly_identity_apps static_env body)
+  | EBop (op, a, b) ->
+      EBop
+        ( op,
+          reduce_poly_identity_apps static_env a,
+          reduce_poly_identity_apps static_env b )
+  | ETernary (a, b, c) ->
+      ETernary
+        ( reduce_poly_identity_apps static_env a,
+          reduce_poly_identity_apps static_env b,
+          reduce_poly_identity_apps static_env c )
+  | EBlock parts ->
+      EBlock
+        (List.map
+           (function
+             | Expr ex -> Expr (reduce_poly_identity_apps static_env ex)
+             | Defn d -> Defn d)
+           parts)
+  | ESwitch (e0, branches) ->
+      ESwitch
+        ( reduce_poly_identity_apps static_env e0,
+          List.map
+            (fun (p, be) -> (p, reduce_poly_identity_apps static_env be))
+            branches )
+  | EVector es ->
+      EVector (List.map (reduce_poly_identity_apps static_env) es)
+  | EListEnumeration (a, b) ->
+      EListEnumeration
+        (reduce_poly_identity_apps static_env a, reduce_poly_identity_apps static_env b)
+  | EListComprehension (e0, gens) ->
+      EListComprehension
+        ( reduce_poly_identity_apps static_env e0,
+          List.map
+            (fun (pat, ge) -> (pat, reduce_poly_identity_apps static_env ge))
+            gens )
+  | ERecordLit fields ->
+      ERecordLit
+        (List.map
+           (fun (s, ex) -> (s, reduce_poly_identity_apps static_env ex))
+           fields)
+  | ERecordUpdate (base, upd) ->
+      ERecordUpdate
+        ( reduce_poly_identity_apps static_env base,
+          List.map
+            (fun (s, ex) -> (s, reduce_poly_identity_apps static_env ex))
+            upd )
+  | EFieldAccess (e0, fld) ->
+      EFieldAccess (reduce_poly_identity_apps static_env e0, fld)
+  | EInt _ | EBool _ | EString _ | EUnit | EChar _ | EFloat _ | ENil | EId _ ->
+      e
 
 (** Collect (top-level function name, instantiated function type) pairs needed for
     monomorphization, including instances discovered inside specialized bodies
@@ -1672,22 +1771,26 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
   | EBind _ -> unsupported "let: pattern not supported for native compilation"
   | EBlock parts -> lower_block parts env ctx static_env type_env
   | EApp (e1, e2) -> (
-      (* Peel a left-associated spine so polymorphic heads monomorphize from
-         all reachable arguments ([const true false], [flip sub 3 10]), except
-         when the peel has more arguments than the poly arity ([(id f) x] gives
-         [[f;x]] for unary [id] — use one curried step). *)
-      let head, args = peel_app_spine e1 [ e2 ] in
-      match head with
-      | `Id name when is_poly_static name static_env -> (
-          let poly_n =
-            match List.assoc_opt name static_env with
-            | Some ct -> curried_fun_arity_mono (Typecheck.instantiate ct)
-            | None -> 0
-          in
-          if List.length args > poly_n then
-            lower_expr_app_curried env ctx static_env type_env e1 e2
-          else lower_expr_poly_id_call env ctx static_env type_env name args)
-      | _ -> lower_expr_app_curried env ctx static_env type_env e1 e2)
+      let e_app = reduce_poly_identity_apps static_env (EApp (e1, e2)) in
+      match e_app with
+      | EApp (e1', e2') -> (
+          (* Peel a left-associated spine so polymorphic heads monomorphize from
+             all reachable arguments ([const true false], [flip sub 3 10]), except
+             when the peel has more arguments than the poly arity ([(id f) x] gives
+             [[f;x]] for unary [id] — use one curried step). *)
+          let head, args = peel_app_spine e1' [ e2' ] in
+          match head with
+          | `Id name when is_poly_static name static_env -> (
+              let poly_n =
+                match List.assoc_opt name static_env with
+                | Some ct -> curried_fun_arity_mono (Typecheck.instantiate ct)
+                | None -> 0
+              in
+              if List.length args > poly_n then
+                lower_expr_app_curried env ctx static_env type_env e1' e2'
+              else lower_expr_poly_id_call env ctx static_env type_env name args)
+          | _ -> lower_expr_app_curried env ctx static_env type_env e1' e2')
+      | other -> lower_expr other env ctx static_env type_env)
   | ETernary (cond, e_then, e_else) -> (
       let o_c, t_c = lower_expr_val cond env ctx static_env type_env in
       if t_c <> I1 then unsupported "if condition must be bool";
@@ -2049,6 +2152,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
     reset_fresh ();
     let defs = eta_expand_program static_env defs in
     let defs = defs @ code_mapping_poly_defns static_env in
+    lowering_defs := defs;
     let instances = collect_mono_instantiations defs static_env type_env in
     let user_funs = ref [] in
     let env_mono = build_mono_instance_env instances defs static_env in
