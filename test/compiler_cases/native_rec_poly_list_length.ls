@@ -1,3 +1,8 @@
+Expected:
+3
+0
+
+Source:
 type rec List<'a> = | Nil | Cons of ('a, List<'a>)
 
 let rec length lst =

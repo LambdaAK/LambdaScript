@@ -16,9 +16,9 @@ declare i32 @ls_variant_tag(i8*)
 declare i8* @ls_variant_payload(i8*)
 
 %ls.tuple.1 = type { i32, i8* }
-define i32 @length__lsm348914431(i8* %lst) {
+define i32 @sum(i8* %c) {
 entry:
-  %_t1 = call i32 @ls_variant_tag(i8* %lst)
+  %_t1 = call i32 @ls_variant_tag(i8* %c)
   %_t2 = icmp eq i32 %_t1, 0
   br i1 %_t2, label %swm_2, label %swn_3
 swm_2:
@@ -27,17 +27,17 @@ swm_1:
   %_t11 = phi i32 [ 0, %swm_2 ], [ %_t10, %swm_4 ]
   ret i32 %_t11
 swn_3:
-  %_t3 = call i32 @ls_variant_tag(i8* %lst)
+  %_t3 = call i32 @ls_variant_tag(i8* %c)
   %_t4 = icmp eq i32 %_t3, 1
-  %_t5 = call i8* @ls_variant_payload(i8* %lst)
+  %_t5 = call i8* @ls_variant_payload(i8* %c)
   %_t6_uptr = bitcast i8* %_t5 to %ls.tuple.1*
   %_t6 = load %ls.tuple.1, %ls.tuple.1* %_t6_uptr
   %_t7 = extractvalue %ls.tuple.1 %_t6, 0
   %_t8 = extractvalue %ls.tuple.1 %_t6, 1
   br i1 %_t4, label %swm_4, label %swf_5
 swm_4:
-  %_t9 = call i32 @length__lsm348914431(i8* %_t8)
-  %_t10 = add nsw i32 1, %_t9
+  %_t9 = call i32 @sum(i8* %_t8)
+  %_t10 = add nsw i32 %_t7, %_t9
   br label %swm_1
 swf_5:
   call void @ls_abort()
@@ -46,31 +46,21 @@ swf_5:
 
 define i32 @main() {
 entry:
-  %Nil__lsm613522300 = call i8* @ls_variant_mk(i32 0, i8* null)
   %_t12 = call i8* @ls_variant_mk(i32 0, i8* null)
-  %_t13_pk0 = insertvalue %ls.tuple.1 undef, i32 3, 0
+  %_t13_pk0 = insertvalue %ls.tuple.1 undef, i32 20, 0
   %_t13 = insertvalue %ls.tuple.1 %_t13_pk0, i8* %_t12, 1
   %_t14 = call i8* @ls_malloc(i64 16)
   %_t14_bptr = bitcast i8* %_t14 to %ls.tuple.1*
   store %ls.tuple.1 %_t13, %ls.tuple.1* %_t14_bptr
   %_t15 = call i8* @ls_variant_mk(i32 1, i8* %_t14)
-  %_t16_pk0 = insertvalue %ls.tuple.1 undef, i32 2, 0
+  %_t16_pk0 = insertvalue %ls.tuple.1 undef, i32 10, 0
   %_t16 = insertvalue %ls.tuple.1 %_t16_pk0, i8* %_t15, 1
   %_t17 = call i8* @ls_malloc(i64 16)
   %_t17_bptr = bitcast i8* %_t17 to %ls.tuple.1*
   store %ls.tuple.1 %_t16, %ls.tuple.1* %_t17_bptr
   %_t18 = call i8* @ls_variant_mk(i32 1, i8* %_t17)
-  %_t19_pk0 = insertvalue %ls.tuple.1 undef, i32 1, 0
-  %_t19 = insertvalue %ls.tuple.1 %_t19_pk0, i8* %_t18, 1
-  %_t20 = call i8* @ls_malloc(i64 16)
-  %_t20_bptr = bitcast i8* %_t20 to %ls.tuple.1*
-  store %ls.tuple.1 %_t19, %ls.tuple.1* %_t20_bptr
-  %_t21 = call i8* @ls_variant_mk(i32 1, i8* %_t20)
-  %_t22 = call i32 @length__lsm348914431(i8* %_t21)
-  %_t23 = call i8* @ls_int_to_str(i32 %_t22)
-  call void @ls_println(i8* %_t23)
-  %_t24 = call i32 @length__lsm348914431(i8* %Nil__lsm613522300)
-  %_t25 = call i8* @ls_int_to_str(i32 %_t24)
-  call void @ls_println(i8* %_t25)
+  %_t19 = call i32 @sum(i8* %_t18)
+  %_t20 = call i8* @ls_int_to_str(i32 %_t19)
+  call void @ls_println(i8* %_t20)
   ret i32 0
 }

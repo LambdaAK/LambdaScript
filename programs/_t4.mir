@@ -1,0 +1,51 @@
+entry: @main
+fn sum_tree(t: rawptr) -> i32 {
+entry:
+  _t1 = variant_tag %t
+  _t2 = icmp eq %_t1, 0
+  _t3 = variant_payload %t
+  _t4 = heap_unbox i32 %_t3
+  br %_t2 ? swm_2 : swn_3
+swm_2:
+
+  br swm_1
+swn_3:
+  _t5 = variant_tag %t
+  _t6 = icmp eq %_t5, 1
+  _t7 = variant_payload %t
+  _t8 = heap_unbox (rawptr, rawptr) %_t7
+  _t9 = tuple_proj %_t8[0] : rawptr,rawptr
+  _t10 = tuple_proj %_t8[1] : rawptr,rawptr
+  br %_t6 ? swm_4 : swf_5
+swm_4:
+  _t11 = call @sum_tree(%_t9)
+  _t12 = call @sum_tree(%_t10)
+  _t13 = add %_t11, %_t12
+  br swm_1
+swf_5:
+  void call @abort()
+  unreachable
+swm_1:
+  _t14 = phi i32 [ swm_2, %_t4 ], [ swm_4, %_t13 ]
+  ret %_t14
+}
+
+fn main() -> unit {
+entry:
+  _t15 = heap_box i32 1
+  _t16 = variant_mk 0 %_t15
+  _t17 = heap_box i32 2
+  _t18 = variant_mk 0 %_t17
+  _t19 = heap_box i32 3
+  _t20 = variant_mk 0 %_t19
+  _t21 = tuple_pack [rawptr, rawptr] (%_t18, %_t20)
+  _t22 = heap_box (rawptr, rawptr) %_t21
+  _t23 = variant_mk 1 %_t22
+  _t24 = tuple_pack [rawptr, rawptr] (%_t16, %_t23)
+  _t25 = heap_box (rawptr, rawptr) %_t24
+  _t26 = variant_mk 1 %_t25
+  _t27 = call @sum_tree(%_t26)
+  _t28 = indirect_call &ls_int_to_str : fn(i32) -> string(%_t27) -> string
+  void indirect &ls_println : fn(string) -> unit(%_t28)
+  ret void
+}

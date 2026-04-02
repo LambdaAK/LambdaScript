@@ -1,0 +1,90 @@
+entry: @main
+fn append__lsm928930968__ls_s0(_p2: rawptr, a: rawptr) -> clos(rawptr) -> rawptr {
+entry:
+  _t16 = raw_malloc(8)
+  _t17 = env_store %_t16[0] = %a
+  _t18 = mkclos @append__lsm928930968__ls_s1 env=%_t16 : clos(rawptr) -> rawptr
+  ret %_t18
+}
+
+fn append__lsm928930968__ls_s1(_p1: rawptr, b: rawptr) -> rawptr {
+entry:
+  _t14 = env_load %_p1[0]
+  _t15 = call @append__lsm928930968(%_t14, %b)
+  ret %_t15
+}
+
+fn append__lsm928930968(a: rawptr, b: rawptr) -> rawptr {
+entry:
+  _t1 = variant_tag %a
+  _t2 = icmp eq %_t1, 0
+  br %_t2 ? swm_2 : swn_3
+swm_2:
+
+  br swm_1
+swn_3:
+  _t3 = variant_tag %a
+  _t4 = icmp eq %_t3, 1
+  _t5 = variant_payload %a
+  _t6 = heap_unbox (i32, rawptr) %_t5
+  _t7 = tuple_proj %_t6[0] : i32,rawptr
+  _t8 = tuple_proj %_t6[1] : i32,rawptr
+  br %_t4 ? swm_4 : swf_5
+swm_4:
+  _t9 = call @append__lsm928930968(%_t8, %b)
+  _t10 = tuple_pack [i32, rawptr] (%_t7, %_t9)
+  _t11 = heap_box (i32, rawptr) %_t10
+  _t12 = variant_mk 1 %_t11
+  br swm_1
+swf_5:
+  void call @abort()
+  unreachable
+swm_1:
+  _t13 = phi rawptr [ swm_2, %b ], [ swm_4, %_t12 ]
+  ret %_t13
+}
+
+fn len__lsm348914431(lst: rawptr) -> i32 {
+entry:
+  _t19 = variant_tag %lst
+  _t20 = icmp eq %_t19, 0
+  br %_t20 ? swm_2 : swn_3
+swm_2:
+
+  br swm_1
+swn_3:
+  _t21 = variant_tag %lst
+  _t22 = icmp eq %_t21, 1
+  _t23 = variant_payload %lst
+  _t24 = heap_unbox (i32, rawptr) %_t23
+  _t25 = tuple_proj %_t24[0] : i32,rawptr
+  _t26 = tuple_proj %_t24[1] : i32,rawptr
+  br %_t22 ? swm_4 : swf_5
+swm_4:
+  _t27 = call @len__lsm348914431(%_t26)
+  _t28 = add 1, %_t27
+  br swm_1
+swf_5:
+  void call @abort()
+  unreachable
+swm_1:
+  _t29 = phi i32 [ swm_2, 0 ], [ swm_4, %_t28 ]
+  ret %_t29
+}
+
+fn main() -> unit {
+entry:
+  _t30 = variant_mk 0 nullptr
+  _t31 = tuple_pack [i32, rawptr] (2, %_t30)
+  _t32 = heap_box (i32, rawptr) %_t31
+  _t33 = variant_mk 1 %_t32
+  _t34 = tuple_pack [i32, rawptr] (1, %_t33)
+  _t35 = heap_box (i32, rawptr) %_t34
+  _t36 = variant_mk 1 %_t35
+  xs = %_t36
+  _t37 = call @append__lsm928930968(%xs, %xs)
+  _t38 = call @len__lsm348914431(%_t37)
+  _t39 = indirect_call &ls_int_to_str : fn(i32) -> string(%_t38) -> string
+  void indirect &ls_println : fn(string) -> unit(%_t39)
+  ret void
+}

@@ -15,8 +15,30 @@ declare i8* @ls_variant_mk(i32, i8*)
 declare i32 @ls_variant_tag(i8*)
 declare i8* @ls_variant_payload(i8*)
 
+%ls.env.1 = type { i32 }
+%ls.env.2 = type { i32 }
 %ls.tuple.1 = type { i32, i8* }
-define i32 @length__lsm348914431(i8* %lst) {
+define i8* @head_def__lsm362376408__ls_s0(i8* %_p2, i32 %d) {
+entry:
+  %_t12 = call i8* @ls_malloc(i64 4)
+  %_t13_esb = bitcast i8* %_t12 to %ls.env.1*
+  %_t13_esg = getelementptr inbounds %ls.env.1, %ls.env.1* %_t13_esb, i32 0, i32 0
+  store i32 %d, i32* %_t13_esg
+  %_t14_codep = bitcast i32 (i8*, i8*)* @head_def__lsm362376408__ls_s1 to i8*
+  %_t14 = call i8* @ls_mkclos(i8* %_t14_codep, i8* %_t12)
+  ret i8* %_t14
+}
+
+define i32 @head_def__lsm362376408__ls_s1(i8* %_p1, i8* %lst) {
+entry:
+  %_t10_ebuf = bitcast i8* %_p1 to %ls.env.2*
+  %_t10_eg = getelementptr inbounds %ls.env.2, %ls.env.2* %_t10_ebuf, i32 0, i32 0
+  %_t10 = load i32, i32* %_t10_eg
+  %_t11 = call i32 @head_def__lsm362376408(i32 %_t10, i8* %lst)
+  ret i32 %_t11
+}
+
+define i32 @head_def__lsm362376408(i32 %d, i8* %lst) {
 entry:
   %_t1 = call i32 @ls_variant_tag(i8* %lst)
   %_t2 = icmp eq i32 %_t1, 0
@@ -24,8 +46,8 @@ entry:
 swm_2:
   br label %swm_1
 swm_1:
-  %_t11 = phi i32 [ 0, %swm_2 ], [ %_t10, %swm_4 ]
-  ret i32 %_t11
+  %_t9 = phi i32 [ %d, %swm_2 ], [ %_t7, %swm_4 ]
+  ret i32 %_t9
 swn_3:
   %_t3 = call i32 @ls_variant_tag(i8* %lst)
   %_t4 = icmp eq i32 %_t3, 1
@@ -36,8 +58,6 @@ swn_3:
   %_t8 = extractvalue %ls.tuple.1 %_t6, 1
   br i1 %_t4, label %swm_4, label %swf_5
 swm_4:
-  %_t9 = call i32 @length__lsm348914431(i8* %_t8)
-  %_t10 = add nsw i32 1, %_t9
   br label %swm_1
 swf_5:
   call void @ls_abort()
@@ -46,31 +66,15 @@ swf_5:
 
 define i32 @main() {
 entry:
-  %Nil__lsm613522300 = call i8* @ls_variant_mk(i32 0, i8* null)
-  %_t12 = call i8* @ls_variant_mk(i32 0, i8* null)
-  %_t13_pk0 = insertvalue %ls.tuple.1 undef, i32 3, 0
-  %_t13 = insertvalue %ls.tuple.1 %_t13_pk0, i8* %_t12, 1
-  %_t14 = call i8* @ls_malloc(i64 16)
-  %_t14_bptr = bitcast i8* %_t14 to %ls.tuple.1*
-  store %ls.tuple.1 %_t13, %ls.tuple.1* %_t14_bptr
-  %_t15 = call i8* @ls_variant_mk(i32 1, i8* %_t14)
-  %_t16_pk0 = insertvalue %ls.tuple.1 undef, i32 2, 0
+  %_t15 = call i8* @ls_variant_mk(i32 0, i8* null)
+  %_t16_pk0 = insertvalue %ls.tuple.1 undef, i32 5, 0
   %_t16 = insertvalue %ls.tuple.1 %_t16_pk0, i8* %_t15, 1
   %_t17 = call i8* @ls_malloc(i64 16)
   %_t17_bptr = bitcast i8* %_t17 to %ls.tuple.1*
   store %ls.tuple.1 %_t16, %ls.tuple.1* %_t17_bptr
   %_t18 = call i8* @ls_variant_mk(i32 1, i8* %_t17)
-  %_t19_pk0 = insertvalue %ls.tuple.1 undef, i32 1, 0
-  %_t19 = insertvalue %ls.tuple.1 %_t19_pk0, i8* %_t18, 1
-  %_t20 = call i8* @ls_malloc(i64 16)
-  %_t20_bptr = bitcast i8* %_t20 to %ls.tuple.1*
-  store %ls.tuple.1 %_t19, %ls.tuple.1* %_t20_bptr
-  %_t21 = call i8* @ls_variant_mk(i32 1, i8* %_t20)
-  %_t22 = call i32 @length__lsm348914431(i8* %_t21)
-  %_t23 = call i8* @ls_int_to_str(i32 %_t22)
-  call void @ls_println(i8* %_t23)
-  %_t24 = call i32 @length__lsm348914431(i8* %Nil__lsm613522300)
-  %_t25 = call i8* @ls_int_to_str(i32 %_t24)
-  call void @ls_println(i8* %_t25)
+  %_t19 = call i32 @head_def__lsm362376408(i32 0, i8* %_t18)
+  %_t20 = call i8* @ls_int_to_str(i32 %_t19)
+  call void @ls_println(i8* %_t20)
   ret i32 0
 }
