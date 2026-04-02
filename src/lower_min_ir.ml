@@ -274,9 +274,22 @@ let rec pat_bound_simple : c_pat -> string list = function
   | _ ->
       unsupported "lambda parameter pattern not supported for native compilation"
 
+(** Like [pat_bound_simple] but handles all pattern forms (literal patterns
+    such as [CIntPat] bind no variables). Used for switch branch analysis. *)
+let rec pat_bound_vars : c_pat -> string list = function
+  | CIdPat x -> [ x ]
+  | CUnitPat | CWildcardPat | CNilPat
+  | CIntPat _ | CBoolPat _ | CStringPat _ | CCharPat _ -> []
+  | CConsPat (a, b) -> pat_bound_vars a @ pat_bound_vars b
+  | CVectorPat ps -> List.concat (List.map pat_bound_vars ps)
+  | CRecordPat fs ->
+      List.concat (List.map (fun (_, p) -> pat_bound_vars p) fs)
+  | CVariantPat (_, None) -> []
+  | CVariantPat (_, Some p) -> pat_bound_vars p
+
 let rec free_vars_cexpr : c_expr -> S.t = function
   | EId x -> S.singleton x
-  | EInt _ | EBool _ | EString _ | EUnit -> S.empty
+  | EInt _ | EBool _ | EString _ | EUnit | EChar _ | EFloat _ | ENil -> S.empty
   | EFunction (p, _, e) ->
       let b = pat_bound_simple p in
       S.diff (free_vars_cexpr e) (S.of_list b)
@@ -288,6 +301,12 @@ let rec free_vars_cexpr : c_expr -> S.t = function
       let b = pat_bound_simple p in
       S.union (free_vars_cexpr e1)
         (S.diff (free_vars_cexpr e2) (S.of_list b))
+  | EBindRec (p, _, e1, e2, _) ->
+      let b = pat_bound_simple p in
+      (* e1 may reference p (self-recursion) so we exclude it from e1's free vars too *)
+      S.union
+        (S.diff (free_vars_cexpr e1) (S.of_list b))
+        (S.diff (free_vars_cexpr e2) (S.of_list b))
   | EBlock parts ->
       List.fold_left
         (fun acc part ->
@@ -296,15 +315,31 @@ let rec free_vars_cexpr : c_expr -> S.t = function
           | Defn _ ->
               unsupported "definition in block during closure analysis")
         S.empty parts
-  | ENil -> S.empty
   | ESwitch (e0, branches) ->
+      (* Subtract variables bound by each branch's pattern from that branch's
+         free-variable set to avoid spuriously capturing pattern-bound names. *)
       List.fold_left
-        (fun acc (_, be) -> S.union acc (free_vars_cexpr be))
+        (fun acc (pat, be) ->
+          let bound = pat_bound_vars pat in
+          S.union acc (S.diff (free_vars_cexpr be) (S.of_list bound)))
         (free_vars_cexpr e0) branches
   | EListEnumeration (a, b) ->
       S.union (free_vars_cexpr a) (free_vars_cexpr b)
-  | _ ->
-      unsupported "expression in lambda (closure analysis) not supported for compilation"
+  | EListComprehension (e0, gens) ->
+      let gen_bound = List.concat (List.map (fun (p, _) -> pat_bound_vars p) gens) in
+      let gen_src_fvs =
+        List.fold_left (fun acc (_, ge) -> S.union acc (free_vars_cexpr ge)) S.empty gens
+      in
+      S.union gen_src_fvs (S.diff (free_vars_cexpr e0) (S.of_list gen_bound))
+  | EVector es -> List.fold_left (fun acc e -> S.union acc (free_vars_cexpr e)) S.empty es
+  | ERecordLit fields ->
+      List.fold_left (fun acc (_, e) -> S.union acc (free_vars_cexpr e)) S.empty fields
+  | ERecordUpdate (base, upd) ->
+      List.fold_left (fun acc (_, e) -> S.union acc (free_vars_cexpr e))
+        (free_vars_cexpr base) upd
+  | EFieldAccess (e, _) -> free_vars_cexpr e
+  | EBindMutRec _ ->
+      unsupported "mutual recursion in lambda (closure analysis) not supported"
 
 let rec list_take n xs =
   if n <= 0 then []
@@ -1969,6 +2004,78 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
                   ("Missing monomorphized specialization for `" ^ name
                  ^ "` — compiler bug"))
 
+and desugar_list_comp (body : c_expr) (generators : (c_pat * c_expr) list) :
+    c_expr =
+  (* Fresh variable counter — local to this compilation unit *)
+  let lc_counter = ref 0 in
+  let fresh prefix =
+    incr lc_counter;
+    Printf.sprintf "%s_%d" prefix !lc_counter
+  in
+  (* Build nested recursive functions that iterate the generators.
+     [when_done] is the expression to produce when the current list is
+     exhausted.  For the outermost level that is ENil; for inner levels it is
+     a call to the next iteration of the level above. *)
+  let rec build gens when_done =
+    match gens with
+    | [] ->
+        (* Zero generators: the body is already a single result; wrap in list. *)
+        EBop (CCons, body, ENil)
+    | [ (pat, src) ] ->
+        (* Innermost (or only) generator:
+             let rec comp lst =
+               case lst do [] -> when_done | pat :: tl -> body :: comp tl
+             in comp src *)
+        let comp = fresh "__lc_comp" in
+        let lst = fresh "__lc_lst" in
+        let tl = fresh "__lc_tl" in
+        EBindRec
+          ( CIdPat comp,
+            None,
+            EFunction
+              ( CIdPat lst,
+                None,
+                ESwitch
+                  ( EId lst,
+                    [
+                      (CNilPat, when_done);
+                      ( CConsPat (pat, CIdPat tl),
+                        EBop (CCons, body, EApp (EId comp, EId tl)) );
+                    ] ) ),
+            EApp (EId comp, src),
+            None )
+    | (pat, src) :: rest ->
+        (* Outer generator: iterate [src] with [pat] bound for each element.
+           When the inner generators finish (their list is exhausted) they
+           call [outer tl] to advance to the next element of [src].
+             let rec outer lst =
+               case lst do
+               | [] -> when_done
+               | pat :: tl ->
+                   <inner generators, with when_done = outer tl>
+             in outer src *)
+        let outer = fresh "__lc_outer" in
+        let lst = fresh "__lc_lst" in
+        let tl = fresh "__lc_tl" in
+        let inner_when_done = EApp (EId outer, EId tl) in
+        let inner_expr = build rest inner_when_done in
+        EBindRec
+          ( CIdPat outer,
+            None,
+            EFunction
+              ( CIdPat lst,
+                None,
+                ESwitch
+                  ( EId lst,
+                    [
+                      (CNilPat, when_done);
+                      (CConsPat (pat, CIdPat tl), inner_expr);
+                    ] ) ),
+            EApp (EId outer, src),
+            None )
+  in
+  build generators ENil
+
 and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
     (type_env : Typecheck.type_env) (shadows : S.t) : expr_result =
   match e with
@@ -2254,7 +2361,10 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
             (Phi (res, ty1, [ (l_then_exit, o1); (l_else_exit, o2) ]));
           LVal (Local res, ty1))
   | EBindRec (CIdPat name, _ta, e1, e2, _rt) -> (
-      match Typecheck.type_rec_binding_rhs static_env type_env name e1 with
+      (* Include runtime-env types so the type checker can see locally-bound
+         variables (e.g. pattern variables from an enclosing switch branch). *)
+      let se = static_env_for_mono_call static_env env in
+      match Typecheck.type_rec_binding_rhs se type_env name e1 with
       | Error err ->
           unsupported ("let rec: " ^ Typecheck.string_of_type_check_error err)
       | Ok fn_ct ->
@@ -2264,15 +2374,45 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               unsupported
                 "let rec on non-function values is not supported for native compilation"
           | _ :: _ ->
-              let static_here = (name, fn_ct) :: static_env in
+              let static_here = (name, fn_ct) :: se in
               let emit = mangle_nested_emit name in
-              let stub =
+              (* Compute free variables of the function body that must be
+                 captured from the enclosing scope (mirrors EFunction logic). *)
+              let bound_params =
+                List.concat (List.map pat_bound_vars param_pats)
+              in
+              let fv_body = free_vars_cexpr inner in
+              let fv =
+                S.diff fv_body (S.of_list (name :: bound_params))
+              in
+              let fv =
+                S.filter
+                  (fun v ->
+                    (not (is_poly_static v static_env))
+                    && not (is_native_builtin_name v))
+                  fv
+              in
+              let cap_entries = lambda_captures env ctx fv in
+              let base_stub =
                 callable_stub ~ty_key:name ~emit_direct:emit anns static_here
+              in
+              (* If there are captures, the compiled function has them as
+                 leading parameters.  Bake the capture operands into the call
+                 stub so that call-sites in [e2] pass them correctly. *)
+              let stub =
+                if cap_entries = [] then base_stub
+                else
+                  {
+                    base_stub with
+                    cap_tys = List.map (fun (_, t, _) -> t) cap_entries;
+                    cap_ops = List.map (fun (_, _, op) -> op) cap_entries;
+                  }
               in
               let outer_env = (name, C stub) :: env in
               let fn, nested =
-                lower_user_function ~ty_key:name ~emit param_pats anns inner
-                  outer_env static_here type_env shadows
+                lower_user_function ~captures:cap_entries
+                  ~self_name:(Some name) ~ty_key:name ~emit param_pats anns
+                  inner outer_env static_here type_env shadows
               in
               ctx.nested_funcs <- ctx.nested_funcs @ nested @ [ fn ];
               lower_expr e2 outer_env ctx static_here type_env
@@ -2370,7 +2510,10 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               emit_instr ctx (Assign (t, TuplePack (elem_tys, ops)));
               LVal (Local t, Tuple elem_tys)
           | _ -> unsupported "internal: vector literal type is not a vector"))
-  | EBindMutRec _ | EListComprehension _ | EChar _ | EFloat _ ->
+  | EListComprehension (body, generators) ->
+      let desugared = desugar_list_comp body generators in
+      lower_expr desugared env ctx static_env type_env shadows
+  | EBindMutRec _ | EChar _ | EFloat _ ->
       unsupported "Expression form not supported in Min_IR lowering yet"
   | ERecordLit fields -> (
       let se = static_env_for_mono_call static_env env in
@@ -2491,6 +2634,7 @@ and lower_block (parts : c_expr_or_c_defn list) (env : env) (ctx : fn_ctx)
             "Sequencing discard of a partially applied function is not supported")
 
 and lower_user_function ?(captures : (string * ty * operand) list = [])
+    ?(self_name : string option = None)
     ~(ty_key : string) ~(emit : string)
     (param_pats : c_pat list) (param_anns : c_type option list) (inner : c_expr)
     (outer_env : env) (static_env : static_env) (type_env : Typecheck.type_env)
@@ -2508,6 +2652,39 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
   let cap_pairs = List.map (fun (v, t, _) -> (v, t)) captures in
   let cap_tys = List.map snd cap_pairs in
   let m_cap = List.length cap_pairs in
+  (* For recursive functions that capture outer variables, the self-reference
+     stub must include the captures so the recursive call passes them.  We
+     build a "self callable" whose cap_ops point to the LLVM parameters that
+     hold the captured values (the params are named by their variable names). *)
+  let rec_self_entry =
+    match self_name with
+    | None -> []
+    | Some _ when cap_pairs = [] -> []
+    | Some sn ->
+        let self_cap_ops = List.map (fun (v, _) -> Local v) cap_pairs in
+        let pre_ret_ty =
+          ret_min_ty_of_user_fn ty_key (List.length param_tys) static_env
+        in
+        let n = List.length param_tys in
+        let step_codes_self =
+          if n >= 2 then
+            List.init n (fun k -> emit ^ "__ls_s" ^ string_of_int k)
+          else if m_cap > 0 then [ emit ^ "__ls_s0" ]
+          else []
+        in
+        let rec_callable =
+          {
+            multi_direct = emit;
+            step_codes = step_codes_self;
+            cap_tys;
+            cap_ops = self_cap_ops;
+            fixed = [];
+            param_tys;
+            ret_ty = pre_ret_ty;
+          }
+        in
+        [ (sn, C rec_callable) ]
+  in
   let tuple_param_unpacks : (string * c_pat list * ty list * mono_type) list ref
       =
     ref []
@@ -2599,8 +2776,9 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
   let env_params = List.concat (List.map snd param_names_and_frags) in
   let direct_params = cap_pairs @ List.combine params param_tys in
   let merged0 =
-    List.map (fun (v, t) -> (v, Val (Local v, t, None))) cap_pairs @ env_params
-    @ outer_env
+    rec_self_entry
+    @ List.map (fun (v, t) -> (v, Val (Local v, t, None))) cap_pairs
+    @ env_params @ outer_env
   in
   let ctx = create_fn_ctx () in
   let tuple_checks =
