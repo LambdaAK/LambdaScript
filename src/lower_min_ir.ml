@@ -1242,18 +1242,26 @@ let payload_mono_for_variant_constructor (scrut_mono : mono_type) (cons_name : s
           match List.assoc_opt cons_name ctors with
           | Some (Some payload_ct) ->
               let m0 = Typecheck.instantiate payload_ct in
-              let m1 = apply_subst_mono (List.combine params targs) m0 in
+              (* [condense.ml] maps written type vars to [TypeVar ("$written(" ^ p ^ ")")];
+                 map those keys as well as plain [p] or substitution misses and type
+                 vars default to [int] (wrong payload for nested options, etc.). *)
+              let subst =
+                List.concat_map
+                  (fun (p, t) ->
+                    [ (p, t); ("$written(" ^ p ^ ")", t) ])
+                  (List.combine params targs)
+              in
+              let m1 = apply_subst_mono subst m0 in
               Some (Typecheck.mono_concrete_or_int_default m1)
           | Some None | None -> None)
       | _ -> None)
 
 let emit_payload_opaque_ptr (ctx : fn_ctx) (op : operand) (ty_min : ty) : operand =
-  match ty_min with
-  | String | RawPtr | List _ | Clos _ -> op
-  | I32 | I1 | Unit | Tuple _ | Fun _ ->
-      let b = fresh () in
-      emit_instr ctx (Assign (b, HeapBox (ty_min, op)));
-      Local b
+  (* Heap-box every payload so {!HeapUnbox} after {!VariantPayload} matches: for
+     pointer-like types the box holds one indirection (see llvm_emit HeapBox). *)
+  let b = fresh () in
+  emit_instr ctx (Assign (b, HeapBox (ty_min, op)));
+  Local b
 
 let find_constructor_index (ctor_env : Typecheck.constructor_env) (cons_name : string) :
     (int * string * c_type option) option =
@@ -1697,7 +1705,9 @@ and merge_switch_predecessors (preds : (string * operand * ty) list)
       List.iter
         (fun (_, _, t) ->
           if not (ty_equal t t0) then
-            unsupported "case branches must have the same type")
+            unsupported
+              ("case branches must have the same type (first "
+               ^ string_of_ty t0 ^ ", saw " ^ string_of_ty t ^ ")"))
         rest;
       let pairs = List.map (fun (l, o, _) -> (l, o)) preds in
       match t0 with
