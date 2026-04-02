@@ -338,8 +338,18 @@ let rec free_vars_cexpr : c_expr -> S.t = function
       List.fold_left (fun acc (_, e) -> S.union acc (free_vars_cexpr e))
         (free_vars_cexpr base) upd
   | EFieldAccess (e, _) -> free_vars_cexpr e
-  | EBindMutRec _ ->
-      unsupported "mutual recursion in lambda (closure analysis) not supported"
+  | EBindMutRec (bindings, body) ->
+      let bound_names =
+        S.of_list
+          (List.concat
+             (List.map (fun (pat, _, _, _, _) -> pat_bound_vars pat) bindings))
+      in
+      let fvs =
+        List.fold_left
+          (fun acc (_, _, e1, _, _) -> S.union acc (free_vars_cexpr e1))
+          (free_vars_cexpr body) bindings
+      in
+      S.diff fvs bound_names
 
 let rec list_take n xs =
   if n <= 0 then []
@@ -2513,7 +2523,131 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
   | EListComprehension (body, generators) ->
       let desugared = desugar_list_comp body generators in
       lower_expr desugared env ctx static_env type_env shadows
-  | EBindMutRec _ | EChar _ | EFloat _ ->
+  | EBindMutRec (bindings, body) ->
+      let se = static_env_for_mono_call static_env env in
+      (* Parse each binding: extract name, param_pats, anns, inner, full rhs *)
+      let parsed =
+        List.map
+          (fun (pat, _, e1, _, _) ->
+            match pat with
+            | CIdPat name ->
+                let param_pats, anns, inner = peel_efun [] [] e1 in
+                (name, param_pats, anns, inner, e1)
+            | _ ->
+                unsupported
+                  "let rec ... and ...: only identifier patterns are supported \
+                   for native compilation")
+          bindings
+      in
+      List.iter
+        (fun (_, param_pats, _, _, _) ->
+          if param_pats = [] then
+            unsupported
+              "let rec ... and ...: non-function mutual recursion not supported \
+               for native compilation")
+        parsed;
+      let names = List.map (fun (name, _, _, _, _) -> name) parsed in
+      let all_names_set = S.of_list names in
+      (* Build a mutual-rec static env so that each body can see all peers *)
+      let fresh_tyvars = List.map (fun _ -> fresh_type_var ()) names in
+      let mut_rec_se =
+        List.fold_left2
+          (fun acc nm tv -> (nm, Mono tv) :: acc)
+          se names fresh_tyvars
+      in
+      (* Type-check each function inside the mutual-rec env *)
+      let name_ctys =
+        List.map
+          (fun (name, _, _, _, e1) ->
+            match Typecheck.type_rec_binding_rhs mut_rec_se type_env name e1 with
+            | Error err ->
+                unsupported
+                  ("let rec ... and ...: "
+                  ^ Typecheck.string_of_type_check_error err)
+            | Ok fn_ct -> (name, fn_ct))
+          parsed
+      in
+      (* static_here has all mutual-rec names *)
+      let static_here =
+        List.fold_left (fun acc (nm, ct) -> (nm, ct) :: acc) se name_ctys
+      in
+      (* Compute all free vars across all function bodies from the outer scope *)
+      let all_fv =
+        List.fold_left
+          (fun acc (_, param_pats, _, inner, _) ->
+            let bound_params =
+              List.concat (List.map pat_bound_vars param_pats)
+            in
+            let fv =
+              S.diff (free_vars_cexpr inner)
+                (S.union all_names_set (S.of_list bound_params))
+            in
+            S.union acc fv)
+          S.empty parsed
+      in
+      let all_fv =
+        S.filter
+          (fun v ->
+            (not (is_poly_static v static_env)) && not (is_native_builtin_name v))
+          all_fv
+      in
+      let cap_entries = lambda_captures env ctx all_fv in
+      let cap_tys_all = List.map (fun (_, t, _) -> t) cap_entries in
+      let cap_ops_outer = List.map (fun (_, _, op) -> op) cap_entries in
+      let cap_ops_inner = List.map (fun (v, _, _) -> Local v) cap_entries in
+      (* Assign LLVM emit names for each function *)
+      let name_emits =
+        List.map (fun (name, _, _, _, _) -> (name, mangle_nested_emit name)) parsed
+      in
+      (* Build a stub for a given name with the given cap_ops *)
+      let make_stub name cap_ops_use =
+        let emit = List.assoc name name_emits in
+        let _, _, anns, _, _ =
+          List.find (fun (n, _, _, _, _) -> n = name) parsed
+        in
+        let base =
+          callable_stub ~ty_key:name ~emit_direct:emit anns static_here
+        in
+        if cap_entries = [] then base
+        else { base with cap_tys = cap_tys_all; cap_ops = cap_ops_use }
+      in
+      (* Outer stubs: used in the body; cap_ops come from the outer env *)
+      let outer_stubs =
+        List.map (fun (name, _) -> (name, make_stub name cap_ops_outer)) name_emits
+      in
+      (* Inner stubs: used inside function bodies; cap_ops are Local params *)
+      let inner_stubs =
+        List.map (fun (name, _) -> (name, make_stub name cap_ops_inner)) name_emits
+      in
+      let env_with_outer_stubs =
+        List.fold_left
+          (fun acc (nm, stub) -> (nm, C stub) :: acc)
+          env outer_stubs
+      in
+      let env_with_inner_stubs =
+        List.fold_left
+          (fun acc (nm, stub) -> (nm, C stub) :: acc)
+          env inner_stubs
+      in
+      (* Compile each function using the inner-stub env so peer calls pass Local caps *)
+      List.iter
+        (fun (name, emit) ->
+          let _, param_pats, anns, inner, _ =
+            List.find (fun (n, _, _, _, _) -> n = name) parsed
+          in
+          let fn, nested =
+            lower_user_function ~captures:cap_entries
+              ~self_name:(Some name) ~ty_key:name ~emit param_pats anns inner
+              env_with_inner_stubs static_here type_env shadows
+          in
+          ctx.nested_funcs <- ctx.nested_funcs @ nested @ [ fn ])
+        name_emits;
+      (* Lower the body with outer stubs *)
+      lower_expr body env_with_outer_stubs ctx static_here type_env
+        (List.fold_left
+           (fun acc nm -> shadow_add_pat (CIdPat nm) acc)
+           shadows names)
+  | EChar _ | EFloat _ ->
       unsupported "Expression form not supported in Min_IR lowering yet"
   | ERecordLit fields -> (
       let se = static_env_for_mono_call static_env env in
