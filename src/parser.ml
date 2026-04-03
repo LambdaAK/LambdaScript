@@ -77,6 +77,24 @@ module ParserUtils = struct
     in
     fun tokens -> helper [] tokens
 
+  (** One or more [item] parses; an optional [Comma] may appear after each item
+      (including between items). Stops when [item] fails; requires at least one
+      successful parse. *)
+  let parse_one_or_more_opt_commas (item : 'a parser) : 'a list parser =
+    let rec go acc tokens =
+      match item tokens with
+      | Some (v, rest) ->
+          let rest =
+            match rest with
+            | Comma :: t -> t
+            | t -> t
+          in
+          go (v :: acc) rest
+      | None ->
+          if acc = [] then None else Some (List.rev acc, tokens)
+    in
+    go []
+
   (** Parses a list of 'a, separated by delimiters. Takes:
       - a parser for 'a
       - a predicate function to check if a token is a delimiter Returns a tuple
@@ -1122,7 +1140,7 @@ and CompoundTypeParser : sig
   val compound_type_parser : compound_type parser
 end = struct
   (* Parse [factor (-> compound_type)*] without committing to an arrow until we
-     see one — so [impl Show int {] does not consume [int] then fail. *)
+     see one — so [impl Show for int {] does not consume [int] then fail. *)
   let rec compound_type_parser () : compound_type parser =
     let* ft = FactorTypeParser.factor_type_parser in
     (let* () = expect_token Arrow in
@@ -1237,6 +1255,7 @@ end = struct
     return s
 
   let method_row_parser : (string * compound_type) parser =
+    let* () = expect_token Val in
     let* name =
       expect_token_get_data (function
         | Id s -> Some s
@@ -1280,20 +1299,37 @@ end = struct
         | Id s -> Some s
         | _ -> None)
     in
-    let* () = expect_token Equals in
+    let* () = expect_token For in
     let* head_ty = CompoundTypeParser.compound_type_parser in
     let* () = expect_token LBrace in
     let impl_row_parser =
-      let* name =
-        expect_token_get_data (function
-          | Id s -> Some s
-          | _ -> None)
+      let* () = expect_token Let in
+      let* ( pat,
+             final_cto,
+             body,
+             return_type_option,
+             _num_explicit_params ) =
+        parse_single_defn_component ()
       in
-      let* () = expect_token Equals in
-      let* e = ExprParser.expr_parser in
-      return (name, e)
+      let () =
+        match (final_cto, return_type_option) with
+        | None, None -> ()
+        | _ ->
+            failwith
+              "parser: type annotations are not allowed on impl let bindings \
+               (types come from the inter)"
+      in
+      let name =
+        match pat with
+        | SubPat (IdPat s) -> s
+        | _ ->
+            failwith
+              "parser: impl methods must use a simple name (e.g. let show = … \
+               or let mappend x y = …)"
+      in
+      return (name, body)
     in
-    let* impls = parse_sep_delim impl_row_parser Comma in
+    let* impls = parse_one_or_more_opt_commas impl_row_parser in
     let* () = expect_token RBrace in
     return (InstanceDef (cls, head_ty, impls))
 

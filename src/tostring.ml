@@ -585,7 +585,8 @@ and string_of_defn (d : defn) (level : int) =
       ^ ", ["
       ^ String.concat ", "
           (List.map
-             (fun (m, ct) -> m ^ " : " ^ string_of_compound_type ct (level + 1))
+             (fun (m, ct) ->
+               "val " ^ m ^ " : " ^ string_of_compound_type ct (level + 1))
              methods)
       ^ "])"
   | InstanceDef (cls, head_ty, impls) ->
@@ -597,7 +598,7 @@ and string_of_defn (d : defn) (level : int) =
       ^ String.concat ", "
           (List.map
              (fun (m, e) ->
-               m ^ " = " ^ string_of_expr e (level + 1))
+               "let " ^ m ^ " = " ^ string_of_expr e (level + 1))
              impls)
       ^ "])"
 

@@ -9,6 +9,7 @@ type token_type =
   | TypeVar of string
   | Assign
   | Fn
+  | For
   | Arrow
   | If
   | Then
@@ -70,6 +71,7 @@ type token_type =
   | With
   | Inter
   | Impl
+  | Val
 
 type token = {
   token_type : token_type;
@@ -92,6 +94,7 @@ let string_of_token_type : token_type -> string = function
   | FloatType -> "<float type>"
   | Id s -> "<id: " ^ s ^ ">"
   | Fn -> "<fn>"
+  | For -> "<for>"
   | Arrow -> "<arrow>"
   | Assign -> "<assign>"
   | If -> "<if>"
@@ -154,6 +157,7 @@ let string_of_token_type : token_type -> string = function
   | With -> "<with>"
   | Inter -> "<inter>"
   | Impl -> "<impl>"
+  | Val -> "<val>"
 [@@coverage off]
 
 let string_of_token : token -> string =
@@ -304,6 +308,7 @@ let keywords =
     ("and", And);
     ("bind", Bind);
     ("fn", Fn);
+    ("for", For);
     ("switch", Switch);
     ("case", Case);
     ("do", Do);
@@ -311,6 +316,7 @@ let keywords =
     ("float", FloatType);
     ("of", Of);
     ("type", Type);
+    ("val", Val);
     ("with", With);
     (* [inter] shares a prefix with [in]; [in] must appear earlier so lexing
        retries and eventually matches [inter]. *)

@@ -1,18 +1,18 @@
 inter Show<'a> {
-  show : 'a -> string
+  val show : 'a -> string
 }
 
 inter Monoid<'a> {
-  mappend : 'a -> 'a -> 'a,
-  mempty : 'a
+  val mappend : 'a -> 'a -> 'a,
+  val mempty : 'a
 }
 
-impl Monoid = int {
-  mappend = fn x -> fn y -> x + y,
-  mempty = 0
+impl Monoid for int {
+  let mappend x y = x + y
+  let mempty = 0
 }
 
-impl Monoid = bool {
-  mappend = fn x -> fn y -> x && y,
-  mempty = false
+impl Monoid for bool {
+  let mappend x y = x && y
+  let mempty = false
 }
