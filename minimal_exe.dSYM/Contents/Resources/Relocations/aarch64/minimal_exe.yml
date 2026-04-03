@@ -1,5 +1,0 @@
----
-triple:          'arm64-apple-darwin'
-binary-path:     '/Users/alex/Desktop/LambdaScript/minimal_exe'
-relocations:     []
-...

@@ -1,8 +1,0 @@
-entry: @main
-fn main() -> unit {
-entry:
-  _t1 = div 1, 0
-  _t2 = indirect_call &ls_int_to_str : fn(i32) -> string(%_t1) -> string
-  void indirect &ls_println : fn(string) -> unit(%_t2)
-  ret void
-}

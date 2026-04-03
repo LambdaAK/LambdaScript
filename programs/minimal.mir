@@ -1,9 +1,0 @@
-entry: @main
-fn main() -> unit {
-entry:
-  _t1 = add 1, 2
-  x = %_t1
-  _t2 = call @int_to_str(%x)
-  void call @println(%_t2)
-  ret void
-}

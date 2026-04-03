@@ -1,5 +1,0 @@
----
-triple:          'arm64-apple-darwin'
-binary-path:     _probe_div0_only.out
-relocations:     []
-...

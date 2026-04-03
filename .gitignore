@@ -1,5 +1,47 @@
 .vscode
+.claude
 _build
 _coverage
 bin/_build
 src/_build
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Clang / LLDB debug symbol bundles (local builds)
+*.dSYM/
+
+# LambdaScript compiler outputs (written next to the .ls source)
+*.mir
+*.ll
+*.s
+
+# Default linked executable name from compile-ls / manual clang (repo root)
+/a.out
+
+# Ad-hoc probe / scratch at repo root (compiler experiments)
+/_probe*
+/_eff_test
+/_eff_test.*
+
+# OCaml bytecode object files at repo root (manual ocamlc experiments)
+/*.cmo
+/*.cmi
+/*.cmt
+/*.cmti
+
+# User-named local executables from compiler experiments (repo root)
+/minimal_exe
+/test_min.out
+
+# LaTeX build products (keep .tex / .pdf if you commit them)
+paper/*.aux
+paper/*.log
+paper/*.toc
+paper/*.out
+paper/*.lof
+paper/*.lot
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz
