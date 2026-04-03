@@ -2,7 +2,12 @@
 
 A statically-typed functional programming language with type inference, polymorphism, and powerful pattern matching.
 
-This is an OCaml-based interpreter. I have also experimented with a TypeScript-based implementation: [LambdaScript 2](https://github.com/LambdaAK/LambdaScript-2).
+The reference implementation in this repository is written in **OCaml** and includes both:
+
+- an **interpreter** (evaluate programs directly), and  
+- an **ahead-of-time compiler** that lowers programs to **Min IR**, then **LLVM IR**, then **assembly**, and links a **native executable** with Clang using a small C runtime (`runtime/ls_runtime.c`).
+
+There is also an experimental rewrite in TypeScript: [LambdaScript 2](https://github.com/LambdaAK/LambdaScript-2).
 
 ## Table of Contents
 
@@ -11,7 +16,8 @@ This is an OCaml-based interpreter. I have also experimented with a TypeScript-b
 3. [Examples](#examples)
 4. [Installation](#installation)
 5. [Usage](#usage)
-6. [Testing](#testing)
+6. [Native compilation](#native-compilation)
+7. [Testing](#testing)
 
 ## Overview
 
@@ -22,8 +28,10 @@ LambdaScript is a **statically-typed functional programming language** inspired 
 - **Algebraic data types** with pattern matching
 - **First-class functions** with closures
 - **Recursive types** for defining lists, trees, and other recursive structures
+- **Record types** with field update syntax
 - **Type annotations** for clarity and documentation
 - **Comprehensive built-in operators** usable as first-class values
+- **Native compiler** (LLVM IR + Clang) alongside the interpreter
 
 ## Language Features
 
@@ -35,10 +43,11 @@ LambdaScript is a **statically-typed functional programming language** inspired 
 - **Algebraic Data Types**: Sum types with constructors
 - **Recursive Types**: Self-referential type definitions
 - **Type Aliases**: Named type definitions
+- **Records**: Named rows with `{ field: ty, ... }`, field access `r.field`, update `{ base with field = expr }`
 
 **Basic Types**: `int`, `float`, `bool`, `string`, `char`, `unit`
 
-**Composite Types**: Functions (`a -> b`), Lists (`[a]`), Tuples (`(a, b, c)`)
+**Composite Types**: Functions (`'a -> 'b`), Lists (`['a]`), Tuples (`('a, 'b, 'c)`), Records
 
 ### Expressions
 
@@ -64,7 +73,7 @@ All operators can be used as first-class values by wrapping in parentheses: `(+)
 
 **Comparison**: `==`, `!=`, `<>`, `<`, `>`, `<=`, `>=`
 
-**Logical**: `&&`, `||`
+**Logical**: `&&`, `||`, and `not` (prefix)
 
 **List**: `::` (cons)
 
@@ -77,6 +86,7 @@ Supports comprehensive pattern matching including:
 - Cons patterns: `h :: t`
 - Tuple patterns: `(x, y, z)`
 - Constructor patterns: `Just x`, `Left y`
+- Record patterns: `{ name: "Alice" }`, `{ x, y }`
 - Nested patterns: `(x, y :: rest)`
 
 ### Built-in Functions
@@ -97,23 +107,25 @@ Supports comprehensive pattern matching including:
 - `str_slice : string -> int -> int -> string` - substring (start, length)
 
 **List Operations**:
-- `list_length : [a] -> int` - length of list
-- `list_head : [a] -> a` - first element (fails on empty)
-- `list_tail : [a] -> [a]` - all but first element
-- `list_nth : [a] -> int -> a` - nth element (0-indexed)
+- `list_length : ['a] -> int` - length of list
+- `list_head : ['a] -> 'a` - first element (fails on empty)
+- `list_tail : ['a] -> ['a]` - all but first element
+- `list_nth : ['a] -> int -> 'a` - nth element (0-indexed)
 
 **Tuple Operations**:
-- `tuple_fst : (a, b) -> a` - first element of pair
-- `tuple_snd : (a, b) -> b` - second element of pair
+- `tuple_fst : ('a, 'b) -> 'a` - first element of pair
+- `tuple_snd : ('a, 'b) -> 'b` - second element of pair
 
 **Higher-Order Functions**:
-- `map : (a -> b) -> [a] -> [b]`
-- `filter : (a -> bool) -> [a] -> [a]`
-- `reduce_left : (a -> b -> a) -> a -> [b] -> a`
-- `reduce_right : (a -> b -> b) -> [a] -> b -> b`
+- `map : ('a -> 'b) -> ['a] -> ['b]`
+- `filter : ('a -> bool) -> ['a] -> ['a]`
+- `reduce_left : ('a -> 'b -> 'a) -> 'a -> ['b] -> 'a`
+- `reduce_right : ('a -> 'b -> 'b) -> ['a] -> 'b -> 'b`
 - `not : bool -> bool`
 
 ## Examples
+
+The snippets below are illustrative; you can also open the `.ls` files under [`programs/`](programs/) for runnable examples (for example `programs/record_update.ls`, `programs/builtins_test.ls`, `programs/minimal.ls`).
 
 ### Basic Types and Expressions
 
@@ -125,6 +137,8 @@ Supports comprehensive pattern matching including:
 (* Floats *)
 3.14
 -2.5
+int_to_float 2
+float_to_int 3.9
 
 (* Booleans *)
 true
@@ -250,6 +264,22 @@ let (x, y) = (5, 10) in x + y
 (* Result: 15 *)
 ```
 
+### Conditionals and Boolean Operators
+
+```ocaml
+(* if / then / else (both branches must match in type) *)
+if 3 < 5 then "yes" else "no"
+
+(* Short-circuiting logical operators *)
+true && false
+true || false
+not true
+
+(* Combining comparisons *)
+let n = 7 in
+if n > 0 && n % 2 == 0 then "positive even" else "other"
+```
+
 ### Pattern Matching
 
 ```ocaml
@@ -280,6 +310,40 @@ let get_second = fn lst ->
 in
 get_second [1, 2, 3]
 (* Result: 2 *)
+
+(* Record patterns (fields can be literals or binders) *)
+let person = { name: "John", age: 30, city: "New York" }
+let tag = case person do
+  | { name: "Alex" } -> 1
+  | { name: "John" } -> 2
+  | _ -> 3
+(* tag == 2 *)
+```
+
+### Records
+
+```ocaml
+(* Record type and literals *)
+type Point = { x: int, y: int }
+
+let p1 : Point = { x: 10, y: 20 }
+
+(* Field access *)
+let sum_xy = p1.x + p1.y
+
+(* Functional update (immutable: creates a new record) *)
+let p2 = { p1 with x = 100 }
+let p3 = { p2 with y = 50 }
+let p4 = { p1 with x = 5, y = 15 }
+
+(* Matching on record fields *)
+type User = { login: string, active: bool }
+
+let status = fn u ->
+  case u do
+  | { active: true } -> u.login ^ " is active"
+  | { login: name } -> name ^ " is inactive"
+  | _ -> "unknown"
 ```
 
 ### Higher-Order Functions
@@ -315,6 +379,38 @@ fold_left (+) 0 [1, 2, 3, 4, 5]
 (* Result: 15 *)
 ```
 
+### Built-in Library Functions
+
+The standard environment includes the helpers listed under [Built-in Functions](#built-in-functions). You can call them directly instead of re-implementing `map`, folds, and string helpers:
+
+```ocaml
+let () = print "no newline"
+let () = println "with newline"
+
+let () = println (int_to_str (str_length "hello"))
+let () = println (str_concat "hello" " world")
+let () = println (str_slice "hello" 1 3)
+
+let () = println (int_to_str 99)
+
+let () = println (int_to_str (list_length [1, 2, 3]))
+let () = println (int_to_str (list_head [1, 2, 3]))
+let () = println (int_to_str (list_head (list_tail [1, 2, 3])))
+let () = println (int_to_str (list_nth [10, 20, 30] 2))
+
+let () = println (int_to_str (tuple_fst (5, 10)))
+let () = println (int_to_str (tuple_snd (5, 10)))
+
+let squares = map (fn x -> x * x) [1, 2, 3, 4]
+let evens = filter (fn x -> x % 2 == 0) [1, 2, 3, 4, 5, 6]
+let sum = reduce_left (+) 0 [1, 2, 3, 4, 5]
+let product = reduce_right (*) [1, 2, 3, 4] 1
+
+let chars = string_to_list "hey"
+let m = float_to_int 3.7
+let x = int_to_float 42
+```
+
 ### Algebraic Data Types
 
 ```ocaml
@@ -322,22 +418,22 @@ fold_left (+) 0 [1, 2, 3, 4, 5]
 type IntPair = (int, int)
 
 (* Sum types *)
-type Option<a> =
+type Option<'a> =
   | None
-  | Some of a
+  | Some of 'a
 
-type Either<a, b> =
-  | Left of a
-  | Right of b
+type Either<'a, 'b> =
+  | Left of 'a
+  | Right of 'b
 
 (* Recursive types *)
-type rec List<a> =
+type rec List<'a> =
   | Nil
-  | Cons of a * List<a>
+  | Cons of 'a * List<'a>
 
-type rec Tree<a> =
+type rec Tree<'a> =
   | Leaf
-  | Node of a * Tree<a> * Tree<a>
+  | Node of 'a * Tree<'a> * Tree<'a>
 
 (* Using custom types *)
 let rec tree_size = fn t ->
@@ -399,6 +495,10 @@ increment 5
 let apply = fn (f: int -> int) -> fn (x: int) : int -> f x in
 apply (fn x -> x * 2) 21
 (* Result: 42 *)
+
+(* Type variable in an annotation: `'a`, `'b`, ... *)
+let poly_id = fn (x: 'a) -> x
+(* Type: 'a -> 'a *)
 ```
 
 ## Installation
@@ -408,6 +508,7 @@ apply (fn x -> x * 2) 21
 - OCaml 5.0.0 or higher
 - Dune build system
 - OPAM (OCaml package manager)
+- **Clang** (for the native compiler: LLVM IR → object code and linking with `runtime/ls_runtime.c`)
 
 ### Building from Source
 
@@ -422,7 +523,7 @@ cd LambdaScript
 make
 ```
 
-This will compile both the interpreter and the REPL.
+This builds the **interpreter**, **REPL**, **compiler** (`compile_lambdascript`), and other developer tools under `bin/`.
 
 ## Usage
 
@@ -451,17 +552,57 @@ dune exec ./bin/interpreter.exe programs/factorial.txt
 
 LambdaScript files typically use `.ls` or `.txt` extensions.
 
+## Native compilation
+
+The compiler parses and typechecks a LambdaScript file, lowers it to **Min IR** (`.mir`), emits **LLVM IR** (`.ll`), runs **Clang** to produce assembly (`.s`) and a **linked executable**. The C runtime in `runtime/ls_runtime.c` provides memory and runtime glue for the generated code.
+
+From the repository root:
+
+```bash
+make compile-ls FILE=programs/minimal.ls
+./a.out
+```
+
+Optional output name:
+
+```bash
+make compile-ls FILE=programs/minimal.ls OUT=./my_program
+./my_program
+```
+
+Equivalent direct invocation:
+
+```bash
+dune exec ./bin/compile_lambdascript.exe programs/minimal.ls ./my_program
+```
+
+**Finding the runtime:** compilation searches upward from the current directory for `runtime/ls_runtime.c`. If you run the compiler from elsewhere, set `LAMBDASCRIPT_ROOT` to the checkout path.
+
+**Inspecting IR without linking:**
+
+```bash
+make dump-ir FILE=programs/minimal.ls
+```
+
+Additional compiler integration tests and fixtures live in `test/compiler_cases/`.
+
 ## Testing
 
 ### Running Tests
 
-The test suite contains over 700 unit tests covering all language features:
+The project ships two main test entry points (the exact counts change as tests are added):
 
-```bash
-make test
-```
+- **Interpreter / typechecker / evaluator coverage** — OUnit suite:
+  ```bash
+  make suite
+  ```
+- **Compiler end-to-end cases** (compile, run native executable, compare output):
+  ```bash
+  make compiler-suite
+  ```
 
-Or using dune directly:
+To run everything Dune knows about (when the tree builds cleanly):
+
 ```bash
 dune test
 ```
@@ -514,17 +655,17 @@ make opendoc
 
 ```
 LambdaScript/
-├── bin/           # Executable entry points (REPL, interpreter)
-├── src/           # Source code
-│   ├── lex.ml     # Lexer
-│   ├── parser.ml  # Parser
-│   ├── expr.ml    # Expression types
-│   ├── typecheck.ml  # Type checker
-│   ├── eval.ml    # Evaluator
-│   └── env.ml     # Environment and built-ins
-├── test/          # Test suite
-├── programs/      # Example programs
-└── documentation/ # Formal semantics
+├── bin/              # interpreter, REPL, compile_lambdascript, dump_min_ir, ...
+├── src/              # Source code
+│   ├── lex.ml, parser.ml
+│   ├── typecheck.ml, eval.ml, env.ml
+│   ├── compile_pipeline.ml  # native compile driver (IR emit + Clang)
+│   ├── min_ir.ml, lower_min_ir.ml, llvm_emit.ml  # compiler middle/back end
+│   └── ...
+├── runtime/          # ls_runtime.c (linked into native executables)
+├── test/             # OUnit tests + compiler_cases/ integration fixtures
+├── programs/         # Example .ls programs
+└── documentation/    # Formal semantics
 ```
 
 ## License
