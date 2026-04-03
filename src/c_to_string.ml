@@ -297,7 +297,7 @@ and string_of_defn : c_defn -> string = function
           methods
       in
       "inter " ^ name ^ args_str ^ " {\n  "
-      ^ String.concat ",\n  " meth_strs
+      ^ String.concat "\n  " meth_strs
       ^ "\n}"
   | CTypeAlias (name, args, body) ->
       let args_str =

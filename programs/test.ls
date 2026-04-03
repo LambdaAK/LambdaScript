@@ -1,18 +1,13 @@
-inter Show<'a> {
-  val show : 'a -> string
-}
-
 inter Monoid<'a> {
-  val mappend : 'a -> 'a -> 'a,
+  val mappend : 'a -> 'a -> 'a
   val mempty : 'a
 }
 
-impl Monoid for int {
-  let mappend x y = x + y
-  let mempty = 0
-}
+impl Monoid for [int] {
+  let rec mappend x y =
+    case x do
+      | [] -> y
+      | h :: t -> h :: mappend t y
 
-impl Monoid for bool {
-  let mappend x y = x && y
-  let mempty = false
+  let mempty = []
 }

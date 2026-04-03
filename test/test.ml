@@ -1523,7 +1523,7 @@ let program_typecheck_tests =
          ( "type annotation mismatch detected" >:: fun _ ->
            assert_program_fails_typecheck "let (x : bool) = 42" );
          ( "impl declaration tokenizes and parses to EOF" >:: fun _ ->
-           let s = "impl Show for int { let show = int_to_str }\n" in
+           let s = "impl Show for int { let rec show x = int_to_str x }\n" in
            let tokens =
              lex (s |> String.to_seq |> List.of_seq)
              |> List.map (fun t -> t.token_type)

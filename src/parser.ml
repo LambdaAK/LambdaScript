@@ -294,6 +294,14 @@ module ParserUtils = struct
                (ArithmeticUnderRelExpr
                   (Term (Factor (FactorUnderApplication (Integer i))))))))
 
+  let id_to_expr (s : string) : expr =
+    ConsExpr
+      (DisjunctionUnderCons
+         (ConjunctionUnderDisjunction
+            (RelationUnderConjunction
+               (ArithmeticUnderRelExpr
+                  (Term (Factor (FactorUnderApplication (Id s))))))))
+
   (** Wraps an expression body in a series of function abstractions. Takes a
       body expression and a list of (pattern, type annotation) pairs, and
       returns the body wrapped in nested Function constructors. *)
@@ -1288,7 +1296,7 @@ end = struct
       <|> return []
     in
     let* () = expect_token LBrace in
-    let* methods = parse_sep_delim method_row_parser Comma in
+    let* methods = parse_one_or_more_opt_commas method_row_parser in
     let* () = expect_token RBrace in
     return (ClassDef (class_name, params, methods))
 
@@ -1304,30 +1312,58 @@ end = struct
     let* () = expect_token LBrace in
     let impl_row_parser =
       let* () = expect_token Let in
-      let* ( pat,
-             final_cto,
-             body,
-             return_type_option,
-             _num_explicit_params ) =
-        parse_single_defn_component ()
+      let* (name, body_expr) =
+        (* Desugar:
+           let rec f x y = rhs
+           into:
+           let rec f x y = rhs in f
+           so the method position can still be represented as an [expr]. *)
+        (let* () = expect_token Rec in
+         let* (pat, final_cto, body, return_type_option, _num_explicit_params) =
+           parse_single_defn_component ()
+         in
+         let () =
+           match (final_cto, return_type_option) with
+           | None, None -> ()
+           | _ ->
+               failwith
+                 "parser: type annotations are not allowed on impl let bindings \
+                  (types come from the inter)"
+         in
+         let name =
+           match pat with
+           | SubPat (IdPat s) -> s
+           | _ ->
+               failwith
+                 "parser: impl methods must use a simple name (e.g. let show = … \
+                  or let mappend x y = …)"
+         in
+         let e2 = id_to_expr name in
+         return
+           (name, BindRec (pat, final_cto, body, e2, return_type_option)))
+        <|>
+        (let* (pat, final_cto, body, return_type_option, _num_explicit_params) =
+           parse_single_defn_component ()
+         in
+         let () =
+           match (final_cto, return_type_option) with
+           | None, None -> ()
+           | _ ->
+               failwith
+                 "parser: type annotations are not allowed on impl let bindings \
+                  (types come from the inter)"
+         in
+         let name =
+           match pat with
+           | SubPat (IdPat s) -> s
+           | _ ->
+               failwith
+                 "parser: impl methods must use a simple name (e.g. let show = … \
+                  or let mappend x y = …)"
+         in
+         return (name, body))
       in
-      let () =
-        match (final_cto, return_type_option) with
-        | None, None -> ()
-        | _ ->
-            failwith
-              "parser: type annotations are not allowed on impl let bindings \
-               (types come from the inter)"
-      in
-      let name =
-        match pat with
-        | SubPat (IdPat s) -> s
-        | _ ->
-            failwith
-              "parser: impl methods must use a simple name (e.g. let show = … \
-               or let mappend x y = …)"
-      in
-      return (name, body)
+      return (name, body_expr)
     in
     let* impls = parse_one_or_more_opt_commas impl_row_parser in
     let* () = expect_token RBrace in
