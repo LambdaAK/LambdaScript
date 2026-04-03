@@ -668,6 +668,3 @@ LambdaScript/
 └── documentation/    # Formal semantics
 ```
 
-## License
-
-See LICENSE file for details.
