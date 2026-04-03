@@ -86,15 +86,21 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env) :
        | Error e -> print_error (string_of_type_check_error e));
       NoChange
   | Some (Definition defn, _) -> (
-      (* condense the definition *)
-      let c_defn = condense_defn defn in
-
-      match generate_defn static_env type_env c_defn with
-      | Error e ->
+      let c_defns = condense_program [ defn ] in
+      let rec go se te acc_s acc_te = function
+        | [] -> Language.Typecheck.Ok (acc_s, acc_te)
+        | cd :: rest ->
+            let module T = Language.Typecheck in
+            match T.generate_defn se te cd with
+            | T.Error e -> T.Error e
+            | T.Ok (nb, nte, _) ->
+                go (nb @ se) (nte @ te) (acc_s @ nb) (acc_te @ nte) rest
+      in
+      match go static_env type_env [] [] c_defns with
+      | Language.Typecheck.Error e ->
           print_error (string_of_type_check_error e);
           NoChange
-      | Ok (new_static_bindings, new_type_env, _) ->
-          (* pretty print all of the new bindings *)
+      | Language.Typecheck.Ok (new_static_bindings, new_type_env) ->
           List.iter
             (fun (name, typ) ->
               print_separator ();

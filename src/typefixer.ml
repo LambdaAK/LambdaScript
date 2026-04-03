@@ -90,3 +90,79 @@ let fix_type (t : mono_type) : mono_type =
   in
   let subs = create_substitution t [] in
   apply_substitution t subs
+
+(** Rename type variables throughout a [c_type] (quantifiers, preds, mono) in
+    one pass so names stay consistent — e.g. after [generalize]. *)
+let fix_c_type (ct : c_type) : c_type =
+  let names : string list ref = ref [] in
+  let add (v : string) =
+    if not (List.mem v !names) then names := !names @ [ v ]
+  in
+  let rec walk_mono (t : mono_type) : unit =
+    match t with
+    | TypeVar v -> add v
+    | FunctionType (t1, t2) ->
+        walk_mono t1;
+        walk_mono t2
+    | VectorType ts -> List.iter walk_mono ts
+    | CListType e -> walk_mono e
+    | CTypeApp (_, args) -> List.iter walk_mono args
+    | FixedPoint (_, body) -> walk_mono body
+    | RecordType fields -> List.iter (fun (_, t) -> walk_mono t) fields
+    | IntType | FloatType | BoolType | StringType | CharType | UnitType
+    | TypeName _ ->
+        ()
+  in
+  let rec walk_c (t : c_type) : unit =
+    match t with
+    | Mono m -> walk_mono m
+    | PolyType (v, inner) ->
+        add v;
+        walk_c inner
+    | Constrained (ps, inner) ->
+        List.iter (fun (_, m) -> walk_mono m) ps;
+        walk_c inner
+  in
+  walk_c ct;
+  tv := 0;
+  let subs : (string * string) list =
+    List.map
+      (fun v ->
+        tv := !tv + 1;
+        (v, number_to_letter !tv))
+      !names
+  in
+  let rec apply_mono (m : mono_type) : mono_type =
+    match m with
+    | TypeVar v -> (
+        try TypeVar (List.assoc v subs) with Not_found -> m)
+    | FunctionType (t1, t2) ->
+        FunctionType (apply_mono t1, apply_mono t2)
+    | VectorType ts -> VectorType (List.map apply_mono ts)
+    | CListType e -> CListType (apply_mono e)
+    | TypeName v -> TypeName v
+    | CTypeApp (name, args) ->
+        CTypeApp (name, List.map apply_mono args)
+    | FixedPoint (name, body) ->
+        FixedPoint (name, apply_mono body)
+    | RecordType fields ->
+        RecordType
+          (List.map (fun (name, t) -> (name, apply_mono t)) fields)
+    | (IntType | FloatType | BoolType | StringType | CharType | UnitType) as
+        prim ->
+        prim
+  in
+  let rec apply_c (t : c_type) : c_type =
+    match t with
+    | Mono m -> Mono (apply_mono m)
+    | PolyType (v, inner) ->
+        let v' =
+          try List.assoc v subs with Not_found -> v
+        in
+        PolyType (v', apply_c inner)
+    | Constrained (ps, inner) ->
+        Constrained
+          ( List.map (fun (c, m) -> (c, apply_mono m)) ps,
+            apply_c inner )
+  in
+  apply_c ct

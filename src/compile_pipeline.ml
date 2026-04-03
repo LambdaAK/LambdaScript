@@ -68,13 +68,18 @@ let compile ?(quiet = false) (src_path : string) (out_path : string) :
   | Some (_, remaining) when remaining <> [] ->
       Error "Parsing failed: extra tokens after program"
   | Some (program, _) -> (
-      let condensed_program = List.map condense_defn program in
+      let condensed_program = condense_program program in
       let static_env = build_full_static_env () in
       let type_env : type_env = [] in
       let ctor_env : Typecheck.constructor_env = [] in
       match typecheck_defns static_env type_env ctor_env condensed_program with
       | Error _ as e -> e
       | Ok (static_env, type_env, ctor_env) -> (
+          let condensed_program =
+            List.map
+              (Typecheck.elaborate_defn static_env type_env)
+              condensed_program
+          in
           match
             Lower_min_ir.lower_c_program condensed_program static_env type_env
               ctor_env

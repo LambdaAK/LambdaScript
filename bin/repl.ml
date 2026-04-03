@@ -41,6 +41,30 @@ type repl_result =
   | NewBindings of static_env * env * type_env
   | Quit
 
+(** Typecheck and evaluate a list of condensed top-level definitions in order.
+    Returns merged environments plus binding deltas (for [NewBindings]).
+    [after_step] runs after each successful definition (e.g. REPL printing). *)
+let process_condensed_defns ?after_step (static_env : static_env)
+    (dynamic_env : env) (type_env : type_env)
+    (c_defns : c_defn list) :
+    (static_env * env * type_env * static_env * env * type_env) type_check_result
+    =
+  let module T = Language.Typecheck in
+  let rec go se te de acc_s acc_d acc_te = function
+    | [] -> T.Ok (se, de, te, acc_s, acc_d, acc_te)
+    | cd :: rest ->
+        match T.generate_defn se te cd with
+        | T.Error e -> T.Error e
+        | T.Ok (nb, nte, _) ->
+            let cd = T.elaborate_defn se te cd in
+            let nd = unwrap_eval_result (eval_defn cd de) in
+            let de' = nd @ de in
+            (match after_step with Some f -> f nb de' | None -> ());
+            go (nb @ se) (nte @ te) de' (acc_s @ nb) (acc_d @ nd)
+              (acc_te @ nte) rest
+  in
+  go static_env type_env dynamic_env [] [] [] c_defns
+
 (** [read_multiline ()] reads input from the user until a line containing only
     ";;" is encountered. The ;; can be on the first line or any subsequent line.
     Handles Ctrl+C gracefully and provides helpful prompts.
@@ -138,7 +162,9 @@ let handle_command cmd static_env dynamic_env type_env history =
             print_error "Failed to parse expression";
             NoChange
         | Some (Expr expr, _) ->
-            let c_expr = condense_expr expr in
+            let c_expr =
+              condense_expr expr |> elaborate_expr static_env type_env
+            in
             (match type_of_c_expr static_env type_env c_expr with
             | Ok t ->
                 print_colored color_blue "Type: ";
@@ -167,25 +193,19 @@ let handle_command cmd static_env dynamic_env type_env history =
 
         let input = content |> String.to_seq |> List.of_seq in
         let tokens = lex input |> List.map (fun t -> t.token_type) in
-        let expr_or_defn = expr_or_defn_parser tokens in
 
-        match expr_or_defn with
-        | None ->
-            print_error "Failed to parse file content";
-            NoChange
-        | Some (Expr _, _) ->
-            print_error "File should contain definitions, not expressions";
-            NoChange
-        | Some (Definition defn, _) -> (
-            let c_defn = condense_defn defn in
-            match generate_defn static_env type_env c_defn with
-            | Error e ->
+        match Language.Parser.ProgramParser.program_parser tokens with
+        | Some (program, []) when program <> [] -> (
+            let c_defns = condense_program program in
+            match
+              process_condensed_defns static_env dynamic_env type_env c_defns
+            with
+            | Language.Typecheck.Error e ->
                 print_error (string_of_type_check_error e);
                 NoChange
-            | Ok (new_static_bindings, new_type_env, _) ->
-                let new_dynamic_bindings =
-                  unwrap_eval_result (eval_defn c_defn dynamic_env)
-                in
+            | Language.Typecheck.Ok
+                (_, _, _, new_static_bindings, new_dynamic_bindings, new_type_env)
+              ->
                 print_colored_line color_green "File loaded successfully!";
                 List.iter
                   (fun (name, typ) ->
@@ -194,6 +214,17 @@ let handle_command cmd static_env dynamic_env type_env history =
                   new_static_bindings;
                 NewBindings
                   (new_static_bindings, new_dynamic_bindings, new_type_env))
+        | Some ([], []) ->
+            print_error "File has no definitions";
+            NoChange
+        | Some (_, remaining) ->
+            print_error
+              (Printf.sprintf "Parse incomplete (%d token(s) left); use a full program or fix syntax"
+                 (List.length remaining));
+            NoChange
+        | None ->
+            print_error "Failed to parse file content";
+            NoChange
       with
       | Sys_error msg ->
           print_error ("File error: " ^ msg);
@@ -237,14 +268,42 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env)
     (* lex tokens *)
     let tokens = lex input |> List.map (fun t -> t.token_type) in
 
-    let expr_or_defn = expr_or_defn_parser tokens in
+    let print_new_bindings nb de' =
+      List.iter
+        (fun (name, typ) ->
+          let value = List.assoc name de' in
+          print_separator ();
+          print_name_info name;
+          print_value_and_type value typ;
+          print_separator ())
+        nb
+    in
 
-    match expr_or_defn with
-    | None ->
-        print_error "Parsing failed";
-        (NoChange, new_history)
-    | Some (Expr expr, _) -> (
-        let c_expr = condense_expr expr in
+    (match Language.Parser.ProgramParser.program_parser tokens with
+    | Some (program, []) when program <> [] -> (
+        let c_defns = condense_program program in
+        match
+          process_condensed_defns ~after_step:print_new_bindings static_env
+            dynamic_env type_env c_defns
+        with
+        | Language.Typecheck.Error e ->
+            print_error (string_of_type_check_error e);
+            (NoChange, new_history)
+        | Language.Typecheck.Ok
+            (_, _, _, new_static_bindings, new_dynamic_bindings, new_type_env)
+          ->
+            ( NewBindings
+                (new_static_bindings, new_dynamic_bindings, new_type_env),
+              new_history ))
+    | _ -> (
+        match expr_or_defn_parser tokens with
+        | None ->
+            print_error "Parsing failed";
+            (NoChange, new_history)
+        | Some (Expr expr, _) -> (
+        let c_expr =
+          condense_expr expr |> elaborate_expr static_env type_env
+        in
         let result = type_of_c_expr static_env type_env c_expr in
         match result with
         | Ok t ->
@@ -258,34 +317,21 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env)
         | Error e ->
             print_error (string_of_type_check_error e);
             (NoChange, new_history))
-    | Some (Definition defn, _) -> (
-        let c_defn = condense_defn defn in
-        let result = generate_defn static_env type_env c_defn in
-        match result with
-        | Error e ->
-            print_error (string_of_type_check_error e);
-            (NoChange, new_history)
-        | Ok (new_static_bindings, new_type_env, _) ->
-            let new_dynamic_bindings =
-              unwrap_eval_result (eval_defn c_defn dynamic_env)
-            in
-            List.iter
-              (fun (name, typ) ->
-                let value =
-                  match List.assoc_opt name new_dynamic_bindings with
-                  | Some v -> v
-                  | None ->
-                      failwith
-                        ("Internal error: value for " ^ name ^ " not found")
-                in
-                print_separator ();
-                print_name_info name;
-                print_value_and_type value typ;
-                print_separator ())
-              new_static_bindings;
-            ( NewBindings
-                (new_static_bindings, new_dynamic_bindings, new_type_env),
-              new_history ))
+        | Some (Definition defn, _) -> (
+            let c_defns = condense_program [ defn ] in
+            match
+              process_condensed_defns ~after_step:print_new_bindings
+                static_env dynamic_env type_env c_defns
+            with
+            | Language.Typecheck.Error e ->
+                print_error (string_of_type_check_error e);
+                (NoChange, new_history)
+            | Language.Typecheck.Ok
+                (_, _, _, new_static_bindings, new_dynamic_bindings, new_type_env)
+              ->
+                ( NewBindings
+                    (new_static_bindings, new_dynamic_bindings, new_type_env),
+                  new_history ))))
 
 let rec run_repl_loop static_env dynamic_env type_env history =
   match repl static_env dynamic_env type_env history with
@@ -314,29 +360,17 @@ let load_file_into_env filename static_env dynamic_env type_env =
     match Language.Parser.ProgramParser.program_parser tokens with
     | Some (program, []) ->
         (* Successfully parsed entire file as a program *)
-        let condensed_program = List.map condense_defn program in
-
-        (* Process each definition sequentially *)
-        let rec process_defns static_env dynamic_env type_env = function
-          | [] -> (static_env, dynamic_env, type_env)
-          | defn :: rest ->
-              match generate_defn static_env type_env defn with
-              | Ok (new_static_bindings, new_type_env, _) ->
-                  let new_dynamic_bindings =
-                    unwrap_eval_result (eval_defn defn dynamic_env)
-                  in
-                  process_defns
-                    (new_static_bindings @ static_env)
-                    (new_dynamic_bindings @ dynamic_env)
-                    (new_type_env @ type_env)
-                    rest
-              | Error e ->
-                  print_error (string_of_type_check_error e);
-                  (static_env, dynamic_env, type_env)
-        in
+        let condensed_program = condense_program program in
 
         let new_static_env, new_dynamic_env, new_type_env =
-          process_defns static_env dynamic_env type_env condensed_program
+          match
+            process_condensed_defns static_env dynamic_env type_env
+              condensed_program
+          with
+          | Language.Typecheck.Ok (ms, md, mt, _, _, _) -> (ms, md, mt)
+          | Language.Typecheck.Error e ->
+              print_error (string_of_type_check_error e);
+              (static_env, dynamic_env, type_env)
         in
 
         print_colored_line color_green ("Loaded " ^ filename);

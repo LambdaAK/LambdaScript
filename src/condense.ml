@@ -1,5 +1,6 @@
 open Expr
 open Cexpr
+open Forge_class_util
 
 let rec condense_pat : pat -> c_pat = function
   | SubPat sub_pat -> condense_sub_pat sub_pat
@@ -120,6 +121,10 @@ let rec condense_defn : defn -> c_defn = function
           types
       in
       CSumTypeRecMutRec condensed_types
+  | ClassDef _ | InstanceDef _ ->
+      failwith
+        "internal: inter/impl definitions must be condensed with \
+         Condense.condense_program"
 
 and condense_expr : expr -> c_expr = function
   | Function (pat, ct_opt, expr) ->
@@ -292,7 +297,12 @@ and condense_factor_type : factor_type -> mono_type = function
   | ParenFactorType expr -> condense_compound_type expr
   | VectorType types -> VectorType (List.map condense_compound_type types)
   | ListType et -> CListType (condense_compound_type et)
-  | TypeApp (name, args) -> CTypeApp (name, List.map condense_compound_type args)
+  | TypeApp (name, args) -> (
+      (* [t] and list<t> both denote list types; list<t> avoids a CTypeApp that
+         would hit "Type not found: list" during simplification. *)
+      match name, args with
+      | "list", [ elem ] -> CListType (condense_compound_type elem)
+      | _ -> CTypeApp (name, List.map condense_compound_type args))
   | RecordTypeWritten fields ->
       RecordType (List.map (fun (name, ct) -> (name, condense_compound_type ct)) fields)
 
@@ -315,7 +325,114 @@ and cons_from_list : c_expr list -> c_expr = function
   | [] -> ENil
   | e :: es -> EBop (CCons, e, cons_from_list es)
 
-and all_type_vars_in_type : mono_type -> string list = function
+let written_param_var (p : string) : string = "$written(" ^ p ^ ")"
+
+let assert_method_types_use_only_param (param : string)
+    (methods : (string * mono_type) list) : unit =
+  let ok_var = written_param_var param in
+  List.iter
+    (fun (_, mt) ->
+      List.iter
+        (fun s ->
+          if s <> ok_var then
+            failwith
+              ("forge inter: method types may only use the interface type parameter \
+               (e.g. '" ^ param ^ "' in the method signatures), but found type \
+                variable: "
+              ^ s))
+        (get_mono_type_vars mt))
+    methods
+
+(** Expand [inter] / [impl] into [CClassDecl] plus dictionary [let]s. Definitions
+    must appear in order: each [impl] references an [inter] defined earlier in
+    the same file. *)
+let condense_program (defns : defn list) : c_defn list =
+  let rec walk
+      (classes : (string * (string list * (string * mono_type) list)) list)
+      (seen_instances : string list) (acc : c_defn list) = function
+    | [] -> List.rev acc
+    | ClassDef (name, params, methods) :: rest ->
+        if params = [] then
+          failwith "forge: inter needs a type parameter list <a> (MVP)";
+        let params_uniq = List.sort_uniq String.compare params in
+        if List.length params_uniq <> List.length params then
+          failwith "forge: duplicate type parameter in inter";
+        if List.exists (fun (n, _) -> n = name) classes then
+          failwith ("forge: duplicate inter: " ^ name);
+        let methods_mono =
+          List.map (fun (m, ct) -> (m, condense_compound_type ct)) methods
+        in
+        (match params with
+        | [ p ] -> assert_method_types_use_only_param p methods_mono
+        | _ ->
+            failwith
+              "forge: exactly one inter type parameter is supported in this MVP");
+        let method_names = List.map fst methods_mono in
+        let names_uniq = List.sort_uniq String.compare method_names in
+        if List.length names_uniq <> List.length method_names then
+          failwith "forge: duplicate method name in inter";
+        let decl = CClassDecl (name, params, methods_mono) in
+        walk ((name, (params, methods_mono)) :: classes) seen_instances
+          (decl :: acc) rest
+    | InstanceDef (cls, inst_ct, impls) :: rest -> (
+        match List.assoc_opt cls classes with
+        | None ->
+            failwith
+              ("forge: impl for unknown inter '" ^ cls
+             ^ "' — declare [inter] above this [impl]")
+        | Some (params, meth_specs) -> (
+            match params with
+            | [ p ] ->
+                let inst_mono = condense_compound_type inst_ct in
+                let subst mt =
+                  substitute_mono mt (written_param_var p) inst_mono
+                in
+                let field_types =
+                  List.map (fun (m, mt) -> (m, subst mt)) meth_specs
+                in
+                let expected = RecordType field_types in
+                let impl_names = List.map fst impls in
+                let impl_uniq = List.sort_uniq String.compare impl_names in
+                if List.length impl_uniq <> List.length impl_names then
+                  failwith "forge: duplicate method in impl";
+                List.iter
+                  (fun (m, _) ->
+                    if not (List.mem_assoc m meth_specs) then
+                      failwith ("forge: impl has unknown method: " ^ m))
+                  impls;
+                List.iter
+                  (fun (m, _) ->
+                    if not (List.mem m impl_names) then
+                      failwith ("forge: impl missing method: " ^ m))
+                  meth_specs;
+                let dict_fields =
+                  List.map
+                    (fun (m, _) -> (m, condense_expr (List.assoc m impls)))
+                    meth_specs
+                in
+                let slug = mono_type_slug inst_mono in
+                let key = cls ^ "#" ^ slug in
+                if List.mem key seen_instances then
+                  failwith
+                    ("forge: duplicate impl for inter " ^ cls ^ " at type "
+                   ^ slug);
+                let dict_name = dict_for_instance ~class_name:cls inst_mono in
+                let cdefn =
+                  CDefn
+                    ( CIdPat dict_name,
+                      Some (Mono expected),
+                      ERecordLit dict_fields,
+                      None,
+                      0 )
+                in
+                walk classes (key :: seen_instances) (cdefn :: acc) rest
+            | _ -> failwith "forge: internal inter arity"))
+    | d :: rest ->
+        walk classes seen_instances (condense_defn d :: acc) rest
+  in
+  walk [] [] [] defns
+
+let rec all_type_vars_in_type : mono_type -> string list = function
   | IntType | FloatType | BoolType | StringType | CharType | UnitType -> []
   | TypeVar v -> [ v ]
   | FunctionType (i, o) ->

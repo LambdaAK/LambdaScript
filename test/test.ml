@@ -1313,7 +1313,7 @@ module ProgramTesting = struct
       @raise Failure if typechecking fails *)
   let typecheck_program (program : Language.Expr.defn list) : program_result =
     (* Convert program to condensed form *)
-    let c_program = List.map condense_defn program in
+    let c_program = condense_program program in
 
     (* Typecheck each definition and accumulate environments *)
     let rec process_defns static_env type_env = function
@@ -1338,7 +1338,7 @@ module ProgramTesting = struct
     let type_result = typecheck_program program in
 
     (* Convert program to condensed form *)
-    let c_program = List.map condense_defn program in
+    let c_program = condense_program program in
 
     (* Evaluate each definition and accumulate dynamic environment *)
     let rec process_defns dynamic_env = function
@@ -1522,6 +1522,31 @@ let program_typecheck_tests =
            assert_program_fails_typecheck "let x = 1 + true" );
          ( "type annotation mismatch detected" >:: fun _ ->
            assert_program_fails_typecheck "let (x : bool) = 42" );
+         ( "impl declaration tokenizes and parses to EOF" >:: fun _ ->
+           let s = "impl Show = int { show = int_to_str }\n" in
+           let tokens =
+             lex (s |> String.to_seq |> List.of_seq)
+             |> List.map (fun t -> t.token_type)
+           in
+           match Language.Parser.ProgramParser.program_parser tokens with
+           | Some (defs, rem) when List.length rem = 0 -> (
+               match defs with
+               | [ Language.Expr.InstanceDef _ ] -> ()
+               | _ ->
+                   assert_failure
+                     (Printf.sprintf "expected 1 InstanceDef, got %d defns"
+                        (List.length defs)))
+           | Some (defs, rem) ->
+               let first_tok =
+                 match rem with
+                 | h :: _ -> Language.Lex.string_of_token_type h
+                 | [] -> ""
+               in
+               assert_failure
+                 (Printf.sprintf
+                    "parse incomplete: %d defns, %d rem, first rem=%s"
+                    (List.length defs) (List.length rem) first_tok)
+           | None -> assert_failure "program_parser returned None" );
        ]
 
 let program_expression_type_tests =

@@ -32,16 +32,90 @@ let rec string_of_mono_type : mono_type -> string = function
       ) fields in
       "{" ^ String.concat ", " field_strs ^ "}"
 
-let string_of_c_type (ct : c_type) : string =
-  let rec collect_vars acc = function
-    | PolyType (v, body) -> collect_vars (acc @ [ v ]) body
-    | Mono t -> (acc, t)
+let rec string_of_c_type (ct : c_type) : string =
+  let pretty_tv (v : string) : string =
+    if
+      String.length v > 9 && String.sub v 0 9 = "$written("
+      && String.ends_with ~suffix:")" v
+    then "'" ^ String.sub v 9 (String.length v - 10)
+    else if String.starts_with ~prefix:"'" v then v
+    else if v = "string" then "str"
+    else "'" ^ v
   in
-  match ct with
-  | Mono t -> string_of_mono_type t
-  | PolyType _ ->
-      let _, t = collect_vars [] ct in
-      string_of_mono_type t
+  let rec string_of_mono_for_display : mono_type -> string = function
+    | TypeVar v -> pretty_tv v
+    | FunctionType (t1, t2) ->
+        let t1_str =
+          match t1 with
+          | FunctionType _ ->
+              "(" ^ string_of_mono_for_display t1 ^ ")"
+          | _ -> string_of_mono_for_display t1
+        in
+        t1_str ^ " -> " ^ string_of_mono_for_display t2
+    | VectorType ts ->
+        let ts_str = List.map string_of_mono_for_display ts in
+        "(" ^ String.concat ", " ts_str ^ ")"
+    | CListType t -> "[" ^ string_of_mono_for_display t ^ "]"
+    | CTypeApp (name, args) ->
+        if args = [] then name
+        else
+          let args_str = List.map string_of_mono_for_display args in
+          name ^ "<" ^ String.concat ", " args_str ^ ">"
+    | FixedPoint (_, body) -> string_of_mono_for_display body
+    | RecordType fields ->
+        let field_strs =
+          List.map
+            (fun (name, t) ->
+              name ^ ": " ^ string_of_mono_for_display t)
+            fields
+        in
+        "{" ^ String.concat ", " field_strs ^ "}"
+    | TypeName t -> if t = "string" then "str" else t
+    | ( IntType | FloatType | BoolType | StringType | CharType | UnitType )
+      as m ->
+        string_of_mono_type m
+  in
+  let rec flatten_quant acc c =
+    match c with
+    | PolyType (v, rest) -> flatten_quant (pretty_tv v :: acc) rest
+    | t -> (List.rev acc, t)
+  in
+  let quant, rest = flatten_quant [] ct in
+  let constr, inner =
+    match rest with
+    | Constrained (ps, inner') ->
+        ( ps,
+          (match inner' with
+          | Mono m -> `Mono m
+          | PolyType _ | Constrained _ -> `Nested inner') )
+    | Mono m -> ([], `Mono m)
+    | PolyType _ -> ([], `Nested rest)
+  in
+  (* When there are class constraints, quantified vars appear in the preds and
+     body — skip a duplicate leading [quant_str] (e.g. Show 'a => 'a -> t). *)
+  let quant_str =
+    if constr <> [] then ""
+    else
+      match quant with
+      | [] -> ""
+      | [ v ] -> v ^ " "
+      | vs -> "(" ^ String.concat ", " vs ^ ") "
+  in
+  let constr_str =
+    if constr = [] then ""
+    else
+      String.concat ", "
+        (List.map
+           (fun (cls, ty) -> cls ^ " " ^ string_of_mono_for_display ty)
+           constr)
+      ^ " => "
+  in
+  let inner_str =
+    match inner with
+    | `Mono m -> string_of_mono_for_display m
+    | `Nested t -> string_of_c_type t
+  in
+  quant_str ^ constr_str ^ inner_str
 
 (** Formats an optional type annotation. Returns " : type" if Some type, or
     empty string if None. *)
@@ -211,6 +285,20 @@ and string_of_defn : c_defn -> string = function
         string_of_pat pat ^ type_annot ^ " = " ^ string_of_expr e
       ) defns in
       "let rec " ^ String.concat "\nand " defn_strs
+  | CClassDecl (name, args, methods) ->
+      let args_str =
+        match args with
+        | [] -> ""
+        | _ -> "<" ^ String.concat ", " args ^ ">"
+      in
+      let meth_strs =
+        List.map
+          (fun (m, t) -> m ^ " : " ^ string_of_mono_type t)
+          methods
+      in
+      "inter " ^ name ^ args_str ^ " {\n  "
+      ^ String.concat ",\n  " meth_strs
+      ^ "\n}"
   | CTypeAlias (name, args, body) ->
       let args_str =
         match args with

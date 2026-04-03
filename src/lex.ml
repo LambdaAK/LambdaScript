@@ -68,6 +68,8 @@ type token_type =
   | Of
   | Dot
   | With
+  | Inter
+  | Impl
 
 type token = {
   token_type : token_type;
@@ -150,6 +152,8 @@ let string_of_token_type : token_type -> string = function
   | Of -> "<of>"
   | Dot -> "<dot>"
   | With -> "<with>"
+  | Inter -> "<inter>"
+  | Impl -> "<impl>"
 [@@coverage off]
 
 let string_of_token : token -> string =
@@ -308,6 +312,10 @@ let keywords =
     ("of", Of);
     ("type", Type);
     ("with", With);
+    (* [inter] shares a prefix with [in]; [in] must appear earlier so lexing
+       retries and eventually matches [inter]. *)
+    ("inter", Inter);
+    ("impl", Impl);
   ]
   |> List.map (fun (s, t) -> (list_of_string s, t))
 
@@ -332,7 +340,9 @@ let rec find_leading_keyword_if_it_exists (lst : char list) kw :
       if is_prefix then
         match remainder with
         | [] -> (Some token_type, [])
-        | h :: _ when is_alpha_num h -> (None, [])
+        | h :: _ when is_alpha_num h ->
+            (* Shorter keyword prefix (e.g. [in] vs [inter]); try next keyword. *)
+            find_leading_keyword_if_it_exists lst t
         | _ -> (Some token_type, remainder)
       else find_leading_keyword_if_it_exists lst t
 

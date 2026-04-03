@@ -1121,18 +1121,14 @@ end
 and CompoundTypeParser : sig
   val compound_type_parser : compound_type parser
 end = struct
-  let rec basic_type_parser : compound_type parser =
-    let* factor_type = FactorTypeParser.factor_type_parser in
-    return (BasicType factor_type)
-
-  and function_type_parser () : compound_type parser =
+  (* Parse [factor (-> compound_type)*] without committing to an arrow until we
+     see one — so [impl Show int {] does not consume [int] then fail. *)
+  let rec compound_type_parser () : compound_type parser =
     let* ft = FactorTypeParser.factor_type_parser in
-    let* () = expect_token Arrow in
-    let* ct = compound_type_parser () in
-    return (FunctionType (ft, ct))
-
-  and compound_type_parser () : compound_type parser =
-    function_type_parser () <|> basic_type_parser
+    (let* () = expect_token Arrow in
+     let* ct = compound_type_parser () in
+     return (FunctionType (ft, ct)))
+    <|> return (BasicType ft)
 
   let compound_type_parser : compound_type parser = compound_type_parser ()
 end
@@ -1239,6 +1235,67 @@ end = struct
         | _ -> None)
     in
     return s
+
+  let method_row_parser : (string * compound_type) parser =
+    let* name =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* () = expect_token Colon in
+    let* ct = CompoundTypeParser.compound_type_parser in
+    return (name, ct)
+
+  let class_defn_parser () : defn parser =
+    let* () = expect_token Inter in
+    let* class_name =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* params =
+      (let* () =
+         expect_token_get_data (function
+           | Relop "<" -> Some ()
+           | _ -> None)
+       in
+       let* ps = parse_sep_delim string_parser Comma in
+       let* () =
+         expect_token_get_data (function
+           | Relop ">" -> Some ()
+           | _ -> None)
+       in
+       return ps)
+      <|> return []
+    in
+    let* () = expect_token LBrace in
+    let* methods = parse_sep_delim method_row_parser Comma in
+    let* () = expect_token RBrace in
+    return (ClassDef (class_name, params, methods))
+
+  let instance_defn_parser () : defn parser =
+    let* () = expect_token Impl in
+    let* cls =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* () = expect_token Equals in
+    let* head_ty = CompoundTypeParser.compound_type_parser in
+    let* () = expect_token LBrace in
+    let impl_row_parser =
+      let* name =
+        expect_token_get_data (function
+          | Id s -> Some s
+          | _ -> None)
+      in
+      let* () = expect_token Equals in
+      let* e = ExprParser.expr_parser in
+      return (name, e)
+    in
+    let* impls = parse_sep_delim impl_row_parser Comma in
+    let* () = expect_token RBrace in
+    return (InstanceDef (cls, head_ty, impls))
 
   let constructor_parser : (string * compound_type option) parser =
     let* () = expect_token Pipe in
@@ -1418,7 +1475,9 @@ end = struct
       return (TypeDef (name, args, ct))
 
   let defn_parser : defn parser =
-    type_alias_defn_parser_with_args ()
+    class_defn_parser ()
+    <|> instance_defn_parser ()
+    <|> type_alias_defn_parser_with_args ()
     <|> type_alias_defn_parser_no_args ()
     <|> rec_sum_type_defn_parser_with_args ()
     <|> rec_sum_type_defn_parser_no_args ()

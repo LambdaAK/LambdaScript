@@ -2,9 +2,35 @@ open Cexpr
 open C_to_string
 open Ceval
 open Typefixer
+open Forge_class_util
 
 type type_equation = mono_type * mono_type
 type type_equations = type_equation list
+
+(** Class constraints collected while inferring a single expression (see
+    [generate_e_id] / [generate_class_method_app]). Flushed in [type_of_c_expr]. *)
+type class_equations = (string * mono_type) list
+
+let pending_expression_class_preds : class_equations ref = ref []
+
+let forge_written_param (p : string) : string = "$written(" ^ p ^ ")"
+
+let rec scheme_has_class_constraint (t : c_type) : bool =
+  match t with
+  | Constrained _ -> true
+  | PolyType (_, inner) -> scheme_has_class_constraint inner
+  | Mono _ -> false
+
+let rec instantiate_infer_scheme (t : c_type) : mono_type * class_equations =
+  match t with
+  | Mono m -> (m, [])
+  | Constrained (ps, inner) ->
+      let m, ps2 = instantiate_infer_scheme inner in
+      (m, ps @ ps2)
+  | PolyType (v, body) ->
+      let arg = fresh_type_var () in
+      let body' = substitute_type body v arg in
+      instantiate_infer_scheme body'
 
 type type_error =
   | UnboundVariable of string
@@ -336,6 +362,11 @@ and generate_e_nil () = return (CListType (fresh_type_var ()), [], [])
 and generate_e_id (env : static_env) (x : string) :
     (mono_type * type_equations * type_env) type_check_result =
   match List.assoc_opt x env with
+  | Some sch when scheme_has_class_constraint sch ->
+      let m, preds = instantiate_infer_scheme sch in
+      pending_expression_class_preds :=
+        preds @ !pending_expression_class_preds;
+      return (m, [], [])
   | Some uninstantiated ->
       let t = instantiate uninstantiated in
       return (t, [], [])
@@ -411,13 +442,34 @@ and generate_e_function (env : static_env) (type_env : type_env) (pat : c_pat)
     @param e2 The argument expression
     @return
       A pair containing the result type and constraints for the application *)
-and generate_e_app (env : static_env) (type_env : type_env) (e1 : c_expr)
+and generate_class_method_app (env : static_env) (type_env : type_env)
+    (_f : string) (sch : c_type) (e2 : c_expr) :
+    (mono_type * type_equations * type_env) type_check_result =
+  let t_fun, preds = instantiate_infer_scheme sch in
+  pending_expression_class_preds :=
+    preds @ !pending_expression_class_preds;
+  let- t2, c2, _ = generate env type_env e2 in
+  let result_type = fresh_type_var () in
+  let app_constraint = (t_fun, FunctionType (t2, result_type)) in
+  return (result_type, app_constraint :: c2, [])
+
+and generate_e_app_plain (env : static_env) (type_env : type_env) (e1 : c_expr)
     (e2 : c_expr) : (mono_type * type_equations * type_env) type_check_result =
   let- t1, c1, _ = generate env type_env e1 in
   let- t2, c2, _ = generate env type_env e2 in
   let result_type = fresh_type_var () in
   let app_constraint = (t1, FunctionType (t2, result_type)) in
   return (result_type, (app_constraint :: c1) @ c2, [])
+
+and generate_e_app (env : static_env) (type_env : type_env) (e1 : c_expr)
+    (e2 : c_expr) : (mono_type * type_equations * type_env) type_check_result =
+  match e1 with
+  | EId f -> (
+      match List.assoc_opt f env with
+      | Some sch when scheme_has_class_constraint sch ->
+          generate_class_method_app env type_env f sch e2
+      | _ -> generate_e_app_plain env type_env e1 e2)
+  | _ -> generate_e_app_plain env type_env e1 e2
 
 (** [generate_e_bind env pat cto e1 e2] generates type constraints for let
     bindings.
@@ -432,6 +484,8 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
     (mono_type * type_equations * type_env) type_check_result =
   let t_pat, pat_env, pat_constraints = type_of_pat env type_env pat in
   let- t1, c1, _ = generate env type_env e1 in
+  let p1 = !pending_expression_class_preds in
+  pending_expression_class_preds := [];
   let- annotation_constraints =
     match cto with
     | Some t ->
@@ -485,7 +539,9 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
   else
     (* Generalize the type of e1 before using it in e2 *)
     let- generalized_type =
-      generalize (return_type_constraints @ new_constraint :: c1) env type_env t1 in
+      generalize ~class_preds:p1
+        (return_type_constraints @ new_constraint :: c1)
+        env type_env t1 in
     let- t2, c2, _ =
       match pat_env with
       | [] -> generate env type_env e2
@@ -521,6 +577,8 @@ and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
   let function_type = fresh_type_var () in
   let new_env = (function_id, Mono function_type) :: env in
   let- t1, c1, _ = generate new_env type_env e1 in
+  let p1 = !pending_expression_class_preds in
+  pending_expression_class_preds := [];
   (* Add constraint that function_type must equal t1 *)
   let new_constraint = (function_type, t1) in
   let- return_type_constraints =
@@ -540,7 +598,9 @@ and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
   (* Generalize the function type to make it polymorphic *)
   (* Use env (not new_env) so that the function's type variable can be generalized *)
   let- generalized_type =
-    generalize (return_type_constraints @ new_constraint :: c1) env type_env t1 in
+    generalize ~class_preds:p1
+      (return_type_constraints @ new_constraint :: c1)
+      env type_env t1 in
   let- t2, c2, _ =
     generate ((function_id, generalized_type) :: env) type_env e2
   in
@@ -1125,6 +1185,7 @@ and substitute (var_id : string) (t : mono_type) (equations : type_equations) :
 and instantiate (t : c_type) : mono_type =
   match t with
   | Mono t -> t (* if we have a monomorphic type, we can just return it*)
+  | Constrained (_, inner) -> instantiate inner
   | PolyType _ ->
       (* if we have a polymorphic type, reduce by one layer, then call
          instantiate again *)
@@ -1161,16 +1222,33 @@ and instantiate_and_simplify (t : c_type) (type_env : type_env) :
     @param env The current static environment
     @param t The monomorphic type to generalize
     @return A polymorphic type with appropriate universal quantifiers *)
-and generalize (constraints : type_equations) (env : static_env)
-    (type_env : type_env) (t : mono_type) : c_type type_check_result =
+and generalize ?(class_preds : class_equations = []) (constraints : type_equations)
+    (env : static_env) (type_env : type_env) (t : mono_type) :
+    c_type type_check_result =
   (* First reduce the constraints to get a solution *)
   let solution = reduce_eq constraints type_env in
 
   (* Apply the solution to the type *)
   let- u1 = get_type t solution type_env in
 
-  (* Get all type variables in the type *)
-  let type_vars = get_type_vars u1 in
+  let- preds_solved =
+    let rec aux acc = function
+      | [] -> return (List.rev acc)
+      | (c, ty) :: rest ->
+          let- ty' = get_type ty solution type_env in
+          aux ((c, ty') :: acc) rest
+    in
+    aux [] class_preds
+  in
+  let preds_with_remaining_tyvars =
+    List.filter (fun (_, tau) -> get_type_vars tau <> []) preds_solved
+  in
+  let pred_tyvars_for_gen =
+    List.concat_map (fun (_, tau) -> get_type_vars tau) preds_with_remaining_tyvars
+  in
+  (* Generalize tyvars in the result and in any still-ambiguous class predicates
+     (e.g. element type of [[]] under Show). *)
+  let type_vars = get_type_vars u1 @ pred_tyvars_for_gen in
 
   (* Get all types from the environment *)
   let env_types = List.map snd env in
@@ -1210,9 +1288,30 @@ and generalize (constraints : type_equations) (env : static_env)
   let- free_vars = free_vars_result in
   let free_vars = List.sort_uniq compare free_vars in
 
-  (* Create a polymorphic type by quantifying over free variables *)
+  let- () =
+    List.fold_left
+      (fun acc (c, tau) ->
+        match acc with
+        | Error _ as e -> e
+        | Ok () ->
+            if get_type_vars tau <> [] then Ok ()
+            else
+              let d = dict_for_instance ~class_name:c tau in
+              if List.mem_assoc d env then Ok ()
+              else
+                Error
+                  (OtherError
+                     ("No instance `" ^ c ^ "` for type "
+                    ^ string_of_mono_type tau)))
+      (Ok ()) preds_solved
+  in
+  (* Keep class preds that still mention type variables (see preds_solved above). *)
+  let base =
+    if preds_with_remaining_tyvars = [] then Mono u1
+    else Constrained (preds_with_remaining_tyvars, Mono u1)
+  in
   let res =
-    List.fold_right (fun var acc -> PolyType (var, acc)) free_vars (Mono u1)
+    List.fold_right (fun var acc -> PolyType (var, acc)) free_vars base
   in
   return res
 
@@ -1245,28 +1344,43 @@ and get_type_vars (t : mono_type) : mono_type list =
 
 and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :
     c_type type_check_result =
-  let- t, constraints, _ = generate env type_env e in
+  match e with
+  | EId x -> (
+      match List.assoc_opt x env with
+      | None -> Error (UnboundVariable x)
+      | Some sch ->
+          let- sch' = simplify_type sch type_env in
+          return sch')
+  | _ ->
+      pending_expression_class_preds := [];
+      let- t, constraints, _ = generate env type_env e in
+      let extra_preds = !pending_expression_class_preds in
+      pending_expression_class_preds := [];
 
-  let- t = simplify_mono_type t type_env in
-  (* simplify constraints *)
-  let- simplified_constraints =
-    let rec simplify_constraint_list acc = function
-      | [] -> return (List.rev acc)
-      | (t1, t2) :: rest ->
-          let- t1_simplified = simplify_mono_type t1 type_env in
-          let- t2_simplified = simplify_mono_type t2 type_env in
-          simplify_constraint_list ((t1_simplified, t2_simplified) :: acc) rest
-    in
-    simplify_constraint_list [] constraints
-  in
+      let- t = simplify_mono_type t type_env in
+      (* simplify constraints *)
+      let- simplified_constraints =
+        let rec simplify_constraint_list acc = function
+          | [] -> return (List.rev acc)
+          | (t1, t2) :: rest ->
+              let- t1_simplified = simplify_mono_type t1 type_env in
+              let- t2_simplified = simplify_mono_type t2 type_env in
+              simplify_constraint_list ((t1_simplified, t2_simplified) :: acc)
+                rest
+        in
+        simplify_constraint_list [] constraints
+      in
 
-  let solution = reduce_eq simplified_constraints type_env in
-  let- the_mono_type = get_type t solution type_env in
-  let the_mono_type = fix_type the_mono_type in
-  let- the_c_type =
-    generalize simplified_constraints env type_env the_mono_type
-  in
-  return the_c_type
+      let solution = reduce_eq simplified_constraints type_env in
+      let- the_mono_type = get_type t solution type_env in
+      (* Do not [fix_type] before [generalize]: the solver's substitution still
+         uses internal names (e.g. [t214]); renaming here breaks [get_type]
+         inside [generalize]. *)
+      let- the_c_type =
+        generalize ~class_preds:extra_preds simplified_constraints env type_env
+          the_mono_type
+      in
+      return (fix_c_type the_c_type)
 
 (** Solved monomorphic type of [e1] (the function position) in the binary
     application [EApp (e1, e2)], after constraint solving. Used for
@@ -1370,6 +1484,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
   | CDefn (pat, type_annotation, body, return_type, num_explicit_params) ->
       (* Generate type and equations for the body *)
       let- body_type, body_equations, _ = generate env type_env body in
+      let p_body = !pending_expression_class_preds in
+      pending_expression_class_preds := [];
 
       (* Get pattern type and bindings *)
       let pattern_type, pattern_env, pattern_equations =
@@ -1412,7 +1528,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       in
 
       (* Generalize the body type *)
-      let- generalized_type = generalize all_equations env type_env body_type in
+      let- generalized_type =
+        generalize ~class_preds:p_body all_equations env type_env body_type in
 
       (* Create new environment with pattern bindings using bind_static *)
       let new_bindings =
@@ -1439,6 +1556,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
 
       (* Generate type and equations for the body with the recursive binding *)
       let- body_type, body_equations, _ = generate rec_env type_env body in
+      let p_body = !pending_expression_class_preds in
+      pending_expression_class_preds := [];
 
       (* Add constraint that the recursive type must match the body type *)
       let rec_constraint = (rec_type, body_type) in
@@ -1479,7 +1598,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       in
 
       (* Generalize the body type *)
-      let- generalized_type = generalize all_equations env type_env body_type in
+      let- generalized_type =
+        generalize ~class_preds:p_body all_equations env type_env body_type in
 
       (* Create new environment with pattern bindings using bind_static *)
       let new_bindings =
@@ -1591,6 +1711,21 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       in
 
       return (all_bindings, [], [])
+  | CClassDecl (cls_name, params, methods) -> (
+      match params with
+      | [ p ] ->
+          let w = forge_written_param p in
+          let bindings =
+            List.map
+              (fun (mname, mty) ->
+                ( mname,
+                  PolyType
+                    ( w,
+                      Constrained ([ (cls_name, TypeVar w) ], Mono mty) ) ))
+              methods
+          in
+          return (bindings, [], [])
+      | _ -> return ([], [], []))
   | CTypeAlias (name, params, body) ->
       (* Add the type alias to the type environment *)
       return ([], [ (name, params, body) ], [])
@@ -1627,7 +1762,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                 let payload_mono =
                   match payload_type with
                   | Mono m -> m
-                  | PolyType _ ->
+                  | PolyType _ | Constrained _ ->
                       failwith "Constructor payload cannot be polymorphic"
                 in
                 (* First, simplify the payload type to expand type aliases *)
@@ -1715,7 +1850,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                 let payload_mono =
                   match payload_type with
                   | Mono m -> m
-                  | PolyType _ ->
+                  | PolyType _ | Constrained _ ->
                       failwith "Constructor payload cannot be polymorphic"
                 in
                 (* First, simplify the payload type to expand type aliases *)
@@ -1814,7 +1949,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                     let payload_mono =
                       match payload_type with
                       | Mono m -> m
-                      | PolyType _ ->
+                      | PolyType _ | Constrained _ ->
                           failwith "Constructor payload cannot be polymorphic"
                     in
                     (* Simplify the payload type using extended environment *)
@@ -1885,6 +2020,18 @@ and simplify_type (t : c_type) (type_env : type_env) : c_type type_check_result
   | PolyType (var, t) ->
       let- t_simplified = simplify_type t type_env in
       return (PolyType (var, t_simplified))
+  | Constrained (ps, body) ->
+      let- ps' =
+        let rec aux acc = function
+          | [] -> return (List.rev acc)
+          | (c, ty) :: rest ->
+              let- ty' = simplify_mono_type ty type_env in
+              aux ((c, ty') :: acc) rest
+        in
+        aux [] ps
+      in
+      let- body' = simplify_type body type_env in
+      return (Constrained (ps', body'))
 
 and simplify_mono_type (t : mono_type) (type_env : type_env) :
     mono_type type_check_result =
@@ -1932,10 +2079,19 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
                   return (CTypeApp (v, []))
               | _ -> simplify_mono_type body type_env)
           | _ -> simplify_mono_type t type_env)
-      | None ->
-          (* If not found, treat it as a type variable (could be a type
-             parameter) *)
-          return (TypeVar v))
+      | None -> (
+          (* Surface primitive names (not in [type_env]) match lexer keywords. *)
+          match v with
+          | "string" -> return StringType
+          | "int" -> return IntType
+          | "bool" -> return BoolType
+          | "float" -> return FloatType
+          | "char" -> return CharType
+          | "unit" -> return UnitType
+          | _ ->
+              (* If not found, treat it as a type variable (could be a type
+                 parameter) *)
+              return (TypeVar v)))
   | CTypeApp (name, args) -> (
       (* First evaluate all the argument types *)
       let rec eval_args acc = function
@@ -2052,4 +2208,121 @@ let type_rec_binding_rhs (env : static_env) (type_env : type_env) (id : string)
 let rec get_mono_type (t : c_type) : mono_type =
   match t with
   | Mono t -> t
-  | PolyType (_, t) -> get_mono_type t
+  | PolyType (_, t) | Constrained (_, t) -> get_mono_type t
+
+let rec primary_class_constraint (t : c_type) : string option =
+  match t with
+  | Constrained ((c, _) :: _, _) -> Some c
+  | PolyType (_, inner) -> primary_class_constraint inner
+  | _ -> None
+
+(** Rewrite [Class.method e] to record dispatch after whole-program typecheck. *)
+let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
+    c_expr -> c_expr =
+  function
+  | EApp (e1, e2) -> (
+      let e2' = elaborate_expr static_env type_env e2 in
+      let e1' = elaborate_expr static_env type_env e1 in
+      match e1' with
+      | EId f -> (
+          match List.assoc_opt f static_env with
+          | Some sch when scheme_has_class_constraint sch -> (
+              match primary_class_constraint sch with
+              | None -> EApp (e1', e2')
+              | Some cls -> (
+                  match type_of_c_expr static_env type_env e2' with
+                  | Ok arg_ct ->
+                      let tau = get_mono_type arg_ct in
+                      let dict = dict_for_instance ~class_name:cls tau in
+                      if List.mem_assoc dict static_env then
+                        EApp (EFieldAccess (EId dict, f), e2')
+                      else EApp (e1', e2')
+                  | Error _ -> EApp (e1', e2')))
+          | _ -> EApp (e1', e2'))
+      | _ -> EApp (e1', e2'))
+  | EFunction (p, a, b) ->
+      EFunction (p, a, elaborate_expr static_env type_env b)
+  | EBind (p, a, e1, e2, r) ->
+      EBind
+        ( p,
+          a,
+          elaborate_expr static_env type_env e1,
+          elaborate_expr static_env type_env e2,
+          r )
+  | EBindRec (p, a, e1, e2, r) ->
+      EBindRec
+        ( p,
+          a,
+          elaborate_expr static_env type_env e1,
+          elaborate_expr static_env type_env e2,
+          r )
+  | EBindMutRec (bs, body) ->
+      EBindMutRec
+        ( List.map
+            (fun (p, a, e, r, n) ->
+              (p, a, elaborate_expr static_env type_env e, r, n))
+            bs,
+          elaborate_expr static_env type_env body )
+  | EBlock parts ->
+      EBlock
+        (List.map
+           (function
+             | Expr e -> Expr (elaborate_expr static_env type_env e)
+             | Defn d -> Defn (elaborate_defn static_env type_env d))
+           parts)
+  | ETernary (e1, e2, e3) ->
+      ETernary
+        ( elaborate_expr static_env type_env e1,
+          elaborate_expr static_env type_env e2,
+          elaborate_expr static_env type_env e3 )
+  | ESwitch (e, br) ->
+      ESwitch
+        ( elaborate_expr static_env type_env e,
+          List.map
+            (fun (p, ee) -> (p, elaborate_expr static_env type_env ee))
+            br )
+  | EVector es ->
+      EVector (List.map (elaborate_expr static_env type_env) es)
+  | EListEnumeration (e1, e2) ->
+      EListEnumeration
+        ( elaborate_expr static_env type_env e1,
+          elaborate_expr static_env type_env e2 )
+  | EListComprehension (e, gs) ->
+      EListComprehension
+        ( elaborate_expr static_env type_env e,
+          List.map
+            (fun (p, ge) -> (p, elaborate_expr static_env type_env ge))
+            gs )
+  | EBop (o, e1, e2) ->
+      EBop
+        ( o,
+          elaborate_expr static_env type_env e1,
+          elaborate_expr static_env type_env e2 )
+  | ERecordLit fs ->
+      ERecordLit
+        (List.map (fun (n, ee) -> (n, elaborate_expr static_env type_env ee)) fs)
+  | ERecordUpdate (e, fs) ->
+      ERecordUpdate
+        ( elaborate_expr static_env type_env e,
+          List.map
+            (fun (n, ee) -> (n, elaborate_expr static_env type_env ee))
+            fs )
+  | EFieldAccess (e, fld) ->
+      EFieldAccess (elaborate_expr static_env type_env e, fld)
+  | (EInt _ | EFloat _ | EBool _ | EString _ | EChar _ | EUnit | ENil | EId _)
+    as lit ->
+      lit
+
+and elaborate_defn (static_env : static_env) (type_env : type_env) d : c_defn =
+  match d with
+  | CDefn (pat, a, body, r, n) ->
+      CDefn (pat, a, elaborate_expr static_env type_env body, r, n)
+  | CDefnRec (pat, a, body, r, n) ->
+      CDefnRec (pat, a, elaborate_expr static_env type_env body, r, n)
+  | CDefnMutRec defs ->
+      CDefnMutRec
+        ( List.map
+            (fun (p, a, body, r, n) ->
+              (p, a, elaborate_expr static_env type_env body, r, n))
+            defs )
+  | d -> d

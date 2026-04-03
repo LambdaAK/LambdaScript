@@ -174,12 +174,13 @@ let rec get_pattern_type (pat : c_pat) (static_env : (string * c_type) list) : m
           (* Extract the return type from constructor type *)
           let mono = match c_type with
             | Mono m -> m
-            | PolyType _ ->
+            | PolyType _ | Constrained _ ->
                 (* Instantiate to get mono type *)
                 let rec get_return_type = function
                   | Mono (FunctionType (_, ret)) -> ret
                   | Mono t -> t
                   | PolyType (_, body) -> get_return_type body
+                  | Constrained (_, body) -> get_return_type body
                 in
                 get_return_type c_type
            in
@@ -344,7 +345,12 @@ and generate_witness_for_type (t : mono_type) (constructor_env : constructor_env
              cons_name
          | (cons_name, _, _, Some payload) :: _ ->
              (* Constructor with payload - generate witness for payload *)
-             let payload_mono = match payload with Mono m -> m | PolyType _ -> TypeVar "a" in
+             let rec ctype_leaf_mono = function
+               | Mono m -> m
+               | PolyType _ -> TypeVar "a"
+               | Constrained (_, inner) -> ctype_leaf_mono inner
+             in
+             let payload_mono = ctype_leaf_mono payload in
              let witness = generate_witness_for_type payload_mono constructor_env (depth - 1) in
              cons_name ^ " " ^ witness)
     | FunctionType _ -> "_"
@@ -365,7 +371,12 @@ and generate_missing_pattern (cons_name : string) (constructor_env : constructor
       cons_name
   | Some (Some payload_ctype) ->
       (* Constructor with payload - generate a witness *)
-      let payload_mono = match payload_ctype with Mono m -> m | PolyType _ -> TypeVar "a" in
+      let rec ctype_leaf_mono = function
+        | Mono m -> m
+        | PolyType _ -> TypeVar "a"
+        | Constrained (_, inner) -> ctype_leaf_mono inner
+      in
+      let payload_mono = ctype_leaf_mono payload_ctype in
       let witness = generate_witness_for_type payload_mono constructor_env 2 in
       cons_name ^ " " ^ witness
 
@@ -406,19 +417,28 @@ and get_constructor_column_types
         (flatten_constructor_rows constructor_env)
     in
 
+    let rec peel_constrained_ctype = function
+      | Constrained (_, inner) -> peel_constrained_ctype inner
+      | t -> t
+    in
     match payload_opt with
     | None | Some None ->
         (* Nullary constructor - just remove first column *)
         rest_column_types
-    | Some (Some (Mono (VectorType types))) ->
-        (* Tuple payload - expand to multiple columns *)
-        types @ rest_column_types
-    | Some (Some (Mono t)) ->
-        (* Single payload - one new column *)
-        t :: rest_column_types
-    | Some (Some (PolyType _)) ->
-        (* Polymorphic payload - treat as wildcard *)
-        TypeVar "a" :: rest_column_types
+    | Some (Some raw_ct) ->
+        (match peel_constrained_ctype raw_ct with
+        | Mono (VectorType types) ->
+            (* Tuple payload - expand to multiple columns *)
+            types @ rest_column_types
+        | Mono t ->
+            (* Single payload - one new column *)
+            t :: rest_column_types
+        | PolyType _ ->
+            (* Polymorphic payload - treat as wildcard *)
+            TypeVar "a" :: rest_column_types
+        | Constrained _ ->
+            (* Unreachable after peel; satisfy exhaustiveness *)
+            TypeVar "a" :: rest_column_types)
 
 (* Check exhaustiveness for all constructors of a type *)
 and check_all_constructors

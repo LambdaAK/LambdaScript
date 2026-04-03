@@ -199,7 +199,7 @@ let param_min_ir_tys (name : string) (param_anns : c_type option list)
       | None -> mono_to_min inf_m
       | Some (Mono m) ->
           mono_to_min (Typecheck.mono_concrete_or_int_default m)
-      | Some (PolyType _) ->
+      | Some (PolyType _) | Some (Constrained _) ->
           unsupported
             "Polymorphic parameter annotation not supported for compilation")
     param_anns inferred_monos
@@ -464,7 +464,7 @@ let ret_min_ty_of_user_fn (name : string) (num_params : int)
 
 let is_poly_static (name : string) (static_env : static_env) : bool =
   match List.assoc_opt name static_env with
-  | Some (PolyType _) -> true
+  | Some (PolyType _) | Some (Constrained _) -> true
   | Some (Mono _) | None -> false
 
 (** Map simple Min_IR types back to [mono_type] for typing local value bindings
@@ -769,7 +769,8 @@ and map_defn_eta (static_env : static_env) (d : c_defn) : c_defn =
                rt,
                n ))
            defns)
-  | CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _ -> d
+  | CClassDecl _ | CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _
+    -> d
 
 let eta_expand_program (static_env : static_env) (defs : c_defn list) : c_defn list
     =
@@ -1031,7 +1032,8 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
     | CDefnRec (pat, _, body, _, _) -> visit_def_body env pat body
     | CDefnMutRec ds ->
         List.iter (fun (pat, _, body, _, _) -> visit_def_body env pat body) ds
-    | CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _ -> ()
+    | CClassDecl _ | CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _
+      -> ()
   and visit_def_body (env : static_env) (pat : c_pat) (body : c_expr) : unit =
     match pat with
     | CIdPat fn_name ->
@@ -3101,7 +3103,8 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
     in
     let rec walk env = function
       | [] -> ()
-      | (CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _) :: rest
+      | (CClassDecl _ | CTypeAlias _ | CSumType _ | CSumTypeRec _
+        | CSumTypeRecMutRec _) :: rest
         ->
           walk env rest
       | CDefnRec (pat, _, body, _, _) :: rest -> (

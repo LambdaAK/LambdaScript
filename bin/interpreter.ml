@@ -41,7 +41,7 @@ let interpret (filename : string) =
           print_endline ("Warning: " ^ string_of_int (List.length remaining) ^ " tokens remaining after parsing");
           print_endline "The entire file was not parsed successfully.";
           exit 1);
-      let condensed_program = List.map condense_defn program in
+      let condensed_program = condense_program program in
 
       let static_env : static_env = build_full_static_env () in
       let dynamic_env : env = initial_env () |> unwrap_eval_result in
@@ -54,6 +54,7 @@ let interpret (filename : string) =
             match generate_defn static_env type_env defn with
             | Ok (new_bindings, new_type_env, _new_ctor_env) ->
                 (* TODO: propagate the monadic errors *)
+                let defn = elaborate_defn static_env type_env defn in
                 let new_dynamic_bindings =
                   match eval_defn defn dynamic_env with
                   | Ok v -> v

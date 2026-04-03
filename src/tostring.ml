@@ -578,5 +578,27 @@ and string_of_defn (d : defn) (level : int) =
                ^ "])")
              types)
       ^ "])"
+  | ClassDef (name, args, methods) ->
+      "ClassDef ("
+      ^ name
+      ^ (if args = [] then "" else ", [" ^ String.concat ", " args ^ "]")
+      ^ ", ["
+      ^ String.concat ", "
+          (List.map
+             (fun (m, ct) -> m ^ " : " ^ string_of_compound_type ct (level + 1))
+             methods)
+      ^ "])"
+  | InstanceDef (cls, head_ty, impls) ->
+      "InstanceDef ("
+      ^ cls
+      ^ ", "
+      ^ string_of_compound_type head_ty (level + 1)
+      ^ ", ["
+      ^ String.concat ", "
+          (List.map
+             (fun (m, e) ->
+               m ^ " = " ^ string_of_expr e (level + 1))
+             impls)
+      ^ "])"
 
 let string_of_expr (e : expr) = string_of_expr e 0

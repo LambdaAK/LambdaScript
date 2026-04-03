@@ -59,11 +59,15 @@ type mono_type =
 type c_type =
   | Mono of mono_type
   | PolyType of type_var * c_type (* Represents ∀x.τ *)
+  | Constrained of (string * mono_type) list * c_type
+        (** Typeclass constraints [(class_name, type)] ... before inner scheme. *)
 
 and c_defn =
   | CDefn of c_pat * c_type option * c_expr * c_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
   | CDefnRec of c_pat * c_type option * c_expr * c_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
   | CDefnMutRec of (c_pat * c_type option * c_expr * c_type option * int) list (* mutually recursive definitions *)
+  | CClassDecl of string * string list * (string * mono_type) list
+      (** Elaborated class header; runtime/LLVM ignore it; kept for tooling/errors. *)
   | CTypeAlias of string * string list * mono_type
   | CSumType of string * string list * (string * c_type option) list
   | CSumTypeRec of string * string list * (string * c_type option) list
@@ -112,6 +116,8 @@ and value =
   | VectorValue of value list
   | ListValue of value list
   | BuiltInFunction of builtin_function
+  (** Resolve [class_name, method_name] at apply-time using instance dicts in the env. *)
+  | TypeClassMethod of string * string
   | VariantValue of string * value option
   | RecordValue of (string * value) list
 (* Constructor name and optional payload value *)
@@ -159,12 +165,20 @@ let fresh_type_var : unit -> mono_type =
 let rec apply_type (func : c_type) (arg : mono_type) : c_type =
   match func with
   | PolyType (var, body) -> substitute_type body var arg
+  | Constrained _ ->
+      failwith "Cannot apply type: Constrained is not a type function"
   | Mono _ -> failwith "Cannot apply monomorphic type"
 
 (* Type substitution: replaces type variables with types *)
 and substitute_type (t : c_type) (var : type_var) (replacement : mono_type) :
     c_type =
   match t with
+  | Constrained (ps, body) ->
+      Constrained
+        ( List.map
+            (fun (c, ty) -> (c, substitute_mono ty var replacement))
+            ps,
+          substitute_type body var replacement )
   | Mono (TypeVar v) -> if v = var then Mono replacement else t
   | Mono (FunctionType (t1, t2)) ->
       Mono
@@ -238,6 +252,10 @@ let rec string_of_mono_type : mono_type -> string = function
 let rec string_of_type : c_type -> string = function
   | Mono t -> string_of_mono_type t
   | PolyType (var, body) -> "∀" ^ var ^ ". " ^ string_of_type body
+  | Constrained (ps, body) ->
+      String.concat ", "
+        (List.map (fun (cls, ty) -> cls ^ " " ^ string_of_mono_type ty) ps)
+      ^ " => " ^ string_of_type body
 
 (* Types form a lambda calculus. Here are functions that help us manipulate
    types in this lambda calculus. *)

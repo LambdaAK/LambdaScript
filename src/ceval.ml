@@ -2,6 +2,7 @@ open Lex
 open Condense
 open Cexpr
 open Env
+open Forge_class_util
 open Parser.ExprParser
 
 (** [eval_error] represents different kinds of errors that can occur during
@@ -84,7 +85,8 @@ and string_of_value = function
   | CharValue c -> "'" ^ String.make 1 c ^ "'"
   | BooleanValue b -> string_of_bool b
   | UnitValue -> "()"
-  | FunctionClosure _ | RecursiveFunctionClosure _ | BuiltInFunction _ ->
+  | FunctionClosure _ | RecursiveFunctionClosure _ | BuiltInFunction _
+  | TypeClassMethod _ ->
       "function"
   | VectorValue values ->
       let values_string : string =
@@ -188,6 +190,7 @@ and bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
     match t with
     | Mono m -> Some m
     | PolyType (_, t') -> get_mono_type t'
+    | Constrained (_, t') -> get_mono_type t'
   in
   match p with
   | CUnitPat -> (
@@ -240,6 +243,57 @@ and bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
           bind_static payload_pat (Mono (TypeVar "$payload"))
       | _ -> None)
   | CIntPat _ | CBoolPat _ | CNilPat | CConsPat _ | CStringPat _ -> None
+
+(** Best-effort reification of a runtime value into a [mono_type] for typeclass
+    dictionary lookup (scalars, lists, vectors, records of supported shapes). *)
+let rec mono_type_of_value (v : value) : mono_type option =
+  match v with
+  | IntegerValue _ -> Some IntType
+  | BooleanValue _ -> Some BoolType
+  | StringValue _ -> Some StringType
+  | CharValue _ -> Some CharType
+  | FloatValue _ -> Some FloatType
+  | UnitValue -> Some UnitType
+  | ListValue [] -> None
+  | ListValue (x :: xs) -> (
+      match mono_type_of_value x with
+      | Some et ->
+          if
+            List.for_all
+              (fun y ->
+                match mono_type_of_value y with
+                | Some et' -> et' = et
+                | None -> false)
+              xs
+          then Some (CListType et)
+          else None
+      | None -> None)
+  | VectorValue vs ->
+      let rec go acc = function
+        | [] -> Some (VectorType (List.rev acc))
+        | h :: t -> (
+            match mono_type_of_value h with
+            | Some m -> go (m :: acc) t
+            | None -> None)
+      in
+      go [] vs
+  | RecordValue fields ->
+      let rec map_fields = function
+        | [] -> Some []
+        | (nm, fv) :: rest -> (
+            match mono_type_of_value fv with
+            | None -> None
+            | Some t -> (
+                match map_fields rest with
+                | None -> None
+                | Some tl -> Some ((nm, t) :: tl)))
+      in
+      (match map_fields fields with
+      | Some pairs -> Some (RecordType pairs)
+      | None -> None)
+  | VariantValue _ | FunctionClosure _ | RecursiveFunctionClosure _
+  | BuiltInFunction _ | TypeClassMethod _ ->
+      None
 
 (** [eval_c_expr ce env] evaluates a condensed expression [ce] in the context of
     environment [env].
@@ -354,6 +408,8 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
           match bind_pat p v2 with
           | Some env'' -> eval_c_expr e (env'' @ env')
           | None -> Error (OtherError "eval_c_expr: EApp"))
+      | TypeClassMethod (cls_name, method_name) ->
+          dispatch_typeclass_method_app env cls_name method_name v2
       | _ -> Error (OtherError "eval_c_expr: EApp"))
   | EBind (pattern, _, e1, e2, _) ->
       (* We have let p = e1 in e2. We can convert this to (fun p -> e2) e1 and
@@ -474,7 +530,86 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
           | Some v -> return v
           | None -> Error (OtherError ("Field " ^ field_name ^ " not found in record")))
       | _ -> Error (OtherError "Field access on non-record value"))
-
+and apply_function_value env v_fn v_arg : value eval_result =
+  match v_fn with
+  | BuiltInFunction f -> eval_builtin f v_arg
+  | FunctionClosure (env', p, _, e) -> (
+      match p with
+      | CIdPat pattern_name
+        when String.length pattern_name > 14
+             && String.sub pattern_name 0 14 = "__constructor_" ->
+          let cons_name =
+            String.sub pattern_name 14 (String.length pattern_name - 14)
+          in
+          VariantValue (cons_name, Some v_arg) |> return
+      | _ -> (
+          match bind_pat p v_arg with
+          | Some env'' -> eval_c_expr e (env'' @ env')
+          | None -> Error (OtherError "eval_c_expr: EApp")))
+  | RecursiveFunctionClosure (env'_ref, p, _, e) ->
+      let env' : env = !env'_ref in
+      (match bind_pat p v_arg with
+      | Some env'' -> eval_c_expr e (env'' @ env')
+      | None -> Error (OtherError "eval_c_expr: EApp"))
+  | TypeClassMethod (cls_name, method_name) ->
+      dispatch_typeclass_method_app env cls_name method_name v_arg
+  | _ -> Error (OtherError "apply_function_value: not callable")
+and dispatch_typeclass_method_app env cls_name method_name v_arg : value eval_result =
+  let from_mono tau =
+    let dict = dict_for_instance ~class_name:cls_name tau in
+    match List.assoc_opt dict env with
+    | Some (RecordValue fields) -> (
+        match List.assoc_opt method_name fields with
+        | Some method_fn -> apply_function_value env method_fn v_arg
+        | None ->
+            Error
+              (OtherError
+                 ("missing method " ^ method_name ^ " on dictionary " ^ dict)))
+    | Some _ ->
+        Error (OtherError ("expected record instance dictionary " ^ dict))
+    | None ->
+        Error
+          (TypeError
+             ("no " ^ cls_name ^ " instance for `" ^ mono_type_slug tau ^ "`"))
+  in
+  match mono_type_of_value v_arg with
+  | Some tau -> from_mono tau
+  | None -> (
+      (* [] has no element type at runtime; pick any list instance dict for this
+         class (e.g. polymorphic [instance Show = ['a] { ... }]). *)
+      match v_arg with
+      | ListValue [] -> (
+          let prefix = "__forge_dict_" ^ cls_name ^ "_list__" in
+          match
+            List.find_map
+              (fun (k, v) ->
+                if not (String.starts_with ~prefix k) then None
+                else
+                  match v with
+                  | RecordValue fields -> Some (k, fields)
+                  | _ -> None)
+              env
+          with
+          | Some (dict_name, fields) -> (
+              match List.assoc_opt method_name fields with
+              | Some method_fn -> apply_function_value env method_fn v_arg
+              | None ->
+                  Error
+                    (OtherError
+                       ("missing method " ^ method_name ^ " on dictionary "
+                      ^ dict_name)))
+          | None ->
+              Error
+                (TypeError
+                   (cls_name
+                   ^ ": cannot select an instance for this value at runtime (unsupported \
+                      shape)")))
+      | _ ->
+          Error
+            (TypeError
+               (cls_name
+               ^ ": cannot select an instance for this value at runtime (unsupported \
+                  shape)")))
 and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   match (f, v) with
   | Println, StringValue s ->
@@ -650,7 +785,7 @@ and create_generic_type : c_pat -> c_type = function
               (fun p ->
                 match create_generic_type p with
                 | Mono t -> t
-                | PolyType (_, _) ->
+                | PolyType (_, _) | Constrained _ ->
                     failwith
                       "Polymorphic types not supported in create_generic_type \
                        for vectors")
@@ -663,7 +798,7 @@ and create_generic_type : c_pat -> c_type = function
                 ( name,
                   match create_generic_type p with
                   | Mono t -> t
-                  | PolyType (_, _) ->
+                  | PolyType (_, _) | Constrained _ ->
                       failwith
                         "Polymorphic types not supported in create_generic_type \
                          for records" ))
@@ -782,6 +917,16 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       in
 
       return all_bindings
+  | CClassDecl (cls_name, params, methods) -> (
+      match params with
+      | [ _ ] ->
+          let bindings =
+            List.map
+              (fun (mname, _) -> (mname, TypeClassMethod (cls_name, mname)))
+              methods
+          in
+          return bindings
+      | _ -> return [])
   | CTypeAlias _ ->
       (* doesn't do anything *)
       return []
