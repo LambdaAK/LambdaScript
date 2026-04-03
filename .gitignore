@@ -12,7 +12,7 @@ src/_build
 # Clang / LLDB debug symbol bundles (local builds)
 *.dSYM/
 
-# LambdaScript compiler outputs (written next to the .ls source)
+# Forge compiler outputs (written next to the .ls source)
 *.mir
 *.ll
 *.s

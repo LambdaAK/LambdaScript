@@ -1,7 +1,7 @@
 {
   "name": "lambdascript",
-  "displayName": "LambdaScript",
-  "description": "Syntax highlighting for LambdaScript programming language",
+  "displayName": "Forge",
+  "description": "Syntax highlighting for Forge (formerly LambdaScript) programs",
   "version": "0.1.0",
   "publisher": "lambdascript",
   "engines": {
@@ -15,6 +15,7 @@
       {
         "id": "lambdascript",
         "aliases": [
+          "Forge",
           "LambdaScript",
           "lambdascript",
           "ls"

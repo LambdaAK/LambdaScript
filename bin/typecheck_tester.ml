@@ -116,7 +116,7 @@ let rec run_repl_loop static_env dynamic_env type_env =
 
 let run_repl () =
   (* Print welcome message *)
-  print_colored_line (color_bold ^ color_cyan) "💻 LambdaScript REPL";
+  print_colored_line (color_bold ^ color_cyan) "💻 Forge REPL";
   print_newline ();
 
   let static_env = [] in

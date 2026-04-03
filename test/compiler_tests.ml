@@ -41,7 +41,7 @@ let find_sub_from (s : string) (sub : string) (from : int) : int option =
   go from
 
 (** Format: first line [Expected:], then expected stdout bytes until a line
-    containing only [Source:], then the LambdaScript source. *)
+    containing only [Source:], then the Forge source. *)
 let parse_case_file path : string * string =
   let content =
     In_channel.with_open_bin path (fun ic -> In_channel.input_all ic) |> drop_cr

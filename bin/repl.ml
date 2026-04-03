@@ -70,7 +70,7 @@ let rec read_multiline ?(prompt = "") () =
       exit 0
 
 let print_help () =
-  print_colored_line (color_bold ^ color_cyan) "LambdaScript REPL Commands:";
+  print_colored_line (color_bold ^ color_cyan) "Forge REPL Commands:";
   print_colored_line color_green "  :help, :h        Show this help message";
   print_colored_line color_green "  :quit, :q        Exit the REPL";
   print_colored_line color_green "  :env             Show current environment";
@@ -95,7 +95,7 @@ let handle_command cmd static_env dynamic_env type_env history =
     (* ANSI escape sequence to clear screen *)
     print_string "\027[2J\027[H";
     flush_all ();
-    print_colored_line (color_bold ^ color_cyan) "💻 LambdaScript REPL";
+    print_colored_line (color_bold ^ color_cyan) "💻 Forge REPL";
     print_colored_line color_dim "Type :help for commands, :quit to exit";
     print_newline ();
     NoChange)
@@ -358,7 +358,7 @@ let load_file_into_env filename static_env dynamic_env type_env =
 
 let run_repl ?preload_file () =
   (* Print welcome message *)
-  print_colored_line (color_bold ^ color_cyan) "💻 LambdaScript REPL";
+  print_colored_line (color_bold ^ color_cyan) "💻 Forge REPL";
   print_colored_line color_dim "Type :help for commands, :quit to exit";
   print_newline ();
 

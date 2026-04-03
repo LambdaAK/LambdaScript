@@ -1,9 +1,9 @@
 /* ============================================
-   LambdaScript Custom Binary Operators
+   Forge Custom Binary Operators
    ============================================
 
    This demonstrates how to define and use
-   custom binary operators in LambdaScript.
+   custom binary operators in Forge.
 */
 
 // Custom operators are defined using parentheses around the operator name

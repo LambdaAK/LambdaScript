@@ -7,7 +7,7 @@
 
 
 
-\title{LambdaScript Syntax and Semantics}
+\title{Forge Syntax and Semantics}
 \author{Alex Kozik}
 \begin{document}
 \large
@@ -265,7 +265,7 @@ define a few things.
 
 
 \subsection{Dynamic Environment}
-LambdaScript uses an environment model to make substitutions in function bodies. The environment is an object defined as follows
+Forge uses an environment model to make substitutions in function bodies. The environment is an object defined as follows
 $$\Delta \in Var  \rightarrow Value$$
 
 
@@ -452,7 +452,7 @@ $$(\Delta, e_3) \implies v$$
 
 \subsection{Function}
 
-A function in LambdaScript evaluates to a function closure, which consists of three parts: the environment, the pattern, and the body.
+A function in Forge evaluates to a function closure, which consists of three parts: the environment, the pattern, and the body.
 
 $$(\Delta, \text{fn } p \rightarrow e) \implies (\Delta, p, e)$$
 
@@ -674,7 +674,7 @@ $$I(t_1 \rightarrow u_1 \rightarrow u_2 ) = (t_1 \rightarrow t_2 \rightarrow t_3
 
 \subsection{Type Relation}
 
-In order to discuss the relationships between the expressions of LambdaScript and the corresponding types, we must first define a type relation.
+In order to discuss the relationships between the expressions of Forge and the corresponding types, we must first define a type relation.
 
 The type relation is defined as follows
 

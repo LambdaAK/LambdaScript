@@ -39,7 +39,7 @@
 \newtheorem{definition}{Definition}
 
 % Title information
-\title{\Large\bfseries LambdaScript: A Functional Programming Language}
+\title{\Large\bfseries Forge: A Functional Programming Language}
 \author{
   {\large\bfseries Alex Kozik (ajk333@cornell.edu)} \\
   {\normalsize Department of Computer Science, Cornell University, Ithaca, NY, USA}
@@ -53,7 +53,7 @@
 \begin{abstract}
 \small
 \noindent
-[Write a 150-word abstract summarizing: (1) What LambdaScript is, (2) Key features (type inference, pattern matching, recursive types), (3) Main contributions of the work]
+[Write a 150-word abstract summarizing: (1) What Forge is, (2) Key features (type inference, pattern matching, recursive types), (3) Main contributions of the work]
 
 \end{abstract}
 
@@ -67,7 +67,7 @@
 
 \subsection{Syntax}
 
-We present the abstract syntax of LambdaScript using BNF notation. The language supports first-class functions, algebraic data types, pattern matching, and polymorphic type inference.
+We present the abstract syntax of Forge using BNF notation. The language supports first-class functions, algebraic data types, pattern matching, and polymorphic type inference.
 
 \textbf{Expressions:}
 
@@ -111,7 +111,7 @@ where $\alpha$ ranges over type variables, $T$ ranges over type constructors, $\
 
 \subsection{Type System}
 
-LambdaScript uses a Hindley-Milner style type system with support for polymorphism and algebraic data types. We define typing judgments of the form $\Delta; \Gamma \vdash e : \tau$, where $\Delta$ is a type variable environment, $\Gamma$ is a term variable environment mapping identifiers to type schemes, and $\tau$ is a monomorphic type.
+Forge uses a Hindley-Milner style type system with support for polymorphism and algebraic data types. We define typing judgments of the form $\Delta; \Gamma \vdash e : \tau$, where $\Delta$ is a type variable environment, $\Gamma$ is a term variable environment mapping identifiers to type schemes, and $\tau$ is a monomorphic type.
 
 \textbf{Typing Rules:}
 
@@ -177,7 +177,7 @@ $$
 
 \subsection{Static Semantics}
 
-Type inference in LambdaScript follows a constraint-based approach in the style of Algorithm W. The type checker operates in three phases:
+Type inference in Forge follows a constraint-based approach in the style of Algorithm W. The type checker operates in three phases:
 
 \textbf{1. Constraint Generation}
 
@@ -218,7 +218,7 @@ where $\{\alpha_i\} = FV(\tau) \setminus FV(\Gamma)$.
 
 \subsection{Dynamic Semantics}
 
-We define the operational semantics of LambdaScript using big-step (natural) semantics. Evaluation judgments have the form $\rho \vdash e \Downarrow v$, where $\rho$ is an environment mapping variables to values, $e$ is an expression, and $v$ is a value.
+We define the operational semantics of Forge using big-step (natural) semantics. Evaluation judgments have the form $\rho \vdash e \Downarrow v$, where $\rho$ is an environment mapping variables to values, $e$ is an expression, and $v$ is a value.
 
 \textbf{Values:}
 

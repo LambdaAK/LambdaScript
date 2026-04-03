@@ -27,8 +27,8 @@
   (backend bisect_ppx)))
 
 (executable
- (name compile_lambdascript)
- (modules compile_lambdascript)
+ (name compile_forge)
+ (modules compile_forge)
  (libraries Language)
  (instrumentation
   (backend bisect_ppx)))

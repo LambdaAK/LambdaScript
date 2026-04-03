@@ -1,4 +1,4 @@
-/* LambdaScript compiler runtime — linked with clang-generated executables. */
+/* Forge compiler runtime — linked with clang-generated executables. */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>

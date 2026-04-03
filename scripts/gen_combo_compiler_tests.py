@@ -14,7 +14,7 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "test" / "compiler_cases"
 # Use the built exe directly (avoid `dune exec` per case — very slow).
-COMPILE_EXE = ROOT / "_build" / "default" / "bin" / "compile_lambdascript.exe"
+COMPILE_EXE = ROOT / "_build" / "default" / "bin" / "compile_forge.exe"
 
 
 def compile_and_run(source: str) -> tuple[bool, str]:
@@ -25,7 +25,7 @@ def compile_and_run(source: str) -> tuple[bool, str]:
         exe = td / "out.bin"
         src.write_text(source.rstrip() + "\n", encoding="utf-8")
         if not COMPILE_EXE.is_file():
-            return False, f"missing {COMPILE_EXE}; run: dune build bin/compile_lambdascript.exe"
+            return False, f"missing {COMPILE_EXE}; run: dune build bin/compile_forge.exe"
         p = subprocess.run(
             [str(COMPILE_EXE), str(src), str(exe)],
             cwd=ROOT,
@@ -168,7 +168,7 @@ assert len(PROGRAMS) == 100, len(PROGRAMS)
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     subprocess.run(
-        ["dune", "build", "bin/compile_lambdascript.exe"],
+        ["dune", "build", "bin/compile_forge.exe"],
         cwd=ROOT,
         check=True,
     )

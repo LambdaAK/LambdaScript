@@ -8,7 +8,7 @@
     - [string] is an opaque value (LLVM will use something like [i8*] + runtime).
     - Local bindings via [Assign]; every intermediate has a name (LLVM-friendly)
     - Side-effecting I/O via [VoidCall] (see {!runtime_void_symbols})
-    - String conversion matching LambdaScript builtins: [int_to_str] as [Call]
+    - String conversion matching Forge builtins: [int_to_str] as [Call]
     - Control flow: labeled basic blocks; [Br], [BrCond]; [Ret]
     - [Phi] only at block heads (LLVM convention) for SSA merge points
 
@@ -98,7 +98,7 @@ type instr =
   (* [Phi (dst, ty, [(lbl, op); ...])]: one incoming operand per predecessor
      block [lbl]. [dst] must dominate uses per usual SSA rules. *)
   | Phi of string * ty * (string * operand) list
-  (* Side-effect only; no result. Names match LambdaScript builtins — see
+  (* Side-effect only; no result. Names match Forge builtins — see
      {!runtime_void_symbols}. *)
   | VoidCall of string * operand list
   | VoidIndirectCall of operand * ty list * operand list

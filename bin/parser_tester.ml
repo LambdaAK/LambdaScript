@@ -71,7 +71,7 @@ let rec parser_tester () =
 
 let run_parser_tester () =
   (* Print welcome message *)
-  print_colored_line (color_bold ^ color_cyan) "🔍 LambdaScript Parser Tester";
+  print_colored_line (color_bold ^ color_cyan) "🔍 Forge Parser Tester";
   print_colored_line color_dim "Enter expressions or definitions to parse";
   print_colored_line color_dim "End input with ;;";
   print_newline ();

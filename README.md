@@ -1,4 +1,4 @@
-# LambdaScript
+# Forge
 
 A statically-typed functional programming language with type inference, polymorphism, and powerful pattern matching.
 
@@ -7,7 +7,7 @@ The reference implementation in this repository is written in **OCaml** and incl
 - an **interpreter** (evaluate programs directly), and  
 - an **ahead-of-time compiler** that lowers programs to **Min IR**, then **LLVM IR**, then **assembly**, and links a **native executable** with Clang using a small C runtime (`runtime/ls_runtime.c`).
 
-There is also an experimental rewrite in TypeScript: [LambdaScript 2](https://github.com/LambdaAK/LambdaScript-2).
+An experimental TypeScript implementation also exists in a separate repository: [LambdaScript-2](https://github.com/LambdaAK/LambdaScript-2).
 
 ## Table of Contents
 
@@ -21,7 +21,7 @@ There is also an experimental rewrite in TypeScript: [LambdaScript 2](https://gi
 
 ## Overview
 
-LambdaScript is a **statically-typed functional programming language** inspired by OCaml and Haskell. It features:
+Forge is a **statically-typed functional programming language** inspired by OCaml and Haskell. It features:
 
 - **Static type system** with Hindley-Milner style type inference
 - **Polymorphic types** with type parameters
@@ -518,12 +518,14 @@ git clone https://github.com/LambdaAK/LambdaScript
 cd LambdaScript
 ```
 
+*(The remote repository and default clone folder may still be named **LambdaScript** until you rename them; the language itself is **Forge**.)*
+
 2. Build the project:
 ```bash
 make
 ```
 
-This builds the **interpreter**, **REPL**, **compiler** (`compile_lambdascript`), and other developer tools under `bin/`.
+This builds the **interpreter**, **REPL**, **compiler** (`compile_forge`), and other developer tools under `bin/`.
 
 ## Usage
 
@@ -536,9 +538,9 @@ make repl
 
 In the REPL, you can type expressions and see their types and evaluated results immediately.
 
-### Running LambdaScript Files
+### Running Forge programs
 
-Execute a `.ls` or `.txt` file containing LambdaScript code:
+Execute a `.ls` or `.txt` file containing Forge code:
 ```bash
 dune exec ./bin/interpreter.exe <filename>
 ```
@@ -550,11 +552,11 @@ dune exec ./bin/interpreter.exe programs/factorial.txt
 
 ### File Extension
 
-LambdaScript files typically use `.ls` or `.txt` extensions.
+Source files typically use `.ls` or `.txt` extensions.
 
 ## Native compilation
 
-The compiler parses and typechecks a LambdaScript file, lowers it to **Min IR** (`.mir`), emits **LLVM IR** (`.ll`), runs **Clang** to produce assembly (`.s`) and a **linked executable**. The C runtime in `runtime/ls_runtime.c` provides memory and runtime glue for the generated code.
+The compiler parses and typechecks a Forge source file, lowers it to **Min IR** (`.mir`), emits **LLVM IR** (`.ll`), runs **Clang** to produce assembly (`.s`) and a **linked executable**. The C runtime in `runtime/ls_runtime.c` provides memory and runtime glue for the generated code.
 
 From the repository root:
 
@@ -573,10 +575,10 @@ make compile-ls FILE=programs/minimal.ls OUT=./my_program
 Equivalent direct invocation:
 
 ```bash
-dune exec ./bin/compile_lambdascript.exe programs/minimal.ls ./my_program
+dune exec ./bin/compile_forge.exe programs/minimal.ls ./my_program
 ```
 
-**Finding the runtime:** compilation searches upward from the current directory for `runtime/ls_runtime.c`. If you run the compiler from elsewhere, set `LAMBDASCRIPT_ROOT` to the checkout path.
+**Finding the runtime:** compilation searches upward from the current directory for `runtime/ls_runtime.c`. If you run the compiler from elsewhere, set `FORGE_ROOT` to the checkout path (the legacy variable `LAMBDASCRIPT_ROOT` is still accepted).
 
 **Inspecting IR without linking:**
 
@@ -630,7 +632,7 @@ Tests are organized in `test/test.ml` and cover:
 
 ## Language Semantics
 
-For a rigorous formal definition of LambdaScript's semantics, see:
+For a rigorous formal definition of Forge's semantics, see:
 https://github.com/LambdaAK/LambdaScript/blob/main/documentation/LambdaScript.pdf
 
 **Note**: The formal semantics document may not reflect all recent language features and syntax changes.
@@ -654,8 +656,8 @@ make opendoc
 ## Project Structure
 
 ```
-LambdaScript/
-├── bin/              # interpreter, REPL, compile_lambdascript, dump_min_ir, ...
+Forge/                # clone may still be named LambdaScript/ until the repo is renamed
+├── bin/              # interpreter, REPL, compile_forge, dump_min_ir, ...
 ├── src/              # Source code
 │   ├── lex.ml, parser.ml
 │   ├── typecheck.ml, eval.ml, env.ml

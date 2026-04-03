@@ -28,7 +28,11 @@ let runtime_c_path () =
       let parent = Filename.dirname dir in
       if String.equal parent dir then None else search_up parent
   in
-  match Sys.getenv_opt "LAMBDASCRIPT_ROOT" with
+  match
+    match Sys.getenv_opt "FORGE_ROOT" with
+    | Some _ as r -> r
+    | None -> Sys.getenv_opt "LAMBDASCRIPT_ROOT"
+  with
   | Some root -> Filename.concat root "runtime/ls_runtime.c"
   | None -> (
       let cwd = Sys.getcwd () in
@@ -39,8 +43,8 @@ let runtime_c_path () =
         | Some p -> p
         | None ->
             failwith
-              "Cannot find runtime/ls_runtime.c — run from the LambdaScript repo \
-               root or set LAMBDASCRIPT_ROOT")
+              "Cannot find runtime/ls_runtime.c — run from the Forge repo root \
+               or set FORGE_ROOT (legacy: LAMBDASCRIPT_ROOT)")
 
 let rec typecheck_defns static_env type_env ctor_env defns
     : (typechecked_envs, string) result =

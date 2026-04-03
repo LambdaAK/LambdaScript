@@ -1,5 +1,5 @@
 /* ============================================
-   LambdaScript Comment Feature Examples
+   Forge Comment Feature Examples
    ============================================
 
    This demonstrates both single-line and

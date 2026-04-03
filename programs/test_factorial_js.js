@@ -1,5 +1,5 @@
 
-// LambdaScript Runtime Helpers
+// Forge Runtime Helpers
 
 // Cons cell representation for lists
 class Cons {

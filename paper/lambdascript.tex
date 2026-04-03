@@ -11,7 +11,7 @@
 
 \begin{document}
 
-\title{LambdaScript : A Functional Programming Language}
+\title{Forge : A Functional Programming Language}
 
 \author{\IEEEauthorblockN{Alex Kozik}
 \IEEEauthorblockA{\textit{Cornell University}\\
@@ -22,7 +22,7 @@ ajk333@cornell.edu}
 \maketitle
 
 \begin{abstract}
-We present LambdaScript, a statically-typed functional programming language inspired by Haskell and OCaml. LambdaScript features Hindley-Milner type inference, polymorphic algebraic data types, comprehensive pattern matching, and first-class functions with closures. The language supports advanced features including mutually recursive type definitions, list comprehensions, and operators as first-class values. This paper describes both the formal semantics and the complete implementation of LambdaScript, including the design of the type system, operational semantics, and the architecture of a full interpreter pipeline consisting of lexical analysis, parser combinators, constraint-based type inference, and environment-based evaluation. The implementation is validated through 1200 unit tests covering complex real-world algorithms including red-black trees, interpreters, and graph traversal.
+We present Forge, a statically-typed functional programming language inspired by Haskell and OCaml. Forge features Hindley-Milner type inference, polymorphic algebraic data types, comprehensive pattern matching, and first-class functions with closures. The language supports advanced features including mutually recursive type definitions, list comprehensions, and operators as first-class values. This paper describes both the formal semantics and the complete implementation of Forge, including the design of the type system, operational semantics, and the architecture of a full interpreter pipeline consisting of lexical analysis, parser combinators, constraint-based type inference, and environment-based evaluation. The implementation is validated through 1200 unit tests covering complex real-world algorithms including red-black trees, interpreters, and graph traversal.
 \end{abstract}
 
 \tableofcontents
@@ -32,9 +32,9 @@ We present LambdaScript, a statically-typed functional programming language insp
 
 Statically-typed functional programming languages such as Haskell, OCaml, and Standard ML provide powerful abstractions for writing correct programs through algebraic data types, pattern matching, and polymorphic type inference. The Hindley-Milner type system enables programmers to write code without explicit type annotations while maintaining complete type safety through automatic type inference. However, understanding how these features interact---both formally through typing rules and operationally through implementation---requires navigating complex, mature language ecosystems with decades of accumulated features and optimizations.
 
-This paper presents \textbf{LambdaScript}, a functional programming language designed to demonstrate that rigorous formal semantics and practical implementation can coexist harmoniously. LambdaScript features a complete Hindley-Milner type inference system, polymorphic algebraic data types, comprehensive pattern matching, and advanced features including mutually recursive type definitions. Rather than merely describing theoretical properties, we provide both a complete formal semantics and a fully implemented interpreter validated through extensive testing.
+This paper presents \textbf{Forge}, a functional programming language designed to demonstrate that rigorous formal semantics and practical implementation can coexist harmoniously. Forge features a complete Hindley-Milner type inference system, polymorphic algebraic data types, comprehensive pattern matching, and advanced features including mutually recursive type definitions. Rather than merely describing theoretical properties, we provide both a complete formal semantics and a fully implemented interpreter validated through extensive testing.
 
-A key contribution of LambdaScript is its treatment of \textbf{mutually recursive algebraic data types}, which enable natural representation of complex data structures such as trees with forests, abstract syntax trees with multiple node types, and graph-based structures. While languages like OCaml and Haskell support such types, their formal semantics and implementation present subtle challenges in constraint generation, type environment management, and ensuring that recursive references are properly resolved during type checking. LambdaScript addresses these challenges with a clean syntax using the \texttt{and} keyword and a carefully designed type checking algorithm that extends the standard Hindley-Milner approach.
+A key contribution of Forge is its treatment of \textbf{mutually recursive algebraic data types}, which enable natural representation of complex data structures such as trees with forests, abstract syntax trees with multiple node types, and graph-based structures. While languages like OCaml and Haskell support such types, their formal semantics and implementation present subtle challenges in constraint generation, type environment management, and ensuring that recursive references are properly resolved during type checking. Forge addresses these challenges with a clean syntax using the \texttt{and} keyword and a carefully designed type checking algorithm that extends the standard Hindley-Milner approach.
 
 The implementation consists of a complete interpreter pipeline: a lexer that tokenizes source code, a parser built using parser combinators for compositional grammar definitions, a constraint-based type checker implementing Hindley-Milner inference with extensions for recursive types, and an environment-based evaluator that handles closures, recursion, and pattern matching. The entire system is written in OCaml and validated through 1200 unit tests covering type inference edge cases, evaluation correctness, and real-world algorithms including red-black tree operations.
 
@@ -46,16 +46,16 @@ The main contributions of this paper are:
 \item Validation through 1200 unit tests demonstrating correctness on complex algorithms including red-black trees, showcasing the language's expressiveness
 \end{itemize}
 
-The remainder of this paper is organized as follows. Section~II presents examples demonstrating LambdaScript's features, building intuition before formal treatment. Section~III describes the type system design, including polymorphism, algebraic data types, and type inference. Section~IV defines the language syntax. Section~V provides detailed formal semantics with typing rules and operational semantics. Section~VI details the implementation architecture of each pipeline component. Section~VII presents testing methodology and evaluation results. Section~VIII concludes with reflections and future directions.
+The remainder of this paper is organized as follows. Section~II presents examples demonstrating Forge's features, building intuition before formal treatment. Section~III describes the type system design, including polymorphism, algebraic data types, and type inference. Section~IV defines the language syntax. Section~V provides detailed formal semantics with typing rules and operational semantics. Section~VI details the implementation architecture of each pipeline component. Section~VII presents testing methodology and evaluation results. Section~VIII concludes with reflections and future directions.
 
 \newpage
 \section{Examples}
 
-This section presents examples that demonstrate LambdaScript's core features, building intuition for the formal treatment in subsequent sections. We showcase algebraic data types, pattern matching, polymorphism, and higher-order functions through practical examples.
+This section presents examples that demonstrate Forge's core features, building intuition for the formal treatment in subsequent sections. We showcase algebraic data types, pattern matching, polymorphism, and higher-order functions through practical examples.
 
 \subsection{Polymorphic List Data Type}
 
-We begin by defining a polymorphic list type using recursive algebraic data types. LambdaScript uses the \texttt{type rec} keyword for recursive type definitions and the \texttt{'a} syntax for type variables, following OCaml conventions.
+We begin by defining a polymorphic list type using recursive algebraic data types. Forge uses the \texttt{type rec} keyword for recursive type definitions and the \texttt{'a} syntax for type variables, following OCaml conventions.
 
 \begin{quote}
 \small
@@ -148,7 +148,7 @@ type Option<'a> =
 
 \subsubsection{Monadic Bind Operation}
 
-The bind operation chains optional computations. In LambdaScript, we can define it as an operator:
+The bind operation chains optional computations. In Forge, we can define it as an operator:
 
 \begin{quote}
 \small
@@ -221,16 +221,16 @@ compute 100 0 2
 
 The first computation succeeds: $100 / 10 / 2 = 5$. The second short-circuits at division by zero, returning \texttt{None} without attempting the second division. This demonstrates how the Option monad handles errors compositionally through pattern matching and type safety, without exceptions or null pointer errors.
 
-These examples illustrate several key features of LambdaScript: algebraic data types enable clean data modeling, pattern matching provides exhaustive case analysis, parametric polymorphism allows generic code, and the type system infers complex types including higher-rank polymorphism in monadic operations.
+These examples illustrate several key features of Forge: algebraic data types enable clean data modeling, pattern matching provides exhaustive case analysis, parametric polymorphism allows generic code, and the type system infers complex types including higher-rank polymorphism in monadic operations.
 
 \newpage
 \section{Type System}
 
-LambdaScript features a Hindley-Milner type system with support for parametric polymorphism, algebraic data types, and mutually recursive type definitions. The type system is both sound and complete: every well-typed program has a principal type, and type inference always succeeds when a valid typing exists.
+Forge features a Hindley-Milner type system with support for parametric polymorphism, algebraic data types, and mutually recursive type definitions. The type system is both sound and complete: every well-typed program has a principal type, and type inference always succeeds when a valid typing exists.
 
 \subsection{Basic Types and Type Inference}
 
-LambdaScript includes primitive types (\texttt{int}, \texttt{float}, \texttt{bool}, \texttt{string}, \texttt{char}, \texttt{unit}), composite types (functions, lists, tuples), and user-defined algebraic data types. The type checker automatically infers types without requiring explicit annotations:
+Forge includes primitive types (\texttt{int}, \texttt{float}, \texttt{bool}, \texttt{string}, \texttt{char}, \texttt{unit}), composite types (functions, lists, tuples), and user-defined algebraic data types. The type checker automatically infers types without requiring explicit annotations:
 
 \begin{quote}
 \small
@@ -309,7 +309,7 @@ let handle result =
 
 \subsection{Recursive Types}
 
-Recursive types reference themselves in their definition. LambdaScript uses \textbf{isorecursive} semantics with explicit \texttt{type rec} declarations:
+Recursive types reference themselves in their definition. Forge uses \textbf{isorecursive} semantics with explicit \texttt{type rec} declarations:
 
 \begin{quote}
 \small
@@ -344,7 +344,7 @@ let rec height tree =
 
 \subsection{Mutually Recursive Types}
 
-A key contribution of LambdaScript is clean support for mutually recursive type definitions using the \texttt{and} keyword. Multiple types can reference each other:
+A key contribution of Forge is clean support for mutually recursive type definitions using the \texttt{and} keyword. Multiple types can reference each other:
 
 \begin{quote}
 \small
@@ -389,7 +389,7 @@ The implementation extends the standard Hindley-Milner unification algorithm to 
 
 \subsection{Type Annotations}
 
-While type inference eliminates most annotations, LambdaScript allows optional type annotations for documentation and disambiguation:
+While type inference eliminates most annotations, Forge allows optional type annotations for documentation and disambiguation:
 
 \begin{quote}
 \small
@@ -405,7 +405,7 @@ Type annotations are checked for consistency with inferred types. If an annotati
 \newpage
 \section{Syntax}
 
-We present the complete syntax of LambdaScript in Extended Backus-Naur Form (EBNF). Non-terminals are written in italics, terminals in \texttt{typewriter font}, and metavariables are defined below.
+We present the complete syntax of Forge in Extended Backus-Naur Form (EBNF). Non-terminals are written in italics, terminals in \texttt{typewriter font}, and metavariables are defined below.
 
 \textbf{Expressions:}
 \begin{align*}
@@ -478,7 +478,7 @@ p ::= &\; \_ \mid x \mid n \mid b \mid s \mid c \mid () \\
 
 \subsection{Overview}
 
-We now present the formal semantics of LambdaScript, providing a rigorous mathematical foundation for both the type system and runtime behavior. Formal semantics serve multiple purposes: they enable precise reasoning about program behavior, provide unambiguous specifications for implementers, and allow formal verification of type soundness and other properties.
+We now present the formal semantics of Forge, providing a rigorous mathematical foundation for both the type system and runtime behavior. Formal semantics serve multiple purposes: they enable precise reasoning about program behavior, provide unambiguous specifications for implementers, and allow formal verification of type soundness and other properties.
 
 Our semantic framework consists of two complementary components:
 
@@ -492,7 +492,7 @@ We adopt standard mathematical notation: $\Gamma$ denotes type environments mapp
 
 \subsection{Static Semantics}
 
-The static semantics of LambdaScript defines a type system based on the Hindley-Milner approach with extensions for algebraic data types and mutually recursive type definitions. We present typing rules, constraint generation, unification, and generalization.
+The static semantics of Forge defines a type system based on the Hindley-Milner approach with extensions for algebraic data types and mutually recursive type definitions. We present typing rules, constraint generation, unification, and generalization.
 
 \subsubsection{Notation and Definitions}
 
@@ -551,7 +551,7 @@ where $\beta$ is fresh. For non-quantified types: $\text{inst}(\tau) = \tau$.
 
 \subsubsection{Typing Rules}
 
-We present the typing rules for all LambdaScript expressions.
+We present the typing rules for all Forge expressions.
 
 \textbf{Literals:}
 
@@ -678,7 +678,7 @@ where $C$ has type $\tau \to T\langle\ldots\rangle$.
 
 \subsubsection{Constraint-Based Type Inference}
 
-LambdaScript implements type inference using constraint generation and unification, following Algorithm W.
+Forge implements type inference using constraint generation and unification, following Algorithm W.
 
 \textbf{Constraint Generation:}
 
@@ -801,7 +801,7 @@ to indicate that pattern $p$ successfully matches value $v$, producing environme
 
 \subsubsection{Evaluation Rules}
 
-We now present the complete evaluation rules for LambdaScript expressions.
+We now present the complete evaluation rules for Forge expressions.
 
 \textbf{Literals:}
 
@@ -937,12 +937,12 @@ Evaluating \texttt{case [1, 2] do | [] -> 0 | h :: t -> h} in $\emptyset$:
 \item Result: $1$
 \end{enumerate}
 
-These operational semantics define the complete runtime behavior of LambdaScript and provide a formal foundation for reasoning about program correctness.
+These operational semantics define the complete runtime behavior of Forge and provide a formal foundation for reasoning about program correctness.
 
 \newpage
 \section{Implementation}
 
-The LambdaScript interpreter is implemented in OCaml and consists of a multi-pass pipeline that transforms source code into typed, evaluated results. This section describes the architecture and implementation details of each component.
+The Forge interpreter is implemented in OCaml and consists of a multi-pass pipeline that transforms source code into typed, evaluated results. This section describes the architecture and implementation details of each component.
 
 \subsection{Architecture Overview}
 
@@ -1123,7 +1123,7 @@ After type inference, the type fixer (\texttt{typefixer.ml}) applies the compute
 
 \subsection{Pattern Matching}
 
-Pattern matching in LambdaScript supports comprehensive destructuring with exhaustiveness checking and redundancy detection.
+Pattern matching in Forge supports comprehensive destructuring with exhaustiveness checking and redundancy detection.
 
 \subsubsection{Pattern Compilation}
 
@@ -1285,7 +1285,7 @@ Blocks desugar into nested let expressions, maintaining proper scoping of local 
 \newpage
 \section{Testing and Validation}
 
-The LambdaScript implementation is validated through an extensive test suite covering all language features, from basic type inference to complex real-world algorithms. This section describes the testing methodology, coverage analysis, and representative examples demonstrating the language's expressiveness.
+The Forge implementation is validated through an extensive test suite covering all language features, from basic type inference to complex real-world algorithms. This section describes the testing methodology, coverage analysis, and representative examples demonstrating the language's expressiveness.
 
 \subsection{Test Suite Design}
 
@@ -1420,7 +1420,7 @@ This command runs the test suite with instrumentation enabled, producing an HTML
 
 \subsection{Real-World Examples}
 
-To demonstrate LambdaScript's practical capabilities, the test suite and example programs include implementations of non-trivial algorithms and data structures.
+To demonstrate Forge's practical capabilities, the test suite and example programs include implementations of non-trivial algorithms and data structures.
 
 \subsubsection{Red-Black Tree}
 
@@ -1500,7 +1500,7 @@ The complete monad implementation, including \texttt{return}, \texttt{bind}, and
 
 \subsubsection{Interpreter Implementation}
 
-A simple expression evaluator written in LambdaScript itself demonstrates the language's expressiveness:
+A simple expression evaluator written in Forge itself demonstrates the language's expressiveness:
 
 \begin{itemize}
 \item Recursive algebraic data types for AST representation
@@ -1509,7 +1509,7 @@ A simple expression evaluator written in LambdaScript itself demonstrates the la
 \item Type-safe interpreter with polymorphic evaluation
 \end{itemize}
 
-This meta-circular evaluation example validates that LambdaScript can express complex recursive algorithms with proper type safety.
+This meta-circular evaluation example validates that Forge can express complex recursive algorithms with proper type safety.
 
 \subsection{Performance Characteristics}
 
@@ -1540,10 +1540,10 @@ The test suite runs successfully with zero failures, providing confidence in the
 \newpage
 \section{Conclusion}
 
-This paper presents LambdaScript, a statically-typed functional programming language with Hindley-Milner type inference, algebraic data types, pattern matching, and support for both recursive and mutually recursive type definitions. The implementation demonstrates that sophisticated type system features can be realized in a clean, modular interpreter architecture consisting of approximately 7,000 lines of OCaml code (12,000 including tests).
+This paper presents Forge, a statically-typed functional programming language with Hindley-Milner type inference, algebraic data types, pattern matching, and support for both recursive and mutually recursive type definitions. The implementation demonstrates that sophisticated type system features can be realized in a clean, modular interpreter architecture consisting of approximately 7,000 lines of OCaml code (12,000 including tests).
 
 The key contributions include: (1) a constraint-based type inference engine that handles polymorphism and recursive types correctly, (2) comprehensive pattern matching with exhaustiveness checking, (3) a monadic parser combinator architecture using \texttt{let*} syntax, and (4) formal operational semantics for both typing and evaluation. The implementation is validated by over 1200 unit tests achieving 90\%+ code coverage, including real-world examples such as red-black trees and higher-order list operations.
 
-Future work includes extending the type system with higher-rank polymorphism and type classes, optimizing performance through compilation to bytecode or native code, adding a module system, and improving developer tooling with LSP support and better error messages. LambdaScript serves as both an educational tool for teaching type systems and programming language implementation, and as a foundation for exploring advanced language features in a practical setting.
+Future work includes extending the type system with higher-rank polymorphism and type classes, optimizing performance through compilation to bytecode or native code, adding a module system, and improving developer tooling with LSP support and better error messages. Forge serves as both an educational tool for teaching type systems and programming language implementation, and as a foundation for exploring advanced language features in a practical setting.
 
 \end{document}

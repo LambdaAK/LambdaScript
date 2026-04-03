@@ -1,5 +1,5 @@
 
-// LambdaScript Runtime (Minimal)
+// Forge Runtime (Minimal)
 
 function println(str) {
   console.log(str);

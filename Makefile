@@ -56,7 +56,7 @@ parsetest:
 	dune build bin/parse_file.exe
 	dune exec ./bin/parse_file.exe "$(FILE)"
 
-# Print Min_ir for a LambdaScript file (example: make dump-ir FILE=programs/minimal.ls)
+# Print Min_ir for a Forge source file (example: make dump-ir FILE=programs/minimal.ls)
 dump-ir:
 	@if [ -z "$(FILE)" ]; then echo "Usage: make dump-ir FILE=path/to/file.ls"; exit 1; fi
 	dune build bin/dump_min_ir.exe
@@ -66,8 +66,8 @@ dump-ir:
 # Example: make compile-ls FILE=programs/minimal.ls OUT=./mybin
 compile-ls:
 	@if [ -z "$(FILE)" ]; then echo "Usage: make compile-ls FILE=path/to/file.ls [OUT=name]"; exit 1; fi
-	dune build bin/compile_lambdascript.exe
-	@if [ -n "$(OUT)" ]; then dune exec ./bin/compile_lambdascript.exe "$(FILE)" "$(OUT)"; else dune exec ./bin/compile_lambdascript.exe "$(FILE)"; fi
+	dune build bin/compile_forge.exe
+	@if [ -n "$(OUT)" ]; then dune exec ./bin/compile_forge.exe "$(FILE)" "$(OUT)"; else dune exec ./bin/compile_forge.exe "$(FILE)"; fi
 
 paper:
 	cd paper && pdflatex conference_101719.tex
