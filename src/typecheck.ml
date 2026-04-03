@@ -2216,102 +2216,247 @@ let rec primary_class_constraint (t : c_type) : string option =
   | PolyType (_, inner) -> primary_class_constraint inner
   | _ -> None
 
+(** Dictionary selection for polymorphic instances.
+
+    Some instance dictionaries are polymorphic over the class parameter
+    (e.g. `impl Monoid for ['a]` creates a dictionary keyed by a type
+    variable). When we need the instance for a concrete type (e.g.
+    `Monoid [int]`), we may be able to reuse that polymorphic dictionary.
+
+    We implement this by searching all dictionaries for the class and
+    checking whether their polymorphic dictionary type can be instantiated
+    to the dictionary record type implied by the class interface at the
+    requested type. *)
+let rec replace_typevar_in_mono ~(var_id : string) ~(with_ty : mono_type)
+    (t : mono_type) : mono_type =
+  match t with
+  | IntType | FloatType | BoolType | StringType | CharType | UnitType -> t
+  | TypeVar id -> if id = var_id then with_ty else TypeVar id
+  | TypeName n -> TypeName n
+  | FunctionType (i, o) ->
+      FunctionType (replace_typevar_in_mono ~var_id ~with_ty i,
+        replace_typevar_in_mono ~var_id ~with_ty o)
+  | VectorType ts -> VectorType (List.map (replace_typevar_in_mono ~var_id ~with_ty) ts)
+  | CListType et -> CListType (replace_typevar_in_mono ~var_id ~with_ty et)
+  | CTypeApp (name, args) ->
+      CTypeApp (name, List.map (replace_typevar_in_mono ~var_id ~with_ty) args)
+  | FixedPoint (n, body) ->
+      FixedPoint (n, replace_typevar_in_mono ~var_id ~with_ty body)
+  | RecordType fields ->
+      RecordType
+        (List.map
+           (fun (name, t) ->
+             (name, replace_typevar_in_mono ~var_id ~with_ty t))
+           fields)
+
+let rec extract_class_param_and_mono_template (class_name : string)
+    (t : c_type) : (string * mono_type) option =
+  match t with
+  | PolyType (_v, inner) -> extract_class_param_and_mono_template class_name inner
+  | Constrained (preds, inner) -> (
+      let pred_match =
+        List.find_opt
+          (fun (c, ty) -> c = class_name && match ty with TypeVar _ -> true | _ -> false)
+          preds
+      in
+      match (pred_match, inner) with
+      | Some (_c, TypeVar v), Mono mty -> Some (v, mty)
+      | _ -> None)
+  | _ -> None
+
+let instantiate_method_type_for_class ~(static_env : static_env)
+    ~(class_name : string) ~(method_name : string) ~(tau : mono_type)
+    ~(type_env : type_env) : mono_type option =
+  match List.assoc_opt method_name static_env with
+  | None -> None
+  | Some sch -> (
+      match extract_class_param_and_mono_template class_name sch with
+      | None -> None
+      | Some (var_id, mty) ->
+          let specialized = replace_typevar_in_mono ~var_id ~with_ty:tau mty in
+          match simplify_mono_type specialized type_env with
+          | Ok t -> Some t
+          | Error _ -> Some specialized)
+
+let dict_expected_record_type ~(static_env : static_env) ~(class_name : string)
+    ~(tau : mono_type) ~(type_env : type_env) : mono_type option =
+  let method_fields =
+    List.filter_map
+      (fun (name, sch) ->
+        match primary_class_constraint sch with
+        | Some c when c = class_name && scheme_has_class_constraint sch -> (
+            match instantiate_method_type_for_class ~static_env ~class_name ~method_name:name ~tau ~type_env with
+            | Some t -> Some (name, t)
+            | None -> None)
+        | _ -> None)
+      static_env
+  in
+  if method_fields = [] then None
+  else
+    let fields = List.sort (fun (a, _) (b, _) -> compare a b) method_fields in
+    Some (RecordType fields)
+
+let instantiate_dict_scheme_to_record ~(sch : c_type) ~(tau : mono_type) :
+    mono_type option =
+  (* Collect all explicit poly vars, strip PolyType/Constrained to Mono, then
+     substitute all poly vars with [tau]. *)
+  let rec collect_poly_vars acc t =
+    match t with
+    | PolyType (v, inner) -> collect_poly_vars (v :: acc) inner
+    | Constrained (_, inner) -> collect_poly_vars acc inner
+    | Mono _ -> acc
+  in
+  let poly_vars = collect_poly_vars [] sch in
+  let rec strip_to_mono t =
+    match t with
+    | Mono m -> Some m
+    | Constrained (_, inner) -> strip_to_mono inner
+    | PolyType (_, inner) -> strip_to_mono inner
+  in
+  match strip_to_mono sch with
+  | None -> None
+  | Some mono_body ->
+      let substituted =
+        List.fold_left
+          (fun acc var_id -> replace_typevar_in_mono ~var_id ~with_ty:tau acc)
+          mono_body poly_vars
+      in
+      match substituted with
+      | RecordType _ -> Some substituted
+      | _ -> None
+
+let find_compatible_dict_name ~(static_env : static_env) ~(class_name : string)
+    ~(method_name : string) ~(tau : mono_type) : string option =
+    let prefix = "__forge_dict_" ^ class_name ^ "_" in
+    let exact = dict_for_instance ~class_name tau in
+  if List.mem_assoc exact static_env then Some exact
+  else
+    let rec scan env =
+      match env with
+      | [] -> None
+      | (name, sch) :: rest ->
+          if String.starts_with ~prefix name then
+            match instantiate_dict_scheme_to_record ~sch ~tau with
+            | Some (RecordType fields) when List.mem_assoc method_name fields ->
+                Some name
+            | _ -> scan rest
+          else scan rest
+    in
+    scan static_env
+
 (** Rewrite [Class.method e] to record dispatch after whole-program typecheck. *)
 let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
     c_expr -> c_expr =
-  function
-  | EApp (e1, e2) -> (
-      let e2' = elaborate_expr static_env type_env e2 in
-      let e1' = elaborate_expr static_env type_env e1 in
-      match e1' with
-      | EId f -> (
-          match List.assoc_opt f static_env with
-          | Some sch when scheme_has_class_constraint sch -> (
-              match primary_class_constraint sch with
-              | None -> EApp (e1', e2')
-              | Some cls -> (
-                  match type_of_c_expr static_env type_env e2' with
-                  | Ok arg_ct ->
-                      let tau = get_mono_type arg_ct in
-                      let dict = dict_for_instance ~class_name:cls tau in
-                      if List.mem_assoc dict static_env then
-                        EApp (EFieldAccess (EId dict, f), e2')
-                      else EApp (e1', e2')
-                  | Error _ -> EApp (e1', e2')))
-          | _ -> EApp (e1', e2'))
-      | _ -> EApp (e1', e2'))
-  | EFunction (p, a, b) ->
-      EFunction (p, a, elaborate_expr static_env type_env b)
-  | EBind (p, a, e1, e2, r) ->
-      EBind
-        ( p,
-          a,
-          elaborate_expr static_env type_env e1,
-          elaborate_expr static_env type_env e2,
-          r )
-  | EBindRec (p, a, e1, e2, r) ->
-      EBindRec
-        ( p,
-          a,
-          elaborate_expr static_env type_env e1,
-          elaborate_expr static_env type_env e2,
-          r )
-  | EBindMutRec (bs, body) ->
-      EBindMutRec
-        ( List.map
-            (fun (p, a, e, r, n) ->
-              (p, a, elaborate_expr static_env type_env e, r, n))
-            bs,
-          elaborate_expr static_env type_env body )
-  | EBlock parts ->
-      EBlock
-        (List.map
-           (function
-             | Expr e -> Expr (elaborate_expr static_env type_env e)
-             | Defn d -> Defn (elaborate_defn static_env type_env d))
-           parts)
-  | ETernary (e1, e2, e3) ->
-      ETernary
-        ( elaborate_expr static_env type_env e1,
-          elaborate_expr static_env type_env e2,
-          elaborate_expr static_env type_env e3 )
-  | ESwitch (e, br) ->
-      ESwitch
-        ( elaborate_expr static_env type_env e,
-          List.map
-            (fun (p, ee) -> (p, elaborate_expr static_env type_env ee))
-            br )
-  | EVector es ->
-      EVector (List.map (elaborate_expr static_env type_env) es)
-  | EListEnumeration (e1, e2) ->
-      EListEnumeration
-        ( elaborate_expr static_env type_env e1,
-          elaborate_expr static_env type_env e2 )
-  | EListComprehension (e, gs) ->
-      EListComprehension
-        ( elaborate_expr static_env type_env e,
-          List.map
-            (fun (p, ge) -> (p, elaborate_expr static_env type_env ge))
-            gs )
-  | EBop (o, e1, e2) ->
-      EBop
-        ( o,
-          elaborate_expr static_env type_env e1,
-          elaborate_expr static_env type_env e2 )
-  | ERecordLit fs ->
-      ERecordLit
-        (List.map (fun (n, ee) -> (n, elaborate_expr static_env type_env ee)) fs)
-  | ERecordUpdate (e, fs) ->
-      ERecordUpdate
-        ( elaborate_expr static_env type_env e,
-          List.map
-            (fun (n, ee) -> (n, elaborate_expr static_env type_env ee))
-            fs )
-  | EFieldAccess (e, fld) ->
-      EFieldAccess (elaborate_expr static_env type_env e, fld)
-  | (EInt _ | EFloat _ | EBool _ | EString _ | EChar _ | EUnit | ENil | EId _)
-    as lit ->
-      lit
+  (* When rewriting overloaded identifiers (e.g. [mappend]) into dictionary
+     dispatch, we must respect lexical shadowing: if an overloaded name is
+     locally bound (e.g. by [let rec mappend = ...] inside an [impl]),
+     occurrences of that name should refer to the local binding, not to the
+     class method. *)
+  let rec pat_bound_simple (p : c_pat) : string list =
+    match p with
+    | CIdPat id -> [ id ]
+    | CConsPat (a, b) -> pat_bound_simple a @ pat_bound_simple b
+    | CVectorPat ps -> List.concat (List.map pat_bound_simple ps)
+    | CRecordPat fs -> List.concat (List.map (fun (_, p) -> pat_bound_simple p) fs)
+    | CVariantPat (_, Some p) -> pat_bound_simple p
+    | CVariantPat (_, None) -> []
+    | CWildcardPat | CUnitPat | CNilPat -> []
+    | CIntPat _ | CBoolPat _ | CStringPat _ | CCharPat _ -> []
+  in
+  let add_all shadowed new_names =
+    List.fold_left
+      (fun acc n -> if List.mem n acc then acc else n :: acc)
+      shadowed new_names
+  in
+  let rec aux shadowed (e : c_expr) : c_expr =
+    match e with
+    | EApp (e1, e2) -> (
+        let e2' = aux shadowed e2 in
+        let e1' = aux shadowed e1 in
+        match e1' with
+        | EId f when not (List.mem f shadowed) -> (
+            match List.assoc_opt f static_env with
+            | Some sch when scheme_has_class_constraint sch -> (
+                match primary_class_constraint sch with
+                | None -> EApp (e1', e2')
+                | Some cls -> (
+                    match type_of_c_expr static_env type_env e2' with
+                    | Ok arg_ct ->
+                        let tau = get_mono_type arg_ct in
+                        (match
+                           find_compatible_dict_name
+                             ~static_env
+                             ~class_name:cls
+                             ~method_name:f
+                             ~tau
+                         with
+                        | Some dict ->
+                            EApp (EFieldAccess (EId dict, f), e2')
+                        | None -> EApp (e1', e2'))
+                    | Error _ -> EApp (e1', e2')))
+            | _ -> EApp (e1', e2'))
+        | _ -> EApp (e1', e2'))
+    | EFunction (p, a, b) ->
+        let shadowed' = add_all shadowed (pat_bound_simple p) in
+        EFunction (p, a, aux shadowed' b)
+    | EBind (p, a, e1, e2, r) ->
+        let bound = pat_bound_simple p in
+        (* In [let x = e1 in e2], [x] is only in scope for [e2]. *)
+        EBind (p, a, aux shadowed e1, aux (add_all shadowed bound) e2, r)
+    | EBindRec (p, a, e1, e2, r) ->
+        let shadowed' = add_all shadowed (pat_bound_simple p) in
+        (* In [let rec x = e1 in e2], [x] is in scope for [e1] and [e2]. *)
+        EBindRec (p, a, aux shadowed' e1, aux shadowed' e2, r)
+    | EBindMutRec (bs, body) ->
+        let bound_names =
+          List.concat (List.map (fun (p, _, _, _, _) -> pat_bound_simple p) bs)
+        in
+        let shadowed' = add_all shadowed bound_names in
+        EBindMutRec
+          ( List.map
+              (fun (p, a, e, r, n) -> (p, a, aux shadowed' e, r, n))
+              bs,
+            aux shadowed' body )
+    | EBlock parts ->
+        EBlock
+          (List.map
+             (function
+               | Expr e -> Expr (aux shadowed e)
+               | Defn d -> Defn (elaborate_defn static_env type_env d))
+             parts)
+    | ETernary (e1, e2, e3) ->
+        ETernary (aux shadowed e1, aux shadowed e2, aux shadowed e3)
+    | ESwitch (e, br) ->
+        ESwitch
+          ( aux shadowed e,
+            List.map
+              (fun (p, ee) ->
+                let shadowed' = add_all shadowed (pat_bound_simple p) in
+                (p, aux shadowed' ee))
+              br )
+    | EVector es -> EVector (List.map (aux shadowed) es)
+    | EListEnumeration (e1, e2) ->
+        EListEnumeration (aux shadowed e1, aux shadowed e2)
+    | EListComprehension (e, gs) ->
+        (* Generator patterns bind names only for later generator expressions
+           and the comprehension body; this is more involved than we need for
+           the [impl] case, so we don't attempt to shadow through generators. *)
+        EListComprehension
+          ( aux shadowed e,
+            List.map (fun (p, ge) -> (p, aux shadowed ge)) gs )
+    | EBop (o, e1, e2) -> EBop (o, aux shadowed e1, aux shadowed e2)
+    | ERecordLit fs ->
+        ERecordLit (List.map (fun (n, ee) -> (n, aux shadowed ee)) fs)
+    | ERecordUpdate (e, fs) ->
+        ERecordUpdate
+          ( aux shadowed e,
+            List.map (fun (n, ee) -> (n, aux shadowed ee)) fs )
+    | EFieldAccess (e, fld) -> EFieldAccess (aux shadowed e, fld)
+    | (EInt _ | EFloat _ | EBool _ | EString _ | EChar _ | EUnit | ENil | EId _)
+      as lit ->
+        lit
+  in
+  aux []
 
 and elaborate_defn (static_env : static_env) (type_env : type_env) d : c_defn =
   match d with

@@ -3,7 +3,7 @@ inter Monoid<'a> {
   val mempty : 'a
 }
 
-impl Monoid for [int] {
+impl Monoid for ['a] {
   let rec mappend x y =
     case x do
       | [] -> y

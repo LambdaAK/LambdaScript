@@ -1565,6 +1565,23 @@ let program_expression_type_tests =
          ( "polymorphic function type" >:: fun _ ->
            assert_expression_has_type ~program:"let id = fn x -> x" ~expr:"id"
              ~expected_type:"'a -> 'a" );
+         ( "polymorphic impl dispatch inside impl recursion" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               inter Monoid<'a> {
+                 val mappend : 'a -> 'a -> 'a
+                 val mempty : 'a
+               }
+               impl Monoid for ['a] {
+                 let rec mappend x y =
+                   case x do
+                   | [] -> y
+                   | h :: t -> h :: mappend t y
+                 let mempty = []
+               }
+             |}
+             ~expr:"mappend [1] [2]" ~expected_type:"[int]" );
          ( "type after multiple definitions" >:: fun _ ->
            assert_expression_has_type
              ~program:
