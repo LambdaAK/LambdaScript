@@ -32,6 +32,23 @@ let lambda_ty_counter = ref 0
 
 let eta_expand_counter = ref 0
 
+let is_llvm_ident_start (c : char) : bool =
+  (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c = '_' || c = '$'
+
+let is_llvm_ident_char (c : char) : bool =
+  is_llvm_ident_start c || (c >= '0' && c <= '9') || c = '.'
+
+let sanitize_llvm_ident (s : string) : string =
+  let b = Buffer.create (String.length s * 2 + 8) in
+  let push_escaped c = Buffer.add_string b (Printf.sprintf "_x%02X" (Char.code c)) in
+  String.iteri
+    (fun i c ->
+      if (i = 0 && is_llvm_ident_start c) || (i > 0 && is_llvm_ident_char c) then
+        Buffer.add_char b c
+      else push_escaped c)
+    s;
+  if Buffer.length b = 0 then "_ls_empty" else Buffer.contents b
+
 (** Top-level definitions for [find_cdefn_function] during lowering (set in
     {!lower_c_program}). *)
 let lowering_defs : c_defn list ref = ref []
@@ -85,7 +102,7 @@ let create_fn_ctx () : fn_ctx =
 
 let mangle_nested_emit (logical : string) : string =
   incr nested_emit_ctr;
-  logical ^ "__lsn" ^ string_of_int !nested_emit_ctr
+  sanitize_llvm_ident logical ^ "__lsn" ^ string_of_int !nested_emit_ctr
 
 let fresh_lbl (ctx : fn_ctx) prefix =
   ctx.lbl_counter <- ctx.lbl_counter + 1;
@@ -134,7 +151,11 @@ and mono_to_min (m : mono_type) : ty =
   | CTypeApp (name, _) when is_sum_type_name type_env name -> RawPtr
   | FixedPoint (name, _) when is_sum_type_name type_env name -> RawPtr
   | TypeName name when is_sum_type_name type_env name -> RawPtr
-  | FloatType | CharType | TypeName _ | CTypeApp _ | TCtorApp _ | FixedPoint _ ->
+  | TCtorApp _ ->
+      (* Higher-kinded class placeholders (e.g. [m<a>] before full specialization)
+         are pointer-like at runtime in current backend usage (sum/list instances). *)
+      RawPtr
+  | FloatType | CharType | TypeName _ | CTypeApp _ | FixedPoint _ ->
       unsupported "Type not supported for native parameter/return yet"
   | RecordType fields ->
       let sorted = Cexpr.record_fields_sorted fields in
@@ -559,7 +580,7 @@ let replace_static_binding (name : string) (ct : c_type) (static_env : static_en
 let mangle_poly_instance (name : string) (mono : mono_type) : string =
   let h = Hashtbl.hash (string_of_mono_type mono) in
   let s = if h < 0 then string_of_int (abs h) else string_of_int h in
-  name ^ "__lsm" ^ s
+  sanitize_llvm_ident name ^ "__lsm" ^ s
 
 let find_cdefn_function (name : string) (defs : c_defn list) :
     (c_pat list * c_type option list * c_expr) option =
@@ -975,14 +996,21 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
             | Defn d -> collect_visit_defn env d)
           parts
     | EFunction (pat, ann, body) -> (
-        match Typecheck.type_of_c_expr env type_env (EFunction (pat, ann, body)) with
-        | Ok ct -> (
+        (* During monomorph collection, some intermediate function literals may
+           trigger unification failures when probed in isolation. Treat that as
+           "unknown here" and keep traversing the body instead of aborting codegen. *)
+        let typed_fn =
+          try Some (Typecheck.type_of_c_expr env type_env (EFunction (pat, ann, body)))
+          with Typecheck.TypeFailure -> None
+        in
+        match typed_fn with
+        | Some (Ok ct) -> (
             let mfull = Typecheck.instantiate ct in
             match (pat, mfull) with
             | CIdPat x, FunctionType (param_mono, _) ->
                 collect_visit_expr ((x, Mono param_mono) :: env) body
             | _ -> collect_visit_expr env body)
-        | Error _ -> collect_visit_expr env body)
+        | _ -> collect_visit_expr env body)
     | ESwitch (e0, branches) ->
         collect_visit_expr env e0;
         (match Typecheck.type_of_c_expr env type_env e0 with
@@ -1960,6 +1988,42 @@ and lower_expr_app_curried env ctx static_env type_env (shadows : S.t) e1 e2
 and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
     args : expr_result =
   let static_for_mono = static_env_for_mono_call static_env env in
+  let try_dict_dispatch_fallback () : expr_result option =
+    match List.assoc_opt name static_for_mono with
+    | Some sch when Typecheck.scheme_has_class_constraint sch -> (
+        match Typecheck.primary_class_constraint sch with
+        | Some cls -> (
+            match Typecheck.extract_class_param_and_mono_template cls sch with
+            | Some (var_id, mty) ->
+                let idx = Type_arity.dict_resolution_arg_index mty var_id in
+                if idx < 0 || idx >= List.length args then None
+                else
+                  let tau_e = List.nth args idx in
+                  (match Typecheck.type_of_c_expr static_for_mono type_env tau_e with
+                  | Ok arg_ct ->
+                      let tau =
+                        Typecheck.instantiate arg_ct
+                        |> Typecheck.mono_concrete_or_int_default
+                      in
+                      (match
+                         Typecheck.find_compatible_dict_name
+                           ~static_env:static_for_mono ~class_name:cls
+                           ~method_name:name ~tau
+                       with
+                      | Some dict ->
+                          let rewritten =
+                            List.fold_left
+                              (fun acc arg -> EApp (acc, arg))
+                              (EFieldAccess (EId dict, name))
+                              args
+                          in
+                          Some (lower_expr rewritten env ctx static_env type_env shadows)
+                      | None -> None)
+                  | Error _ -> None)
+            | None -> None)
+        | None -> None)
+    | _ -> None
+  in
   match find_constructor_index !lowering_ctor_env name with
   | Some (tag, _, Some _) -> (
       match
@@ -1970,9 +2034,15 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
       | Ok m_fun ->
           let m_fun = Typecheck.mono_concrete_or_int_default m_fun in
           if not (Typecheck.mono_type_fully_concrete m_fun) then
-            unsupported
-              "Polymorphic call could not be monomorphized for native compilation \
-               (try explicit type annotations or more concrete arguments)"
+            (match try_dict_dispatch_fallback () with
+            | Some lowered -> lowered
+            | None ->
+                unsupported
+                  ("Polymorphic call `" ^ name
+                 ^ "` could not be monomorphized (type "
+                 ^ string_of_mono_type m_fun
+                 ^ ") for native compilation (try explicit type annotations or \
+                    more concrete arguments)"))
           else
             match m_fun with
             | FunctionType (dom, _) ->
@@ -2003,9 +2073,15 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
       | Ok m_fun ->
           let m_fun = Typecheck.mono_concrete_or_int_default m_fun in
           if not (Typecheck.mono_type_fully_concrete m_fun) then
-            unsupported
-              "Polymorphic call could not be monomorphized for native compilation \
-               (try explicit type annotations or more concrete arguments)"
+            (match try_dict_dispatch_fallback () with
+            | Some lowered -> lowered
+            | None ->
+                unsupported
+                  ("Polymorphic call `" ^ name
+                 ^ "` could not be monomorphized (type "
+                 ^ string_of_mono_type m_fun
+                 ^ ") for native compilation (try explicit type annotations or \
+                    more concrete arguments)"))
           else
             let mangle = mangle_poly_instance name m_fun in
             match resolve_callable mangle env with

@@ -1695,7 +1695,12 @@ and mono_fun_type_of_binary_app (env : static_env) (type_env : type_env)
     in
     simplify_constraint_list [] constraints
   in
-  let solution = reduce_eq simplified_constraints type_env in
+  let solution =
+    try Ok (reduce_eq simplified_constraints type_env)
+    with TypeFailure ->
+      Error (OtherError "mono_fun_type_of_binary_app: constraint solving failed")
+  in
+  let- solution = solution in
   let- the_mono_type = get_type t1 solution type_env in
   let the_mono_type = fix_type the_mono_type in
   return the_mono_type
@@ -1725,7 +1730,14 @@ and mono_fun_type_of_curried_app (env : static_env) (type_env : type_env)
       let rec loop cur_ty constraints = function
         | [] ->
             let- simplified_constraints = simplify_constraint_list [] constraints in
-            let solution = reduce_eq simplified_constraints type_env in
+            let solution =
+              try Ok (reduce_eq simplified_constraints type_env)
+              with TypeFailure ->
+                Error
+                  (OtherError
+                     "mono_fun_type_of_curried_app: constraint solving failed")
+            in
+            let- solution = solution in
             let- the_mono_type = get_type m0 solution type_env in
             return (fix_type the_mono_type)
         | arg :: rest ->
