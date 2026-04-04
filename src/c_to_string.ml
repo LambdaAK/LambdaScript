@@ -250,7 +250,7 @@ let rec string_of_expr : c_expr -> string = function
       "let rec " ^ String.concat "\nand " binding_strs ^ " in\n" ^ string_of_expr body
 
 and string_of_defn : c_defn -> string = function
-  | CDefn (pat, t_opt, e, return_type_opt, _) ->
+  | CDefn (pat, _cs, t_opt, e, return_type_opt, _) ->
       let type_annot =
         match t_opt with
         | Some t -> " : " ^ string_of_type t
@@ -262,7 +262,7 @@ and string_of_defn : c_defn -> string = function
         | None -> ""
       in
       "let " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = " ^ string_of_expr e
-  | CDefnRec (pat, t_opt, e, return_type_opt, _) ->
+  | CDefnRec (pat, _cs, t_opt, e, return_type_opt, _) ->
       let type_annot =
         match t_opt with
         | Some t -> " : " ^ string_of_type t
@@ -275,7 +275,7 @@ and string_of_defn : c_defn -> string = function
       in
       "let rec " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = " ^ string_of_expr e
   | CDefnMutRec defns ->
-      let defn_strs = List.map (fun (pat, t_opt, e, _, _) ->
+      let defn_strs = List.map (fun (pat, _cs, t_opt, e, _, _) ->
         let type_annot =
           match t_opt with
           | Some t -> " : " ^ string_of_type t

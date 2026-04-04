@@ -2,6 +2,9 @@ open Expr
 open Cexpr
 open Forge_class_util
 
+let is_plain_type_var_name (s : string) : bool =
+  s <> "" && String.for_all (fun c -> c >= 'a' && c <= 'z') s
+
 let rec condense_pat : pat -> c_pat = function
   | SubPat sub_pat -> condense_sub_pat sub_pat
   | ConsPat (sub_pat, pat) ->
@@ -30,8 +33,19 @@ and condense_sub_pat : sub_pat -> c_pat = function
       CVariantPat (name, payload_c_pat_opt)
 
 let rec condense_defn : defn -> c_defn = function
-  | Defn (pattern, cto, body_expression, return_type, num_explicit_params) ->
+  | Defn
+      ( pattern,
+        class_constraints,
+        cto,
+        body_expression,
+        return_type,
+        num_explicit_params ) ->
       let a : c_pat = condense_pat pattern in
+      let constraints : (string * mono_type) list =
+        List.map
+          (fun (cls, ct) -> (cls, condense_compound_type ct))
+          class_constraints
+      in
       let b : c_type option =
         match cto with
         | None -> None
@@ -43,9 +57,20 @@ let rec condense_defn : defn -> c_defn = function
         | None -> None
         | Some t -> Some (condense_type t)
       in
-      CDefn (a, b, c, d, num_explicit_params)
-  | DefnRec (pattern, cto, body_expression, return_type, num_explicit_params) ->
+      CDefn (a, constraints, b, c, d, num_explicit_params)
+  | DefnRec
+      ( pattern,
+        class_constraints,
+        cto,
+        body_expression,
+        return_type,
+        num_explicit_params ) ->
       let a : c_pat = condense_pat pattern in
+      let constraints : (string * mono_type) list =
+        List.map
+          (fun (cls, ct) -> (cls, condense_compound_type ct))
+          class_constraints
+      in
       let b : c_type option =
         match cto with
         | None -> None
@@ -57,12 +82,21 @@ let rec condense_defn : defn -> c_defn = function
         | None -> None
         | Some t -> Some (condense_type t)
       in
-      CDefnRec (a, b, c, d, num_explicit_params)
+      CDefnRec (a, constraints, b, c, d, num_explicit_params)
   | DefnMutRec defns ->
       let condensed_defns =
         List.map
-          (fun (pattern, cto, body_expression, return_type, num_explicit_params) ->
+          (fun
+             ( pattern,
+               class_constraints,
+               cto,
+               body_expression,
+               return_type,
+               num_explicit_params ) ->
             ( condense_pat pattern,
+              List.map
+                (fun (cls, ct) -> (cls, condense_compound_type ct))
+                class_constraints,
               (match cto with
               | None -> None
               | Some t -> Some (condense_type t)),
@@ -303,6 +337,10 @@ and condense_factor_type : factor_type -> mono_type = function
       match name, args with
       | "list", [ elem ] ->
           CListType (condense_compound_type elem)
+      | _ when is_plain_type_var_name name ->
+          TCtorApp
+            ( Type_arity.written_param_var name,
+              List.map condense_compound_type args )
       | _ -> CTypeApp (name, List.map condense_compound_type args))
   | RecordTypeWritten fields ->
       RecordType (List.map (fun (name, ct) -> (name, condense_compound_type ct)) fields)
@@ -433,6 +471,7 @@ let condense_program (defns : defn list) : c_defn list =
                 let cdefn =
                   CDefn
                     ( CIdPat dict_name,
+                      [],
                       Some (Mono expected),
                       ERecordLit dict_fields,
                       None,

@@ -586,24 +586,24 @@ let find_cdefn_function (name : string) (defs : c_defn list) :
     (c_pat list * c_type option list * c_expr) option =
   let rec find = function
     | [] -> None
-    | CDefn (pat, _, body, _, _) :: rest -> (
+    | CDefn (pat, _, _, body, _, _) :: rest -> (
         match pat with
         | CIdPat n when n = name -> from_body body rest
         | _ -> find rest)
-    | CDefnRec (pat, _, body, _, _) :: rest -> (
+    | CDefnRec (pat, _, _, body, _, _) :: rest -> (
         match pat with
         | CIdPat n when n = name -> from_body body rest
         | _ -> find rest)
     | CDefnMutRec ds :: rest -> (
         match
           List.find_opt
-            (fun (pat, _, _, _, _) ->
+            (fun (pat, _, _, _, _, _) ->
               match pat with
               | CIdPat n -> n = name
               | _ -> false)
             ds
         with
-        | Some (_, _, body, _, _) -> from_body body rest
+        | Some (_, _, _, body, _, _) -> from_body body rest
         | None -> find rest)
     | _ :: rest -> find rest
   and from_body body rest =
@@ -616,7 +616,7 @@ let find_cdefn_function (name : string) (defs : c_defn list) :
 let find_cdefn_value_rhs (name : string) (defs : c_defn list) : c_expr option =
   let rec find = function
     | [] -> None
-    | CDefn (pat, _, body, _, _) :: rest -> (
+    | CDefn (pat, _, _, body, _, _) :: rest -> (
         match pat with
         | CIdPat n when n = name ->
             let param_pats, _, inner = peel_efun [] [] body in
@@ -765,16 +765,18 @@ let rec map_expr_eta_at_lets (static_env : static_env) (e : c_expr) : c_expr =
 
 and map_defn_eta (static_env : static_env) (d : c_defn) : c_defn =
   match d with
-  | CDefn (pat, ann, body, rt, n) ->
+  | CDefn (pat, cs, ann, body, rt, n) ->
       CDefn
         ( pat,
+          cs,
           ann,
           map_expr_eta_at_lets static_env (eta_expand_binding_rhs static_env body),
           rt,
           n )
-  | CDefnRec (pat, ann, body, rt, n) ->
+  | CDefnRec (pat, cs, ann, body, rt, n) ->
       CDefnRec
         ( pat,
+          cs,
           ann,
           map_expr_eta_at_lets static_env (eta_expand_binding_rhs static_env body),
           rt,
@@ -782,8 +784,9 @@ and map_defn_eta (static_env : static_env) (d : c_defn) : c_defn =
   | CDefnMutRec defns ->
       CDefnMutRec
         (List.map
-           (fun (pat, ann, body, rt, n) ->
+           (fun (pat, cs, ann, body, rt, n) ->
              ( pat,
+               cs,
                ann,
                map_expr_eta_at_lets static_env
                  (eta_expand_binding_rhs static_env body),
@@ -1056,10 +1059,10 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
         ()
   and collect_visit_defn (env : static_env) (defn : c_defn) : unit =
     match defn with
-    | CDefn (pat, _, body, _, _) -> visit_def_body env pat body
-    | CDefnRec (pat, _, body, _, _) -> visit_def_body env pat body
+    | CDefn (pat, _, _, body, _, _) -> visit_def_body env pat body
+    | CDefnRec (pat, _, _, body, _, _) -> visit_def_body env pat body
     | CDefnMutRec ds ->
-        List.iter (fun (pat, _, body, _, _) -> visit_def_body env pat body) ds
+        List.iter (fun (pat, _, _, body, _, _) -> visit_def_body env pat body) ds
     | CClassDecl _ | CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _
       -> ()
   and visit_def_body (env : static_env) (pat : c_pat) (body : c_expr) : unit =
@@ -3105,7 +3108,7 @@ let code_mapping_poly_defns (static_env : static_env) : c_defn list =
         match Parser.ExprParser.expr_parser tokens with
         | None -> acc
         | Some (e, _) ->
-            CDefn (CIdPat id, None, Condense.condense_expr e, None, 0) :: acc)
+            CDefn (CIdPat id, [], None, Condense.condense_expr e, None, 0) :: acc)
     [] Env.code_mapping
 
 let lower_c_program (defs : c_defn list) (static_env : static_env)
@@ -3184,7 +3187,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
         | CSumTypeRecMutRec _) :: rest
         ->
           walk env rest
-      | CDefnRec (pat, _, body, _, _) :: rest -> (
+      | CDefnRec (pat, _, _, body, _, _) :: rest -> (
           match pat with
           | CIdPat name -> (
               let param_pats, anns, inner = peel_efun [] [] body in
@@ -3209,7 +3212,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
       | CDefnMutRec defns :: rest ->
           let parsed =
             List.map
-              (fun (pat, _, body, _, _) ->
+              (fun (pat, _, _, body, _, _) ->
                 match pat with
                 | CIdPat name ->
                     let param_pats, anns, inner = peel_efun [] [] body in
@@ -3257,7 +3260,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                 env stubs
             in
             walk env' rest
-      | CDefn (pat, _, body, _, _) :: rest ->
+      | CDefn (pat, _, _, body, _, _) :: rest ->
           (match pat with
           | CIdPat name -> (
               let param_pats, anns, inner = peel_efun [] [] body in

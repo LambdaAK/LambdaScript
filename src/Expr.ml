@@ -56,9 +56,9 @@ and factor_type =
   | RecordTypeWritten of (string * compound_type) list (* {x: int, y: bool} *)
 
 type defn =
-  | Defn of pat * compound_type option * expr * compound_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
-  | DefnRec of pat * compound_type option * expr * compound_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
-  | DefnMutRec of (pat * compound_type option * expr * compound_type option * int) list (* mutually recursive definitions *)
+  | Defn of pat * (string * compound_type) list * compound_type option * expr * compound_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)
+  | DefnRec of pat * (string * compound_type) list * compound_type option * expr * compound_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)
+  | DefnMutRec of (pat * (string * compound_type) list * compound_type option * expr * compound_type option * int) list (* mutually recursive definitions *)
   | ClassDef of string * string list * (string * compound_type) list
   | InstanceDef of string * compound_type * (string * expr) list
   | TypeDef of string * string list * compound_type

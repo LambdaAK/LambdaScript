@@ -1789,12 +1789,31 @@ and swap_all_variables_in_type (t : mono_type) : mono_type type_check_result =
 
 and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
     (static_env * type_env * constructor_env) type_check_result =
+  let align_explicit_constraints_to_inferred
+      (inferred : class_equations)
+      (explicit : class_equations) : class_equations =
+    List.map
+      (fun (cls, ty_explicit) ->
+        match List.find_opt (fun (c, _) -> c = cls) inferred with
+        | Some (_, ty_inferred) -> (cls, ty_inferred)
+        | None -> (cls, ty_explicit))
+      explicit
+  in
   match defn with
-  | CDefn (pat, type_annotation, body, return_type, num_explicit_params) ->
+  | CDefn
+      ( pat,
+        explicit_class_constraints,
+        type_annotation,
+        body,
+        return_type,
+        num_explicit_params ) ->
       (* Generate type and equations for the body *)
       let- body_type, body_equations, _ = generate env type_env body in
       let p_body = !pending_expression_class_preds in
       pending_expression_class_preds := [];
+      let explicit_constraints' =
+        align_explicit_constraints_to_inferred p_body explicit_class_constraints
+      in
 
       (* Get pattern type and bindings *)
       let pattern_type, pattern_env, pattern_equations =
@@ -1838,7 +1857,10 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
 
       (* Generalize the body type *)
       let- generalized_type =
-        generalize ~class_preds:p_body all_equations env type_env body_type in
+        generalize
+          ~class_preds:(p_body @ explicit_constraints')
+          all_equations env type_env body_type
+      in
 
       (* Create new environment with pattern bindings using bind_static *)
       let new_bindings =
@@ -1852,7 +1874,13 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
 
       (* Return value bindings in static env and empty type env *)
       return (new_bindings, [], [])
-  | CDefnRec (pat, type_annotation, body, return_type, num_explicit_params) ->
+  | CDefnRec
+      ( pat,
+        explicit_class_constraints,
+        type_annotation,
+        body,
+        return_type,
+        num_explicit_params ) ->
       (* For recursive definitions, we need to add the binding to the
          environment before type checking the body *)
       let pattern_type, pattern_env, pattern_equations =
@@ -1867,6 +1895,9 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       let- body_type, body_equations, _ = generate rec_env type_env body in
       let p_body = !pending_expression_class_preds in
       pending_expression_class_preds := [];
+      let explicit_constraints' =
+        align_explicit_constraints_to_inferred p_body explicit_class_constraints
+      in
 
       (* Add constraint that the recursive type must match the body type *)
       let rec_constraint = (rec_type, body_type) in
@@ -1908,7 +1939,10 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
 
       (* Generalize the body type *)
       let- generalized_type =
-        generalize ~class_preds:p_body all_equations env type_env body_type in
+        generalize
+          ~class_preds:(p_body @ explicit_constraints')
+          all_equations env type_env body_type
+      in
 
       (* Create new environment with pattern bindings using bind_static *)
       let new_bindings =
@@ -1933,7 +1967,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       (* Extract patterns and create fresh type variables for each *)
       let patterns_and_fresh_types =
         List.map
-          (fun (pat, _, _, _, _) ->
+          (fun (pat, _, _, _, _, _) ->
             let pattern_type, pattern_env, pattern_equations = type_of_pat env type_env pat in
             let fresh_type = fresh_type_var () in
             (pat, pattern_type, pattern_env, pattern_equations, fresh_type))
@@ -1953,7 +1987,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       let- all_body_results =
         let rec process_bodies acc_equations = function
           | [] -> return (List.rev acc_equations)
-          | (_, _, body, _, _) :: rest ->
+          | (_, _, _, body, _, _) :: rest ->
               let- body_type, body_equations, _ = generate rec_env type_env body in
               process_bodies ((body_type, body_equations) :: acc_equations) rest
         in
@@ -1980,7 +2014,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
           | [] -> return (List.rev acc)
           | (_, pattern_type, _, _, _) :: pats_rest ->
               (match defns with
-              | (_, type_annotation, _, _, _) :: _ ->
+              | (_, _, type_annotation, _, _, _) :: _ ->
                   let- annot_eqs =
                     match type_annotation with
                     | Some t ->
@@ -2741,14 +2775,14 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
 
 and elaborate_defn (static_env : static_env) (type_env : type_env) d : c_defn =
   match d with
-  | CDefn (pat, a, body, r, n) ->
-      CDefn (pat, a, elaborate_expr static_env type_env body, r, n)
-  | CDefnRec (pat, a, body, r, n) ->
-      CDefnRec (pat, a, elaborate_expr static_env type_env body, r, n)
+  | CDefn (pat, cs, a, body, r, n) ->
+      CDefn (pat, cs, a, elaborate_expr static_env type_env body, r, n)
+  | CDefnRec (pat, cs, a, body, r, n) ->
+      CDefnRec (pat, cs, a, elaborate_expr static_env type_env body, r, n)
   | CDefnMutRec defs ->
       CDefnMutRec
         ( List.map
-            (fun (p, a, body, r, n) ->
-              (p, a, elaborate_expr static_env type_env body, r, n))
+            (fun (p, cs, a, body, r, n) ->
+              (p, cs, a, elaborate_expr static_env type_env body, r, n))
             defs )
   | d -> d

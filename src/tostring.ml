@@ -502,7 +502,7 @@ and string_of_defn (d : defn) (level : int) =
         ^ ","
   in
   match d with
-  | Defn (p, cto, e, return_type, _) ->
+  | Defn (p, _cs, cto, e, return_type, _) ->
       "Defn ("
       ^ indentations_with_newline (level + 1)
       ^ string_of_pat p ^ "," ^ cto_string cto
@@ -510,7 +510,7 @@ and string_of_defn (d : defn) (level : int) =
       ^ string_of_expr e (level + 1)
       ^ "," ^ cto_string return_type
       ^ ")"
-  | DefnRec (p, cto, e, return_type, _) ->
+  | DefnRec (p, _cs, cto, e, return_type, _) ->
       "DefnRec ("
       ^ indentations_with_newline (level + 1)
       ^ string_of_pat p ^ "," ^ cto_string cto
@@ -519,7 +519,7 @@ and string_of_defn (d : defn) (level : int) =
       ^ "," ^ cto_string return_type
       ^ ")"
   | DefnMutRec defns ->
-      let defns_str = String.concat "\nand " (List.map (fun (p, cto, e, _, _) ->
+      let defns_str = String.concat "\nand " (List.map (fun (p, _cs, cto, e, _, _) ->
         string_of_pat p ^ cto_string cto ^ " = " ^ string_of_expr e level
       ) defns) in
       "DefnMutRec (" ^ indentations_with_newline (level + 1)

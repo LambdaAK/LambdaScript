@@ -1165,9 +1165,34 @@ end
 and DefnParser : sig
   val defn_parser : defn parser
 end = struct
+  let class_constraint_parser : (string * compound_type) parser =
+    let* cls =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* ty = CompoundTypeParser.compound_type_parser in
+    return (cls, ty)
+
+  let optional_class_constraints_parser : (string * compound_type) list parser =
+    (let* () =
+       expect_token_get_data (function
+         | Relop "<" -> Some ()
+         | _ -> None)
+     in
+     let* cs = parse_sep_delim class_constraint_parser Comma in
+     let* () =
+       expect_token_get_data (function
+         | Relop ">" -> Some ()
+         | _ -> None)
+     in
+     return cs)
+    <|> return []
+
   let let_defn_parser () : defn parser =
     let* () = expect_token Let in
     let* pat, cto = ExprParser.pat_and_type_annotation_parser in
+    let* class_constraints = optional_class_constraints_parser in
     (* parse argument patterns *)
     let* arg_pats_and_type_annotations : (pat * compound_type option) list =
       parse_several ExprParser.pat_and_type_annotation_parser
@@ -1199,11 +1224,18 @@ end = struct
     (* wrap body in functions *)
     let num_explicit_params = List.length arg_pats_and_type_annotations in
     return
-      (Defn (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option, num_explicit_params))
+      (Defn
+         ( pat,
+           class_constraints,
+           final_cto,
+           wrap_e1_in_functions e1 arg_pats_and_type_annotations,
+           return_type_option,
+           num_explicit_params ))
 
   (* Helper to parse a single definition component (pattern, args, type, body) *)
-  let parse_single_defn_component () : (pat * compound_type option * expr * compound_type option * int) parser =
+  let parse_single_defn_component () : (pat * (string * compound_type) list * compound_type option * expr * compound_type option * int) parser =
     let* pat, cto = ExprParser.pat_and_type_annotation_parser in
+    let* class_constraints = optional_class_constraints_parser in
     (* parse argument patterns *)
     let* arg_pats_and_type_annotations : (pat * compound_type option) list =
       parse_several ExprParser.pat_and_type_annotation_parser
@@ -1234,7 +1266,13 @@ end = struct
 
     (* wrap body in functions *)
     let num_explicit_params = List.length arg_pats_and_type_annotations in
-    return (pat, final_cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option, num_explicit_params)
+    return
+      ( pat,
+        class_constraints,
+        final_cto,
+        wrap_e1_in_functions e1 arg_pats_and_type_annotations,
+        return_type_option,
+        num_explicit_params )
 
   let let_rec_defn_parser () : defn parser =
     let* () = expect_token Let in
@@ -1252,8 +1290,23 @@ end = struct
     (* If we have and clauses, return DefnMutRec, otherwise DefnRec *)
     match and_defns with
     | [] ->
-        let (pat, final_cto, body, return_type_option, num_explicit_params) = first_defn in
-        return (DefnRec (pat, final_cto, body, return_type_option, num_explicit_params))
+        let
+          ( pat,
+            class_constraints,
+            final_cto,
+            body,
+            return_type_option,
+            num_explicit_params )
+          = first_defn
+        in
+        return
+          (DefnRec
+             ( pat,
+               class_constraints,
+               final_cto,
+               body,
+               return_type_option,
+               num_explicit_params ))
     | _ ->
         return (DefnMutRec (first_defn :: and_defns))
 
@@ -1334,16 +1387,23 @@ end = struct
            let rec f x y = rhs in f
            so the method position can still be represented as an [expr]. *)
         (let* () = expect_token Rec in
-         let* (pat, final_cto, body, return_type_option, _num_explicit_params) =
+         let*
+           ( pat,
+             class_constraints,
+             final_cto,
+             body,
+             return_type_option,
+             _num_explicit_params )
+           =
            parse_single_defn_component ()
          in
          let () =
-           match (final_cto, return_type_option) with
-           | None, None -> ()
+           match (class_constraints, final_cto, return_type_option) with
+           | [], None, None -> ()
            | _ ->
                failwith
-                 "parser: type annotations are not allowed on impl let bindings \
-                  (types come from the inter)"
+                 "parser: constraints/type annotations are not allowed on impl let \
+                  bindings (types come from the inter)"
          in
          let name =
            match pat with
@@ -1357,16 +1417,23 @@ end = struct
          return
            (name, BindRec (pat, final_cto, body, e2, return_type_option)))
         <|>
-        (let* (pat, final_cto, body, return_type_option, _num_explicit_params) =
+        (let*
+           ( pat,
+             class_constraints,
+             final_cto,
+             body,
+             return_type_option,
+             _num_explicit_params )
+           =
            parse_single_defn_component ()
          in
          let () =
-           match (final_cto, return_type_option) with
-           | None, None -> ()
+           match (class_constraints, final_cto, return_type_option) with
+           | [], None, None -> ()
            | _ ->
                failwith
-                 "parser: type annotations are not allowed on impl let bindings \
-                  (types come from the inter)"
+                 "parser: constraints/type annotations are not allowed on impl let \
+                  bindings (types come from the inter)"
          in
          let name =
            match pat with

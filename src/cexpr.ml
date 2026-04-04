@@ -66,9 +66,9 @@ type c_type =
         (** Typeclass constraints [(class_name, type)] ... before inner scheme. *)
 
 and c_defn =
-  | CDefn of c_pat * c_type option * c_expr * c_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
-  | CDefnRec of c_pat * c_type option * c_expr * c_type option * int (* pat, type_annotation, body, return_type, num_explicit_params *)
-  | CDefnMutRec of (c_pat * c_type option * c_expr * c_type option * int) list (* mutually recursive definitions *)
+  | CDefn of c_pat * (string * mono_type) list * c_type option * c_expr * c_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)
+  | CDefnRec of c_pat * (string * mono_type) list * c_type option * c_expr * c_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)
+  | CDefnMutRec of (c_pat * (string * mono_type) list * c_type option * c_expr * c_type option * int) list (* mutually recursive definitions *)
   | CClassDecl of string * string list * (string * mono_type) list
       (** Elaborated class header; runtime/LLVM ignore it; kept for tooling/errors. *)
   | CTypeAlias of string * string list * mono_type

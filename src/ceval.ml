@@ -844,14 +844,14 @@ and expr_of_pat : c_pat -> c_expr = function
     @return The new bindings introduced by the definition *)
 and eval_defn (d : c_defn) (env : env) : env eval_result =
   match d with
-  | CDefn (pat, _, body, _, _) -> (
+  | CDefn (pat, _, _, body, _, _) -> (
       (* Evaluate the body in the current environment *)
       let* value = eval_c_expr body env in
       (* Try to bind the pattern to the value *)
       match bind_pat pat value with
       | None -> Error (OtherError "eval_defn: pattern match failed")
       | Some new_bindings -> new_bindings |> return)
-  | CDefnRec (pat, _, body, _, _) -> (
+  | CDefnRec (pat, _, _, body, _, _) -> (
       (* For recursive definitions, we need to create a recursive closure *)
       let* value = eval_c_expr body env in
       let value_rec =
@@ -882,7 +882,7 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       let* initial_bindings_and_refs =
         let rec process_defns acc = function
           | [] -> return (List.rev acc)
-          | (pat, _, body, _, _) :: rest ->
+          | (pat, _, _, body, _, _) :: rest ->
               let* value = eval_c_expr body env in
               let value_rec, env_ref_opt =
                 match value with

@@ -4,6 +4,11 @@ inter Monad<m> {
     val return : a -> m<a>
   }
 
+inter Foldable<f> {
+  val fold_left : (b -> a -> b) -> b -> f<a> -> b
+  val fold_right : (a -> b -> b) -> b -> f<a> -> b
+}
+
 type Option<a> =
   | None
   | Some of a
@@ -21,6 +26,17 @@ type rec List<a> =
   | Nil
   | Cons of (a, List<a>)
 
+impl Foldable for List {
+  let rec fold_left f acc xs =
+    case xs do
+    | Nil -> acc
+    | Cons (h, t) -> fold_left f (f acc h) t
+  let rec fold_right f acc xs =
+    case xs do
+    | Nil -> acc
+    | Cons (h, t) -> fold_right f (f h acc) t
+}
+
 impl Monad for List {
   let rec (>>=) x f =
     case x do
@@ -30,19 +46,10 @@ impl Monad for List {
   let return x = Cons (x, Nil)
 }
 
-let o1 = Some 1
-let o2 = Some 2
-let o3 = Some 3
-let o4 = Some 4
-let o5 = Some 5
-let o6 = Some 6
-let o7 = Some 7
-let o8 = Some 8
-let o9 = Some 9
-let o10 = Some 10
+let my_list = Cons (1, Cons (2, Cons (3, Nil)))
 
-let m1 = o5 >>= (fn x -> Some (x + 1))
+let res = fold_left (fn acc -> fn x -> acc + x) 0 my_list
 
-let () = case m1 do
-  | Some v -> println (int_to_str v)
-  | None -> println "none"
+let () = println (int_to_str res)
+
+let join<Monad m> (x : m<m<a>>) = x
