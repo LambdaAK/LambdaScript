@@ -2,8 +2,8 @@ type Pair<a> = (a, a)
 
 let () = println "Testing Pair type..."
 
-let int_pair [Pair<int>] = (5, 10)
-let () = println "Created int pair"
+let int_pair [Pair<Int>] = (5, 10)
+let () = println "Created Int pair"
 
 let get_first p = switch p =>
   | (x, y) -> x

@@ -2,7 +2,7 @@ Expected:
 0
 
 Source:
-type Option<'a> = | None | Some of 'a
+type Option<a> = | None | Some of a
 
 let none = None
 

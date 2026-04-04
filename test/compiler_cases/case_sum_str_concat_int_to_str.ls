@@ -5,7 +5,7 @@ B 1
 Source:
 type T =
   | A
-  | B of int
+  | B of Int
 
 let str_of_t t =
   case t do

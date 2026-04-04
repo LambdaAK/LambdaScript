@@ -3,7 +3,7 @@ Expected:
 0
 
 Source:
-type rec List<'a> = | Nil | Cons of ('a, List<'a>)
+type rec List<a> = | Nil | Cons of (a, List<a>)
 
 let rec length lst =
   case lst do

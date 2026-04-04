@@ -4,11 +4,11 @@ Expected:
 8
 
 Source:
-let r : {a: int, b: int, k: int} = {k: 3, a: 1, b: 2}
-let s : {a: int, b: int, k: int} = { r with k = 10 }
-let sum_ab (p : {a: int, b: int}) : int = p.a + p.b
+let r : {a: Int, b: Int, k: Int} = {k: 3, a: 1, b: 2}
+let s : {a: Int, b: Int, k: Int} = { r with k = 10 }
+let sum_ab (p : {a: Int, b: Int}) : Int = p.a + p.b
 
-let bump (q : {a: int, b: int}) : int =
+let bump (q : {a: Int, b: Int}) : Int =
   case q do
   | {a: xa, b: yb} -> xa + yb + 1
 

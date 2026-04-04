@@ -55,7 +55,7 @@ done
 
 Source:
 // Kitchen sink: arithmetic, recursion, mutual recursion, HOFs, polymorphism,
-// partial application, lambdas from unit, strings, lists, blocks, wildcards,
+// partial application, lambdas from Unit, strings, lists, blocks, wildcards,
 // closures capturing ints, builtins (println, int_to_str) inside lambdas,
 // first-class builtins via id, curried (id succ) apply, string concat (^).
 
@@ -132,12 +132,12 @@ let sub x y = x - y
 let mul x y = x * y
 
 // Higher-order functions
-let compose (f : int -> int) (g : int -> int) (x : int) : int = f (g x)
-let twice  (f : int -> int) (x : int) : int = f (f x)
-let thrice (f : int -> int) (x : int) : int = f (f (f x))
-let both   (f : int -> int) (x : int) : int = f x + f x
-let flip   (f : int -> int -> int) (x : int) (y : int) : int = f y x
-let call_with (f : int -> int) (x : int) : int = f x
+let compose (f : Int -> Int) (g : Int -> Int) (x : Int) : Int = f (g x)
+let twice  (f : Int -> Int) (x : Int) : Int = f (f x)
+let thrice (f : Int -> Int) (x : Int) : Int = f (f (f x))
+let both   (f : Int -> Int) (x : Int) : Int = f x + f x
+let flip   (f : Int -> Int -> Int) (x : Int) (y : Int) : Int = f y x
+let call_with (f : Int -> Int) (x : Int) : Int = f x
 
 // Polymorphic functions
 let id x = x
@@ -148,8 +148,8 @@ let add5   = add 5
 let triple = mul 3
 
 // Lambda values (no closures needed)
-let get_inc    () : int -> int = fn x -> x + 1
-let get_double () : int -> int = fn x -> x * 2
+let get_inc    () : Int -> Int = fn x -> x + 1
+let get_double () : Int -> Int = fn x -> x * 2
 
 // Lists, blocks, wildcards, closures, builtins inside lambdas
 let rec list_sum lst =

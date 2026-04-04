@@ -301,7 +301,8 @@ and condense_factor_type : factor_type -> mono_type = function
       (* [t] and list<t> both denote list types; list<t> avoids a CTypeApp that
          would hit "Type not found: list" during simplification. *)
       match name, args with
-      | "list", [ elem ] -> CListType (condense_compound_type elem)
+      | "list", [ elem ] ->
+          CListType (condense_compound_type elem)
       | _ -> CTypeApp (name, List.map condense_compound_type args))
   | RecordTypeWritten fields ->
       RecordType (List.map (fun (name, ct) -> (name, condense_compound_type ct)) fields)
@@ -325,31 +326,28 @@ and cons_from_list : c_expr list -> c_expr = function
   | [] -> ENil
   | e :: es -> EBop (CCons, e, cons_from_list es)
 
-let written_param_var (p : string) : string = "$written(" ^ p ^ ")"
-
-let assert_method_types_use_only_param (param : string)
-    (methods : (string * mono_type) list) : unit =
-  let ok_var = written_param_var param in
-  List.iter
-    (fun (_, mt) ->
-      List.iter
-        (fun s ->
-          if s <> ok_var then
-            failwith
-              ("forge inter: method types may only use the interface type parameter \
-               (e.g. '" ^ param ^ "' in the method signatures), but found type \
-                variable: "
-              ^ s))
-        (get_mono_type_vars mt))
-    methods
-
 (** Expand [inter] / [impl] into [CClassDecl] plus dictionary [let]s. Definitions
     must appear in order: each [impl] references an [inter] defined earlier in
     the same file. *)
 let condense_program (defns : defn list) : c_defn list =
+  let record_ctor_arities (seen : (string * int) list) (d : defn) :
+      (string * int) list =
+    match d with
+    | TypeDef (name, params, _) -> (name, List.length params) :: seen
+    | SumTypeDef (name, params, _) -> (name, List.length params) :: seen
+    | SumTypeDefRec (name, params, _) -> (name, List.length params) :: seen
+    | SumTypeDefMutRec group ->
+        List.fold_left
+          (fun acc (name, params, _) -> (name, List.length params) :: acc)
+          seen group
+    | _ -> seen
+  in
   let rec walk
-      (classes : (string * (string list * (string * mono_type) list)) list)
-      (seen_instances : string list) (acc : c_defn list) = function
+      (classes :
+        (string * (string list * (string * mono_type) list * (string * int) list))
+        list)
+      (seen_ctors : (string * int) list) (seen_instances : string list)
+      (acc : c_defn list) = function
     | [] -> List.rev acc
     | ClassDef (name, params, methods) :: rest ->
         if params = [] then
@@ -359,33 +357,48 @@ let condense_program (defns : defn list) : c_defn list =
           failwith "forge: duplicate type parameter in inter";
         if List.exists (fun (n, _) -> n = name) classes then
           failwith ("forge: duplicate inter: " ^ name);
-        let methods_mono =
+        if List.length params <> 1 then
+          failwith
+            "forge: exactly one inter type parameter is supported in this MVP";
+        let methods_mono_raw =
           List.map (fun (m, ct) -> (m, condense_compound_type ct)) methods
         in
-        (match params with
-        | [ p ] -> assert_method_types_use_only_param p methods_mono
-        | _ ->
-            failwith
-              "forge: exactly one inter type parameter is supported in this MVP");
+        let param_arities =
+          Type_arity.infer_inter_param_arities params
+            (List.map snd methods_mono_raw)
+        in
+        let methods_mono =
+          List.map
+            (fun (m, mt) ->
+              ( m,
+                Type_arity.replace_inter_heads_with_tctor ~params mt ))
+            methods_mono_raw
+        in
         let method_names = List.map fst methods_mono in
         let names_uniq = List.sort_uniq String.compare method_names in
         if List.length names_uniq <> List.length method_names then
           failwith "forge: duplicate method name in inter";
         let decl = CClassDecl (name, params, methods_mono) in
-        walk ((name, (params, methods_mono)) :: classes) seen_instances
-          (decl :: acc) rest
+        walk
+          ((name, (params, methods_mono, param_arities)) :: classes)
+          seen_ctors seen_instances (decl :: acc) rest
     | InstanceDef (cls, inst_ct, impls) :: rest -> (
         match List.assoc_opt cls classes with
         | None ->
             failwith
               ("forge: impl for unknown inter '" ^ cls
              ^ "' — declare [inter] above this [impl]")
-        | Some (params, meth_specs) -> (
+        | Some (params, meth_specs, param_arities) -> (
             match params with
             | [ p ] ->
                 let inst_mono = condense_compound_type inst_ct in
+                let arity = List.assoc p param_arities in
+                Type_arity.validate_impl_head ~class_name:cls ~required_arity:arity
+                  ~seen_ctors inst_mono;
+                let w = Type_arity.written_param_var p in
                 let subst mt =
-                  substitute_mono mt (written_param_var p) inst_mono
+                  Type_arity.substitute_instance_in_mono ~written_var:w
+                    ~inst:inst_mono arity mt
                 in
                 let field_types =
                   List.map (fun (m, mt) -> (m, subst mt)) meth_specs
@@ -425,12 +438,14 @@ let condense_program (defns : defn list) : c_defn list =
                       None,
                       0 )
                 in
-                walk classes (key :: seen_instances) (cdefn :: acc) rest
+                walk classes seen_ctors (key :: seen_instances) (cdefn :: acc)
+                  rest
             | _ -> failwith "forge: internal inter arity"))
     | d :: rest ->
-        walk classes seen_instances (condense_defn d :: acc) rest
+        let seen_ctors' = record_ctor_arities seen_ctors d in
+        walk classes seen_ctors' seen_instances (condense_defn d :: acc) rest
   in
-  walk [] [] [] defns
+  walk [] [] [] [] defns
 
 let rec all_type_vars_in_type : mono_type -> string list = function
   | IntType | FloatType | BoolType | StringType | CharType | UnitType -> []
@@ -444,6 +459,9 @@ let rec all_type_vars_in_type : mono_type -> string list = function
   | CListType et -> all_type_vars_in_type et
   | TypeName _ -> []
   | CTypeApp (_, args) ->
+      List.concat (List.map all_type_vars_in_type args)
+      |> List.sort_uniq compare
+  | TCtorApp (_, args) ->
       List.concat (List.map all_type_vars_in_type args)
       |> List.sort_uniq compare
   | FixedPoint (_, body) -> all_type_vars_in_type body

@@ -2,7 +2,7 @@ Expected:
 5
 
 Source:
-type rec List<'a> = | Nil | Cons of ('a, List<'a>)
+type rec List<a> = | Nil | Cons of (a, List<a>)
 
 let rec head_def d lst =
   case lst do

@@ -1,9 +1,9 @@
-inter Monoid<'a> {
-  val mappend : 'a -> 'a -> 'a
-  val mempty : 'a
+inter Monoid<a> {
+  val mappend : a -> a -> a
+  val mempty : a
 }
 
-impl Monoid for ['a] {
+impl Monoid for [a] {
   let rec mappend x y =
     case x do
       | [] -> y
@@ -11,3 +11,21 @@ impl Monoid for ['a] {
 
   let mempty = []
 }
+
+inter Monad<m> {
+    val (>>=) : m<a> -> (a -> m<b>) -> m<b>
+    val return : a -> m<a>
+  }
+
+type Option<a> =
+  | None
+  | Some of a
+
+impl Monad for Option {
+  let (>>=) x f =
+    case x do
+    | None -> None
+    | Some v -> f v
+  let return x = Some x
+}
+

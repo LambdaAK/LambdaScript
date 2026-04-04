@@ -2,7 +2,7 @@ Expected:
 6
 
 Source:
-type rec Tree = | Leaf of int | Node of (Tree, Tree)
+type rec Tree = | Leaf of Int | Node of (Tree, Tree)
 
 let rec sum_tree t =
   case t do

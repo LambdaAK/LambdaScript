@@ -6,7 +6,6 @@ type token_type =
   | StringToken of string
   | Unit
   | Id of string
-  | TypeVar of string
   | Assign
   | Fn
   | For
@@ -63,7 +62,6 @@ type token_type =
   | Mulop of string (* start with * / or % *)
   | Logop of string (* start with | or & *)
   | Type
-  | TypeVariable of string
   | LAngle
   | RAngle
   | Of
@@ -135,7 +133,6 @@ let string_of_token_type : token_type -> string = function
   | And -> "<and>"
   | Comma -> "<comma>"
   | WildcardPattern -> "<wildcard pattern>"
-  | TypeVar s -> "<type var: " ^ s ^ ">"
   | ConsToken -> "<cons token>"
   | Pipe -> "<pipe>"
   | Switch -> "<switch>"
@@ -149,7 +146,6 @@ let string_of_token_type : token_type -> string = function
   | Logop s -> "<logop: " ^ s ^ ">"
   | Equals -> "<equals>"
   | Type -> "<type>"
-  | TypeVariable s -> "<type variable: " ^ s ^ ">"
   | LAngle -> "<"
   | RAngle -> ">"
   | Of -> "<of>"
@@ -294,11 +290,11 @@ let keywords =
   [
     ("true", Boolean true);
     ("false", Boolean false);
-    ("int", IntegerType);
-    ("bool", BooleanType);
-    ("str", StringType);
-    ("char", CharType);
-    ("unit", UnitType);
+    ("Int", IntegerType);
+    ("Bool", BooleanType);
+    ("String", StringType);
+    ("Char", CharType);
+    ("Unit", UnitType);
     ("if", If);
     ("then", Then);
     ("else", Else);
@@ -313,7 +309,7 @@ let keywords =
     ("case", Case);
     ("do", Do);
     ("enum", Enum);
-    ("float", FloatType);
+    ("Float", FloatType);
     ("of", Of);
     ("type", Type);
     ("val", Val);
@@ -408,41 +404,6 @@ let rec lex_id (lst : char list) (acc : string) : token * char list =
   | c :: t when is_num c && not (acc = "") ->
       lex_id t (acc ^^ c) (* a digit, and not the first character *)
   | _ -> ({ token_type = Id acc; line = 0 }, lst)
-
-let is_lowercase : char -> bool = function
-  | 'a'
-  | 'b'
-  | 'c'
-  | 'd'
-  | 'e'
-  | 'f'
-  | 'g'
-  | 'h'
-  | 'i'
-  | 'j'
-  | 'k'
-  | 'l'
-  | 'm'
-  | 'n'
-  | 'o'
-  | 'p'
-  | 'q'
-  | 'r'
-  | 's'
-  | 't'
-  | 'u'
-  | 'v'
-  | 'w'
-  | 'x'
-  | 'y'
-  | 'z' -> true
-  | _ -> false
-
-let rec lex_type_var (tokens_after_single_quote : char list) (acc : string) :
-    token * char list =
-  match tokens_after_single_quote with
-  | c :: t when is_lowercase c -> lex_type_var t (acc ^ string_of_char c)
-  | _ -> ({ token_type = TypeVar acc; line = 0 }, tokens_after_single_quote)
 
 (* Helper functions for token creation and emission *)
 let make_token line_number token_type = { token_type; line = line_number }
@@ -544,7 +505,7 @@ let lex (lst : char list) : token list =
                 lex t
             (* Left parenthesis *)
             | '(' :: rest -> emit_token !line_number LParen rest lex
-            (* Type variables or char literals starting with single quote *)
+            (* Char literals: 'x' or '\n' etc. (type variables are plain ids: a, b, …) *)
             | '\'' :: tokens_after_single_quote -> (
                 match tokens_after_single_quote with
                 | c :: '\'' :: rest ->
@@ -556,10 +517,8 @@ let lex (lst : char list) : token list =
                     let char_token, remainder = lex_char_literal tokens_after_single_quote in
                     { char_token with line = !line_number } :: lex remainder
                 | _ ->
-                    let type_var_token, tokens_after_type_var =
-                      lex_type_var tokens_after_single_quote ""
-                    in
-                    type_var_token :: lex tokens_after_type_var)
+                    failwith
+                      "Lex error: expected character literal 'c' or escape after single quote")
             (* String literals *)
             | '"' :: c :: t ->
                 if c = '"' then emit_token !line_number (StringToken "") t lex

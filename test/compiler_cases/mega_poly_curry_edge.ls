@@ -69,7 +69,7 @@ let both f x = f x + f x
 
 // Typed monomorphic identity (compose spine)
 let cmono f g x = f (g x)
-let id_int (z : int) : int = z
+let id_int (z : Int) : Int = z
 
 let succ1 x = x + 1
 

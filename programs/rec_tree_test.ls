@@ -2,7 +2,7 @@ type rec Tree<a> =
   | Leaf
   | Node of (a, Tree<a>, Tree<a>)
 
-let leaf [Tree<int>] = Leaf
+let leaf [Tree<Int>] = Leaf
 
 let single_node = Node 5 Leaf Leaf
 

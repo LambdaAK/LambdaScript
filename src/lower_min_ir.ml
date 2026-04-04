@@ -134,7 +134,7 @@ and mono_to_min (m : mono_type) : ty =
   | CTypeApp (name, _) when is_sum_type_name type_env name -> RawPtr
   | FixedPoint (name, _) when is_sum_type_name type_env name -> RawPtr
   | TypeName name when is_sum_type_name type_env name -> RawPtr
-  | FloatType | CharType | TypeName _ | CTypeApp _ | FixedPoint _ ->
+  | FloatType | CharType | TypeName _ | CTypeApp _ | TCtorApp _ | FixedPoint _ ->
       unsupported "Type not supported for native parameter/return yet"
   | RecordType fields ->
       let sorted = Cexpr.record_fields_sorted fields in
@@ -1247,6 +1247,7 @@ let rec apply_subst_mono (sub : (string * mono_type) list) (t : mono_type) : mon
   | VectorType ts -> VectorType (List.map (apply_subst_mono sub) ts)
   | CListType e -> CListType (apply_subst_mono sub e)
   | CTypeApp (n, args) -> CTypeApp (n, List.map (apply_subst_mono sub) args)
+  | TCtorApp (w, args) -> TCtorApp (w, List.map (apply_subst_mono sub) args)
   | FixedPoint (n, b) -> FixedPoint (n, apply_subst_mono sub b)
   | RecordType fields ->
       RecordType (List.map (fun (nm, t) -> (nm, apply_subst_mono sub t)) fields)

@@ -47,7 +47,7 @@ and factor_type =
   | CharType
   | UnitType
   | FloatType
-  | TypeVarWritten of string (* 'a, 'b, etc. *)
+  | TypeVarWritten of string (* a, b, … in type position *)
   | TypeName of string (* t, u, etc. *)
   | ParenFactorType of compound_type
   | VectorType of compound_type list

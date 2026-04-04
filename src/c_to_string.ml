@@ -1,13 +1,13 @@
 open Cexpr
 
 let rec string_of_mono_type : mono_type -> string = function
-  | IntType -> "int"
-  | FloatType -> "float"
-  | BoolType -> "bool"
-  | StringType -> "str"
-  | CharType -> "char"
-  | UnitType -> "unit"
-  | TypeVar v -> "'" ^ v
+  | IntType -> "Int"
+  | FloatType -> "Float"
+  | BoolType -> "Bool"
+  | StringType -> "String"
+  | CharType -> "Char"
+  | UnitType -> "Unit"
+  | TypeVar v -> v
   | FunctionType (t1, t2) ->
       let t1_str =
         match t1 with
@@ -25,6 +25,8 @@ let rec string_of_mono_type : mono_type -> string = function
       else
         let args_str = List.map string_of_mono_type args in
         name ^ "<" ^ String.concat ", " args_str ^ ">"
+  | TCtorApp (w, args) ->
+      Cexpr.string_of_mono_type (TCtorApp (w, args))
   | FixedPoint (_, body) -> string_of_mono_type body
   | RecordType fields ->
       let field_strs = List.map (fun (name, t) ->
@@ -37,10 +39,8 @@ let rec string_of_c_type (ct : c_type) : string =
     if
       String.length v > 9 && String.sub v 0 9 = "$written("
       && String.ends_with ~suffix:")" v
-    then "'" ^ String.sub v 9 (String.length v - 10)
-    else if String.starts_with ~prefix:"'" v then v
-    else if v = "string" then "str"
-    else "'" ^ v
+    then String.sub v 9 (String.length v - 10)
+    else v
   in
   let rec string_of_mono_for_display : mono_type -> string = function
     | TypeVar v -> pretty_tv v
@@ -61,6 +61,12 @@ let rec string_of_c_type (ct : c_type) : string =
         else
           let args_str = List.map string_of_mono_for_display args in
           name ^ "<" ^ String.concat ", " args_str ^ ">"
+    | TCtorApp (w, args) ->
+        let head = pretty_tv w in
+        if args = [] then head
+        else
+          let args_str = List.map string_of_mono_for_display args in
+          head ^ "<" ^ String.concat ", " args_str ^ ">"
     | FixedPoint (_, body) -> string_of_mono_for_display body
     | RecordType fields ->
         let field_strs =
@@ -70,17 +76,20 @@ let rec string_of_c_type (ct : c_type) : string =
             fields
         in
         "{" ^ String.concat ", " field_strs ^ "}"
-    | TypeName t -> if t = "string" then "str" else t
+    | TypeName t -> t
     | ( IntType | FloatType | BoolType | StringType | CharType | UnitType )
       as m ->
         string_of_mono_type m
   in
-  let rec flatten_quant acc c =
+  (* Peel leading [PolyType] for the spine; do not print a separate quantifier
+     prefix (e.g. [a (a -> t) -> ...]) — that reads like type application. Type
+     parameters still appear in the body [(a -> t) -> ...]. *)
+  let rec strip_leading_poly c =
     match c with
-    | PolyType (v, rest) -> flatten_quant (pretty_tv v :: acc) rest
-    | t -> (List.rev acc, t)
+    | PolyType (_, rest) -> strip_leading_poly rest
+    | t -> t
   in
-  let quant, rest = flatten_quant [] ct in
+  let rest = strip_leading_poly ct in
   let constr, inner =
     match rest with
     | Constrained (ps, inner') ->
@@ -90,16 +99,6 @@ let rec string_of_c_type (ct : c_type) : string =
           | PolyType _ | Constrained _ -> `Nested inner') )
     | Mono m -> ([], `Mono m)
     | PolyType _ -> ([], `Nested rest)
-  in
-  (* When there are class constraints, quantified vars appear in the preds and
-     body — skip a duplicate leading [quant_str] (e.g. Show 'a => 'a -> t). *)
-  let quant_str =
-    if constr <> [] then ""
-    else
-      match quant with
-      | [] -> ""
-      | [ v ] -> v ^ " "
-      | vs -> "(" ^ String.concat ", " vs ^ ") "
   in
   let constr_str =
     if constr = [] then ""
@@ -115,7 +114,7 @@ let rec string_of_c_type (ct : c_type) : string =
     | `Mono m -> string_of_mono_for_display m
     | `Nested t -> string_of_c_type t
   in
-  quant_str ^ constr_str ^ inner_str
+  constr_str ^ inner_str
 
 (** Formats an optional type annotation. Returns " : type" if Some type, or
     empty string if None. *)

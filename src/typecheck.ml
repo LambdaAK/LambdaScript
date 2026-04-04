@@ -179,12 +179,12 @@ let rec string_of_static_env (env : static_env) : string =
 
 and string_of_mono_type (t : mono_type) : string =
   match t with
-  | IntType -> "int"
-  | FloatType -> "float"
-  | BoolType -> "bool"
-  | StringType -> "string"
-  | CharType -> "char"
-  | UnitType -> "unit"
+  | IntType -> "Int"
+  | FloatType -> "Float"
+  | BoolType -> "Bool"
+  | StringType -> "String"
+  | CharType -> "Char"
+  | UnitType -> "Unit"
   | TypeVar v -> v
   | FunctionType (t1, t2) ->
       let t1_str = string_of_mono_type t1 in
@@ -198,12 +198,105 @@ and string_of_mono_type (t : mono_type) : string =
   | CTypeApp (name, args) ->
       let args_str = List.map string_of_mono_type args in
       name ^ "<" ^ String.concat ", " args_str ^ ">"
+  | TCtorApp (w, args) ->
+      Cexpr.string_of_mono_type (TCtorApp (w, args))
   | FixedPoint (name, body) -> "μ" ^ name ^ ". " ^ string_of_mono_type body
   | RecordType fields ->
       let field_strs = List.map (fun (name, t) ->
         name ^ ": " ^ string_of_mono_type t
       ) fields in
       "{" ^ String.concat ", " field_strs ^ "}"
+
+(** Substitute a type variable inside a monomorphic type (used for forge dicts). *)
+let rec replace_typevar_in_mono ~(var_id : string) ~(with_ty : mono_type)
+    (t : mono_type) : mono_type =
+  match t with
+  | IntType | FloatType | BoolType | StringType | CharType | UnitType -> t
+  | TypeVar id -> if id = var_id then with_ty else TypeVar id
+  | TypeName n -> TypeName n
+  | FunctionType (i, o) ->
+      FunctionType
+        ( replace_typevar_in_mono ~var_id ~with_ty i,
+          replace_typevar_in_mono ~var_id ~with_ty o )
+  | VectorType ts ->
+      VectorType (List.map (replace_typevar_in_mono ~var_id ~with_ty) ts)
+  | CListType et -> CListType (replace_typevar_in_mono ~var_id ~with_ty et)
+  | CTypeApp (name, args) ->
+      CTypeApp (name, List.map (replace_typevar_in_mono ~var_id ~with_ty) args)
+  | TCtorApp (w, args) ->
+      TCtorApp (w, List.map (replace_typevar_in_mono ~var_id ~with_ty) args)
+  | FixedPoint (n, body) ->
+      FixedPoint (n, replace_typevar_in_mono ~var_id ~with_ty body)
+  | RecordType fields ->
+      RecordType
+        (List.map
+           (fun (name, t) ->
+             (name, replace_typevar_in_mono ~var_id ~with_ty t))
+           fields)
+
+let instantiate_dict_scheme_to_record ~(sch : c_type) ~(tau : mono_type) :
+    mono_type option =
+  let rec collect_poly_vars acc t =
+    match t with
+    | PolyType (v, inner) -> collect_poly_vars (v :: acc) inner
+    | Constrained (_, inner) -> collect_poly_vars acc inner
+    | Mono _ -> acc
+  in
+  let poly_vars = collect_poly_vars [] sch in
+  let rec strip_to_mono t =
+    match t with
+    | Mono m -> Some m
+    | Constrained (_, inner) -> strip_to_mono inner
+    | PolyType (_, inner) -> strip_to_mono inner
+  in
+  match strip_to_mono sch with
+  | None -> None
+  | Some mono_body ->
+      let substituted =
+        List.fold_left
+          (fun acc var_id -> replace_typevar_in_mono ~var_id ~with_ty:tau acc)
+          mono_body poly_vars
+      in
+      match substituted with
+      | RecordType _ -> Some substituted
+      | _ -> None
+
+let find_compatible_dict_name ~(static_env : static_env) ~(class_name : string)
+    ~(method_name : string) ~(tau : mono_type) : string option =
+  let prefix = "__forge_dict_" ^ class_name ^ "_" in
+  let exact = dict_for_instance ~class_name tau in
+  if List.mem_assoc exact static_env then Some exact
+  else
+    let rec scan env =
+      match env with
+      | [] -> None
+      | (name, sch) :: rest ->
+          if String.starts_with ~prefix name then
+            match instantiate_dict_scheme_to_record ~sch ~tau with
+            | Some (RecordType fields) when List.mem_assoc method_name fields ->
+                Some name
+            | _ -> scan rest
+          else scan rest
+    in
+    scan static_env
+
+(** Polymorphic instance heads (e.g. [impl Monoid for [a]]) use dictionary names
+    that do not match the exact [dict_for_instance] slug of a concrete [tau];
+    [generalize] still needs to accept those predicates. *)
+let forge_dict_resolves_for_class ~(static_env : static_env) ~(class_name : string)
+    (tau : mono_type) : bool =
+  let exact = dict_for_instance ~class_name tau in
+  if List.mem_assoc exact static_env then true
+  else
+    let prefix = "__forge_dict_" ^ class_name ^ "_" in
+    List.exists
+      (fun (name, sch) ->
+        String.starts_with ~prefix name
+        &&
+        match instantiate_dict_scheme_to_record ~sch ~tau with
+        | Some (RecordType _) -> true
+        | _ -> false)
+      static_env
 
 (** [generate env e] performs type inference on the expression [e] in the static
     environment [env].
@@ -962,6 +1055,17 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
                 let arg_equations = List.combine args1 args2 in
                 reduce_eq_acc acc (arg_equations @ c')
               else raise TypeFailure
+          | TCtorApp (w1, as1), TCtorApp (w2, as2) ->
+              if w1 = w2 && List.length as1 = List.length as2 then
+                let arg_equations = List.combine as1 as2 in
+                reduce_eq_acc acc (arg_equations @ c')
+              else raise TypeFailure
+          | TCtorApp (w, as1), CTypeApp (n, as2)
+          | CTypeApp (n, as2), TCtorApp (w, as1) ->
+              if List.length as1 = List.length as2 then
+                let arg_equations = List.combine as1 as2 in
+                reduce_eq_acc acc ((TypeVar w, TypeName n) :: arg_equations @ c')
+              else raise TypeFailure
           | VectorType types1, VectorType types2 -> (
               match (types1, types2) with
               | type1 :: tail1, type2 :: tail2 ->
@@ -1071,6 +1175,30 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
             aux (arg_type :: acc) rest
       in
       aux [] args
+  | TCtorApp (w, args) ->
+      let- head_resolved = get_type_of_type_var w subs type_env in
+      let rec aux acc = function
+        | [] -> return (List.rev acc)
+        | arg :: rest ->
+            let- arg_type = get_type arg subs type_env in
+            aux (arg_type :: acc) rest
+      in
+      let- resolved_args = aux [] args in
+      (match head_resolved with
+      | TypeName n -> return (CTypeApp (n, resolved_args))
+      | CListType _ -> (
+          match resolved_args with
+          | [ elem ] -> return (CListType elem)
+          | _ ->
+              Error
+                (OtherError
+                   "internal: [] expects exactly one type argument in this context"))
+      | TypeVar _ -> return (TCtorApp (w, resolved_args))
+      | _ ->
+          Error
+            (OtherError
+               ("Cannot apply type arguments to "
+              ^ string_of_mono_type head_resolved)))
   | FixedPoint (name, body) ->
       (* Apply substitution to the body of the fixed point *)
       let- body_type = get_type body subs type_env in
@@ -1113,6 +1241,8 @@ and inside (inside_type : mono_type) (outside_type : mono_type) : bool =
   | VectorType ts -> List.exists (inside inside_type) ts
   | CListType t -> inside inside_type t
   | CTypeApp (_, args) -> List.exists (inside inside_type) args
+  | TCtorApp (_, args) ->
+      List.exists (inside inside_type) args
   | FixedPoint (_, body) -> inside inside_type body
   | RecordType fields -> List.exists (fun (_, t) -> inside inside_type t) fields
   | _ -> false
@@ -1131,6 +1261,7 @@ and is_basic_type (t : mono_type) : bool =
   | CListType et -> is_basic_type et
   | TypeName _ -> false
   | CTypeApp _ -> false
+  | TCtorApp _ -> false
   | FixedPoint (_, body) -> is_basic_type body
   | RecordType fields -> List.for_all (fun (_, t) -> is_basic_type t) fields
 
@@ -1164,6 +1295,14 @@ and substitute (var_id : string) (t : mono_type) (equations : type_equations) :
     | CListType et -> CListType (substitute_in_type et)
     | TypeName v -> TypeName v
     | CTypeApp (name, args) -> CTypeApp (name, List.map substitute_in_type args)
+    | TCtorApp (w, args) when w = var_id -> (
+        match t with
+        | TypeName n -> CTypeApp (n, List.map substitute_in_type args)
+        | CListType _ when List.length args = 1 ->
+            CListType (substitute_in_type (List.hd args))
+        | _ -> TCtorApp (w, List.map substitute_in_type args))
+    | TCtorApp (w, args) ->
+        TCtorApp (w, List.map substitute_in_type args)
     | FixedPoint (name, body) -> FixedPoint (name, substitute_in_type body)
     | RecordType fields -> RecordType (List.map (fun (name, t) -> (name, substitute_in_type t)) fields)
   in
@@ -1295,14 +1434,13 @@ and generalize ?(class_preds : class_equations = []) (constraints : type_equatio
         | Error _ as e -> e
         | Ok () ->
             if get_type_vars tau <> [] then Ok ()
+            else if forge_dict_resolves_for_class ~static_env:env ~class_name:c tau
+            then Ok ()
             else
-              let d = dict_for_instance ~class_name:c tau in
-              if List.mem_assoc d env then Ok ()
-              else
-                Error
-                  (OtherError
-                     ("No instance `" ^ c ^ "` for type "
-                    ^ string_of_mono_type tau)))
+              Error
+                (OtherError
+                   ("No instance `" ^ c ^ "` for type "
+                  ^ string_of_mono_type tau)))
       (Ok ()) preds_solved
   in
   (* Keep class preds that still mention type variables (see preds_solved above). *)
@@ -1323,7 +1461,8 @@ and flatten_env_types (types : mono_type list) : mono_type list =
       | FunctionType (i, o) -> flatten_env_types (i :: o :: tail)
       | VectorType types -> flatten_env_types (types @ tail)
       | CListType et -> flatten_env_types (et :: tail)
-      | CTypeApp (_, args) -> flatten_env_types (args @ tail)
+      | CTypeApp (_, args) | TCtorApp (_, args) ->
+          flatten_env_types (args @ tail)
       | _ -> t :: flatten_env_types tail)
 
 (** [get_type_vars t] extracts all type variables from a type.
@@ -1337,6 +1476,8 @@ and get_type_vars (t : mono_type) : mono_type list =
   | VectorType types -> List.flatten (List.map get_type_vars types)
   | CListType et -> get_type_vars et
   | CTypeApp (_, args) -> List.flatten (List.map get_type_vars args)
+  | TCtorApp (w, args) ->
+      TypeVar w :: List.flatten (List.map get_type_vars args)
   | RecordType fields ->
       List.flatten (List.map (fun (_, ft) -> get_type_vars ft) fields)
   | FixedPoint (_, body) -> get_type_vars body
@@ -1350,7 +1491,7 @@ and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :
       | None -> Error (UnboundVariable x)
       | Some sch ->
           let- sch' = simplify_type sch type_env in
-          return sch')
+          return (fix_c_type sch'))
   | _ ->
       pending_expression_class_preds := [];
       let- t, constraints, _ = generate env type_env e in
@@ -1461,6 +1602,7 @@ and mono_default_type_vars_to_int (m : mono_type) : mono_type =
     | VectorType ts -> VectorType (List.map go ts)
     | CListType e -> CListType (go e)
     | CTypeApp (n, args) -> CTypeApp (n, List.map go args)
+    | TCtorApp (w, args) -> TCtorApp (w, List.map go args)
     | FixedPoint (n, b) -> FixedPoint (n, go b)
     | RecordType fields ->
         RecordType (List.map (fun (nm, t) -> (nm, go t)) fields)
@@ -2082,16 +2224,25 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       | None -> (
           (* Surface primitive names (not in [type_env]) match lexer keywords. *)
           match v with
-          | "string" -> return StringType
-          | "int" -> return IntType
-          | "bool" -> return BoolType
-          | "float" -> return FloatType
-          | "char" -> return CharType
-          | "unit" -> return UnitType
+          | "String" | "string" -> return StringType
+          | "Int" | "int" -> return IntType
+          | "Bool" | "bool" -> return BoolType
+          | "Float" | "float" -> return FloatType
+          | "Char" | "char" -> return CharType
+          | "Unit" | "unit" -> return UnitType
           | _ ->
               (* If not found, treat it as a type variable (could be a type
                  parameter) *)
               return (TypeVar v)))
+  | TCtorApp (w, args) ->
+      let rec eval_args acc = function
+        | [] -> return (List.rev acc)
+        | arg :: rest ->
+            let- arg_simplified = simplify_mono_type arg type_env in
+            eval_args (arg_simplified :: acc) rest
+      in
+      let- simplified_args = eval_args [] args in
+      return (TCtorApp (w, simplified_args))
   | CTypeApp (name, args) -> (
       (* First evaluate all the argument types *)
       let rec eval_args acc = function
@@ -2106,6 +2257,13 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       match List.find_opt (fun (n, _, _) -> n = name) type_env with
       | Some type_def ->
           let _, params, body = type_def in
+          if List.length params <> List.length simplified_args then
+            Error
+              (OtherError
+                 ("Type " ^ name ^ " expects " ^ string_of_int (List.length params)
+                 ^ " arguments, got "
+                 ^ string_of_int (List.length simplified_args)))
+          else
 
           (* Check if this is a sum type (body is CTypeApp with same name)
              or a recursive sum type (FixedPoint) *)
@@ -2137,6 +2295,8 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
                     | VectorType types -> VectorType (List.map apply_subst types)
                     | CListType et -> CListType (apply_subst et)
                     | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
+                    | TCtorApp (w, args) ->
+                        TCtorApp (w, List.map apply_subst args)
                     | FixedPoint (n, b) -> FixedPoint (n, apply_subst b)
                     | RecordType fields -> RecordType (List.map (fun (name, t) -> (name, apply_subst t)) fields)
                     | _ -> t
@@ -2172,6 +2332,8 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
               | VectorType types -> VectorType (List.map apply_subst types)
               | CListType et -> CListType (apply_subst et)
               | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
+              | TCtorApp (w, args) ->
+                  TCtorApp (w, List.map apply_subst args)
               | FixedPoint (name, body) -> FixedPoint (name, apply_subst body)
               | RecordType fields -> RecordType (List.map (fun (name, t) -> (name, apply_subst t)) fields)
               | _ -> t
@@ -2180,7 +2342,7 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
             (* Apply substitution and recursively evaluate the result *)
             let substituted = apply_subst body in
             simplify_mono_type substituted type_env
-      | None -> Error (OtherError ("Type not found: " ^ name)))
+      | None -> Error (OtherError ("Unknown type constructor: " ^ name)))
   | FixedPoint (name, body) ->
       (* Simplify the body of the fixed point *)
       let- body_simplified = simplify_mono_type body type_env in
@@ -2216,39 +2378,6 @@ let rec primary_class_constraint (t : c_type) : string option =
   | PolyType (_, inner) -> primary_class_constraint inner
   | _ -> None
 
-(** Dictionary selection for polymorphic instances.
-
-    Some instance dictionaries are polymorphic over the class parameter
-    (e.g. `impl Monoid for ['a]` creates a dictionary keyed by a type
-    variable). When we need the instance for a concrete type (e.g.
-    `Monoid [int]`), we may be able to reuse that polymorphic dictionary.
-
-    We implement this by searching all dictionaries for the class and
-    checking whether their polymorphic dictionary type can be instantiated
-    to the dictionary record type implied by the class interface at the
-    requested type. *)
-let rec replace_typevar_in_mono ~(var_id : string) ~(with_ty : mono_type)
-    (t : mono_type) : mono_type =
-  match t with
-  | IntType | FloatType | BoolType | StringType | CharType | UnitType -> t
-  | TypeVar id -> if id = var_id then with_ty else TypeVar id
-  | TypeName n -> TypeName n
-  | FunctionType (i, o) ->
-      FunctionType (replace_typevar_in_mono ~var_id ~with_ty i,
-        replace_typevar_in_mono ~var_id ~with_ty o)
-  | VectorType ts -> VectorType (List.map (replace_typevar_in_mono ~var_id ~with_ty) ts)
-  | CListType et -> CListType (replace_typevar_in_mono ~var_id ~with_ty et)
-  | CTypeApp (name, args) ->
-      CTypeApp (name, List.map (replace_typevar_in_mono ~var_id ~with_ty) args)
-  | FixedPoint (n, body) ->
-      FixedPoint (n, replace_typevar_in_mono ~var_id ~with_ty body)
-  | RecordType fields ->
-      RecordType
-        (List.map
-           (fun (name, t) ->
-             (name, replace_typevar_in_mono ~var_id ~with_ty t))
-           fields)
-
 let rec extract_class_param_and_mono_template (class_name : string)
     (t : c_type) : (string * mono_type) option =
   match t with
@@ -2273,7 +2402,11 @@ let instantiate_method_type_for_class ~(static_env : static_env)
       match extract_class_param_and_mono_template class_name sch with
       | None -> None
       | Some (var_id, mty) ->
-          let specialized = replace_typevar_in_mono ~var_id ~with_ty:tau mty in
+          let arity = Type_arity.ctor_arity_for_written_var var_id mty in
+          let specialized =
+            Type_arity.substitute_instance_in_mono ~written_var:var_id ~inst:tau
+              arity mty
+          in
           match simplify_mono_type specialized type_env with
           | Ok t -> Some t
           | Error _ -> Some specialized)
@@ -2295,54 +2428,6 @@ let dict_expected_record_type ~(static_env : static_env) ~(class_name : string)
   else
     let fields = List.sort (fun (a, _) (b, _) -> compare a b) method_fields in
     Some (RecordType fields)
-
-let instantiate_dict_scheme_to_record ~(sch : c_type) ~(tau : mono_type) :
-    mono_type option =
-  (* Collect all explicit poly vars, strip PolyType/Constrained to Mono, then
-     substitute all poly vars with [tau]. *)
-  let rec collect_poly_vars acc t =
-    match t with
-    | PolyType (v, inner) -> collect_poly_vars (v :: acc) inner
-    | Constrained (_, inner) -> collect_poly_vars acc inner
-    | Mono _ -> acc
-  in
-  let poly_vars = collect_poly_vars [] sch in
-  let rec strip_to_mono t =
-    match t with
-    | Mono m -> Some m
-    | Constrained (_, inner) -> strip_to_mono inner
-    | PolyType (_, inner) -> strip_to_mono inner
-  in
-  match strip_to_mono sch with
-  | None -> None
-  | Some mono_body ->
-      let substituted =
-        List.fold_left
-          (fun acc var_id -> replace_typevar_in_mono ~var_id ~with_ty:tau acc)
-          mono_body poly_vars
-      in
-      match substituted with
-      | RecordType _ -> Some substituted
-      | _ -> None
-
-let find_compatible_dict_name ~(static_env : static_env) ~(class_name : string)
-    ~(method_name : string) ~(tau : mono_type) : string option =
-    let prefix = "__forge_dict_" ^ class_name ^ "_" in
-    let exact = dict_for_instance ~class_name tau in
-  if List.mem_assoc exact static_env then Some exact
-  else
-    let rec scan env =
-      match env with
-      | [] -> None
-      | (name, sch) :: rest ->
-          if String.starts_with ~prefix name then
-            match instantiate_dict_scheme_to_record ~sch ~tau with
-            | Some (RecordType fields) when List.mem_assoc method_name fields ->
-                Some name
-            | _ -> scan rest
-          else scan rest
-    in
-    scan static_env
 
 (** Rewrite [Class.method e] to record dispatch after whole-program typecheck. *)
 let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
@@ -2368,34 +2453,63 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
       (fun acc n -> if List.mem n acc then acc else n :: acc)
       shadowed new_names
   in
+  let rec peel_apps acc e =
+    match e with
+    | EApp (a, b) -> peel_apps (b :: acc) a
+    | e -> (e, acc)
+  in
+  let arg_at_index idx xs =
+    let rec go i = function
+      | [] -> None
+      | y :: ys -> if i = 0 then Some y else go (i - 1) ys
+    in
+    go idx xs
+  in
+  let try_dict_dispatch shadowed e1_full e2_last =
+    let head, prefix = peel_apps [] e1_full in
+    match head with
+    | EId f when not (List.mem f shadowed) -> (
+        match List.assoc_opt f static_env with
+        | Some sch when scheme_has_class_constraint sch -> (
+            match primary_class_constraint sch with
+            | None -> None
+            | Some cls -> (
+                match extract_class_param_and_mono_template cls sch with
+                | None -> None
+                | Some (var_id, mty) ->
+                    let idx = Type_arity.dict_resolution_arg_index mty var_id in
+                    let all_args = prefix @ [ e2_last ] in
+                    if List.length all_args <= idx then None
+                    else
+                      match arg_at_index idx all_args with
+                      | None -> None
+                      | Some tau_e -> (
+                          match type_of_c_expr static_env type_env tau_e with
+                          | Ok arg_ct ->
+                              let tau = get_mono_type arg_ct in
+                              (match
+                                 find_compatible_dict_name ~static_env
+                                   ~class_name:cls ~method_name:f ~tau
+                               with
+                              | Some dict ->
+                                  Some
+                                    (List.fold_left
+                                       (fun acc arg -> EApp (acc, arg))
+                                       (EFieldAccess (EId dict, f))
+                                       all_args)
+                              | None -> None)
+                          | Error _ -> None)))
+        | _ -> None)
+    | _ -> None
+  in
   let rec aux shadowed (e : c_expr) : c_expr =
     match e with
     | EApp (e1, e2) -> (
         let e2' = aux shadowed e2 in
         let e1' = aux shadowed e1 in
-        match e1' with
-        | EId f when not (List.mem f shadowed) -> (
-            match List.assoc_opt f static_env with
-            | Some sch when scheme_has_class_constraint sch -> (
-                match primary_class_constraint sch with
-                | None -> EApp (e1', e2')
-                | Some cls -> (
-                    match type_of_c_expr static_env type_env e2' with
-                    | Ok arg_ct ->
-                        let tau = get_mono_type arg_ct in
-                        (match
-                           find_compatible_dict_name
-                             ~static_env
-                             ~class_name:cls
-                             ~method_name:f
-                             ~tau
-                         with
-                        | Some dict ->
-                            EApp (EFieldAccess (EId dict, f), e2')
-                        | None -> EApp (e1', e2'))
-                    | Error _ -> EApp (e1', e2')))
-            | _ -> EApp (e1', e2'))
-        | _ -> EApp (e1', e2'))
+        match try_dict_dispatch shadowed e1' e2' with
+        | Some e -> e
+        | None -> EApp (e1', e2'))
     | EFunction (p, a, b) ->
         let shadowed' = add_all shadowed (pat_bound_simple p) in
         EFunction (p, a, aux shadowed' b)

@@ -2,7 +2,7 @@ Expected:
 7
 
 Source:
-type Option<'a> = | None | Some of 'a
+type Option<a> = | None | Some of a
 
 let unwrap_or d o =
   case o do

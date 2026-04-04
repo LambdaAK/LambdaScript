@@ -1,5 +1,30 @@
 open Cexpr
 
+(** Source names use [$written(name)] in the solver. *)
+let is_forge_written_var (v : string) : bool =
+  String.length v > 9 && String.sub v 0 9 = "$written("
+  && String.ends_with ~suffix:")" v
+
+(** Type variables that stand for the class dictionary slot (e.g. [f] in
+    [Functor f => ...]) should keep their source name; other [$written(...)]
+    vars are still canonicalized to [a], [b], ... *)
+let rec dict_predicate_written_vars (acc : string list) (t : c_type) :
+    string list =
+  match t with
+  | Constrained (ps, inner) ->
+      let acc' =
+        List.fold_left
+          (fun acc (_cls, m) ->
+            match m with
+            | TypeVar v when is_forge_written_var v ->
+                if List.mem v acc then acc else v :: acc
+            | _ -> acc)
+          acc ps
+      in
+      dict_predicate_written_vars acc' inner
+  | PolyType (_, inner) -> dict_predicate_written_vars acc inner
+  | Mono _ -> acc
+
 let tv = ref 0
 
 let number_to_letter n =
@@ -42,7 +67,7 @@ let rec create_substitution (t : mono_type) (seen : string list) :
   | CharType -> []
   | UnitType -> []
   | TypeName _ -> []
-  | CTypeApp (_, args) ->
+  | CTypeApp (_, args) | TCtorApp (_, args) ->
       List.fold_left
         (fun (acc, seen) t ->
           let subs = create_substitution t seen in
@@ -83,6 +108,8 @@ let fix_type (t : mono_type) : mono_type =
     | TypeName v -> TypeName v
     | CTypeApp (name, args) ->
         CTypeApp (name, List.map (fun t -> apply_substitution t subs) args)
+    | TCtorApp (w, args) ->
+        TCtorApp (w, List.map (fun t -> apply_substitution t subs) args)
     | FixedPoint (name, body) ->
         FixedPoint (name, apply_substitution body subs)
     | RecordType fields ->
@@ -94,9 +121,11 @@ let fix_type (t : mono_type) : mono_type =
 (** Rename type variables throughout a [c_type] (quantifiers, preds, mono) in
     one pass so names stay consistent — e.g. after [generalize]. *)
 let fix_c_type (ct : c_type) : c_type =
+  let dict_keep = dict_predicate_written_vars [] ct in
   let names : string list ref = ref [] in
   let add (v : string) =
-    if not (List.mem v !names) then names := !names @ [ v ]
+    if (not (List.mem v !names)) && not (List.mem v dict_keep) then
+      names := !names @ [ v ]
   in
   let rec walk_mono (t : mono_type) : unit =
     match t with
@@ -106,7 +135,7 @@ let fix_c_type (ct : c_type) : c_type =
         walk_mono t2
     | VectorType ts -> List.iter walk_mono ts
     | CListType e -> walk_mono e
-    | CTypeApp (_, args) -> List.iter walk_mono args
+    | CTypeApp (_, args) | TCtorApp (_, args) -> List.iter walk_mono args
     | FixedPoint (_, body) -> walk_mono body
     | RecordType fields -> List.iter (fun (_, t) -> walk_mono t) fields
     | IntType | FloatType | BoolType | StringType | CharType | UnitType
@@ -143,6 +172,8 @@ let fix_c_type (ct : c_type) : c_type =
     | TypeName v -> TypeName v
     | CTypeApp (name, args) ->
         CTypeApp (name, List.map apply_mono args)
+    | TCtorApp (w, args) ->
+        TCtorApp (w, List.map apply_mono args)
     | FixedPoint (name, body) ->
         FixedPoint (name, apply_mono body)
     | RecordType fields ->

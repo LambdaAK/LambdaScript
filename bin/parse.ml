@@ -154,6 +154,9 @@ let assert_next_token (tokens : token list) (expected_value : token_type) =
       if t = expected_value then ()
       else raise (UnexpectedToken (expected_value, Some t, line))
 
+let is_plain_type_var_name (s : string) : bool =
+  s <> "" && String.for_all (fun c -> c >= 'a' && c <= 'z') s
+
 let rec parse_compound_type (tokens : token list) : compound_type * token list =
   let left_type, tokens_after_left_type = parse_factor_type tokens in
   match tokens_after_left_type with
@@ -199,8 +202,11 @@ and parse_factor_type (tokens : token list) : factor_type * token list =
   | { token_type = IntegerType; line = _ } :: t -> (IntegerType, t)
   | { token_type = BooleanType; line = _ } :: t -> (BooleanType, t)
   | { token_type = StringType; line = _ } :: t -> (StringType, t)
+  | { token_type = CharType; line = _ } :: t -> (CharType, t)
+  | { token_type = FloatType; line = _ } :: t -> (FloatType, t)
   | { token_type = UnitType; line = _ } :: t -> (UnitType, t)
-  | { token_type = TypeVar i; line = _ } :: t -> (TypeVarWritten i, t)
+  | { token_type = Id s; line = _ } :: t when is_plain_type_var_name s ->
+      (TypeVarWritten s, t)
   | { token_type = LBracket; line = _ } :: t ->
       (* list type *)
       (* parse a compound type *)

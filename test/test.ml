@@ -259,6 +259,12 @@ let eval_test (expr : string) (expected_output : string) : test =
   let result : string = c_eval expr |> unwrap_eval_result in
   assert_equal result expected_output
 
+let rec strip_outer_poly_for_type_test (t : Language.Cexpr.c_type) :
+    Language.Cexpr.c_type =
+  match t with
+  | PolyType (_, inner) -> strip_outer_poly_for_type_test inner
+  | t -> t
+
 let type_test (expr : string) (expected_output : string) : test =
   expr ^ " SHOULD BE OF TYPE " ^ expected_output >:: fun _ ->
   let static_env =
@@ -300,14 +306,16 @@ let type_test (expr : string) (expected_output : string) : test =
     | Ok t -> t
     | _ -> failwith "type failureeeeeeeeee"
   in
-  let type_string = string_of_c_type type_result in
+  let type_string =
+    string_of_c_type (strip_outer_poly_for_type_test type_result)
+  in
 
   assert_equal type_string expected_output
 
-let type_is_bool (program : string) = type_test program "bool"
-let type_is_int (program : string) = type_test program "int"
-let type_is_string (program : string) = type_test program "str"
-let type_is_char (program : string) = type_test program "char"
+let type_is_bool (program : string) = type_test program "Bool"
+let type_is_int (program : string) = type_test program "Int"
+let type_is_string (program : string) = type_test program "String"
+let type_is_char (program : string) = type_test program "Char"
 let () = ignore type_is_bool
 let () = ignore type_is_int
 let () = ignore type_is_string
@@ -429,173 +437,173 @@ let char_types = [ "'a'"; "'b'" ]
 
 let function_type_tests =
   [
-    ("fn  n -> n", "'a -> 'a");
-    ("fn  n -> n + 1", "int -> int");
-    ("fn  a -> fn  b -> a + b", "int -> int -> int");
-    ("fn  (n : int) -> n", "int -> int");
-    ("fn  (n : int) -> n + 1", "int -> int");
-    ("fn  (a : int) -> fn  (b : int) -> a + b", "int -> int -> int");
-    ("fn  a -> fn  b -> a", "'a -> 'b -> 'a");
-    ("fn  a -> fn  b -> b", "'a -> 'b -> 'b");
-    ("fn  (a : int) -> fn  b -> b", "int -> 'a -> 'a");
-    ("fn  a -> fn  (b : int) -> b", "'a -> int -> int");
-    ("fn  (a : int) -> fn  (b : int) -> b", "int -> int -> int");
-    ("fn  (a : int) -> fn  (b : int) -> a", "int -> int -> int");
-    ("fn  (a : int) -> fn  (b : int) -> a + b", "int -> int -> int");
-    ("fn  (a : int) -> fn  (b : int) -> a + b + 1", "int -> int -> int");
-    ("fn  (a : int) -> fn  (b : int) -> a + b + 1 + 2", "int -> int -> int");
-    ("fn  ((a, b) : (int, int)) -> a + b", "(int, int) -> int");
-    ("fn  (a, _) -> fn  (_, b) -> a + b", "(int, 'a) -> ('b, int) -> int");
-    ("fn  (a, _) -> fn  (_, b) -> a || b", "(bool, 'a) -> ('b, bool) -> bool");
+    ("fn  n -> n", "a -> a");
+    ("fn  n -> n + 1", "Int -> Int");
+    ("fn  a -> fn  b -> a + b", "Int -> Int -> Int");
+    ("fn  (n : Int) -> n", "Int -> Int");
+    ("fn  (n : Int) -> n + 1", "Int -> Int");
+    ("fn  (a : Int) -> fn  (b : Int) -> a + b", "Int -> Int -> Int");
+    ("fn  a -> fn  b -> a", "a -> b -> a");
+    ("fn  a -> fn  b -> b", "a -> b -> b");
+    ("fn  (a : Int) -> fn  b -> b", "Int -> a -> a");
+    ("fn  a -> fn  (b : Int) -> b", "a -> Int -> Int");
+    ("fn  (a : Int) -> fn  (b : Int) -> b", "Int -> Int -> Int");
+    ("fn  (a : Int) -> fn  (b : Int) -> a", "Int -> Int -> Int");
+    ("fn  (a : Int) -> fn  (b : Int) -> a + b", "Int -> Int -> Int");
+    ("fn  (a : Int) -> fn  (b : Int) -> a + b + 1", "Int -> Int -> Int");
+    ("fn  (a : Int) -> fn  (b : Int) -> a + b + 1 + 2", "Int -> Int -> Int");
+    ("fn  ((a, b) : (Int, Int)) -> a + b", "(Int, Int) -> Int");
+    ("fn  (a, _) -> fn  (_, b) -> a + b", "(Int, a) -> (b, Int) -> Int");
+    ("fn  (a, _) -> fn  (_, b) -> a || b", "(Bool, a) -> (b, Bool) -> Bool");
     ( {|fn (a, b) ->
     fn (c, d) ->
     if a then b
     else if c then d
     else 1|},
-      "(bool, int) -> (bool, int) -> int" );
+      "(Bool, Int) -> (Bool, Int) -> Int" );
     (* more complicated function type tests *)
     ( "fn  a -> fn  b -> fn  c -> a ( b ( c ) )",
-      "('a -> 'b) -> ('c -> 'a) -> 'c -> 'b" );
+      "(b -> c) -> (a -> b) -> a -> c" );
     (* tests with syntax sugar let expressions *)
-    ("let f x = x in f", "'a -> 'a");
-    ("let f x = x + 1 in f", "int -> int");
-    ("let f x = x + 1 in f 1", "int");
-    ("let f x = x + 1 in f 1 + 1", "int");
-    ("let f x = x + 1 in f (1 + 1)", "int");
+    ("let f x = x in f", "a -> a");
+    ("let f x = x + 1 in f", "Int -> Int");
+    ("let f x = x + 1 in f 1", "Int");
+    ("let f x = x + 1 in f 1 + 1", "Int");
+    ("let f x = x + 1 in f (1 + 1)", "Int");
     (* add three numbers *)
-    ("let f a b c = a + b + c in f", "int -> int -> int -> int");
-    ("let f a b c = a + b + c in f 1", "int -> int -> int");
-    ("let f a b c = a + b + c in f 1 2", "int -> int");
-    ("let f a b c = a + b + c in f 1 2 3", "int");
-    ("let f a b c d = a in f", "'a -> 'b -> 'c -> 'd -> 'a");
+    ("let f a b c = a + b + c in f", "Int -> Int -> Int -> Int");
+    ("let f a b c = a + b + c in f 1", "Int -> Int -> Int");
+    ("let f a b c = a + b + c in f 1 2", "Int -> Int");
+    ("let f a b c = a + b + c in f 1 2 3", "Int");
+    ("let f a b c d = a in f", "a -> b -> c -> d -> a");
     (* typed arguments *)
-    ( "let f (a : int) (b : int) (c : int) (d : int) = a in f",
-      "int -> int -> int -> int -> int" );
-    ( "let f (a : int) (b : int) (c : int) (d : int) = a in f 1",
-      "int -> int -> int -> int" );
-    ( "let f (a : int) (b : int) (c : int) (d : int) = a in f 1 2",
-      "int -> int -> int" );
-    ( "let f (a : int) (b : int) (c : int) (d : int) = a in f 1 2 3",
-      "int -> int" );
-    ("let f (a : int) (b : int) (c : int) (d : int) = a in f 1 2 3 4", "int");
+    ( "let f (a : Int) (b : Int) (c : Int) (d : Int) = a in f",
+      "Int -> Int -> Int -> Int -> Int" );
+    ( "let f (a : Int) (b : Int) (c : Int) (d : Int) = a in f 1",
+      "Int -> Int -> Int -> Int" );
+    ( "let f (a : Int) (b : Int) (c : Int) (d : Int) = a in f 1 2",
+      "Int -> Int -> Int" );
+    ( "let f (a : Int) (b : Int) (c : Int) (d : Int) = a in f 1 2 3",
+      "Int -> Int" );
+    ("let f (a : Int) (b : Int) (c : Int) (d : Int) = a in f 1 2 3 4", "Int");
     (* with type variables *)
-    ("fn  (a : 'a) -> a", "'a -> 'a");
-    ("fn  (a : 'a) -> a + 1", "int -> int");
-    ("fn  (a : 'a) -> fn  (b : 'a) -> a", "'a -> 'a -> 'a");
-    ("fn  (a : 'a) -> fn  (b : 'a) -> b", "'a -> 'a -> 'a");
-    ("fn  (a : 'a) -> fn  (b : 'b) -> a", "'a -> 'b -> 'a");
-    ("fn  (a : 'a) -> fn  (b : 'a) -> a + b", "int -> int -> int");
-    ("fn  (a : 'a) -> fn  (b : 'a) -> a + b + 1", "int -> int -> int");
-    ("fn  (f : 'e -> 'f) -> fn  (x : 'f) -> f x", "('a -> 'a) -> 'a -> 'a");
+    ("fn  (a : a) -> a", "a -> a");
+    ("fn  (a : a) -> a + 1", "Int -> Int");
+    ("fn  (a : a) -> fn  (b : a) -> a", "a -> a -> a");
+    ("fn  (a : a) -> fn  (b : a) -> b", "a -> a -> a");
+    ("fn  (a : a) -> fn  (b : b) -> a", "a -> b -> a");
+    ("fn  (a : a) -> fn  (b : a) -> a + b", "Int -> Int -> Int");
+    ("fn  (a : a) -> fn  (b : a) -> a + b + 1", "Int -> Int -> Int");
+    ("fn  (f : e -> f) -> fn  (x : f) -> f x", "(a -> a) -> a -> a");
     (* this is an interesting example because it turns out that a = b here *)
-    ("fn  (f : 'e -> 'f) -> fn  (x : 'e) -> f x", "('a -> 'b) -> 'a -> 'b");
+    ("fn  (f : e -> f) -> fn  (x : e) -> f x", "(a -> b) -> a -> b");
     (* return type annotations *)
-    ("let f x : int = x in f", "int -> int");
-    ("let f x y : int = x + y in f", "int -> int -> int");
-    ("let f (x : bool) : int = if x then 1 else 0 in f", "bool -> int");
+    ("let f x : Int = x in f", "Int -> Int");
+    ("let f x y : Int = x + y in f", "Int -> Int -> Int");
+    ("let f (x : Bool) : Int = if x then 1 else 0 in f", "Bool -> Int");
     (* on the other hand, there is no constraint generated in this expression
        saying that a = b, so they are different *)
-    ( "let f a (b : int) (c : int) (d : int) = a in f",
-      "'a -> int -> int -> int -> 'a" );
-    ("let f a (b : int) (c : int) d = a in f", "'a -> int -> int -> 'b -> 'a");
-    ("let f a (b : int) c (d : int) = a in f", "'a -> int -> 'b -> int -> 'a");
-    ("let f a (b : int) c d = a in f", "'a -> int -> 'b -> 'c -> 'a");
-    ("let f a b (c : int) (d : int) = b in f", "'a -> 'b -> int -> int -> 'b");
-    ("let f a b (c : int) d = b in f", "'a -> 'b -> int -> 'c -> 'b");
-    ("let f a b c (d : str) = c in f", "'a -> 'b -> 'c -> str -> 'c");
-    ("let f a b c d = c in f", "'a -> 'b -> 'c -> 'd -> 'c");
-    ("let f a b c (d : str) = d in f", "'a -> 'b -> 'c -> str -> str");
-    ("fn  (a, _) -> a", "('a, 'b) -> 'a");
-    ("fn  (a, _) -> a + 1", "(int, 'a) -> int");
-    ("fn  f -> fn  x -> f x", "('a -> 'b) -> 'a -> 'b");
-    ( {|fn (f : 'e -> 'f -> 'g) ->
-    fn (a : 'e) ->
-    fn (b : 'f) ->
+    ( "let f a (b : Int) (c : Int) (d : Int) = a in f",
+      "a -> Int -> Int -> Int -> a" );
+    ("let f a (b : Int) (c : Int) d = a in f", "a -> Int -> Int -> b -> a");
+    ("let f a (b : Int) c (d : Int) = a in f", "a -> Int -> b -> Int -> a");
+    ("let f a (b : Int) c d = a in f", "a -> Int -> b -> c -> a");
+    ("let f a b (c : Int) (d : Int) = b in f", "a -> b -> Int -> Int -> b");
+    ("let f a b (c : Int) d = b in f", "a -> b -> Int -> c -> b");
+    ("let f a b c (d : String) = c in f", "a -> b -> c -> String -> c");
+    ("let f a b c d = c in f", "a -> b -> c -> d -> c");
+    ("let f a b c (d : String) = d in f", "a -> b -> c -> String -> String");
+    ("fn  (a, _) -> a", "(a, b) -> a");
+    ("fn  (a, _) -> a + 1", "(Int, a) -> Int");
+    ("fn  f -> fn  x -> f x", "(a -> b) -> a -> b");
+    ( {|fn (f : e -> f -> g) ->
+    fn (a : e) ->
+    fn (b : f) ->
     f a b|},
-      "('a -> 'b -> 'c) -> 'a -> 'b -> 'c" );
-    ("fn  (a : ('a, 'b)) -> a", "('a, 'b) -> ('a, 'b)");
-    ("fn  ((a, _) : ('a, 'b)) -> a", "('a, 'b) -> 'a");
-    ("fn  ((_, a) : ('a, 'b)) -> a", "('a, 'b) -> 'b");
-    ("fn  ((a, b, c) : ('a, 'b, 'c)) -> a", "('a, 'b, 'c) -> 'a");
+      "(a -> b -> c) -> a -> b -> c" );
+    ("fn  (a : (a, b)) -> a", "(a, b) -> (a, b)");
+    ("fn  ((a, _) : (a, b)) -> a", "(a, b) -> a");
+    ("fn  ((_, a) : (a, b)) -> a", "(a, b) -> b");
+    ("fn  ((a, b, c) : (a, b, c)) -> a", "(a, b, c) -> a");
     (* higher order function *)
-    ( {|fn (f : ('e, 'f) -> 'g) ->
-    fn (a : 'e) ->
-    fn (b : 'f) ->
+    ( {|fn (f : (e, f) -> g) ->
+    fn (a : e) ->
+    fn (b : f) ->
     f (a, b)|},
-      "(('a, 'b) -> 'c) -> 'a -> 'b -> 'c" );
-    ( {|fn (f : 'e -> 'f -> 'g) ->
+      "((a, b) -> c) -> a -> b -> c" );
+    ( {|fn (f : e -> f -> g) ->
     fn (a, b) ->
     f a b|},
-      "('a -> 'b -> 'c) -> ('a, 'b) -> 'c" );
+      "(a -> b -> c) -> (a, b) -> c" );
     (* long function with 10 arguments and return the first *)
     ( "let f a b c d e f g h i j = a in f",
-      "'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'j -> 'a" );
+      "a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> a" );
     (* long function with 20 arguments *)
     ( "let f a b c d e f g h i j k l m n o p q r s t = a in f",
-      "'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'j -> 'k -> 'l -> \
-       'm -> 'n -> 'o -> 'p -> 'q -> 'r -> 's -> 't -> 'a" );
+      "a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l -> \
+       m -> n -> o -> p -> q -> r -> s -> t -> a" );
     (* long function with 30 arguments. name the arguments the word of the
        number *)
     ( "let f one two three four five six seven eight nine ten eleven twelve \
        thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty \
        twentyone twentytwo twentythree twentyfour twentyfive twentysix \
        twentyseven twentyeight twentynine thirty = one in f",
-      "'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'j -> 'k -> 'l -> \
-       'm -> 'n -> 'o -> 'p -> 'q -> 'r -> 's -> 't -> 'u -> 'v -> 'w -> 'x -> \
-       'y -> 'z -> 'aa -> 'ab -> 'ac -> 'ad -> 'a" );
+      "a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l -> \
+       m -> n -> o -> p -> q -> r -> s -> t -> u -> v -> w -> x -> \
+       y -> z -> aa -> ab -> ac -> ad -> a" );
     (* recursive functions *)
-    ("let rec f x = x in f", "'a -> 'a");
-    ("let rec f (x : unit) = x in f", "unit -> unit");
-    ("let rec f (x : int -> int) = x in f", "(int -> int) -> int -> int");
-    ("fn  (a : [int]) -> a", "[int] -> [int]");
-    ("let rec f x = if x == 0 then 0 else f (x - 1) in f", "int -> int");
+    ("let rec f x = x in f", "a -> a");
+    ("let rec f (x : Unit) = x in f", "Unit -> Unit");
+    ("let rec f (x : Int -> Int) = x in f", "(Int -> Int) -> Int -> Int");
+    ("fn  (a : [Int]) -> a", "[Int] -> [Int]");
+    ("let rec f x = if x == 0 then 0 else f (x - 1) in f", "Int -> Int");
     (* factorial *)
-    ("let rec f x = if x == 0 then 1 else x * f (x - 1) in f", "int -> int");
+    ("let rec f x = if x == 0 then 1 else x * f (x - 1) in f", "Int -> Int");
     (* fibonacci *)
     ( "let rec f x = if x == 0 then 0 else if x == 1 then 1 else f (x - 1) + f \
        (x - 2) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* sum of first n numbers *)
-    ("let rec f x = if x == 0 then 0 else x + f (x - 1) in f", "int -> int");
+    ("let rec f x = if x == 0 then 0 else x + f (x - 1) in f", "Int -> Int");
     (* sum of first n odd numbers *)
     ( "let rec f x = if x == 0 then 0 else if x == 1 then 1 else 2 * x - 1 + f \
        (x - 1) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* sum of first n even numbers *)
     ( "let rec f x = if x == 0 then 0 else if x == 1 then 2 else 2 * x + f (x \
        - 1) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* sum of first n squares *)
-    ("let rec f x = if x == 0 then 0 else x * x + f (x - 1) in f", "int -> int");
+    ("let rec f x = if x == 0 then 0 else x * x + f (x - 1) in f", "Int -> Int");
     (* sum of first n cubes *)
     ( "let rec f x = if x == 0 then 0 else x * x * x + f (x - 1) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* sum of first n fourth powers *)
     ( "let rec f x = if x == 0 then 0 else x * x * x * x + f (x - 1) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* sum of first n fifth powers *)
     ( "let rec f x = if x == 0 then 0 else x * x * x * x * x + f (x - 1) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* recursive function with boolean inputs *)
-    ("let rec f x = if x then 1 else 0 in f", "bool -> int");
-    ("let rec f x = if x then 1 else f (not x) in f", "bool -> int");
+    ("let rec f x = if x then 1 else 0 in f", "Bool -> Int");
+    ("let rec f x = if x then 1 else f (not x) in f", "Bool -> Int");
     (* big recursive function like fibonacci but with third order recurrence
        relation *)
     ( "let rec f x = if x == 0 then 0 else if x == 1 then 1 else if x == 2 \
        then 2 else f (x - 1) + f (x - 2) + f (x - 3) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* big recursive function like fibonacci but with fourth order recurrence
        relation *)
     ( "let rec f x = if x == 0 then 0 else if x == 1 then 1 else if x == 2 \
        then 2 else if x == 3 then 3 else f (x - 1) + f (x - 2) + f (x - 3) + f \
        (x - 4) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* big recursive function like fibonacci but with fifth order recurrence
        relation *)
     ( "let rec f x = if x == 0 then 0 else if x == 1 then 1 else if x == 2 \
        then 2 else if x == 3 then 3 else if x == 4 then 4 else f (x - 1) + f \
        (x - 2) + f (x - 3) + f (x - 4) + f (x - 5) in f",
-      "int -> int" );
+      "Int -> Int" );
     (* map implemented using fold_right *)
     ( "let rec fold op lst acc =\n\
       \    case lst do\n\
@@ -610,7 +618,7 @@ let function_type_tests =
       \  in\n\
       \  \n\
       \  map",
-      "('a -> 'b) -> ['a] -> ['b]" );
+      "(a -> b) -> [a] -> [b]" );
     (* filter implemented using fold_right *)
     ( {|let rec fold op lst acc =
     case lst do
@@ -622,7 +630,7 @@ let function_type_tests =
   let filter pred = fold (fn x -> fn acc -> if pred x then x :: acc else acc) []
   
   in filter|},
-      "('a -> bool) -> ['a] -> ['a]" );
+      "(a -> Bool) -> [a] -> [a]" );
     (* filter implemented using fold_left *)
     ( {|let rec fold op acc lst =
     case lst do
@@ -634,95 +642,95 @@ let function_type_tests =
   let filter pred = fold (fn x -> fn acc -> if pred x then x :: acc else acc) []
   
   in filter|},
-      "('a -> bool) -> ['a] -> ['a]" );
+      "(a -> Bool) -> [a] -> [a]" );
   ]
 
 let pair_type_tests =
   [
-    ("(1, 1)", "(int, int)");
-    ("(1, true)", "(int, bool)");
-    ("(1, 1 + 1)", "(int, int)");
-    ("(1 - 1, 1 + 1 + 1)", "(int, int)");
-    ("(1 - 1, 1 + 1 + 1 + 1)", "(int, int)");
+    ("(1, 1)", "(Int, Int)");
+    ("(1, true)", "(Int, Bool)");
+    ("(1, 1 + 1)", "(Int, Int)");
+    ("(1 - 1, 1 + 1 + 1)", "(Int, Int)");
+    ("(1 - 1, 1 + 1 + 1 + 1)", "(Int, Int)");
     (* nested *)
-    ("(1 - 1, (1 + 1, 1 + 1 + 1))", "(int, (int, int))");
-    ("(1 - 1, (1 + 1, (1 + 1 + 1, 1 + 1 + 1 + 1)))", "(int, (int, (int, int)))");
+    ("(1 - 1, (1 + 1, 1 + 1 + 1))", "(Int, (Int, Int))");
+    ("(1 - 1, (1 + 1, (1 + 1 + 1, 1 + 1 + 1 + 1)))", "(Int, (Int, (Int, Int)))");
   ]
 
 let function_to_string_tests =
   [
     ("fn  a -> a", "function");
     ("fn  () -> ()", "function");
-    ("fn (() : unit) -> ()", "function");
-    ("let (a : (int -> int) -> int) = fn  f -> f 1 in a", "function");
+    ("fn (() : Unit) -> ()", "function");
+    ("let (a : (Int -> Int) -> Int) = fn  f -> f 1 in a", "function");
   ]
 
 let vector_type_tests =
   [
-    ("(1, 2, 3)", "(int, int, int)");
-    ("(1, 2, 3, 4)", "(int, int, int, int)");
-    ("(1, 2, 3, 4, 5)", "(int, int, int, int, int)");
-    ("(1, 2, 3, 4, 5, 6)", "(int, int, int, int, int, int)");
-    ("(1, 2, 3, 4, 5, 6, 7)", "(int, int, int, int, int, int, int)");
+    ("(1, 2, 3)", "(Int, Int, Int)");
+    ("(1, 2, 3, 4)", "(Int, Int, Int, Int)");
+    ("(1, 2, 3, 4, 5)", "(Int, Int, Int, Int, Int)");
+    ("(1, 2, 3, 4, 5, 6)", "(Int, Int, Int, Int, Int, Int)");
+    ("(1, 2, 3, 4, 5, 6, 7)", "(Int, Int, Int, Int, Int, Int, Int)");
     (* with other types *)
-    ("(1, 2, true)", "(int, int, bool)");
-    ("(1, 2, true, false)", "(int, int, bool, bool)");
-    ("(1, 2, true, false, 1 + 1)", "(int, int, bool, bool, int)");
-    ("(1, 2, true, false, 1 + 1, 1 + 1 + 1)", "(int, int, bool, bool, int, int)");
+    ("(1, 2, true)", "(Int, Int, Bool)");
+    ("(1, 2, true, false)", "(Int, Int, Bool, Bool)");
+    ("(1, 2, true, false, 1 + 1)", "(Int, Int, Bool, Bool, Int)");
+    ("(1, 2, true, false, 1 + 1, 1 + 1 + 1)", "(Int, Int, Bool, Bool, Int, Int)");
     (* very complicated nested vector *)
     ( "(1, 2, true, false, 1 + 1, 1 + 1 + 1, (1, 2, true, false, 1 + 1, 1 + 1 \
        + 1))",
-      "(int, int, bool, bool, int, int, (int, int, bool, bool, int, int))" );
+      "(Int, Int, Bool, Bool, Int, Int, (Int, Int, Bool, Bool, Int, Int))" );
   ]
 
 let list_type_tests =
   [
-    ("[]", "['a]");
-    ("1 :: []", "[int]");
-    ("1 :: 2 :: []", "[int]");
-    ("1 :: 2 :: 3 :: []", "[int]");
-    ("1 :: 2 :: 3 :: 4 :: []", "[int]");
-    ("(1, 2) :: []", "[(int, int)]");
-    ("(1, 2) :: (3, 4) :: []", "[(int, int)]");
+    ("[]", "[a]");
+    ("1 :: []", "[Int]");
+    ("1 :: 2 :: []", "[Int]");
+    ("1 :: 2 :: 3 :: []", "[Int]");
+    ("1 :: 2 :: 3 :: 4 :: []", "[Int]");
+    ("(1, 2) :: []", "[(Int, Int)]");
+    ("(1, 2) :: (3, 4) :: []", "[(Int, Int)]");
     (* with other types *)
-    ("true :: []", "[bool]");
+    ("true :: []", "[Bool]");
     (* nested list *)
-    ("(1 :: []) :: []", "[[int]]");
-    ("(1 :: 2 :: []) :: []", "[[int]]");
-    ("[] :: []", "[['a]]");
-    ("[] :: [] :: []", "[['a]]");
-    ("([] :: []) :: []", "[[['a]]]");
-    ("(([] :: []) :: []) :: []", "[[[['a]]]]");
-    ("[1 ... 10000]", "[int]");
-    ("[1 ... 10000000]", "[int]");
-    ("[1 ... 0]", "[int]");
-    ("[x * x | x <- [1, 2, 3, 4, 5]]", "[int]");
+    ("(1 :: []) :: []", "[[Int]]");
+    ("(1 :: 2 :: []) :: []", "[[Int]]");
+    ("[] :: []", "[[a]]");
+    ("[] :: [] :: []", "[[a]]");
+    ("([] :: []) :: []", "[[[a]]]");
+    ("(([] :: []) :: []) :: []", "[[[[a]]]]");
+    ("[1 ... 10000]", "[Int]");
+    ("[1 ... 10000000]", "[Int]");
+    ("[1 ... 0]", "[Int]");
+    ("[x * x | x <- [1, 2, 3, 4, 5]]", "[Int]");
     ( {|[(x, y, z) | x <- [1, 2, 3], y <- ["hello", "world"], z <- [true, false]]|},
-      "[(int, str, bool)]" );
+      "[(Int, String, Bool)]" );
     ({|
       [x | x <- [1, 2, 3, 4, 5], x <- [true, false]]
-      |}, "[bool]");
-    ({|[x | x <- [1, 2, 3, 4, 5], x <- []]|}, "['a]");
+      |}, "[Bool]");
+    ({|[x | x <- [1, 2, 3, 4, 5], x <- []]|}, "[a]");
   ]
 
 let polymorphism_tests =
   [
-    ("let f x = x in f f", "'a -> 'a");
-    ("let f x = x in f f f", "'a -> 'a");
-    ("let f x = x in f f f f", "'a -> 'a");
-    ("let f x = x in f f f f f", "'a -> 'a");
-    ("let f x = x in f 1 < 5 || f true", "bool");
-    ("let f x = x in let g = f in g g", "'a -> 'a");
-    ("let f x = x in let g = f in g f", "'a -> 'a");
-    ("let f x = x in let g = f in f g f g", "'a -> 'a");
-    ("let f x = x in let a = f 1 in f true", "bool");
+    ("let f x = x in f f", "a -> a");
+    ("let f x = x in f f f", "a -> a");
+    ("let f x = x in f f f f", "a -> a");
+    ("let f x = x in f f f f f", "a -> a");
+    ("let f x = x in f 1 < 5 || f true", "Bool");
+    ("let f x = x in let g = f in g g", "a -> a");
+    ("let f x = x in let g = f in g f", "a -> a");
+    ("let f x = x in let g = f in f g f g", "a -> a");
+    ("let f x = x in let a = f 1 in f true", "Bool");
     ( {|
     let f x = x in
     let g = f in
     let h = g in
     h h
   |},
-      "'a -> 'a" );
+      "a -> a" );
     ( {|
     let f x = x in
     let g = f in
@@ -730,20 +738,20 @@ let polymorphism_tests =
     let i = h in
     (f f f f g g g g g g h h h h h h h i i i i i i f f f f f f f g g g g g g h h h h h i i i i i f f f f f f f f f f f f f f f f f f f g g g g g g g) 1 < 2 || (f g h f) true
   |},
-      "bool" );
+      "Bool" );
   ]
 
 let switch_type_tests =
   [
-    ("case () do | () -> 1", "int");
-    ("case () do | () -> true", "bool");
-    ("case () do | () -> ()", "unit");
-    ("case () do | () -> (1, 2)", "(int, int)");
-    ("case () do | () -> (1, 2, 3)", "(int, int, int)");
-    ("case 1 do | 1 -> 1", "int");
-    ("case 1 do | 1 -> true", "bool");
-    ("case 1 do | 1 -> ()", "unit");
-    ("case 5 do | 1 -> 1 | 2 -> 2 | 3 -> 3 | 4 -> 4 | 5 -> 5", "int");
+    ("case () do | () -> 1", "Int");
+    ("case () do | () -> true", "Bool");
+    ("case () do | () -> ()", "Unit");
+    ("case () do | () -> (1, 2)", "(Int, Int)");
+    ("case () do | () -> (1, 2, 3)", "(Int, Int, Int)");
+    ("case 1 do | 1 -> 1", "Int");
+    ("case 1 do | 1 -> true", "Bool");
+    ("case 1 do | 1 -> ()", "Unit");
+    ("case 5 do | 1 -> 1 | 2 -> 2 | 3 -> 3 | 4 -> 4 | 5 -> 5", "Int");
   ]
 
 let arithmetic_tests =
@@ -956,7 +964,7 @@ let fold_type_tests =
     in
     fold
   |},
-      "('a -> 'b -> 'a) -> ['b] -> 'a -> 'a" );
+      "(a -> b -> a) -> [b] -> a -> a" );
     ( {|
   let rec fold op arr acc =
     case arr do
@@ -966,19 +974,19 @@ let fold_type_tests =
   in
   fold
   |},
-      "('a -> 'b -> 'b) -> ['a] -> 'b -> 'b" );
+      "(a -> b -> b) -> [a] -> b -> b" );
   ]
 
 let complex_tests =
   [
     ( {|
-    let (succ : int -> int) =
-      fn (n : int) -> n + 1
+    let (succ : Int -> Int) =
+      fn (n : Int) -> n + 1
     in
     
-    let (sum : int -> int -> int) =
-      fn (a : int) ->
-      fn (b : int) ->
+    let (sum : Int -> Int -> Int) =
+      fn (a : Int) ->
+      fn (b : Int) ->
       a + b
     in
     
@@ -986,8 +994,8 @@ let complex_tests =
     |},
       "8" );
     ( {|
-    let (succ : int-> int) =
-      fn (n : int) -> n + 1
+    let (succ : Int-> Int) =
+      fn (n : Int) -> n + 1
     in
 
     succ(succ (succ (succ (succ (succ (succ (succ (succ (0)))))))))
@@ -1000,7 +1008,7 @@ let complex_tests =
     |}, "1");
     ({|
     let f =
-      fn (a : str) -> a
+      fn (a : String) -> a
     in
     f ""
     |}, {|""|});
@@ -1216,7 +1224,7 @@ let block_tests =
     (* Block with recursive definitions *)
     ("{let rec f x = if x == 0 then 1 else x * f (x - 1); f 5}", "120");
     (* Block with type annotations *)
-    ("{let (x : int) = 1; let (y : int) = 2; x + y}", "3");
+    ("{let (x : Int) = 1; let (y : Int) = 2; x + y}", "3");
     (* Block with pattern matching *)
     ("{let (x, y) = (1, 2); x + y}", "3");
     (* Block with function definitions *)
@@ -1228,25 +1236,25 @@ let block_type_tests : test list =
     (fun (a, b) -> type_test a b)
     [
       (* Empty block *)
-      ("{}", "unit");
+      ("{}", "Unit");
       (* Block with single expression *)
-      ("{1}", "int");
+      ("{1}", "Int");
       (* Block with multiple expressions *)
-      ("{1; 2; 3}", "int");
+      ("{1; 2; 3}", "Int");
       (* Block with definitions *)
-      ("{let x = 1; let y = 2}", "unit");
+      ("{let x = 1; let y = 2}", "Unit");
       (* Block with definitions and expressions *)
-      ("{let x = 1; let y = 2; x + y}", "int");
+      ("{let x = 1; let y = 2; x + y}", "Int");
       (* Block with nested blocks *)
-      ("{{1; 2}; {3; 4}}", "int");
+      ("{{1; 2}; {3; 4}}", "Int");
       (* Block with recursive definitions *)
-      ("{let rec f x = if x == 0 then 1 else x * f (x - 1); f 5}", "int");
+      ("{let rec f x = if x == 0 then 1 else x * f (x - 1); f 5}", "Int");
       (* Block with type annotations *)
-      ("{let (x : int) = 1; let (y : int) = 2; x + y}", "int");
+      ("{let (x : Int) = 1; let (y : Int) = 2; x + y}", "Int");
       (* Block with pattern matching *)
-      ("{let (x, y) = (1, 2); x + y}", "int");
+      ("{let (x, y) = (1, 2); x + y}", "Int");
       (* Block with function definitions *)
-      ("{let f x = x + 1; let g x = x * 2; f (g 5)}", "int");
+      ("{let f x = x + 1; let g x = x * 2; f (g 5)}", "Int");
     ]
 
 (* ============================================================================
@@ -1436,9 +1444,13 @@ module ProgramTesting = struct
   (** Normalize type variable names by removing $written() wrapper. This allows
       comparison between parsed types and inferred types. *)
   let normalize_type_string (s : string) : string =
-    (* Replace '$written(x) with 'x *)
-    let re = Str.regexp "'\\$written(\\([^)]+\\))" in
-    Str.global_replace re "'\\1" s
+    let re = Str.regexp "\\$written(\\([^)]+\\))" in
+    Str.global_replace re "\\1" s
+
+  let rec strip_outer_poly (t : c_type) : c_type =
+    match t with
+    | PolyType (_, inner) -> strip_outer_poly inner
+    | t -> t
 
   (** Assert that an expression has a specific type after running a program.
       @param program The program source code as a string
@@ -1450,9 +1462,12 @@ module ProgramTesting = struct
     let expected_c_type = parse_type expected_type |> condense_type in
 
     (* Compare types by converting to strings and normalizing *)
-    let actual_str = string_of_c_type actual_type |> normalize_type_string in
+    let actual_str =
+      string_of_c_type (strip_outer_poly actual_type) |> normalize_type_string
+    in
     let expected_str =
-      string_of_c_type expected_c_type |> normalize_type_string
+      string_of_c_type (strip_outer_poly expected_c_type)
+      |> normalize_type_string
     in
 
     if actual_str <> expected_str then
@@ -1507,8 +1522,8 @@ let program_typecheck_tests =
          ( "type definition typechecks" >:: fun _ ->
            assert_program_typechecks
              {|
-             type Pair<'a> = ('a, 'a)
-             let (p : Pair<int>) = (1, 2)
+             type Pair<a> = (a, a)
+             let (p : Pair<Int>) = (1, 2)
            |}
          );
          ( "recursive function typechecks" >:: fun _ ->
@@ -1521,9 +1536,9 @@ let program_typecheck_tests =
          ( "type error detected" >:: fun _ ->
            assert_program_fails_typecheck "let x = 1 + true" );
          ( "type annotation mismatch detected" >:: fun _ ->
-           assert_program_fails_typecheck "let (x : bool) = 42" );
+           assert_program_fails_typecheck "let (x : Bool) = 42" );
          ( "impl declaration tokenizes and parses to EOF" >:: fun _ ->
-           let s = "impl Show for int { let rec show x = int_to_str x }\n" in
+           let s = "impl Show for Int { let rec show x = int_to_str x }\n" in
            let tokens =
              lex (s |> String.to_seq |> List.of_seq)
              |> List.map (fun t -> t.token_type)
@@ -1555,25 +1570,25 @@ let program_expression_type_tests =
   >::: [
          ( "expression type after empty program" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"1 + 2"
-             ~expected_type:"int" );
+             ~expected_type:"Int" );
          ( "variable type after definition" >:: fun _ ->
            assert_expression_has_type ~program:"let x = 42" ~expr:"x"
-             ~expected_type:"int" );
+             ~expected_type:"Int" );
          ( "function type after definition" >:: fun _ ->
            assert_expression_has_type ~program:"let double = fn x -> x * 2"
-             ~expr:"double" ~expected_type:"int -> int" );
+             ~expr:"double" ~expected_type:"Int -> Int" );
          ( "polymorphic function type" >:: fun _ ->
            assert_expression_has_type ~program:"let id = fn x -> x" ~expr:"id"
-             ~expected_type:"'a -> 'a" );
+             ~expected_type:"a -> a" );
          ( "polymorphic impl dispatch inside impl recursion" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               inter Monoid<'a> {
-                 val mappend : 'a -> 'a -> 'a
-                 val mempty : 'a
+               inter Monoid<a> {
+                 val mappend : a -> a -> a
+                 val mempty : a
                }
-               impl Monoid for ['a] {
+               impl Monoid for [a] {
                  let rec mappend x y =
                    case x do
                    | [] -> y
@@ -1581,7 +1596,7 @@ let program_expression_type_tests =
                  let mempty = []
                }
              |}
-             ~expr:"mappend [1] [2]" ~expected_type:"[int]" );
+             ~expr:"mappend [1] [2]" ~expected_type:"[Int]" );
          ( "type after multiple definitions" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -1590,7 +1605,7 @@ let program_expression_type_tests =
                let y = 2
                let z = x + y
              |}
-             ~expr:"z" ~expected_type:"int" );
+             ~expr:"z" ~expected_type:"Int" );
          ( "expression using defined variables" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -1598,192 +1613,192 @@ let program_expression_type_tests =
                let x = 5
                let y = 10
              |}
-             ~expr:"x + y" ~expected_type:"int" );
+             ~expr:"x + y" ~expected_type:"Int" );
          ( "function application type" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
                let double = fn x -> x * 2
              |}
-             ~expr:"double 5" ~expected_type:"int" );
+             ~expr:"double 5" ~expected_type:"Int" );
          ( "nested custom type after type definition" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Pair<'a> = ('a, 'a)
-               let (p : Pair<Pair<int>>) = ((1, 2), (3, 4))
+               type Pair<a> = (a, a)
+               let (p : Pair<Pair<Int>>) = ((1, 2), (3, 4))
              |}
-             ~expr:"p" ~expected_type:"((int, int), (int, int))" );
+             ~expr:"p" ~expected_type:"((Int, Int), (Int, Int))" );
          (* ====== Type Alias Tests ====== *)
          ( "simple type alias" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type IntPair = (int, int)
+               type IntPair = (Int, Int)
                let (p : IntPair) = (1, 2)
              |}
-             ~expr:"p" ~expected_type:"(int, int)" );
+             ~expr:"p" ~expected_type:"(Int, Int)" );
          ( "type alias with single parameter" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Box<'a> = ('a, 'a, 'a)
-               let (b : Box<int>) = (1, 2, 3)
+               type Box<a> = (a, a, a)
+               let (b : Box<Int>) = (1, 2, 3)
              |}
-             ~expr:"b" ~expected_type:"(int, int, int)" );
+             ~expr:"b" ~expected_type:"(Int, Int, Int)" );
          ( "function returning type alias" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Pair<'a> = ('a, 'a)
+               type Pair<a> = (a, a)
                let make_pair x = (x, x)
              |}
-             ~expr:"make_pair 5" ~expected_type:"(int, int)" );
+             ~expr:"make_pair 5" ~expected_type:"(Int, Int)" );
          ( "function with type alias parameter" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Pair<'a> = ('a, 'a)
+               type Pair<a> = (a, a)
                let first p = case p do | (x, _) -> x
              |}
-             ~expr:"first" ~expected_type:"('a, 'b) -> 'a" );
+             ~expr:"first" ~expected_type:"(a, b) -> a" );
          ( "type alias with list" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type IntList = [int]
+               type IntList = [Int]
                let (xs : IntList) = [1, 2, 3]
              |}
-             ~expr:"xs" ~expected_type:"[int]" );
+             ~expr:"xs" ~expected_type:"[Int]" );
          ( "type alias with function type" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type IntFunction = int -> int
+               type IntFunction = Int -> Int
                let (f : IntFunction) = fn x -> x + 1
              |}
-             ~expr:"f" ~expected_type:"int -> int" );
+             ~expr:"f" ~expected_type:"Int -> Int" );
          ( "parameterized list type alias" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type MyList<'a> = ['a]
-               let (xs : MyList<int>) = [1, 2, 3]
+               type MyList<a> = [a]
+               let (xs : MyList<Int>) = [1, 2, 3]
              |}
-             ~expr:"xs" ~expected_type:"[int]" );
+             ~expr:"xs" ~expected_type:"[Int]" );
          ( "type alias in recursive function" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type IntList = [int]
+               type IntList = [Int]
                let rec sum (xs : IntList) =
                  case xs do
                  | [] -> 0
                  | h :: t -> h + sum t
              |}
-             ~expr:"sum" ~expected_type:"[int] -> int" );
+             ~expr:"sum" ~expected_type:"[Int] -> Int" );
          ( "multiple type aliases composition" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Point = (int, int)
+               type Point = (Int, Int)
                type Line = (Point, Point)
                let (l : Line) = ((0, 0), (1, 1))
              |}
-             ~expr:"l" ~expected_type:"((int, int), (int, int))" );
+             ~expr:"l" ~expected_type:"((Int, Int), (Int, Int))" );
          ( "polymorphic type alias instantiation" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Container<'a> = ('a, ['a])
-               let (c1 : Container<int>) = (42, [1, 2, 3])
+               type Container<a> = (a, [a])
+               let (c1 : Container<Int>) = (42, [1, 2, 3])
              |}
-             ~expr:"c1" ~expected_type:"(int, [int])" );
+             ~expr:"c1" ~expected_type:"(Int, [Int])" );
          ( "type alias with function composition" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Transformer<'a> = 'a -> 'a
-               let (double : Transformer<int>) = fn x -> x * 2
+               type Transformer<a> = a -> a
+               let (double : Transformer<Int>) = fn x -> x * 2
              |}
-             ~expr:"double 5" ~expected_type:"int" );
+             ~expr:"double 5" ~expected_type:"Int" );
          ( "deeply nested type aliases" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Pair<'a> = ('a, 'a)
-               type Quad<'a> = Pair<Pair<'a>>
-               let (q : Quad<int>) = ((1, 2), (3, 4))
+               type Pair<a> = (a, a)
+               type Quad<a> = Pair<Pair<a>>
+               let (q : Quad<Int>) = ((1, 2), (3, 4))
              |}
-             ~expr:"q" ~expected_type:"((int, int), (int, int))" );
+             ~expr:"q" ~expected_type:"((Int, Int), (Int, Int))" );
          ( "function returning parameterized type" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Wrapper<'a> = ('a, 'a)
+               type Wrapper<a> = (a, a)
                let wrap x = (x, x)
              |}
-             ~expr:"wrap" ~expected_type:"'a -> ('a, 'a)" );
+             ~expr:"wrap" ~expected_type:"a -> (a, a)" );
          ( "list of type alias" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Pair<'a> = ('a, 'a)
+               type Pair<a> = (a, a)
                let pairs = [(1, 2), (3, 4), (5, 6)]
              |}
-             ~expr:"pairs" ~expected_type:"[(int, int)]" );
+             ~expr:"pairs" ~expected_type:"[(Int, Int)]" );
          ( "type alias in switch pattern" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Pair<'a> = ('a, 'a)
+               type Pair<a> = (a, a)
                let get_first p = case p do | (x, _) -> x
                let x = get_first (1, 2)
              |}
-             ~expr:"x" ~expected_type:"int" );
+             ~expr:"x" ~expected_type:"Int" );
          ( "type alias with curried function" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type BinaryOp<'a> = 'a -> 'a -> 'a
-               let (add : BinaryOp<int>) = fn x -> fn y -> x + y
+               type BinaryOp<a> = a -> a -> a
+               let (add : BinaryOp<Int>) = fn x -> fn y -> x + y
              |}
-             ~expr:"add" ~expected_type:"int -> int -> int" );
+             ~expr:"add" ~expected_type:"Int -> Int -> Int" );
          ( "multi-parameter type alias" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Pair<'a, 'b> = ('a, 'b)
-               let (p : Pair<int, bool>) = (42, true)
+               type Pair<a, b> = (a, b)
+               let (p : Pair<Int, Bool>) = (42, true)
              |}
-             ~expr:"p" ~expected_type:"(int, bool)" );
+             ~expr:"p" ~expected_type:"(Int, Bool)" );
          ( "type alias referencing multi-parameter type alias" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Pair<'a, 'b> = ('a, 'b)
-               type LeftIntPair<'a> = Pair<int, 'a>
-               let (p : LeftIntPair<bool>) = (42, true)
+               type Pair<a, b> = (a, b)
+               type LeftIntPair<a> = Pair<Int, a>
+               let (p : LeftIntPair<Bool>) = (42, true)
              |}
-             ~expr:"p" ~expected_type:"(int, bool)" );
+             ~expr:"p" ~expected_type:"(Int, Bool)" );
          ( "triple type parameter alias" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Triple<'a, 'b, 'c> = ('a, ('b, 'c))
-               let (t : Triple<int, bool, str>) = (1, (true, "hello"))
+               type Triple<a, b, c> = (a, (b, c))
+               let (t : Triple<Int, Bool, String>) = (1, (true, "hello"))
              |}
-             ~expr:"t" ~expected_type:"(int, (bool, str))" );
+             ~expr:"t" ~expected_type:"(Int, (Bool, String))" );
          ( "nested multi-parameter type alias" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Pair<'a, 'b> = ('a, 'b)
-               type Triple<'a, 'b, 'c> = ('a, ('b, 'c))
-               type RightBoolTriple<'a, 'b> = Triple<'a, 'b, bool>
-               let (x : RightBoolTriple<int, str>) = (1, ("hello", true))
+               type Pair<a, b> = (a, b)
+               type Triple<a, b, c> = (a, (b, c))
+               type RightBoolTriple<a, b> = Triple<a, b, Bool>
+               let (x : RightBoolTriple<Int, String>) = (1, ("hello", true))
              |}
-             ~expr:"x" ~expected_type:"(int, (str, bool))" );
+             ~expr:"x" ~expected_type:"(Int, (String, Bool))" );
        ]
 
 let string_concat_tests =
@@ -1792,10 +1807,10 @@ let string_concat_tests =
   >::: [
          ( "string concat basic" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:{|"hello" ^ "world"|}
-             ~expected_type:"str" );
+             ~expected_type:"String" );
          ( "string concat multiple" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:{|"a" ^ "b" ^ "c"|}
-             ~expected_type:"str" );
+             ~expected_type:"String" );
          ( "string concat with variables" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -1803,10 +1818,10 @@ let string_concat_tests =
           let x = "hello"
           let y = "world"
         |}
-             ~expr:{|x ^ y|} ~expected_type:"str" );
+             ~expr:{|x ^ y|} ~expected_type:"String" );
          ( "string concat empty strings" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:{|"" ^ ""|}
-             ~expected_type:"str" );
+             ~expected_type:"String" );
          ( "string concat eval basic" >:: fun _ ->
            assert_expression_has_value ~program:"" ~expr:{|"hello" ^ "world"|}
              ~expected_value:{|"helloworld"|} );
@@ -1905,14 +1920,14 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Option<'a> = | Some of 'a | None
+               type Option<a> = | Some of a | None
              |}
              ~expr:"Some 5" ~expected_value:"Some 5" );
          ( "nullary constructor None" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type Option<'a> = | Some of 'a | None
+               type Option<a> = | Some of a | None
              |}
              ~expr:"None" ~expected_value:"None" );
          ( "pattern match on True" >:: fun _ ->
@@ -1945,7 +1960,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Option<'a> = | Some of 'a | None
+               type Option<a> = | Some of a | None
              |}
              ~expr:
                {|
@@ -1958,7 +1973,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Option<'a> = | Some of 'a | None
+               type Option<a> = | Some of a | None
              |}
              ~expr:
                {|
@@ -1971,7 +1986,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Option<'a> = | Some of 'a | None
+               type Option<a> = | Some of a | None
                let x = Some 10
              |}
              ~expr:
@@ -2027,14 +2042,14 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Pair<'a, 'b> = | Pair of ('a, 'b)
+               type Pair<a, b> = | Pair of (a, b)
              |}
              ~expr:"Pair (1, 2)" ~expected_value:"Pair (1, 2)" );
          ( "pattern match tuple payload" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type Pair<'a, 'b> = | Pair of ('a, 'b)
+               type Pair<a, b> = | Pair of (a, b)
              |}
              ~expr:
                {|
@@ -2046,7 +2061,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Option<'a> = | Some of 'a | None
+               type Option<a> = | Some of a | None
                let x = Some (Some 42)
              |}
              ~expr:
@@ -2059,11 +2074,11 @@ let sum_type_evaluation_tests =
                | None -> 0
              |}
              ~expected_value:"42" );
-         ( "sum type with int payload - Ok" >:: fun _ ->
+         ( "sum type with Int payload - Ok" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type Result = | Ok of int | Error of int
+               type Result = | Ok of Int | Error of Int
              |}
              ~expr:
                {|
@@ -2072,11 +2087,11 @@ let sum_type_evaluation_tests =
                | Error e -> ~-e
              |}
              ~expected_value:"100" );
-         ( "sum type with int payload - Error" >:: fun _ ->
+         ( "sum type with Int payload - Error" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type Result = | Ok of int | Error of int
+               type Result = | Ok of Int | Error of Int
              |}
              ~expr:
                {|
@@ -2090,21 +2105,21 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
+               type rec List<a> = | Nil | Cons of (a, List<a>)
              |}
              ~expr:"Nil" ~expected_value:"Nil" );
          ( "recursive list - Cons with Nil" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
+               type rec List<a> = | Nil | Cons of (a, List<a>)
              |}
              ~expr:"Cons (1, Nil)" ~expected_value:"Cons (1, Nil)" );
          ( "recursive list - nested Cons" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
+               type rec List<a> = | Nil | Cons of (a, List<a>)
              |}
              ~expr:"Cons (1, Cons (2, Nil))"
              ~expected_value:"Cons (1, Cons (2, Nil))" );
@@ -2112,7 +2127,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
+               type rec List<a> = | Nil | Cons of (a, List<a>)
              |}
              ~expr:
                {|
@@ -2125,7 +2140,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
+               type rec List<a> = | Nil | Cons of (a, List<a>)
              |}
              ~expr:
                {|
@@ -2138,7 +2153,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
+               type rec List<a> = | Nil | Cons of (a, List<a>)
                let rec length lst =
                  case lst do
                  | Nil -> 0
@@ -2150,7 +2165,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
+               type rec List<a> = | Nil | Cons of (a, List<a>)
                let rec sum lst =
                  case lst do
                  | Nil -> 0
@@ -2162,14 +2177,14 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf | Node of ('a, Tree<'a>, Tree<'a>)
+               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
              |}
              ~expr:"Leaf" ~expected_value:"Leaf" );
          ( "recursive binary tree - single Node" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf | Node of ('a, Tree<'a>, Tree<'a>)
+               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
              |}
              ~expr:"Node (5, Leaf, Leaf)" ~expected_value:"Node (5, Leaf, Leaf)"
          );
@@ -2177,7 +2192,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf | Node of ('a, Tree<'a>, Tree<'a>)
+               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
              |}
              ~expr:"Node (1, Node (2, Leaf, Leaf), Node (3, Leaf, Leaf))"
              ~expected_value:
@@ -2186,7 +2201,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf | Node of ('a, Tree<'a>, Tree<'a>)
+               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
              |}
              ~expr:
                {|
@@ -2199,7 +2214,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf | Node of ('a, Tree<'a>, Tree<'a>)
+               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
              |}
              ~expr:
                {|
@@ -2212,7 +2227,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf | Node of ('a, Tree<'a>, Tree<'a>)
+               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
                let rec size t =
                  case t do
                  | Leaf -> 0
@@ -2224,7 +2239,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf | Node of ('a, Tree<'a>, Tree<'a>)
+               type rec Tree<a> = | Leaf | Node of (a, Tree<a>, Tree<a>)
                let rec sum_tree t =
                  case t do
                  | Leaf -> 0
@@ -2288,264 +2303,264 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type MyInt = int
+               type MyInt = Int
              |}
                "MyInt"
            in
-           assert_equal result "int" );
+           assert_equal result "Int" );
          ( "type with one parameter" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type TypeOne<'a> = ('a, int)
+               type TypeOne<a> = (a, Int)
              |}
-               "TypeOne<bool>"
+               "TypeOne<Bool>"
            in
-           assert_equal result "(bool, int)" );
+           assert_equal result "(Bool, Int)" );
          ( "nested type application" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type TypeOne<'a> = ('a, int)
-               type TypeTwo<'a> = ('a, TypeOne<'a>)
+               type TypeOne<a> = (a, Int)
+               type TypeTwo<a> = (a, TypeOne<a>)
              |}
-               "TypeTwo<bool>"
+               "TypeTwo<Bool>"
            in
-           assert_equal result "(bool, (bool, int))" );
+           assert_equal result "(Bool, (Bool, Int))" );
          ( "multiple type parameters" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Pair<'a, 'b> = ('a, 'b)
+               type Pair<a, b> = (a, b)
              |}
-               "Pair<int, bool>"
+               "Pair<Int, Bool>"
            in
-           assert_equal result "(int, bool)" );
+           assert_equal result "(Int, Bool)" );
          ( "nested type with multiple parameters" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Pair<'a, 'b> = ('a, 'b)
-               type Triple<'a, 'b, 'c> = ('a, Pair<'b, 'c>)
+               type Pair<a, b> = (a, b)
+               type Triple<a, b, c> = (a, Pair<b, c>)
              |}
-               "Triple<int, bool, str>"
+               "Triple<Int, Bool, String>"
            in
-           assert_equal result "(int, (bool, str))" );
+           assert_equal result "(Int, (Bool, String))" );
          ( "type with built-in types" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type IntPair = (int, int)
+               type IntPair = (Int, Int)
              |}
                "IntPair"
            in
-           assert_equal result "(int, int)" );
+           assert_equal result "(Int, Int)" );
          (* Zero type parameters *)
          ( "zero type parameters" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type MyBool = bool
+               type MyBool = Bool
              |}
                "MyBool"
            in
-           assert_equal result "bool" );
+           assert_equal result "Bool" );
          ( "zero parameters with tuple" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Point = (int, int)
+               type Point = (Int, Int)
              |}
                "Point"
            in
-           assert_equal result "(int, int)" );
+           assert_equal result "(Int, Int)" );
          (* Two type parameters *)
          ( "two type parameters simple" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Pair<'a, 'b> = ('a, 'b)
+               type Pair<a, b> = (a, b)
              |}
-               "Pair<int, bool>"
+               "Pair<Int, Bool>"
            in
-           assert_equal result "(int, bool)" );
+           assert_equal result "(Int, Bool)" );
          ( "two type parameters swapped" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Pair<'a, 'b> = ('a, 'b)
+               type Pair<a, b> = (a, b)
              |}
-               "Pair<bool, int>"
+               "Pair<Bool, Int>"
            in
-           assert_equal result "(bool, int)" );
+           assert_equal result "(Bool, Int)" );
          ( "two parameters with same type" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Pair<'a, 'b> = ('a, 'b)
+               type Pair<a, b> = (a, b)
              |}
-               "Pair<int, int>"
+               "Pair<Int, Int>"
            in
-           assert_equal result "(int, int)" );
+           assert_equal result "(Int, Int)" );
          (* Three type parameters *)
          ( "three type parameters" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Triple<'a, 'b, 'c> = ('a, 'b, 'c)
+               type Triple<a, b, c> = (a, b, c)
              |}
-               "Triple<int, bool, str>"
+               "Triple<Int, Bool, String>"
            in
-           assert_equal result "(int, bool, str)" );
+           assert_equal result "(Int, Bool, String)" );
          ( "three parameters all same" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Triple<'a, 'b, 'c> = ('a, 'b, 'c)
+               type Triple<a, b, c> = (a, b, c)
              |}
-               "Triple<int, int, int>"
+               "Triple<Int, Int, Int>"
            in
-           assert_equal result "(int, int, int)" );
+           assert_equal result "(Int, Int, Int)" );
          (* Four type parameters *)
          ( "four type parameters" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Quad<'a, 'b, 'c, 'd> = ('a, 'b, 'c, 'd)
+               type Quad<a, b, c, d> = (a, b, c, d)
              |}
-               "Quad<int, bool, str, float>"
+               "Quad<Int, Bool, String, Float>"
            in
-           assert_equal result "(int, bool, str, float)" );
+           assert_equal result "(Int, Bool, String, Float)" );
          (* Five type parameters *)
          ( "five type parameters" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Five<'a, 'b, 'c, 'd, 'e> = ('a, 'b, 'c, 'd, 'e)
+               type Five<a, b, c, d, e> = (a, b, c, d, e)
              |}
-               "Five<int, bool, str, float, unit>"
+               "Five<Int, Bool, String, Float, Unit>"
            in
-           assert_equal result "(int, bool, str, float, unit)" );
+           assert_equal result "(Int, Bool, String, Float, Unit)" );
          (* Function types in aliases *)
          ( "function type alias" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type IntToBool = int -> bool
+               type IntToBool = Int -> Bool
              |}
                "IntToBool"
            in
-           assert_equal result "int -> bool" );
+           assert_equal result "Int -> Bool" );
          ( "function type with parameter" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Func<'a> = 'a -> 'a
+               type Func<a> = a -> a
              |}
-               "Func<int>"
+               "Func<Int>"
            in
-           assert_equal result "int -> int" );
+           assert_equal result "Int -> Int" );
          ( "function type with two parameters" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Func<'a, 'b> = 'a -> 'b
+               type Func<a, b> = a -> b
              |}
-               "Func<int, bool>"
+               "Func<Int, Bool>"
            in
-           assert_equal result "int -> bool" );
+           assert_equal result "Int -> Bool" );
          ( "nested function types" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Func<'a> = 'a -> 'a -> 'a
+               type Func<a> = a -> a -> a
              |}
-               "Func<int>"
+               "Func<Int>"
            in
-           assert_equal result "int -> int -> int" );
+           assert_equal result "Int -> Int -> Int" );
          ( "function with tuple parameter" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Func<'a, 'b> = ('a, 'b) -> 'a
+               type Func<a, b> = (a, b) -> a
              |}
-               "Func<int, bool>"
+               "Func<Int, Bool>"
            in
-           assert_equal result "(int, bool) -> int" );
+           assert_equal result "(Int, Bool) -> Int" );
          ( "function returning tuple" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Func<'a, 'b> = 'a -> ('a, 'b)
+               type Func<a, b> = a -> (a, b)
              |}
-               "Func<int, bool>"
+               "Func<Int, Bool>"
            in
-           assert_equal result "int -> (int, bool)" );
+           assert_equal result "Int -> (Int, Bool)" );
          (* List types in aliases *)
          ( "list type alias" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type IntList = [int]
+               type IntList = [Int]
              |}
                "IntList"
            in
-           assert_equal result "[int]" );
+           assert_equal result "[Int]" );
          ( "list type with parameter" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type List<'a> = ['a]
+               type List<a> = [a]
              |}
-               "List<bool>"
+               "List<Bool>"
            in
-           assert_equal result "[bool]" );
+           assert_equal result "[Bool]" );
          ( "list of tuples" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type PairList<'a, 'b> = [('a, 'b)]
+               type PairList<a, b> = [(a, b)]
              |}
-               "PairList<int, bool>"
+               "PairList<Int, Bool>"
            in
-           assert_equal result "[(int, bool)]" );
+           assert_equal result "[(Int, Bool)]" );
          (* Complex nested structures *)
          ( "tuple of lists" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Lists<'a, 'b> = (['a], ['b])
+               type Lists<a, b> = ([a], [b])
              |}
-               "Lists<int, bool>"
+               "Lists<Int, Bool>"
            in
-           assert_equal result "([int], [bool])" );
+           assert_equal result "([Int], [Bool])" );
          ( "list of functions" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type FuncList<'a> = ['a -> 'a]
+               type FuncList<a> = [a -> a]
              |}
-               "FuncList<int>"
+               "FuncList<Int>"
            in
-           assert_equal result "[int -> int]" );
+           assert_equal result "[Int -> Int]" );
          ( "function taking list" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Func<'a> = ['a] -> 'a
+               type Func<a> = [a] -> a
              |}
-               "Func<int>"
+               "Func<Int>"
            in
-           assert_equal result "[int] -> int" );
+           assert_equal result "[Int] -> Int" );
          ( "function returning list" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Func<'a> = 'a -> ['a]
+               type Func<a> = a -> [a]
              |}
-               "Func<bool>"
+               "Func<Bool>"
            in
-           assert_equal result "bool -> [bool]" );
+           assert_equal result "Bool -> [Bool]" );
          (* Multiple interdependent type aliases *)
          (* Note: Tests for aliases referencing other aliases in their bodies
             are commented out as they may require additional parser/evaluator support *)
@@ -2597,152 +2612,152 @@ let type_evaluation_tests =
            let result =
              evaluate_type_expression
                {|
-               type Complex<'a, 'b, 'c> = (('a, 'b), ('b, 'c), ('a, 'c))
+               type Complex<a, b, c> = ((a, b), (b, c), (a, c))
              |}
-               "Complex<int, bool, str>"
+               "Complex<Int, Bool, String>"
            in
-           assert_equal result "((int, bool), (bool, str), (int, str))" );
+           assert_equal result "((Int, Bool), (Bool, String), (Int, String))" );
          (* Note: Complex function types with nested tuples may need additional
             testing *)
          ( "function with tuple parameter" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Func<'a, 'b> = ('a, 'b) -> 'a
+               type Func<a, b> = (a, b) -> a
              |}
-               "Func<int, bool>"
+               "Func<Int, Bool>"
            in
-           assert_equal result "(int, bool) -> int" );
+           assert_equal result "(Int, Bool) -> Int" );
          ( "list of complex tuples" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type ComplexList<'a, 'b> = [(('a, 'b), ('b, 'a))]
+               type ComplexList<a, b> = [((a, b), (b, a))]
              |}
-               "ComplexList<int, bool>"
+               "ComplexList<Int, Bool>"
            in
-           assert_equal result "[((int, bool), (bool, int))]" );
+           assert_equal result "[((Int, Bool), (Bool, Int))]" );
          (* Edge cases with built-in types *)
          ( "all built-in types in tuple" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type AllBuiltins = (int, bool, str, float, unit)
+               type AllBuiltins = (Int, Bool, String, Float, Unit)
              |}
                "AllBuiltins"
            in
-           assert_equal result "(int, bool, str, float, unit)" );
+           assert_equal result "(Int, Bool, String, Float, Unit)" );
          ( "built-in types as parameters" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Wrapper<'a> = ('a, int)
+               type Wrapper<a> = (a, Int)
              |}
-               "Wrapper<bool>"
+               "Wrapper<Bool>"
            in
-           assert_equal result "(bool, int)" );
+           assert_equal result "(Bool, Int)" );
          ( "built-in types in function" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type IntFunc = int -> int -> int
+               type IntFunc = Int -> Int -> Int
              |}
                "IntFunc"
            in
-           assert_equal result "int -> int -> int" );
+           assert_equal result "Int -> Int -> Int" );
          (* Multiple applications of same type *)
          ( "same type applied multiple times" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Pair<'a> = ('a, 'a)
+               type Pair<a> = (a, a)
              |}
-               "Pair<int>"
+               "Pair<Int>"
            in
-           assert_equal result "(int, int)" );
+           assert_equal result "(Int, Int)" );
          ( "type applied to itself" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Wrapper<'a> = ('a, int)
+               type Wrapper<a> = (a, Int)
              |}
-               "Wrapper<Wrapper<int>>"
+               "Wrapper<Wrapper<Int>>"
            in
-           assert_equal result "((int, int), int)" );
+           assert_equal result "((Int, Int), Int)" );
          ( "deeply nested applications" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Box<'a> = ('a, int)
+               type Box<a> = (a, Int)
              |}
-               "Box<Box<Box<int>>>"
+               "Box<Box<Box<Int>>>"
            in
-           assert_equal result "(((int, int), int), int)" );
+           assert_equal result "(((Int, Int), Int), Int)" );
          (* Type parameters in different positions *)
          ( "parameters in different order" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Swap<'a, 'b> = ('b, 'a)
+               type Swap<a, b> = (b, a)
              |}
-               "Swap<int, bool>"
+               "Swap<Int, Bool>"
            in
-           assert_equal result "(bool, int)" );
+           assert_equal result "(Bool, Int)" );
          ( "parameters used multiple times" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Triple<'a> = ('a, 'a, 'a)
+               type Triple<a> = (a, a, a)
              |}
-               "Triple<str>"
+               "Triple<String>"
            in
-           assert_equal result "(str, str, str)" );
+           assert_equal result "(String, String, String)" );
          ( "mixed parameter usage" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Mixed<'a, 'b> = ('a, 'b, 'a, 'b)
+               type Mixed<a, b> = (a, b, a, b)
              |}
-               "Mixed<int, bool>"
+               "Mixed<Int, Bool>"
            in
-           assert_equal result "(int, bool, int, bool)" );
+           assert_equal result "(Int, Bool, Int, Bool)" );
          (* Real-world examples *)
          ( "option type" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Option<'a> = (bool, 'a)
+               type Option<a> = (Bool, a)
              |}
-               "Option<int>"
+               "Option<Int>"
            in
-           assert_equal result "(bool, int)" );
+           assert_equal result "(Bool, Int)" );
          ( "result type" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Result<'a, 'b> = (bool, 'a, 'b)
+               type Result<a, b> = (Bool, a, b)
              |}
-               "Result<int, str>"
+               "Result<Int, String>"
            in
-           assert_equal result "(bool, int, str)" );
+           assert_equal result "(Bool, Int, String)" );
          ( "maybe type" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Maybe<'a> = (bool, 'a)
+               type Maybe<a> = (Bool, a)
              |}
-               "Maybe<bool>"
+               "Maybe<Bool>"
            in
-           assert_equal result "(bool, bool)" );
+           assert_equal result "(Bool, Bool)" );
          ( "either type" >:: fun _ ->
            let result =
              evaluate_type_expression
                {|
-               type Either<'a, 'b> = (bool, 'a, 'b)
+               type Either<a, b> = (Bool, a, b)
              |}
-               "Either<int, str>"
+               "Either<Int, String>"
            in
-           assert_equal result "(bool, int, str)" );
+           assert_equal result "(Bool, Int, String)" );
        ]
 
 let red_black_tree_tests =
@@ -2754,9 +2769,9 @@ let red_black_tree_tests =
            assert_program_typechecks
              {|
              type Color = | Red | Black
-             type rec RBTree<'a> =
+             type rec RBTree<a> =
                | Leaf
-               | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+               | Node of (Color, a, RBTree<a>, RBTree<a>)
            |}
          );
          ( "create empty rb tree" >:: fun _ ->
@@ -2764,9 +2779,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
              ~expr:"Leaf" ~expected_value:"Leaf" );
          ( "create red node" >:: fun _ ->
@@ -2774,9 +2789,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
              ~expr:"Node (Red, 5, Leaf, Leaf)"
              ~expected_value:"Node (Red, 5, Leaf, Leaf)" );
@@ -2785,9 +2800,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
              ~expr:"Node (Black, 10, Leaf, Leaf)"
              ~expected_value:"Node (Black, 10, Leaf, Leaf)" );
@@ -2797,9 +2812,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec contains x tree =
                  case tree do
@@ -2809,15 +2824,15 @@ let red_black_tree_tests =
                      else if x < y then contains x left
                      else contains x right
              |}
-             ~expr:"contains" ~expected_type:"int -> RBTree<int> -> bool" );
+             ~expr:"contains" ~expected_type:"Int -> RBTree<Int> -> Bool" );
          ( "rb tree contains - empty tree" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec contains x tree =
                  case tree do
@@ -2833,9 +2848,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec contains x tree =
                  case tree do
@@ -2852,9 +2867,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec contains x tree =
                  case tree do
@@ -2872,9 +2887,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
                  case tree do
@@ -2888,15 +2903,15 @@ let red_black_tree_tests =
                      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
                  | _ -> tree
              |}
-             ~expr:"balance" ~expected_type:"RBTree<'a> -> RBTree<'a>" );
+             ~expr:"balance" ~expected_type:"RBTree<a> -> RBTree<a>" );
          ( "rb tree balance - no rebalancing needed" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
                  case tree do
@@ -2918,24 +2933,24 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec size tree =
                  case tree do
                  | Leaf -> 0
                  | Node (_, _, left, right) -> 1 + size left + size right
              |}
-             ~expr:"size" ~expected_type:"RBTree<'a> -> int" );
+             ~expr:"size" ~expected_type:"RBTree<a> -> Int" );
          ( "rb tree size - empty" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec size tree =
                  case tree do
@@ -2948,9 +2963,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec size tree =
                  case tree do
@@ -2963,9 +2978,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec size tree =
                  case tree do
@@ -2982,9 +2997,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec height tree =
                  case tree do
@@ -2994,15 +3009,15 @@ let red_black_tree_tests =
                      let right_h = height right in
                      1 + (if left_h > right_h then left_h else right_h)
              |}
-             ~expr:"height" ~expected_type:"RBTree<'a> -> int" );
+             ~expr:"height" ~expected_type:"RBTree<a> -> Int" );
          ( "rb tree height - empty" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec height tree =
                  case tree do
@@ -3018,9 +3033,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec height tree =
                  case tree do
@@ -3036,9 +3051,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec height tree =
                  case tree do
@@ -3058,9 +3073,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec minimum tree =
                  case tree do
@@ -3068,15 +3083,15 @@ let red_black_tree_tests =
                  | Node (_, x, Leaf, _) -> x
                  | Node (_, _, left, _) -> minimum left
              |}
-             ~expr:"minimum" ~expected_type:"RBTree<int> -> int" );
+             ~expr:"minimum" ~expected_type:"RBTree<Int> -> Int" );
          ( "rb tree minimum - single node" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec minimum tree =
                  case tree do
@@ -3091,9 +3106,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec minimum tree =
                  case tree do
@@ -3110,9 +3125,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec maximum tree =
                  case tree do
@@ -3120,15 +3135,15 @@ let red_black_tree_tests =
                  | Node (_, x, _, Leaf) -> x
                  | Node (_, _, _, right) -> maximum right
              |}
-             ~expr:"maximum" ~expected_type:"RBTree<int> -> int" );
+             ~expr:"maximum" ~expected_type:"RBTree<Int> -> Int" );
          ( "rb tree maximum - single node" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec maximum tree =
                  case tree do
@@ -3143,9 +3158,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec maximum tree =
                  case tree do
@@ -3163,9 +3178,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let tree = Node (Black, 5,
                            Node (Red, 3,
@@ -3185,9 +3200,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec size tree =
                  case tree do
@@ -3208,9 +3223,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec contains x tree =
                  case tree do
@@ -3234,9 +3249,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec contains x tree =
                  case tree do
@@ -3261,24 +3276,24 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let make_black tree =
                  case tree do
                  | Leaf -> Leaf
                  | Node (_, x, left, right) -> Node (Black, x, left, right)
              |}
-             ~expr:"make_black" ~expected_type:"RBTree<'a> -> RBTree<'a>" );
+             ~expr:"make_black" ~expected_type:"RBTree<a> -> RBTree<a>" );
          ( "rb tree make_black - Leaf" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let make_black tree =
                  case tree do
@@ -3291,9 +3306,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let make_black tree =
                  case tree do
@@ -3307,9 +3322,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
                  case tree do
@@ -3335,15 +3350,15 @@ let red_black_tree_tests =
                        tree
              |}
              ~expr:"insert_aux"
-             ~expected_type:"int -> RBTree<int> -> RBTree<int>" );
+             ~expected_type:"Int -> RBTree<Int> -> RBTree<Int>" );
          ( "rb tree insert function type" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
                  case tree do
@@ -3376,16 +3391,16 @@ let red_black_tree_tests =
                let insert x tree =
                  make_black (insert_aux x tree)
              |}
-             ~expr:"insert" ~expected_type:"int -> RBTree<int> -> RBTree<int>"
+             ~expr:"insert" ~expected_type:"Int -> RBTree<Int> -> RBTree<Int>"
          );
          ( "rb tree insert into empty tree" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
                  case tree do
@@ -3425,9 +3440,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
                  case tree do
@@ -3475,9 +3490,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
                  case tree do
@@ -3531,9 +3546,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
                  case tree do
@@ -3580,9 +3595,9 @@ let red_black_tree_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
                  case tree do
@@ -3641,7 +3656,7 @@ let red_black_tree_tests =
                {|
                type rec Tree =
                  | Leaf
-                 | Node of (Tree, Tree, int)
+                 | Node of (Tree, Tree, Int)
 
                let rec num_nodes (t : Tree) =
                  case t do
@@ -3691,12 +3706,12 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
              ~expr:"Node"
-             ~expected_type:"(Color, 'a, RBTree<'a>, RBTree<'a>) -> RBTree<'a>"
+             ~expected_type:"(Color, a, RBTree<a>, RBTree<a>) -> RBTree<a>"
          );
          (* Verify that Color is NOT a type variable when used *)
          ( "Node constructor applied to Red" >:: fun _ ->
@@ -3704,11 +3719,11 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
-             ~expr:"Node (Red, 5, Leaf, Leaf)" ~expected_type:"RBTree<int>" );
+             ~expr:"Node (Red, 5, Leaf, Leaf)" ~expected_type:"RBTree<Int>" );
          (* Test multiple sum types referencing each other *)
          ( "constructor with multiple sum type parameters" >:: fun _ ->
            assert_expression_has_type
@@ -3716,19 +3731,19 @@ let sum_type_constructor_inference_tests =
                {|
                type Status = | Active | Inactive
                type Priority = | High | Low
-               type rec Task<'a> =
+               type rec Task<a> =
                  | Task of (Status, Priority, a)
              |}
-             ~expr:"Task" ~expected_type:"(Status, Priority, 'a) -> Task<'a>" );
+             ~expr:"Task" ~expected_type:"(Status, Priority, a) -> Task<a>" );
          (* Verify concrete evaluation *)
          ( "Node with Red evaluates correctly" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
              ~expr:"Node (Red, 5, Leaf, Leaf)"
              ~expected_value:"Node (Red, 5, Leaf, Leaf)" );
@@ -3738,9 +3753,9 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
              ~expr:
                {|
@@ -3755,9 +3770,9 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
              |}
              ~expr:
                {|
@@ -3795,9 +3810,9 @@ let sum_type_constructor_inference_tests =
                {|
                type Size = | Small | Large
                type Color = | Red | Black
-               type Colored<'a> = | Colored of (Color, 'a)
+               type Colored<a> = | Colored of (Color, a)
              |}
-             ~expr:"Colored" ~expected_type:"(Color, 'a) -> Colored<'a>" );
+             ~expr:"Colored" ~expected_type:"(Color, a) -> Colored<a>" );
          (* Test that concrete types in tuple payloads work *)
          ( "tuple payload with multiple concrete types" >:: fun _ ->
            assert_expression_has_type
@@ -3806,31 +3821,31 @@ let sum_type_constructor_inference_tests =
                type A = | A1 | A2
                type B = | B1 | B2
                type C = | C1 | C2
-               type Combined = | Combo of (A, B, C, int)
+               type Combined = | Combo of (A, B, C, Int)
              |}
-             ~expr:"Combo" ~expected_type:"(A, B, C, int) -> Combined" );
+             ~expr:"Combo" ~expected_type:"(A, B, C, Int) -> Combined" );
          (* Test function taking constructor as argument *)
          ( "function with constructor parameter" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let make_red_node x = Node (Red, x, Leaf, Leaf)
              |}
-             ~expr:"make_red_node" ~expected_type:"'a -> RBTree<'a>" );
+             ~expr:"make_red_node" ~expected_type:"a -> RBTree<a>" );
          (* Test that type checking rejects wrong concrete types *)
          ( "type error when using wrong sum type" >:: fun _ ->
            assert_program_fails_typecheck
              {|
                type Color = | Red | Black
                type Size = | Big | Small
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let bad_node = Node (Big, 5, Leaf, Leaf)
              |}
@@ -3841,9 +3856,9 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Tag = | Important | Normal
-               type Wrapper<'a> = | Wrap of (Tag, 'a)
+               type Wrapper<a> = | Wrap of (Tag, a)
              |}
-             ~expr:"Wrap" ~expected_type:"(Tag, 'a) -> Wrapper<'a>" );
+             ~expr:"Wrap" ~expected_type:"(Tag, a) -> Wrapper<a>" );
          (* Test complex nested structure *)
          ( "complex nested sum types" >:: fun _ ->
            assert_expression_has_type
@@ -3851,13 +3866,13 @@ let sum_type_constructor_inference_tests =
                {|
                type Status = | Active | Inactive
                type Priority = | High | Low | Medium
-               type rec TaskList<'a> =
+               type rec TaskList<a> =
                  | Empty
-                 | Task of (Status, Priority, a, TaskList<'a>)
+                 | Task of (Status, Priority, a, TaskList<a>)
              |}
              ~expr:"Task"
              ~expected_type:
-               "(Status, Priority, 'a, TaskList<'a>) -> TaskList<'a>" );
+               "(Status, Priority, a, TaskList<a>) -> TaskList<a>" );
          (* Test that pattern matching works with concrete types *)
          ( "pattern match extracts concrete sum type" >:: fun _ ->
            assert_expression_has_value
@@ -3865,7 +3880,7 @@ let sum_type_constructor_inference_tests =
                {|
                type Status = | Active | Inactive
                type Priority = | High | Low
-               type Task = | Task of (Status, Priority, int)
+               type Task = | Task of (Status, Priority, Int)
 
                let get_priority t =
                  case t do
@@ -3880,23 +3895,23 @@ let sum_type_constructor_inference_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type Colored<'a> = | Colored of (Color, 'a)
+               type Colored<a> = | Colored of (Color, a)
              |}
              ~expr:
                {|
                let colorize c x = Colored (c, x) in
                colorize Red
              |}
-             ~expected_type:"'a -> Colored<'a>" );
+             ~expected_type:"a -> Colored<a>" );
          (* Ensure Red-Black tree functions work correctly *)
          ( "rb tree contains function type" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let rec contains x tree =
                  case tree do
@@ -3906,16 +3921,16 @@ let sum_type_constructor_inference_tests =
                      else if x < y then contains x left
                      else contains x right
              |}
-             ~expr:"contains" ~expected_type:"int -> RBTree<int> -> bool" );
+             ~expr:"contains" ~expected_type:"Int -> RBTree<Int> -> Bool" );
          (* Test balance function type *)
          ( "rb tree balance function type" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Leaf
-                 | Node of (Color, a, RBTree<'a>, RBTree<'a>)
+                 | Node of (Color, a, RBTree<a>, RBTree<a>)
 
                let balance tree =
                  case tree do
@@ -3923,7 +3938,7 @@ let sum_type_constructor_inference_tests =
                      Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
                  | _ -> tree
              |}
-             ~expr:"balance" ~expected_type:"RBTree<'a> -> RBTree<'a>" );
+             ~expr:"balance" ~expected_type:"RBTree<a> -> RBTree<a>" );
        ]
 
 (* ============================================================================
@@ -3948,14 +3963,14 @@ let custom_operator_type_tests =
                {|
                let (+++) x y = x + y + y
              |}
-             ~expr:"(+++)" ~expected_type:"int -> int -> int" );
+             ~expr:"(+++)" ~expected_type:"Int -> Int -> Int" );
          ( "custom additive operator with different implementation" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
                let (+-+) a b = a + b + 1
              |}
-             ~expr:"(+-+)" ~expected_type:"int -> int -> int" );
+             ~expr:"(+-+)" ~expected_type:"Int -> Int -> Int" );
          (* Multiplicative operators (start with * / %) *)
          ( "custom multiplicative operator type" >:: fun _ ->
            assert_expression_has_type
@@ -3963,27 +3978,27 @@ let custom_operator_type_tests =
                {|
                let (***) x y = x * x * y
              |}
-             ~expr:"(***)" ~expected_type:"int -> int -> int" );
+             ~expr:"(***)" ~expected_type:"Int -> Int -> Int" );
          ( "custom division-based operator type" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
                let (///) x y = x / y + x % y
              |}
-             ~expr:"(///)" ~expected_type:"int -> int -> int" );
+             ~expr:"(///)" ~expected_type:"Int -> Int -> Int" );
          (* Relational operators (start with < > =) *)
          ( "custom relational operator type" >:: fun _ ->
            assert_expression_has_type
              ~program:{|
                let (===) x y = x == y
              |}
-             ~expr:"(===)" ~expected_type:"'a -> 'a -> bool" );
+             ~expr:"(===)" ~expected_type:"a -> a -> Bool" );
          ( "custom less-than operator type" >:: fun _ ->
            assert_expression_has_type
              ~program:{|
                let (<<) x y = x < y - 1
              |}
-             ~expr:"(<<)" ~expected_type:"int -> int -> bool" );
+             ~expr:"(<<)" ~expected_type:"Int -> Int -> Bool" );
          (* Polymorphic custom operators *)
          ( "polymorphic custom operator" >:: fun _ ->
            assert_expression_has_type
@@ -3991,15 +4006,15 @@ let custom_operator_type_tests =
                {|
                let (<=>) x y = if x == y then 1 else 0
              |}
-             ~expr:"(<=>)" ~expected_type:"'a -> 'a -> int" );
+             ~expr:"(<=>)" ~expected_type:"a -> a -> Int" );
          (* Custom operator with type annotations *)
          ( "custom operator with type annotation" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               let (+*+) (x : int) (y : int) : int = x + y * 2
+               let (+*+) (x : Int) (y : Int) : Int = x + y * 2
              |}
-             ~expr:"(+*+)" ~expected_type:"int -> int -> int" );
+             ~expr:"(+*+)" ~expected_type:"Int -> Int -> Int" );
          (* Custom operator usage in expressions *)
          ( "expression using custom additive operator" >:: fun _ ->
            assert_expression_has_type
@@ -4007,20 +4022,20 @@ let custom_operator_type_tests =
                {|
                let (+++) x y = x + y + y
              |}
-             ~expr:"5 +++ 3" ~expected_type:"int" );
+             ~expr:"5 +++ 3" ~expected_type:"Int" );
          ( "expression using custom multiplicative operator" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
                let (***) x y = x * x * y
              |}
-             ~expr:"3 *** 2" ~expected_type:"int" );
+             ~expr:"3 *** 2" ~expected_type:"Int" );
          ( "expression using custom relational operator" >:: fun _ ->
            assert_expression_has_type
              ~program:{|
                let (===) x y = x == y
              |}
-             ~expr:"5 === 5" ~expected_type:"bool" );
+             ~expr:"5 === 5" ~expected_type:"Bool" );
          (* Partial application *)
          ( "partial application of custom operator" >:: fun _ ->
            assert_expression_has_type
@@ -4029,7 +4044,7 @@ let custom_operator_type_tests =
                let (+++) x y = x + y + y
                let add_six = (+++) 2
              |}
-             ~expr:"add_six" ~expected_type:"int -> int" );
+             ~expr:"add_six" ~expected_type:"Int -> Int" );
          ( "partial application result" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -4037,7 +4052,7 @@ let custom_operator_type_tests =
                let (+++) x y = x + y + y
                let add_six = (+++) 2
              |}
-             ~expr:"add_six 3" ~expected_type:"int" );
+             ~expr:"add_six 3" ~expected_type:"Int" );
          (* Multiple custom operators *)
          ( "multiple custom operators in program" >:: fun _ ->
            assert_expression_has_type
@@ -4047,7 +4062,7 @@ let custom_operator_type_tests =
                let (***) x y = x * x * y
                let (===) x y = x == y
              |}
-             ~expr:"(+++)" ~expected_type:"int -> int -> int" );
+             ~expr:"(+++)" ~expected_type:"Int -> Int -> Int" );
          ( "expression with multiple custom operators" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -4055,7 +4070,7 @@ let custom_operator_type_tests =
                let (+++) x y = x + y + y
                let (***) x y = x * x * y
              |}
-             ~expr:"2 *** 3 +++ 4" ~expected_type:"int" );
+             ~expr:"2 *** 3 +++ 4" ~expected_type:"Int" );
          (* Recursive custom operators *)
          ( "recursive custom operator type" >:: fun _ ->
            assert_expression_has_type
@@ -4066,7 +4081,7 @@ let custom_operator_type_tests =
                  else if x == 1 then y
                  else y + (x - 1) ***> y
              |}
-             ~expr:"(***>)" ~expected_type:"int -> int -> int" );
+             ~expr:"(***>)" ~expected_type:"Int -> Int -> Int" );
          (* Custom operator with bool return *)
          ( "custom operator returning bool" >:: fun _ ->
            assert_expression_has_type
@@ -4074,7 +4089,7 @@ let custom_operator_type_tests =
                {|
                let (>><) x y = x > y && y > 0
              |}
-             ~expr:"(>><)" ~expected_type:"int -> int -> bool" );
+             ~expr:"(>><)" ~expected_type:"Int -> Int -> Bool" );
          (* Mixed precedence operators *)
          ( "mixed precedence custom operators" >:: fun _ ->
            assert_expression_has_type
@@ -4083,7 +4098,7 @@ let custom_operator_type_tests =
                let (</>) x y = x / y + 1
                let (<+>) x y = x + y * 2
              |}
-             ~expr:"10 </> 3 <+> 2" ~expected_type:"int" );
+             ~expr:"10 </> 3 <+> 2" ~expected_type:"Int" );
        ]
 
 let custom_operator_evaluation_tests =
@@ -4273,7 +4288,7 @@ let option_map_type_test =
            assert_expression_has_type
              ~program:
                {|
-          type Option<'a> =
+          type Option<a> =
             | None
             | Some of a
 
@@ -4283,7 +4298,7 @@ let option_map_type_test =
             | Some v -> Some (f v)
         |}
              ~expr:"(map)"
-             ~expected_type:"('a -> 'b) -> Option<'a> -> Option<'b>" );
+             ~expected_type:"(a -> b) -> Option<a> -> Option<b>" );
        ]
 
 (* ============================================================================
@@ -4299,22 +4314,22 @@ let parenthesized_builtin_operator_tests =
          (* Type tests *)
          ( "parenthesized + has correct type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"(+)"
-             ~expected_type:"int -> int -> int" );
+             ~expected_type:"Int -> Int -> Int" );
          ( "parenthesized - has correct type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"(-)"
-             ~expected_type:"int -> int -> int" );
+             ~expected_type:"Int -> Int -> Int" );
          ( "parenthesized times has correct type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:{|(*)|}
-             ~expected_type:"int -> int -> int" );
+             ~expected_type:"Int -> Int -> Int" );
          ( "parenthesized / has correct type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"(/)"
-             ~expected_type:"int -> int -> int" );
+             ~expected_type:"Int -> Int -> Int" );
          ( "parenthesized < has correct type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"(<)"
-             ~expected_type:"int -> int -> bool" );
+             ~expected_type:"Int -> Int -> Bool" );
          ( "parenthesized && has correct type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"(&&)"
-             ~expected_type:"bool -> bool -> bool" );
+             ~expected_type:"Bool -> Bool -> Bool" );
          (* Evaluation tests *)
          ( "use (+) as a value" >:: fun _ ->
            assert_expression_has_value
@@ -4403,7 +4418,7 @@ let polymorphic_nullary_constructor_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type Option<'a> =
+          type Option<a> =
             | None
             | Some of a
 
@@ -4413,13 +4428,13 @@ let polymorphic_nullary_constructor_regression_tests =
             | Some v -> Some (f v)
         |}
              ~expr:"(map)"
-             ~expected_type:"('a -> 'b) -> Option<'a> -> Option<'b>" );
+             ~expected_type:"(a -> b) -> Option<a> -> Option<b>" );
          (* Test that None can be used with different types *)
          ( "None can be used polymorphically" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-          type Option<'a> =
+          type Option<a> =
             | None
             | Some of a
 
@@ -4433,7 +4448,7 @@ let polymorphic_nullary_constructor_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type Option<'a> =
+          type Option<a> =
             | None
             | Some of a
 
@@ -4443,13 +4458,13 @@ let polymorphic_nullary_constructor_regression_tests =
             | Some v -> if pred v then Some v else None
         |}
              ~expr:"(filter)"
-             ~expected_type:"('a -> bool) -> Option<'a> -> Option<'a>" );
+             ~expected_type:"(a -> Bool) -> Option<a> -> Option<a>" );
          (* Test that Result type with nullary constructors also works *)
          ( "Result Error constructor is polymorphic" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-          type Result<'a, 'e> =
+          type Result<a, e> =
             | Ok of a
             | Error of e
 
@@ -4459,17 +4474,17 @@ let polymorphic_nullary_constructor_regression_tests =
             | Ok v -> Ok (f v)
         |}
              ~expr:"(map_result)"
-             ~expected_type:"('a -> 'b) -> Result<'a, 'c> -> Result<'b, 'c>" );
+             ~expected_type:"(a -> c) -> Result<a, b> -> Result<c, b>" );
          (* Test Either type with two nullary constructors *)
          ( "Either with nullary constructors" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-          type Either<'a, 'b> =
+          type Either<a, b> =
             | Left of a
             | Right of b
 
-          type Maybe<'a> =
+          type Maybe<a> =
             | Nothing
             | Just of a
 
@@ -4478,13 +4493,13 @@ let polymorphic_nullary_constructor_regression_tests =
             | Left _ -> Nothing
             | Right v -> Just v
         |}
-             ~expr:"(to_maybe)" ~expected_type:"Either<'a, 'b> -> Maybe<'b>" );
+             ~expr:"(to_maybe)" ~expected_type:"Either<a, b> -> Maybe<b>" );
          (* Test bind/flatMap which requires proper polymorphism *)
          ( "bind/flatMap has correct type" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-          type Option<'a> =
+          type Option<a> =
             | None
             | Some of a
 
@@ -4494,13 +4509,13 @@ let polymorphic_nullary_constructor_regression_tests =
             | Some v -> f v
         |}
              ~expr:"(flatMap)"
-             ~expected_type:"Option<'a> -> ('a -> Option<'b>) -> Option<'b>" );
+             ~expected_type:"Option<b> -> (b -> Option<a>) -> Option<a>" );
          (* Test chaining operations that require different type variables *)
          ( "chained map operations work" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-          type Option<'a> =
+          type Option<a> =
             | None
             | Some of a
 
@@ -4520,7 +4535,7 @@ let polymorphic_nullary_constructor_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type PairOrEmpty<'a, 'b> =
+          type PairOrEmpty<a, b> =
             | Empty
             | Pair of (a, b)
 
@@ -4530,7 +4545,7 @@ let polymorphic_nullary_constructor_regression_tests =
             | Pair (x, y) -> Pair (y, x)
         |}
              ~expr:"(swap)"
-             ~expected_type:"PairOrEmpty<'a, 'b> -> PairOrEmpty<'b, 'a>" );
+             ~expected_type:"PairOrEmpty<a, b> -> PairOrEmpty<b, a>" );
        ]
 
 (* ============================================================================
@@ -4548,7 +4563,7 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type Option<'a> =
+          type Option<a> =
             | None
             | Some of a
 
@@ -4558,13 +4573,13 @@ let bind_operator_lexing_regression_tests =
             | Some v -> f v
         |}
              ~expr:"(>>=)"
-             ~expected_type:"Option<'a> -> ('a -> Option<'b>) -> Option<'b>" );
+             ~expected_type:"Option<b> -> (b -> Option<a>) -> Option<a>" );
          (* Test using >>= as infix operator *)
          ( ">>= used as infix operator" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-          type Option<'a> =
+          type Option<a> =
             | None
             | Some of a
 
@@ -4582,7 +4597,7 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_value
              ~program:
                {|
-          type Option<'a> =
+          type Option<a> =
             | None
             | Some of a
 
@@ -4602,7 +4617,7 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_value
              ~program:
                {|
-          type Option<'a> =
+          type Option<a> =
             | None
             | Some of a
 
@@ -4619,18 +4634,18 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type Box<'a> = ('a, int)
+          type Box<a> = (a, Int)
 
           let unbox x = x
         |}
              ~expr:"unbox (((5, 3), 4), 6)"
-             ~expected_type:"(((int, int), int), int)" );
+             ~expected_type:"(((Int, Int), Int), Int)" );
          (* Test other >> variants *)
          ( ">>- operator" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-          type Option<'a> =
+          type Option<a> =
             | None
             | Some of a
 
@@ -4647,7 +4662,7 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_value
              ~program:
                {|
-          type Option<'a> =
+          type Option<a> =
             | None
             | Some of a
 
@@ -4665,18 +4680,18 @@ let bind_operator_lexing_regression_tests =
            assert_expression_has_type
              ~program:
                {|
-          type Nested<'a> = ('a, 'a)
+          type Nested<a> = (a, a)
 
           let identity x = x
         |}
              ~expr:"identity ((5, 6), (7, 8))"
-             ~expected_type:"((int, int), (int, int))" );
+             ~expected_type:"((Int, Int), (Int, Int))" );
          (* Test combining >>= with other operations *)
          ( ">>= combined with application" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-          type Option<'a> =
+          type Option<a> =
             | None
             | Some of a
 
@@ -4703,36 +4718,36 @@ let record_type_tests =
     (fun (a, b) -> type_test a b)
     [
       (* Basic record literal types *)
-      ("{x: 1}", "{x: int}");
-      ("{x: 1, y: 2}", "{x: int, y: int}");
-      ("{x: 1, y: true}", "{x: int, y: bool}");
-      ("{x: 1, y: true, z: \"hello\"}", "{x: int, y: bool, z: str}");
+      ("{x: 1}", "{x: Int}");
+      ("{x: 1, y: 2}", "{x: Int, y: Int}");
+      ("{x: 1, y: true}", "{x: Int, y: Bool}");
+      ("{x: 1, y: true, z: \"hello\"}", "{x: Int, y: Bool, z: String}");
       (* Field access types *)
-      ("{x: 1}.x", "int");
-      ("{x: 1, y: 2}.x", "int");
-      ("{x: 1, y: 2}.y", "int");
-      ("{x: true, y: 42}.x", "bool");
-      ("{x: true, y: 42}.y", "int");
+      ("{x: 1}.x", "Int");
+      ("{x: 1, y: 2}.x", "Int");
+      ("{x: 1, y: 2}.y", "Int");
+      ("{x: true, y: 42}.x", "Bool");
+      ("{x: true, y: 42}.y", "Int");
       (* Nested records *)
-      ("{x: {y: 1}}", "{x: {y: int}}");
-      ("{x: {y: 1}}.x", "{y: int}");
-      ("{x: {y: 1}}.x.y", "int");
+      ("{x: {y: 1}}", "{x: {y: Int}}");
+      ("{x: {y: 1}}.x", "{y: Int}");
+      ("{x: {y: 1}}.x.y", "Int");
       (* Record updates *)
-      ("let p = {x: 1, y: 2} in { p with x = 10 }", "{x: int, y: int}");
-      ("{ {x: 1, y: 2} with x = 99 }", "{x: int, y: int}");
+      ("let p = {x: 1, y: 2} in { p with x = 10 }", "{x: Int, y: Int}");
+      ("{ {x: 1, y: 2} with x = 99 }", "{x: Int, y: Int}");
       (* Records with functions *)
-      ("{f: fn x -> x}", "{f: 'a -> 'a}");
-      ("{f: fn x -> x + 1}", "{f: int -> int}");
+      ("{f: fn x -> x}", "{f: a -> a}");
+      ("{f: fn x -> x + 1}", "{f: Int -> Int}");
       (* Functions creating records *)
-      ("fn x -> {x: x}", "'a -> {x: 'a}");
-      ("fn x -> {x: x, y: x}", "'a -> {x: 'a, y: 'a}");
+      ("fn x -> {x: x}", "a -> {x: a}");
+      ("fn x -> {x: x, y: x}", "a -> {x: a, y: a}");
       (* Functions accessing fields *)
-      ("fn r -> r.x", "{x: 'a} -> 'a");
-      ("fn r -> r.x + r.y", "{x: int, y: int} -> int");
+      ("fn r -> r.x", "{x: a} -> a");
+      ("fn r -> r.x + r.y", "{x: Int, y: Int} -> Int");
       (* Subtyping in let bindings *)
-      ("let r = {x: 1, y: 2} in r.x", "int");
-      ("let f = fn r -> r.x in f {x: 1, y: 2}", "int");
-      ("let f = fn r -> r.x in f {x: true}", "bool");
+      ("let r = {x: 1, y: 2} in r.x", "Int");
+      ("let f = fn r -> r.x in f {x: 1, y: 2}", "Int");
+      ("let f = fn r -> r.x in f {x: true}", "Bool");
     ]
 
 let named_record_type_tests =
@@ -4742,28 +4757,28 @@ let named_record_type_tests =
          ( "type definition with record" >:: fun _ ->
            assert_program_typechecks
              {|
-             type MyType = {x: int, y: bool}
+             type MyType = {x: Int, y: Bool}
            |} );
          ( "function using named record type" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type MyType = {x: int, y: bool}
+               type MyType = {x: Int, y: Bool}
                let getValue = fn (r : MyType) -> r.x
              |}
-             ~expr:"getValue" ~expected_type:"{x: int, y: bool} -> int" );
+             ~expr:"getValue" ~expected_type:"{x: Int, y: Bool} -> Int" );
          ( "create value with named record type" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type MyType = {v1: int, v2: bool}
+               type MyType = {v1: Int, v2: Bool}
              |}
              ~expr:"{v1: 42, v2: true}" ~expected_value:"{v1: 42, v2: true}" );
          ( "access field from named record type" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type MyType = {v1: int, v2: bool}
+               type MyType = {v1: Int, v2: Bool}
                let x = {v1: 10, v2: false}
              |}
              ~expr:"x.v1" ~expected_value:"10" );
@@ -4771,11 +4786,11 @@ let named_record_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Inner = {x: int}
-               type Outer = {inner: Inner, y: bool}
+               type Inner = {x: Int}
+               type Outer = {inner: Inner, y: Bool}
              |}
              ~expr:"{inner: {x: 5}, y: true}"
-             ~expected_type:"{inner: {x: int}, y: bool}" );
+             ~expected_type:"{inner: {x: Int}, y: Bool}" );
        ]
 
 let record_eval_tests =
@@ -4846,15 +4861,15 @@ let builtin_type_tests =
   List.map
     (fun (a, b) -> type_test a b)
     [
-      ("str_length \"x\"", "int");
-      ("str_concat \"a\" \"b\"", "str");
-      ("str_slice \"hello\" 0 1", "str");
-      ("list_length [1, 2, 3]", "int");
-      ("list_head [1, 2, 3]", "int");
-      ("list_tail [1, 2, 3]", "[int]");
-      ("list_nth [1, 2, 3] 0", "int");
-      ("tuple_fst (1, 2)", "int");
-      ("tuple_snd (1, 2)", "int");
+      ("str_length \"x\"", "Int");
+      ("str_concat \"a\" \"b\"", "String");
+      ("str_slice \"hello\" 0 1", "String");
+      ("list_length [1, 2, 3]", "Int");
+      ("list_head [1, 2, 3]", "Int");
+      ("list_tail [1, 2, 3]", "[Int]");
+      ("list_nth [1, 2, 3] 0", "Int");
+      ("tuple_fst (1, 2)", "Int");
+      ("tuple_snd (1, 2)", "Int");
     ]
 
 (* ============================================================================
@@ -4869,67 +4884,67 @@ let extended_record_type_tests =
     (fun (a, b) -> type_test a b)
     [
       (* Single field records of different types *)
-      ("{n: 42}", "{n: int}");
-      ("{s: \"test\"}", "{s: str}");
-      ("{b: false}", "{b: bool}");
-      ("{c: 'x'}", "{c: char}");
-      ("{f: 3.14}", "{f: float}");
-      ("{u: ()}", "{u: unit}");
+      ("{n: 42}", "{n: Int}");
+      ("{s: \"test\"}", "{s: String}");
+      ("{b: false}", "{b: Bool}");
+      ("{c: 'x'}", "{c: Char}");
+      ("{f: 3.14}", "{f: Float}");
+      ("{u: ()}", "{u: Unit}");
       (* Multiple field records with mixed types *)
       ( "{a: 1, b: \"two\", c: true, d: 'e'}",
-        "{a: int, b: str, c: bool, d: char}" );
-      ("{x: 1, y: 2, z: 3}", "{x: int, y: int, z: int}");
+        "{a: Int, b: String, c: Bool, d: Char}" );
+      ("{x: 1, y: 2, z: 3}", "{x: Int, y: Int, z: Int}");
       (* Records with lists *)
-      ("{items: []}", "{items: ['a]}");
-      ("{items: [1, 2, 3]}", "{items: [int]}");
-      ("{names: [\"a\", \"b\"]}", "{names: [str]}");
+      ("{items: []}", "{items: [a]}");
+      ("{items: [1, 2, 3]}", "{items: [Int]}");
+      ("{names: [\"a\", \"b\"]}", "{names: [String]}");
       (* Records with tuples *)
-      ("{pair: (1, 2)}", "{pair: (int, int)}");
-      ("{triple: (1, \"x\", true)}", "{triple: (int, str, bool)}");
-      ("{coords: (1, 2), name: \"point\"}", "{coords: (int, int), name: str}");
+      ("{pair: (1, 2)}", "{pair: (Int, Int)}");
+      ("{triple: (1, \"x\", true)}", "{triple: (Int, String, Bool)}");
+      ("{coords: (1, 2), name: \"point\"}", "{coords: (Int, Int), name: String}");
       (* Records with functions *)
-      ("{add: fn x -> fn y -> x + y}", "{add: int -> int -> int}");
+      ("{add: fn x -> fn y -> x + y}", "{add: Int -> Int -> Int}");
       ( "{map_func: fn f -> fn lst -> case lst do | [] -> [] | h :: t -> f h \
          :: []}",
-        "{map_func: ('a -> 'b) -> ['a] -> ['b]}" );
+        "{map_func: (a -> b) -> [a] -> [b]}" );
       (* Deeply nested records *)
-      ("{a: {b: {c: 1}}}", "{a: {b: {c: int}}}");
-      ("{a: {b: {c: {d: true}}}}", "{a: {b: {c: {d: bool}}}}");
+      ("{a: {b: {c: 1}}}", "{a: {b: {c: Int}}}");
+      ("{a: {b: {c: {d: true}}}}", "{a: {b: {c: {d: Bool}}}}");
       ( "{outer: {inner: {value: 42, flag: true}}}",
-        "{outer: {inner: {value: int, flag: bool}}}" );
+        "{outer: {inner: {value: Int, flag: Bool}}}" );
       (* Nested field access chains *)
-      ("{a: {b: {c: 1}}}.a.b.c", "int");
-      ("{x: {y: {z: \"deep\"}}}.x.y.z", "str");
+      ("{a: {b: {c: 1}}}.a.b.c", "Int");
+      ("{x: {y: {z: \"deep\"}}}.x.y.z", "String");
       (* Records returned from functions *)
-      ("(fn x -> {value: x}) 42", "{value: int}");
-      ("(fn x -> fn y -> {x: x, y: y}) 1 true", "{x: int, y: bool}");
+      ("(fn x -> {value: x}) 42", "{value: Int}");
+      ("(fn x -> fn y -> {x: x, y: y}) 1 true", "{x: Int, y: Bool}");
       (* Functions taking records and returning values *)
-      ("fn r -> r.x + r.y", "{x: int, y: int} -> int");
-      ("fn r -> r.x :: r.y", "{x: 'a, y: ['a]} -> ['a]");
+      ("fn r -> r.x + r.y", "{x: Int, y: Int} -> Int");
+      ("fn r -> r.x :: r.y", "{x: a, y: [a]} -> [a]");
       ( "fn r -> if r.flag then r.value else 0",
-        "{flag: bool, value: int} -> int" );
+        "{flag: Bool, value: Int} -> Int" );
       (* Functions taking records and returning records *)
-      ("fn r -> {x: r.x + 1}", "{x: int} -> {x: int}");
-      ("fn r -> {a: r.x, b: r.y}", "{x: 'a, y: 'b} -> {a: 'a, b: 'b}");
+      ("fn r -> {x: r.x + 1}", "{x: Int} -> {x: Int}");
+      ("fn r -> {a: r.x, b: r.y}", "{x: a, y: b} -> {a: a, b: b}");
       (* Higher-order functions with records *)
       ( "fn f -> fn r -> {result: f r.value}",
-        "('a -> 'b) -> {value: 'a} -> {result: 'b}" );
+        "(a -> b) -> {value: a} -> {result: b}" );
       (* Records in let bindings with field access *)
-      ("let r = {x: 1, y: 2} in r.x + r.y", "int");
-      ("let r1 = {a: 10} in let r2 = {b: r1.a} in r2.b", "int");
+      ("let r = {x: 1, y: 2} in r.x + r.y", "Int");
+      ("let r1 = {a: 10} in let r2 = {b: r1.a} in r2.b", "Int");
       (* Records with polymorphic fields *)
-      ("{id: fn x -> x, value: 42}", "{id: 'a -> 'a, value: int}");
+      ("{id: fn x -> x, value: 42}", "{id: a -> a, value: Int}");
       ( "{first: fn (x, y) -> x, data: (1, 2)}",
-        "{first: ('a, 'b) -> 'a, data: (int, int)}" );
+        "{first: (a, b) -> a, data: (Int, Int)}" );
       (* Multiple records in expressions *)
-      ("let r1 = {x: 1} in let r2 = {y: 2} in r1.x + r2.y", "int");
+      ("let r1 = {x: 1} in let r2 = {y: 2} in r1.x + r2.y", "Int");
       (* Records with computed field values *)
-      ("{x: 1 + 1, y: 2 * 2}", "{x: int, y: int}");
-      ("{result: 10 / 2, doubled: 5 * 2}", "{result: int, doubled: int}");
+      ("{x: 1 + 1, y: 2 * 2}", "{x: Int, y: Int}");
+      ("{result: 10 / 2, doubled: 5 * 2}", "{result: Int, doubled: Int}");
       (* Recursive functions with records *)
       ( "let rec sum_field = fn lst -> case lst do | [] -> 0 | h :: t -> \
          h.value + sum_field t in sum_field",
-        "[{value: int}] -> int" );
+        "[{value: Int}] -> Int" );
     ]
 
 let extended_record_eval_tests =
@@ -5018,7 +5033,7 @@ let very_complex_record_tests =
                {|
                type rec Tree =
                  | Leaf
-                 | Node of {value: int, left: Tree, right: Tree}
+                 | Node of {value: Int, left: Tree, right: Tree}
 
                let rec tree_sum = fn t ->
                  case t do
@@ -5036,9 +5051,9 @@ let very_complex_record_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<'a> =
+               type rec List<a> =
                  | Nil
-                 | Cons of {head: a, tail: List<'a>}
+                 | Cons of {head: a, tail: List<a>}
 
                let rec length = fn lst ->
                  case lst do
@@ -5062,11 +5077,11 @@ let very_complex_record_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> =
+               type rec Tree<a> =
                  | Empty
-                 | Branch of {value: a, children: [Tree<'a>]}
+                 | Branch of {value: a, children: [Tree<a>]}
 
-               type Forest<'a> = {trees: [Tree<'a>], count: int}
+               type Forest<a> = {trees: [Tree<a>], count: Int}
 
                let rec count_nodes = fn t ->
                  case t do
@@ -5090,7 +5105,7 @@ let very_complex_record_tests =
            assert_expression_has_value
              ~program:
                {|
-               type User = {id: int, name: str, age: int, active: bool}
+               type User = {id: Int, name: String, age: Int, active: Bool}
 
                let rec filter_users = fn pred -> fn users ->
                  case users do
@@ -5123,9 +5138,9 @@ let very_complex_record_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Point = {x: int, y: int}
+               type Point = {x: Int, y: Int}
                type rec Shape =
-                 | Circle of {center: Point, radius: int}
+                 | Circle of {center: Point, radius: Int}
                  | Rectangle of {topLeft: Point, bottomRight: Point}
                  | Group of {shapes: [Shape]}
 
@@ -5156,7 +5171,7 @@ let very_complex_record_tests =
            assert_expression_has_value
              ~program:
                {|
-               type State = {value: int, running: bool, history: [int]}
+               type State = {value: Int, running: Bool, history: [Int]}
 
                let step = fn s -> fn n ->
                  if s.running then
@@ -5179,12 +5194,12 @@ let very_complex_record_tests =
              ~program:
                {|
                type rec Expr =
-                 | Const of int
+                 | Const of Int
                  | Add of {left: Expr, right: Expr}
                  | Mul of {left: Expr, right: Expr}
-                 | Var of str
+                 | Var of String
 
-               type Env = {bindings: [(str, int)]}
+               type Env = {bindings: [(String, Int)]}
 
                let rec lookup = fn name -> fn bindings ->
                  case bindings do
@@ -5210,7 +5225,7 @@ let very_complex_record_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Node = {id: int, value: int, neighbors: [int]}
+               type Node = {id: Int, value: Int, neighbors: [Int]}
                type Graph = {nodes: [Node]}
 
                let rec find_node = fn id -> fn nodes ->
@@ -5240,8 +5255,8 @@ let very_complex_record_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Person = {name: str, score: int}
-               type Result = {person: Person, grade: str, passed: bool}
+               type Person = {name: String, score: Int}
+               type Result = {person: Person, grade: String, passed: Bool}
 
                let get_grade = fn score ->
                  if score >= 90 then "A"
@@ -5283,8 +5298,8 @@ let very_complex_record_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Stats = {min: int, max: int, sum: int, count: int}
-               type DataSet = {name: str, values: [int], stats: Stats}
+               type Stats = {min: Int, max: Int, sum: Int, count: Int}
+               type DataSet = {name: String, values: [Int], stats: Stats}
 
                let rec calc_sum = fn lst ->
                  case lst do
@@ -5338,33 +5353,33 @@ let complex_record_scenarios =
          ( "record type alias" >:: fun _ ->
            assert_program_typechecks
              {|
-             type Point = {x: int, y: int}
-             type Person = {name: str, age: int}
+             type Point = {x: Int, y: Int}
+             type Person = {name: String, age: Int}
            |}
          );
          ( "function with record type parameter" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Point = {x: int, y: int}
+               type Point = {x: Int, y: Int}
                let distance_squared = fn (p : Point) -> p.x * p.x + p.y * p.y
              |}
-             ~expr:"distance_squared" ~expected_type:"{x: int, y: int} -> int"
+             ~expr:"distance_squared" ~expected_type:"{x: Int, y: Int} -> Int"
          );
          ( "nested record types" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Inner = {value: int}
-               type Outer = {inner: Inner, label: str}
+               type Inner = {value: Int}
+               type Outer = {inner: Inner, label: String}
              |}
              ~expr:"{inner: {value: 42}, label: \"test\"}"
-             ~expected_type:"{inner: {value: int}, label: str}" );
+             ~expected_type:"{inner: {value: Int}, label: String}" );
          ( "record with list field" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type Container = {items: [int]}
+               type Container = {items: [Int]}
              |}
              ~expr:"{items: [1, 2, 3]}" ~expected_value:"{items: [1, 2, 3]}" );
          ( "record creation and field update pattern" >:: fun _ ->
@@ -5439,10 +5454,10 @@ let complex_record_scenarios =
              ~program:
                {|
                type Entity = {
-                 id: int,
-                 name: str,
-                 active: bool,
-                 tags: [str]
+                 id: Int,
+                 name: String,
+                 active: Bool,
+                 tags: [String]
                }
              |}
              ~expr:"{id: 1, name: \"test\", active: true, tags: [\"a\", \"b\"]}"
@@ -5523,10 +5538,10 @@ let mutual_recursion_basic_tests =
            assert_expression_has_value
              ~program:
                {|
-               let rec is_even : int -> bool = fn n ->
+               let rec is_even : Int -> Bool = fn n ->
                  if n == 0 then true
                  else is_odd (n - 1)
-               and is_odd : int -> bool = fn n ->
+               and is_odd : Int -> Bool = fn n ->
                  if n == 0 then false
                  else is_even (n - 1)
              |}
@@ -5619,7 +5634,7 @@ let mutual_recursion_type_tests =
                  if n == 0 then false
                  else is_even (n - 1)
              |}
-             ~expr:"is_even" ~expected_type:"int -> bool" );
+             ~expr:"is_even" ~expected_type:"Int -> Bool" );
          ( "is_odd has correct type" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -5631,19 +5646,19 @@ let mutual_recursion_type_tests =
                  if n == 0 then false
                  else is_even (n - 1)
              |}
-             ~expr:"is_odd" ~expected_type:"int -> bool" );
+             ~expr:"is_odd" ~expected_type:"Int -> Bool" );
          ( "mutual recursion with explicit type annotations" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               let rec f : int -> int = fn n ->
+               let rec f : Int -> Int = fn n ->
                  if n <= 0 then 0
                  else g (n - 1)
-               and g : int -> int = fn n ->
+               and g : Int -> Int = fn n ->
                  if n <= 0 then 1
                  else f (n - 1)
              |}
-             ~expr:"f" ~expected_type:"int -> int" );
+             ~expr:"f" ~expected_type:"Int -> Int" );
          ( "mutual recursion with string return type" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -5655,7 +5670,7 @@ let mutual_recursion_type_tests =
                  if n == 0 then "odd"
                  else describe_even (n - 1)
              |}
-             ~expr:"describe_even" ~expected_type:"int -> str" );
+             ~expr:"describe_even" ~expected_type:"Int -> String" );
          ( "mutual recursion with list type" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -5669,7 +5684,7 @@ let mutual_recursion_type_tests =
                  | [] -> []
                  | h :: t -> h :: process_a t
              |}
-             ~expr:"process_a" ~expected_type:"['a] -> ['a]" );
+             ~expr:"process_a" ~expected_type:"[a] -> [a]" );
        ]
 
 let mutual_recursion_complex_tests =
@@ -5711,7 +5726,7 @@ let mutual_recursion_complex_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Node = {value: int, is_even_pos: bool}
+               type Node = {value: Int, is_even_pos: Bool}
 
                let rec process_even = fn lst -> fn pos ->
                  case lst do
@@ -5816,8 +5831,8 @@ let mutual_recursion_complex_tests =
              ~program:
                {|
                type rec IntOrStr =
-                 | IVal of int
-                 | SVal of str
+                 | IVal of Int
+                 | SVal of String
 
                let rec process_int = fn x ->
                  case x do
@@ -5876,58 +5891,58 @@ let simple_constructor_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Result = | Success of int | Failure of str
+               type Result = | Success of Int | Failure of String
              |}
-             ~expr:"Success" ~expected_type:"int -> Result" );
+             ~expr:"Success" ~expected_type:"Int -> Result" );
          ( "simple constructor with string payload" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Result = | Success of int | Failure of str
+               type Result = | Success of Int | Failure of String
              |}
-             ~expr:"Failure" ~expected_type:"str -> Result" );
+             ~expr:"Failure" ~expected_type:"String -> Result" );
          ( "constructor with tuple payload" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Pair = | MkPair of (int, str)
+               type Pair = | MkPair of (Int, String)
              |}
-             ~expr:"MkPair" ~expected_type:"(int, str) -> Pair" );
+             ~expr:"MkPair" ~expected_type:"(Int, String) -> Pair" );
          ( "parameterized nullary constructor" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Option<'a> = | None | Some of 'a
+               type Option<a> = | None | Some of a
              |}
-             ~expr:"None" ~expected_type:"Option<'a>" );
+             ~expr:"None" ~expected_type:"Option<a>" );
          ( "parameterized constructor with payload" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Option<'a> = | None | Some of 'a
+               type Option<a> = | None | Some of a
              |}
-             ~expr:"Some" ~expected_type:"'a -> Option<'a>" );
+             ~expr:"Some" ~expected_type:"a -> Option<a>" );
          ( "constructor with list payload" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Container<'a> = | Empty | Full of ['a]
+               type Container<a> = | Empty | Full of [a]
              |}
-             ~expr:"Full" ~expected_type:"['a] -> Container<'a>" );
+             ~expr:"Full" ~expected_type:"[a] -> Container<a>" );
          ( "constructor with multiple type params" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Either<'a, 'b> = | Left of 'a | Right of 'b
+               type Either<a, b> = | Left of a | Right of b
              |}
-             ~expr:"Left" ~expected_type:"'a -> Either<'a, 'b>" );
+             ~expr:"Left" ~expected_type:"a -> Either<a, b>" );
          ( "constructor with multiple type params right" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Either<'a, 'b> = | Left of 'a | Right of 'b
+               type Either<a, b> = | Left of a | Right of b
              |}
-             ~expr:"Right" ~expected_type:"'a -> Either<'b, 'a>" );
+             ~expr:"Right" ~expected_type:"b -> Either<a, b>" );
        ]
 
 let recursive_constructor_type_tests =
@@ -5938,76 +5953,76 @@ let recursive_constructor_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec List = | Nil | Cons of (int, List)
+               type rec List = | Nil | Cons of (Int, List)
              |}
              ~expr:"Nil" ~expected_type:"List" );
          ( "recursive list cons" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec List = | Nil | Cons of (int, List)
+               type rec List = | Nil | Cons of (Int, List)
              |}
-             ~expr:"Cons" ~expected_type:"(int, List) -> List" );
+             ~expr:"Cons" ~expected_type:"(Int, List) -> List" );
          ( "recursive list with multiple self-references" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec List = | Nil | Cons of (int, List) | ConsTwo of (int, List, List)
+               type rec List = | Nil | Cons of (Int, List) | ConsTwo of (Int, List, List)
              |}
-             ~expr:"ConsTwo" ~expected_type:"(int, List, List) -> List" );
+             ~expr:"ConsTwo" ~expected_type:"(Int, List, List) -> List" );
          ( "parameterized recursive list nil" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
+               type rec List<a> = | Nil | Cons of (a, List<a>)
              |}
-             ~expr:"Nil" ~expected_type:"List<'a>" );
+             ~expr:"Nil" ~expected_type:"List<a>" );
          ( "parameterized recursive list cons" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec List<'a> = | Nil | Cons of ('a, List<'a>)
+               type rec List<a> = | Nil | Cons of (a, List<a>)
              |}
-             ~expr:"Cons" ~expected_type:"('a, List<'a>) -> List<'a>" );
+             ~expr:"Cons" ~expected_type:"(a, List<a>) -> List<a>" );
          ( "binary tree leaf" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of (Tree<'a>, 'a, Tree<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (Tree<a>, a, Tree<a>)
              |}
-             ~expr:"Leaf" ~expected_type:"'a -> Tree<'a>" );
+             ~expr:"Leaf" ~expected_type:"a -> Tree<a>" );
          ( "binary tree node" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of (Tree<'a>, 'a, Tree<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (Tree<a>, a, Tree<a>)
              |}
-             ~expr:"Node" ~expected_type:"(Tree<'a>, 'a, Tree<'a>) -> Tree<'a>"
+             ~expr:"Node" ~expected_type:"(Tree<a>, a, Tree<a>) -> Tree<a>"
          );
          ( "rose tree with list of children" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec RoseTree<'a> = | RNode of ('a, [RoseTree<'a>])
+               type rec RoseTree<a> = | RNode of (a, [RoseTree<a>])
              |}
-             ~expr:"RNode" ~expected_type:"('a, [RoseTree<'a>]) -> RoseTree<'a>"
+             ~expr:"RNode" ~expected_type:"(a, [RoseTree<a>]) -> RoseTree<a>"
          );
          ( "expression tree const" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
                type rec Expr =
-                 | Const of int
+                 | Const of Int
                  | Add of (Expr, Expr)
                  | Mul of (Expr, Expr)
              |}
-             ~expr:"Const" ~expected_type:"int -> Expr" );
+             ~expr:"Const" ~expected_type:"Int -> Expr" );
          ( "expression tree add" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
                type rec Expr =
-                 | Const of int
+                 | Const of Int
                  | Add of (Expr, Expr)
                  | Mul of (Expr, Expr)
              |}
@@ -6017,7 +6032,7 @@ let recursive_constructor_type_tests =
              ~program:
                {|
                type rec Expr =
-                 | Const of int
+                 | Const of Int
                  | Add of (Expr, Expr)
                  | Mul of (Expr, Expr)
              |}
@@ -6033,76 +6048,76 @@ let complex_constructor_type_tests =
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Empty
-                 | Node of (Color, RBTree<'a>, a, RBTree<'a>)
+                 | Node of (Color, RBTree<a>, a, RBTree<a>)
              |}
-             ~expr:"Empty" ~expected_type:"RBTree<'a>" );
+             ~expr:"Empty" ~expected_type:"RBTree<a>" );
          ( "red black tree node" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
                type Color = | Red | Black
-               type rec RBTree<'a> =
+               type rec RBTree<a> =
                  | Empty
-                 | Node of (Color, RBTree<'a>, a, RBTree<'a>)
+                 | Node of (Color, RBTree<a>, a, RBTree<a>)
              |}
              ~expr:"Node"
-             ~expected_type:"(Color, RBTree<'a>, 'a, RBTree<'a>) -> RBTree<'a>"
+             ~expected_type:"(Color, RBTree<a>, a, RBTree<a>) -> RBTree<a>"
          );
          ( "nested recursive type with records" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<'a> =
+               type rec Tree<a> =
                  | Leaf
-                 | Branch of {value: a, left: Tree<'a>, right: Tree<'a>}
+                 | Branch of {value: a, left: Tree<a>, right: Tree<a>}
              |}
              ~expr:"Branch"
              ~expected_type:
-               "{value: 'a, left: Tree<'a>, right: Tree<'a>} -> Tree<'a>" );
+               "{value: a, left: Tree<a>, right: Tree<a>} -> Tree<a>" );
          ( "AVL tree with height" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec AVLTree<'a> =
+               type rec AVLTree<a> =
                  | Empty
-                 | Node of (AVLTree<'a>, a, AVLTree<'a>, int)
+                 | Node of (AVLTree<a>, a, AVLTree<a>, Int)
              |}
              ~expr:"Node"
-             ~expected_type:"(AVLTree<'a>, 'a, AVLTree<'a>, int) -> AVLTree<'a>"
+             ~expected_type:"(AVLTree<a>, a, AVLTree<a>, Int) -> AVLTree<a>"
          );
          ( "zipper type with context" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of (Tree<'a>, Tree<'a>)
-               type rec Context<'a> =
+               type rec Tree<a> = | Leaf of a | Node of (Tree<a>, Tree<a>)
+               type rec Context<a> =
                  | Top
-                 | L of (Context<'a>, Tree<'a>)
-                 | R of (Tree<'a>, Context<'a>)
+                 | L of (Context<a>, Tree<a>)
+                 | R of (Tree<a>, Context<a>)
              |}
-             ~expr:"L" ~expected_type:"(Context<'a>, Tree<'a>) -> Context<'a>"
+             ~expr:"L" ~expected_type:"(Context<a>, Tree<a>) -> Context<a>"
          );
          ( "constructor with multiple recursive references in list" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec MultiTree<'a> =
+               type rec MultiTree<a> =
                  | Leaf of a
-                 | Branch of [MultiTree<'a>]
+                 | Branch of [MultiTree<a>]
              |}
-             ~expr:"Branch" ~expected_type:"[MultiTree<'a>] -> MultiTree<'a>" );
+             ~expr:"Branch" ~expected_type:"[MultiTree<a>] -> MultiTree<a>" );
          ( "constructor combining records and recursion" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec LinkedList<'a> =
+               type rec LinkedList<a> =
                  | Empty
-                 | Cell of {head: a, tail: LinkedList<'a>}
+                 | Cell of {head: a, tail: LinkedList<a>}
              |}
              ~expr:"Cell"
-             ~expected_type:"{head: 'a, tail: LinkedList<'a>} -> LinkedList<'a>"
+             ~expected_type:"{head: a, tail: LinkedList<a>} -> LinkedList<a>"
          );
        ]
 
@@ -6114,31 +6129,31 @@ let constructor_with_type_alias_tests =
            assert_expression_has_type
              ~program:
                {|
-               type Point = (int, int)
+               type Point = (Int, Int)
                type Shape = | Circle of Point | Rectangle of (Point, Point)
              |}
-             ~expr:"Circle" ~expected_type:"(int, int) -> Shape" );
+             ~expr:"Circle" ~expected_type:"(Int, Int) -> Shape" );
          ( "recursive constructor with type alias" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Point = {x: int, y: int}
+               type Point = {x: Int, y: Int}
                type rec Shape =
-                 | Circle of {center: Point, radius: int}
+                 | Circle of {center: Point, radius: Int}
                  | Group of [Shape]
              |}
              ~expr:"Circle"
-             ~expected_type:"{center: {x: int, y: int}, radius: int} -> Shape"
+             ~expected_type:"{center: {x: Int, y: Int}, radius: Int} -> Shape"
          );
          ( "constructor with nested type alias" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Coord = int
+               type Coord = Int
                type Point = (Coord, Coord)
                type Shape = | Circle of Point
              |}
-             ~expr:"Circle" ~expected_type:"(int, int) -> Shape" );
+             ~expr:"Circle" ~expected_type:"(Int, Int) -> Shape" );
        ]
 
 (* Float and Character Tests *)
@@ -6148,13 +6163,13 @@ let float_operation_tests =
   >::: [
          ( "float literal type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"3.14"
-             ~expected_type:"float" );
+             ~expected_type:"Float" );
          ( "int to float conversion type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"int_to_float"
-             ~expected_type:"int -> float" );
+             ~expected_type:"Int -> Float" );
          ( "float to int conversion type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"float_to_int"
-             ~expected_type:"float -> int" );
+             ~expected_type:"Float -> Int" );
        ]
 
 let char_tests =
@@ -6163,10 +6178,10 @@ let char_tests =
   >::: [
          ( "char literal type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"'a'"
-             ~expected_type:"char" );
+             ~expected_type:"Char" );
          ( "char escape sequence type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"'\\n'"
-             ~expected_type:"char" );
+             ~expected_type:"Char" );
          ( "char in pattern match" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -6193,16 +6208,16 @@ let string_operation_tests =
              ~expected_value:"\"hello world\"" );
          ( "string concatenation type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"\"a\" ^ \"b\""
-             ~expected_type:"str" );
+             ~expected_type:"String" );
          ( "empty string concatenation" >:: fun _ ->
            assert_expression_has_value ~program:""
              ~expr:"\"\" ^ \"hello\" ^ \"\"" ~expected_value:"\"hello\"" );
          ( "string to list conversion type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"string_to_list"
-             ~expected_type:"str -> [char]" );
+             ~expected_type:"String -> [Char]" );
          ( "int to string type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"int_to_str"
-             ~expected_type:"int -> str" );
+             ~expected_type:"Int -> String" );
          ( "string in pattern match" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -6234,11 +6249,11 @@ let list_comprehension_tests =
              ~expected_value:"[11, 21, 12, 22]" );
          ( "comprehension type inference" >:: fun _ ->
            assert_expression_has_type ~program:""
-             ~expr:"[x * 2 | x <- [1, 2, 3]]" ~expected_type:"[int]" );
+             ~expr:"[x * 2 | x <- [1, 2, 3]]" ~expected_type:"[Int]" );
          ( "tuple comprehension type" >:: fun _ ->
            assert_expression_has_type ~program:""
              ~expr:"[(x, y) | x <- [1, 2], y <- [3, 4]]"
-             ~expected_type:"[(int, int)]" );
+             ~expected_type:"[(Int, Int)]" );
        ]
 
 (* Pattern Matching Tests *)
@@ -6278,7 +6293,7 @@ let advanced_pattern_matching_tests =
            assert_expression_has_value
              ~program:
                {|
-               type Pair = | P of (int, int)
+               type Pair = | P of (Int, Int)
                let sum = fn x -> case x do | P (a, b) -> a + b
              |}
              ~expr:"sum (P (3, 4))" ~expected_value:"7" );
@@ -6394,28 +6409,28 @@ let type_alias_tests =
   "type_alias_tests"
   >::: [
          ( "simple type alias" >:: fun _ ->
-           assert_expression_has_type ~program:"type MyInt = int" ~expr:"42"
-             ~expected_type:"int" );
+           assert_expression_has_type ~program:"type MyInt = Int" ~expr:"42"
+             ~expected_type:"Int" );
          ( "tuple type alias" >:: fun _ ->
-           assert_expression_has_type ~program:"type Pair = (int, int)"
-             ~expr:"(1, 2)" ~expected_type:"(int, int)" );
+           assert_expression_has_type ~program:"type Pair = (Int, Int)"
+             ~expr:"(1, 2)" ~expected_type:"(Int, Int)" );
          ( "function type alias" >:: fun _ ->
-           assert_expression_has_type ~program:"type IntFunc = int -> int"
-             ~expr:"fn x -> x + 1" ~expected_type:"int -> int" );
+           assert_expression_has_type ~program:"type IntFunc = Int -> Int"
+             ~expr:"fn x -> x + 1" ~expected_type:"Int -> Int" );
          ( "list type alias" >:: fun _ ->
-           assert_expression_has_type ~program:"type IntList = [int]"
-             ~expr:"[1, 2, 3]" ~expected_type:"[int]" );
+           assert_expression_has_type ~program:"type IntList = [Int]"
+             ~expr:"[1, 2, 3]" ~expected_type:"[Int]" );
          ( "parameterized type alias" >:: fun _ ->
-           assert_expression_has_type ~program:"type Box<'a> = (a, a)"
-             ~expr:"(1, 2)" ~expected_type:"(int, int)" );
+           assert_expression_has_type ~program:"type Box<a> = (a, a)"
+             ~expr:"(1, 2)" ~expected_type:"(Int, Int)" );
          ( "nested type alias" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type Inner = int
+               type Inner = Int
                type Outer = (Inner, Inner)
              |}
-             ~expr:"(1, 2)" ~expected_type:"(int, int)" );
+             ~expr:"(1, 2)" ~expected_type:"(Int, Int)" );
        ]
 
 (* Edge Case Tests *)
@@ -6425,10 +6440,10 @@ let edge_case_tests =
   >::: [
          ( "empty list type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"[]"
-             ~expected_type:"['a]" );
+             ~expected_type:"[a]" );
          ( "unit value type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"()"
-             ~expected_type:"unit" );
+             ~expected_type:"Unit" );
          ( "single element tuple" >:: fun _ ->
            assert_expression_has_value ~program:"" ~expr:"(42)"
              ~expected_value:"42" );
@@ -6807,7 +6822,7 @@ let complex_tree_operations =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree = | Empty | Node of (Tree, int, Tree)
+               type rec Tree = | Empty | Node of (Tree, Int, Tree)
 
                let rec insert = fn tree -> fn value ->
                  case tree do
@@ -6832,7 +6847,7 @@ let complex_tree_operations =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree = | Empty | Node of (Tree, int, Tree)
+               type rec Tree = | Empty | Node of (Tree, Int, Tree)
 
                let rec insert = fn tree -> fn value ->
                  case tree do
@@ -6853,7 +6868,7 @@ let complex_tree_operations =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree = | Empty | Node of (Tree, int, Tree)
+               type rec Tree = | Empty | Node of (Tree, Int, Tree)
 
                let rec insert = fn tree -> fn value ->
                  case tree do
@@ -6876,7 +6891,7 @@ let complex_tree_operations =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree = | Empty | Node of (Tree, int, Tree)
+               type rec Tree = | Empty | Node of (Tree, Int, Tree)
 
                let rec append = fn l1 -> fn l2 ->
                  case l1 do
@@ -6895,7 +6910,7 @@ let complex_tree_operations =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree = | Empty | Node of (Tree, int, Tree)
+               type rec Tree = | Empty | Node of (Tree, Int, Tree)
 
                let rec append = fn l1 -> fn l2 ->
                  case l1 do
@@ -6914,7 +6929,7 @@ let complex_tree_operations =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree = | Empty | Node of (Tree, int, Tree)
+               type rec Tree = | Empty | Node of (Tree, Int, Tree)
 
                let rec append = fn l1 -> fn l2 ->
                  case l1 do
@@ -6933,7 +6948,7 @@ let complex_tree_operations =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree = | Empty | Node of (Tree, int, Tree)
+               type rec Tree = | Empty | Node of (Tree, Int, Tree)
 
                let rec sum = fn tree ->
                  case tree do
@@ -6947,7 +6962,7 @@ let complex_tree_operations =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree = | Empty | Node of (Tree, int, Tree)
+               type rec Tree = | Empty | Node of (Tree, Int, Tree)
 
                let rec tree_map = fn f -> fn tree ->
                  case tree do
@@ -6974,7 +6989,7 @@ let complex_sum_type_operations =
            assert_expression_has_value
              ~program:
                {|
-               type Option<'a> = | None | Some of 'a
+               type Option<a> = | None | Some of a
 
                let option_map = fn f -> fn opt ->
                  case opt do
@@ -6987,7 +7002,7 @@ let complex_sum_type_operations =
            assert_expression_has_value
              ~program:
                {|
-               type Option<'a> = | None | Some of 'a
+               type Option<a> = | None | Some of a
 
                let option_bind = fn opt -> fn f ->
                  case opt do
@@ -7003,7 +7018,7 @@ let complex_sum_type_operations =
            assert_expression_has_value
              ~program:
                {|
-               type Either<'a, 'b> = | Left of 'a | Right of 'b
+               type Either<a, b> = | Left of a | Right of b
 
                let either_map = fn f -> fn either ->
                  case either do
@@ -7016,7 +7031,7 @@ let complex_sum_type_operations =
            assert_expression_has_value
              ~program:
                {|
-               type Result<'a> = | Ok of 'a | Error of int
+               type Result<a> = | Ok of a | Error of Int
 
                let result_map = fn f -> fn result ->
                  case result do
@@ -7032,7 +7047,7 @@ let complex_sum_type_operations =
            assert_expression_has_value
              ~program:
                {|
-               type Option<'a> = | None | Some of 'a
+               type Option<a> = | None | Some of a
 
                let rec filter_options = fn lst ->
                  case lst do
@@ -7048,7 +7063,7 @@ let complex_sum_type_operations =
            assert_expression_has_value
              ~program:
                {|
-               type rec Expr = | Val of int | Add of (Expr, Expr) | Mul of (Expr, Expr)
+               type rec Expr = | Val of Int | Add of (Expr, Expr) | Mul of (Expr, Expr)
 
                let rec eval = fn expr ->
                  case expr do
@@ -7063,7 +7078,7 @@ let complex_sum_type_operations =
            assert_expression_has_value
              ~program:
                {|
-               type rec Expr = | Val of int | Add of (Expr, Expr) | Mul of (Expr, Expr) | Sub of (Expr, Expr)
+               type rec Expr = | Val of Int | Add of (Expr, Expr) | Mul of (Expr, Expr) | Sub of (Expr, Expr)
 
                let rec eval = fn expr ->
                  case expr do
@@ -7582,7 +7597,7 @@ let complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree = | Empty | Node of (Tree, int, Tree)
+               type rec Tree = | Empty | Node of (Tree, Int, Tree)
 
                let rec append = fn l1 -> fn l2 ->
                  case l1 do
@@ -7781,8 +7796,8 @@ let mutually_recursive_types_with_params_tests =
          ( "tree forest typechecks" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-             and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+             type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+             and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
            |}
          );
          (* Test 12: Leaf constructor type *)
@@ -7790,74 +7805,74 @@ let mutually_recursive_types_with_params_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
              |}
-             ~expr:"Leaf" ~expected_type:"'a -> Tree<'a>" );
+             ~expr:"Leaf" ~expected_type:"a -> Tree<a>" );
          (* Test 13: Node constructor type *)
          ( "node constructor type" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
              |}
-             ~expr:"Node" ~expected_type:"('a, Forest<'a>) -> Tree<'a>" );
+             ~expr:"Node" ~expected_type:"(a, Forest<a>) -> Tree<a>" );
          (* Test 14: Empty constructor type *)
          ( "empty forest constructor type" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
              |}
-             ~expr:"Empty" ~expected_type:"Forest<'a>" );
+             ~expr:"Empty" ~expected_type:"Forest<a>" );
          (* Test 15: Trees constructor type *)
          ( "trees constructor type" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
              |}
-             ~expr:"Trees" ~expected_type:"(Tree<'a>, Forest<'a>) -> Forest<'a>"
+             ~expr:"Trees" ~expected_type:"(Tree<a>, Forest<a>) -> Forest<a>"
          );
          (* Test 16: Create simple tree *)
          ( "create simple tree" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
              |}
-             ~expr:"Leaf 5" ~expected_type:"Tree<int>" );
+             ~expr:"Leaf 5" ~expected_type:"Tree<Int>" );
          (* Test 17: Create tree with children *)
          ( "create tree with children" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
              |}
-             ~expr:"Node (1, Trees (Leaf 2, Empty))" ~expected_type:"Tree<int>"
+             ~expr:"Node (1, Trees (Leaf 2, Empty))" ~expected_type:"Tree<Int>"
          );
          (* Test 18: Create forest *)
          ( "create forest" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
              |}
              ~expr:"Trees (Leaf 1, Trees (Leaf 2, Empty))"
-             ~expected_type:"Forest<int>" );
+             ~expected_type:"Forest<Int>" );
          (* Test 19: Count tree nodes *)
          ( "count tree nodes" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
 
                let rec count_tree = fn t ->
                  case t do
@@ -7876,8 +7891,8 @@ let mutually_recursive_types_with_params_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
 
                let rec sum_tree = fn t ->
                  case t do
@@ -7900,7 +7915,7 @@ let mutually_recursive_types_complex_tests =
          ( "expr stmt typechecks" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec Expr = | Num of int | BinOp of (Expr, Expr)
+             type rec Expr = | Num of Int | BinOp of (Expr, Expr)
              and Stmt = | Assign of Expr | Block of StmtList
              and StmtList = | StmtNil | StmtCons of (Stmt, StmtList)
            |}
@@ -7909,9 +7924,9 @@ let mutually_recursive_types_complex_tests =
          ( "three types typecheck" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec A = | AVal of int | ToB of B
-             and B = | BVal of int | ToC of C
-             and C = | CVal of int | ToA of A
+             type rec A = | AVal of Int | ToB of B
+             and B = | BVal of Int | ToC of C
+             and C = | CVal of Int | ToA of A
            |}
          );
          (* Test 23: Cycle through types *)
@@ -7919,9 +7934,9 @@ let mutually_recursive_types_complex_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec A = | AVal of int | ToB of B
-               and B = | BVal of int | ToC of C
-               and C = | CVal of int | ToA of A
+               type rec A = | AVal of Int | ToB of B
+               and B = | BVal of Int | ToC of C
+               and C = | CVal of Int | ToA of A
              |}
              ~expr:"ToB (ToC (ToA (AVal 5)))" ~expected_type:"A" );
          (* Test 24: Extract value from cycle *)
@@ -7929,9 +7944,9 @@ let mutually_recursive_types_complex_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec A = | AVal of int | ToB of B
-               and B = | BVal of int | ToC of C
-               and C = | CVal of int | ToA of A
+               type rec A = | AVal of Int | ToB of B
+               and B = | BVal of Int | ToC of C
+               and C = | CVal of Int | ToA of A
 
                let rec get_a = fn a ->
                  case a do
@@ -7951,7 +7966,7 @@ let mutually_recursive_types_complex_tests =
          ( "person group typechecks" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec Person = | Individual of int | InGroup of Group
+             type rec Person = | Individual of Int | InGroup of Group
              and Group = | EmptyGroup | Members of (Person, Group)
            |}
          );
@@ -7960,7 +7975,7 @@ let mutually_recursive_types_complex_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Person = | Individual of int | InGroup of Group
+               type rec Person = | Individual of Int | InGroup of Group
                and Group = | EmptyGroup | Members of (Person, Group)
 
                let rec count_person = fn p ->
@@ -7980,8 +7995,8 @@ let mutually_recursive_types_complex_tests =
          ( "ast expr decl typechecks" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec Expr = | Var of int | Call of (Expr, Expr) | Let of Decl * Expr
-             and Decl = | VarDecl of (int, Expr)
+             type rec Expr = | Var of Int | Call of (Expr, Expr) | Let of Decl * Expr
+             and Decl = | VarDecl of (Int, Expr)
            |}
          );
          (* Test 28: Pattern with nested constructors *)
@@ -7989,8 +8004,8 @@ let mutually_recursive_types_complex_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec A = | ALeaf of int | ANode of B
-               and B = | BLeaf of int | BNode of A
+               type rec A = | ALeaf of Int | ANode of B
+               and B = | BLeaf of Int | BNode of A
 
                let get_val = fn a ->
                  case a do
@@ -8005,8 +8020,8 @@ let mutually_recursive_types_complex_tests =
          ( "dual list typechecks" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec ListA<'a> = | NilA | ConsA of ('a, ListB<'a>)
-             and ListB<'a> = | NilB | ConsB of (a, ListA<'a>)
+             type rec ListA<a> = | NilA | ConsA of (a, ListB<a>)
+             and ListB<a> = | NilB | ConsB of (a, ListA<a>)
            |}
          );
          (* Test 30: Dual list length *)
@@ -8014,8 +8029,8 @@ let mutually_recursive_types_complex_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec ListA<'a> = | NilA | ConsA of ('a, ListB<'a>)
-               and ListB<'a> = | NilB | ConsB of (a, ListA<'a>)
+               type rec ListA<a> = | NilA | ConsA of (a, ListB<a>)
+               and ListB<a> = | NilB | ConsB of (a, ListA<a>)
 
                let rec len_a = fn la ->
                  case la do
@@ -8079,8 +8094,8 @@ let mutually_recursive_types_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
 
                let rec sum_tree = fn t ->
                  case t do
@@ -8099,10 +8114,10 @@ let mutually_recursive_types_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec A = | AVal of int | ANext of B
+               type rec A = | AVal of Int | ANext of B
                and B = | BNext of C
                and C = | CNext of D
-               and D = | DVal of int
+               and D = | DVal of Int
 
                let rec get = fn a ->
                  case a do
@@ -8122,8 +8137,8 @@ let mutually_recursive_types_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
 
                let rec map_tree = fn f -> fn t ->
                  case t do
@@ -8169,8 +8184,8 @@ let mutually_recursive_types_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
 
                let rec count_tree = fn t ->
                  case t do
@@ -8189,8 +8204,8 @@ let mutually_recursive_types_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
 
                let rec find_tree = fn target -> fn t ->
                  case t do
@@ -8210,8 +8225,8 @@ let mutually_recursive_types_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
 
                let max = fn a -> fn b -> if a > b then a else b
 
@@ -8232,8 +8247,8 @@ let mutually_recursive_types_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Leaf of 'a | Node of ('a, Forest<'a>)
-               and Forest<'a> = | Empty | Trees of (Tree<'a>, Forest<'a>)
+               type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
+               and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
 
                let rec append = fn l1 -> fn l2 ->
                  case l1 do
@@ -8262,8 +8277,8 @@ let mutually_recursive_types_advanced_tests =
          ( "multiple type params" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec PairA<'a, 'b> = | PA of ('a, PairB<'b, 'a>)
-             and PairB<'a, 'b> = | PB of (a, PairA<'b, 'a>) | PBNil
+             type rec PairA<a, b> = | PA of (a, PairB<b, a>)
+             and PairB<a, b> = | PB of (a, PairA<b, a>) | PBNil
            |}
          );
          (* Test 42: Swap types *)
@@ -8271,17 +8286,17 @@ let mutually_recursive_types_advanced_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec PairA<'a, 'b> = | PA of ('a, PairB<'b, 'a>)
-               and PairB<'a, 'b> = | PB of (a, PairA<'b, 'a>) | PBNil
+               type rec PairA<a, b> = | PA of (a, PairB<b, a>)
+               and PairB<a, b> = | PB of (a, PairA<b, a>) | PBNil
              |}
              ~expr:"PA (5, PB (true, PA (10, PBNil)))"
-             ~expected_type:"PairA<int, bool>" );
+             ~expected_type:"PairA<Int, Bool>" );
          (* Test 43: Rose tree variant *)
          ( "rose tree typechecks" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec Rose<'a> = | RNode of ('a, RoseList<'a>)
-             and RoseList<'a> = | RNil | RCons of (Rose<'a>, RoseList<'a>)
+             type rec Rose<a> = | RNode of (a, RoseList<a>)
+             and RoseList<a> = | RNil | RCons of (Rose<a>, RoseList<a>)
            |}
          );
          (* Test 44: Rose tree depth *)
@@ -8289,8 +8304,8 @@ let mutually_recursive_types_advanced_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Rose<'a> = | RNode of ('a, RoseList<'a>)
-               and RoseList<'a> = | RNil | RCons of (Rose<'a>, RoseList<'a>)
+               type rec Rose<a> = | RNode of (a, RoseList<a>)
+               and RoseList<a> = | RNil | RCons of (Rose<a>, RoseList<a>)
 
                let max = fn a -> fn b -> if a > b then a else b
 
@@ -8312,7 +8327,7 @@ let mutually_recursive_types_advanced_tests =
              type rec A = | ToB of B
              and B = | ToC of C
              and C = | ToD of D
-             and D = | ToA of A | DVal of int
+             and D = | ToA of A | DVal of Int
            |}
          );
          (* Test 46: Circular reference chain *)
@@ -8323,7 +8338,7 @@ let mutually_recursive_types_advanced_tests =
                type rec A = | ToB of B
                and B = | ToC of C
                and C = | ToD of D
-               and D = | ToA of A | DVal of int
+               and D = | ToA of A | DVal of Int
 
                let rec get = fn a ->
                  case a do
@@ -8342,7 +8357,7 @@ let mutually_recursive_types_advanced_tests =
          ( "binary unary ops" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec Expr = | Val of int | BinOp of BinaryOp | UnOp of UnaryOp
+             type rec Expr = | Val of Int | BinOp of BinaryOp | UnOp of UnaryOp
              and BinaryOp = | Add of (Expr, Expr) | Mul of (Expr, Expr)
              and UnaryOp = | Neg of Expr
            |}
@@ -8352,7 +8367,7 @@ let mutually_recursive_types_advanced_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Expr = | Val of int | BinOp of BinaryOp | UnOp of UnaryOp
+               type rec Expr = | Val of Int | BinOp of BinaryOp | UnOp of UnaryOp
                and BinaryOp = | Add of (Expr, Expr) | Mul of (Expr, Expr)
                and UnaryOp = | Neg of Expr
 
@@ -8375,9 +8390,9 @@ let mutually_recursive_types_advanced_tests =
          ( "graph node edge" >:: fun _ ->
            assert_program_typechecks
              {|
-             type rec Node<'a> = | N of ('a, EdgeList<'a>)
-             and EdgeList<'a> = | ENil | ECons of (Edge<'a>, EdgeList<'a>)
-             and Edge<'a> = | E of Node<'a>
+             type rec Node<a> = | N of (a, EdgeList<a>)
+             and EdgeList<a> = | ENil | ECons of (Edge<a>, EdgeList<a>)
+             and Edge<a> = | E of Node<a>
            |}
          );
          (* Test 50: Count graph nodes *)
@@ -8385,9 +8400,9 @@ let mutually_recursive_types_advanced_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Node<'a> = | N of ('a, EdgeList<'a>)
-               and EdgeList<'a> = | ENil | ECons of (Edge<'a>, EdgeList<'a>)
-               and Edge<'a> = | E of Node<'a>
+               type rec Node<a> = | N of (a, EdgeList<a>)
+               and EdgeList<a> = | ENil | ECons of (Edge<a>, EdgeList<a>)
+               and Edge<a> = | E of Node<a>
 
                let rec count_node = fn n ->
                  case n do
@@ -8419,11 +8434,11 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Expr = | Var of int | Num of int | Add of (Expr, Expr)
+               type rec Expr = | Var of Int | Num of Int | Add of (Expr, Expr)
                              | Mul of (Expr, Expr) | Let of (Decl, Expr)
-               and Decl = | VarDecl of (int, Expr)
+               and Decl = | VarDecl of (Int, Expr)
 
-               type Env = (int, int)
+               type Env = (Int, Int)
 
                let rec eval_expr = fn env -> fn expr ->
                  case expr do
@@ -8451,9 +8466,9 @@ let very_complex_integration_tests =
              ~program:
                {|
                type rec Type = | TInt | TBool | TFun of (Type, Type)
-               and Expr = | EInt of int | EBool of bool | EVar of int
-                        | EApp of (Expr, Expr) | ELam of (int, Type, Expr)
-               and Context = | CNil | CCons of (int, Type, Context)
+               and Expr = | EInt of Int | EBool of Bool | EVar of Int
+                        | EApp of (Expr, Expr) | ELam of (Int, Type, Expr)
+               and Context = | CNil | CCons of (Int, Type, Context)
 
                let rec type_check = fn ctx -> fn expr ->
                  case expr do
@@ -8486,7 +8501,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree = | Leaf | Node of (int, Tree, Tree)
+               type rec Tree = | Leaf | Node of (Int, Tree, Tree)
 
                let rec insert = fn x -> fn tree ->
                  case tree do
@@ -8514,8 +8529,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec MTree<'a> = | MLeaf of 'a | MNode of ('a, MForest<'a>)
-               and MForest<'a> = | FNil | FCons of (MTree<'a>, MForest<'a>)
+               type rec MTree<a> = | MLeaf of a | MNode of (a, MForest<a>)
+               and MForest<a> = | FNil | FCons of (MTree<a>, MForest<a>)
 
                let rec tree_map = fn f -> fn tree ->
                  case tree do
@@ -8544,9 +8559,9 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Graph = | GNode of (int, EdgeList)
+               type rec Graph = | GNode of (Int, EdgeList)
                and EdgeList = | ENil | ECons of (Edge, EdgeList)
-               and Edge = | E of int
+               and Edge = | E of Int
 
                let rec has_edge = fn from -> fn to -> fn edges ->
                  case edges do
@@ -8568,7 +8583,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec ParseResult = | Success of int | Failure
+               type rec ParseResult = | Success of Int | Failure
                and Parser = | NumParser | AddParser of (Parser, Parser)
 
                let rec parse = fn p -> fn input ->
@@ -8596,7 +8611,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec State = | S1 | S2 | S3 | Final of int
+               type rec State = | S1 | S2 | S3 | Final of Int
                and Input = | A | B | C
                and InputList = | INull | ICons of (Input, InputList)
 
@@ -8627,7 +8642,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec AExpr = | ANum of int | AAdd of (AExpr, AExpr)
+               type rec AExpr = | ANum of Int | AAdd of (AExpr, AExpr)
                               | AMul of (AExpr, AExpr) | ANeg of AExpr
 
                let rec simplify = fn expr ->
@@ -8669,8 +8684,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
-               and Crumb = | LeftCrumb of (int, Tree) | RightCrumb of (int, Tree)
+               type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
+               and Crumb = | LeftCrumb of (Int, Tree) | RightCrumb of (Int, Tree)
                and Crumbs = | CrumbNil | CrumbCons of (Crumb, Crumbs)
                and Zipper = | Z of (Tree, Crumbs)
 
@@ -8707,7 +8722,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree<'a> = | Empty | Branch of ('a, Tree<'a>, Tree<'a>)
+               type rec Tree<a> = | Empty | Branch of (a, Tree<a>, Tree<a>)
 
                let rec fold_tree = fn leaf_fn -> fn branch_fn -> fn tree ->
                  case tree do
@@ -8727,10 +8742,10 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Expr = | Val of int | Var of int | Add of (Expr, Expr)
-                             | Fun of (int, Expr) | App of (Expr, Expr)
-               and Value = | VInt of int | VClosure of (int, Expr, Env)
-               and Env = | EEmpty | EBind of (int, Value, Env)
+               type rec Expr = | Val of Int | Var of Int | Add of (Expr, Expr)
+                             | Fun of (Int, Expr) | App of (Expr, Expr)
+               and Value = | VInt of Int | VClosure of (Int, Expr, Env)
+               and Env = | EEmpty | EBind of (Int, Value, Env)
 
                let rec eval = fn env -> fn expr ->
                  case expr do
@@ -8769,7 +8784,7 @@ let very_complex_integration_tests =
              ~program:
                {|
                type rec Color = | Red | Black
-               and RBTree = | RBLeaf | RBNode of (Color, int, RBTree, RBTree)
+               and RBTree = | RBLeaf | RBNode of (Color, Int, RBTree, RBTree)
 
                let rec insert = fn x -> fn tree ->
                  make_black (ins x tree)
@@ -8816,7 +8831,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec HList = | HNil | HInt of (int, HList) | HBool of (bool, HList)
+               type rec HList = | HNil | HInt of (Int, HList) | HBool of (Bool, HList)
 
                let rec length = fn list ->
                  case list do
@@ -8845,7 +8860,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec SExpr = | SVar | SNum of int | SAdd of (SExpr, SExpr)
+               type rec SExpr = | SVar | SNum of Int | SAdd of (SExpr, SExpr)
                               | SMul of (SExpr, SExpr)
 
                let rec deriv = fn expr ->
@@ -8872,8 +8887,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Trie = | TNode of (bool, Children)
-               and Children = | CEmpty | CNode of (int, Trie, Children)
+               type rec Trie = | TNode of (Bool, Children)
+               and Children = | CEmpty | CNode of (Int, Trie, Children)
 
                let rec insert_word = fn word -> fn trie ->
                  case word do
@@ -8911,9 +8926,9 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Automaton = | Auto of (int, Transitions, AcceptStates)
-               and Transitions = | TEmpty | Trans of (int, int, int, Transitions)
-               and AcceptStates = | AEmpty | Accept of (int, AcceptStates)
+               type rec Automaton = | Auto of (Int, Transitions, AcceptStates)
+               and Transitions = | TEmpty | Trans of (Int, Int, Int, Transitions)
+               and AcceptStates = | AEmpty | Accept of (Int, AcceptStates)
 
                let rec is_accepting = fn state -> fn accept ->
                  case accept do
@@ -8950,7 +8965,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Regex = | RChar of int | RAny | RSeq of (Regex, Regex) | RAlt of (Regex, Regex) | RStar of Regex
+               type rec Regex = | RChar of Int | RAny | RSeq of (Regex, Regex) | RAlt of (Regex, Regex) | RStar of Regex
 
               let rec is_empty = fn list ->
                 case list do | [] -> true | _ -> false
@@ -9009,7 +9024,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec LTerm = | LVar of int | LAbs of (int, LTerm) | LApp of (LTerm, LTerm)
+               type rec LTerm = | LVar of Int | LAbs of (Int, LTerm) | LApp of (LTerm, LTerm)
 
                let rec subst = fn x -> fn replacement -> fn term ->
                  case term do
@@ -9049,10 +9064,10 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec JSON = | JNull | JInt of int | JBool of bool
+               type rec JSON = | JNull | JInt of Int | JBool of Bool
                              | JArray of JList | JObject of Fields
                and JList = | JLNil | JLCons of (JSON, JList)
-               and Fields = | FNil | FCons of (int, JSON, Fields)
+               and Fields = | FNil | FCons of (Int, JSON, Fields)
 
                let rec get_field = fn name -> fn obj ->
                  case obj do
@@ -9089,9 +9104,9 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec SrcExpr = | SConst of int | SBinOp of (int, SrcExpr, SrcExpr)
-               and IRExpr = | IConst of int | IAdd of (IRExpr, IRExpr) | IMul of (IRExpr, IRExpr)
-               and AsmInstr = | Push of int | BinOp of int | AsmSeq of (AsmInstr, AsmInstr)
+               type rec SrcExpr = | SConst of Int | SBinOp of (Int, SrcExpr, SrcExpr)
+               and IRExpr = | IConst of Int | IAdd of (IRExpr, IRExpr) | IMul of (IRExpr, IRExpr)
+               and AsmInstr = | Push of Int | BinOp of Int | AsmSeq of (AsmInstr, AsmInstr)
 
                let rec parse_to_ir = fn src ->
                  case src do
@@ -9123,8 +9138,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Event<'a> = | NoEvent | Ev of ('a, EventStream<'a>)
-               and EventStream<'a> = | Stream of Event<'a>
+               type rec Event<a> = | NoEvent | Ev of (a, EventStream<a>)
+               and EventStream<a> = | Stream of Event<a>
 
                let rec map_events = fn f -> fn stream ->
                  case stream do
@@ -9152,7 +9167,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec AST = | Lit of int | Neg of AST | Add of (AST, AST) | Mul of (AST, AST)
+               type rec AST = | Lit of Int | Neg of AST | Add of (AST, AST) | Mul of (AST, AST)
 
                let rec optimize = fn ast ->
                  case ast do
@@ -9206,8 +9221,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Queue<'a> = | Q of (QList<'a>, QList<'a>)
-               and QList<'a> = | QNil | QCons of (a, QList<'a>)
+               type rec Queue<a> = | Q of (QList<a>, QList<a>)
+               and QList<a> = | QNil | QCons of (a, QList<a>)
 
                let rec enqueue = fn x -> fn q ->
                  case q do
@@ -9247,8 +9262,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec PVec<'a> = | PVNode of (PVChildren<'a>, int)
-               and PVChildren<'a> = | PVNil | PVCons of (PVec<'a>, PVChildren<'a>)
+               type rec PVec<a> = | PVNode of (PVChildren<a>, Int)
+               and PVChildren<a> = | PVNil | PVCons of (PVec<a>, PVChildren<a>)
 
                let rec pvec_size = fn vec ->
                  case vec do
@@ -9277,7 +9292,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec ParseResult<'a> = | PSuccess of 'a | PFailure
+               type rec ParseResult<a> = | PSuccess of a | PFailure
 
                let rec extract_result = fn result ->
                  case result do
@@ -9297,7 +9312,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Opt = | OLit of int | OBin of (int, Opt, Opt)
+               type rec Opt = | OLit of Int | OBin of (Int, Opt, Opt)
 
                let rec constant_fold = fn expr ->
                  case expr do
@@ -9351,9 +9366,9 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Graph = | GEmpty | GNode of (int, Edges, Graph)
-               and Edges = | EEmpty | Edge of (int, Edges)
-               and Visited = | VEmpty | VCons of (int, Visited)
+               type rec Graph = | GEmpty | GNode of (Int, Edges, Graph)
+               and Edges = | EEmpty | Edge of (Int, Edges)
+               and Visited = | VEmpty | VCons of (Int, Visited)
 
                let rec has_visited = fn n -> fn visited ->
                  case visited do
@@ -9378,7 +9393,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+               type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
                let rec sum_tree = fn tree ->
                  case tree do
@@ -9398,7 +9413,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec AVL = | AVLLeaf | AVLNode of (int, int, AVL, AVL)
+               type rec AVL = | AVLLeaf | AVLNode of (Int, Int, AVL, AVL)
 
                let rec height = fn tree ->
                  case tree do
@@ -9428,7 +9443,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec Tree = | Leaf | Node of (int, Tree, Tree)
+               type rec Tree = | Leaf | Node of (Int, Tree, Tree)
 
                let rec tree_to_list = fn tree ->
                  case tree do
@@ -9453,10 +9468,10 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Expr = | Val of int | Var of int | Add of (Expr, Expr)
-                            | Lam of (int, Expr) | App of (Expr, Expr)
-              and Value = | VInt of int | VClosure of (int, Expr, Env)
-              and Env = | EEmpty | EBind of (int, Value, Env)
+              type rec Expr = | Val of Int | Var of Int | Add of (Expr, Expr)
+                            | Lam of (Int, Expr) | App of (Expr, Expr)
+              and Value = | VInt of Int | VClosure of (Int, Expr, Env)
+              and Env = | EEmpty | EBind of (Int, Value, Env)
 
               let rec eval = fn env -> fn expr ->
                 case expr do
@@ -9495,7 +9510,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec BST = | BSTEmpty | BSTNode of (int, BST, BST)
+              type rec BST = | BSTEmpty | BSTNode of (Int, BST, BST)
 
               let rec insert = fn x -> fn tree ->
                 case tree do
@@ -9551,8 +9566,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Person = | P of (int, int)
-              and Company = | C of (int, PersonList)
+              type rec Person = | P of (Int, Int)
+              and Company = | C of (Int, PersonList)
               and PersonList = | PNil | PCons of (Person, PersonList)
 
               let rec count_people = fn company ->
@@ -9579,7 +9594,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Expr = | Num of int | Add of (Expr, Expr) | Sub of (Expr, Expr)
+              type rec Expr = | Num of Int | Add of (Expr, Expr) | Sub of (Expr, Expr)
                             | Mul of (Expr, Expr) | Div of (Expr, Expr)
 
               let rec eval = fn expr ->
@@ -9600,7 +9615,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec preorder_sum = fn tree ->
                 case tree do
@@ -9660,8 +9675,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Option<'a> = | None | Some of 'a
-              and Result<'a, 'b> = | Ok of a | Err of b
+              type rec Option<a> = | None | Some of a
+              and Result<a, b> = | Ok of a | Err of b
 
               let rec unwrap_or = fn opt -> fn default ->
                 case opt do
@@ -9687,8 +9702,8 @@ let very_complex_integration_tests =
                {|
               type rec Graph = | G of NodeList
               and NodeList = | NNil | NCons of (Node, NodeList)
-              and Node = | N of (int, EdgeList)
-              and EdgeList = | ENil | ECons of (int, EdgeList)
+              and Node = | N of (Int, EdgeList)
+              and EdgeList = | ENil | ECons of (Int, EdgeList)
 
               let rec count_nodes = fn graph ->
                 case graph do
@@ -9708,7 +9723,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Stack = | Empty | Push of (int, Stack)
+              type rec Stack = | Empty | Push of (Int, Stack)
               and Op = | OAdd | OMul | ODup
 
               let rec exec_add = fn stack ->
@@ -9777,7 +9792,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf | Node of (Int, Tree, Tree)
 
               let rec max = fn a -> fn b ->
                 if a > b then a else b
@@ -9829,7 +9844,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec mirror = fn tree ->
                 case tree do
@@ -9850,7 +9865,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec flatten = fn tree ->
                 case tree do
@@ -9894,7 +9909,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf | Node of (Int, Tree, Tree)
 
               let rec max = fn a -> fn b ->
                 if a > b then a else b
@@ -9920,7 +9935,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Pair<'a, 'b> = | P of ('a, 'b)
+              type rec Pair<a, b> = | P of (a, b)
 
               let rec zip = fn l1 -> fn l2 ->
                 case l1 do
@@ -9960,7 +9975,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec count_leaves = fn tree ->
                 case tree do
@@ -10002,7 +10017,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec max = fn a -> fn b ->
                 if a > b then a else b
@@ -10044,7 +10059,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Empty | Node of (int, Tree, Tree)
+              type rec Tree = | Empty | Node of (Int, Tree, Tree)
 
               let rec insert = fn x -> fn tree ->
                 case tree do
@@ -10087,7 +10102,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf | Node of (Int, Tree, Tree)
 
               let rec count_at_level = fn tree -> fn level ->
                 if level == 0 then
@@ -10108,7 +10123,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Pair<'a> = | P of ('a, 'a)
+              type rec Pair<a> = | P of (a, a)
 
               let rec chunk_pairs = fn list ->
                 case list do
@@ -10130,7 +10145,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec map_tree = fn f -> fn tree ->
                 case tree do
@@ -10177,7 +10192,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec leftmost_leaf = fn tree ->
                 case tree do
@@ -10226,8 +10241,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
-              and Option<'a> = | None | Some of a
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
+              and Option<a> = | None | Some of a
 
               let rec prune = fn threshold -> fn tree ->
                 case tree do
@@ -10257,8 +10272,8 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Groups<'a> = | GNil | GCons of (Group<'a>, Groups<'a>)
-              and Group<'a> = | Single of a | Multiple of (a, int)
+              type rec Groups<a> = | GNil | GCons of (Group<a>, Groups<a>)
+              and Group<a> = | Single of a | Multiple of (a, Int)
 
               let rec count_consecutive = fn list ->
                 case list do
@@ -10276,7 +10291,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf | Node of (Int, Tree, Tree)
 
               let rec count_at_depth = fn tree -> fn d ->
                 if d == 0 then
@@ -10327,7 +10342,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec rotate_left = fn tree ->
                 case tree do
@@ -10377,7 +10392,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf | Node of (Int, Tree, Tree)
 
               let rec same_structure = fn t1 -> fn t2 ->
                 case t1 do
@@ -10423,7 +10438,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec max = fn a -> fn b ->
                 if a > b then a else b
@@ -10458,7 +10473,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf | Node of (Int, Tree, Tree)
 
               let rec max = fn a -> fn b ->
                 if a > b then a else b
@@ -10501,7 +10516,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec sum_tree = fn tree ->
                 case tree do
@@ -10536,15 +10551,15 @@ let very_complex_integration_tests =
 
               let l1 = [1, 2, 3, 4, 5]
               let l2 = [3, 4, 5, 6, 7]
-              let inter = intersect l1 l2
+              let overlap = intersect l1 l2
             |}
-             ~expr:"sum inter" ~expected_value:"12" );
+             ~expr:"sum overlap" ~expected_value:"12" );
          (* Test 79: Tree path existence *)
          ( "tree path to value exists" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec has_path_to = fn tree -> fn target ->
                 case tree do
@@ -10584,7 +10599,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf | Node of (Int, Tree, Tree)
 
               let rec count_nodes = fn tree ->
                 case tree do
@@ -10632,7 +10647,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf | Node of (Int, Tree, Tree)
 
               let rec max = fn a -> fn b ->
                 if a > b then a else b
@@ -10682,7 +10697,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec invert = fn tree ->
                 case tree do
@@ -10717,7 +10732,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec contains = fn tree -> fn value ->
                 case tree do
@@ -10735,7 +10750,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec preorder = fn tree ->
                 case tree do
@@ -10773,7 +10788,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec is_leaf = fn tree ->
                 case tree do
@@ -10813,7 +10828,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec rightmost_at_level = fn tree -> fn level ->
                 if level == 0 then
@@ -10862,7 +10877,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec find_depth = fn tree -> fn target -> fn current_depth ->
                 case tree do
@@ -10882,7 +10897,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf | Node of (Int, Tree, Tree)
 
               let rec count_nodes = fn tree ->
                 case tree do
@@ -10925,7 +10940,7 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              type rec Tree = | Leaf of int | Node of (int, Tree, Tree)
+              type rec Tree = | Leaf of Int | Node of (Int, Tree, Tree)
 
               let rec left_boundary = fn tree ->
                 case tree do

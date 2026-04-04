@@ -47,6 +47,9 @@ type mono_type =
   | VectorType of mono_type list
   | CListType of mono_type
   | CTypeApp of string * mono_type list
+  (* Application of an inter type parameter used as a type constructor
+     ([TCtorApp (w, args)] ~ [w] in [Constrained] preds). *)
+  | TCtorApp of string * mono_type list
   | FixedPoint of string * mono_type
   | RecordType of (string * mono_type) list
 
@@ -193,6 +196,8 @@ and substitute_type (t : c_type) (var : type_var) (replacement : mono_type) :
       Mono
         (CTypeApp
            (name, List.map (fun arg -> substitute_mono arg var replacement) args))
+  | Mono (TCtorApp (w, args)) ->
+      Mono (substitute_mono (TCtorApp (w, args)) var replacement)
   | Mono (FixedPoint (name, body)) ->
       Mono (FixedPoint (name, substitute_mono body var replacement))
   | Mono (RecordType fields) ->
@@ -214,6 +219,16 @@ and substitute_mono (t : mono_type) (var : type_var) (replacement : mono_type) :
   | CTypeApp (name, args) ->
       CTypeApp
         (name, List.map (fun arg -> substitute_mono arg var replacement) args)
+  | TCtorApp (w, args) ->
+      let w' =
+        if w = var then
+          match replacement with
+          | TypeVar v -> v
+          | _ -> w
+        else w
+      in
+      TCtorApp
+        (w', List.map (fun arg -> substitute_mono arg var replacement) args)
   | FixedPoint (name, body) ->
       FixedPoint (name, substitute_mono body var replacement)
   | RecordType fields ->
@@ -221,12 +236,12 @@ and substitute_mono (t : mono_type) (var : type_var) (replacement : mono_type) :
   | _ -> t
 
 let rec string_of_mono_type : mono_type -> string = function
-  | IntType -> "int"
-  | FloatType -> "float"
-  | BoolType -> "bool"
-  | StringType -> "string"
-  | CharType -> "char"
-  | UnitType -> "unit"
+  | IntType -> "Int"
+  | FloatType -> "Float"
+  | BoolType -> "Bool"
+  | StringType -> "String"
+  | CharType -> "Char"
+  | UnitType -> "Unit"
   | TypeVar v -> v
   | FunctionType (t1, t2) ->
       let t1_str = string_of_mono_type t1 in
@@ -242,6 +257,18 @@ let rec string_of_mono_type : mono_type -> string = function
       else
         let args_str = List.map string_of_mono_type args in
         name ^ "<" ^ String.concat ", " args_str ^ ">"
+  | TCtorApp (w, args) ->
+      let head =
+        if
+          String.length w > 9 && String.sub w 0 9 = "$written("
+          && String.ends_with ~suffix:")" w
+        then String.sub w 9 (String.length w - 10)
+        else w
+      in
+      if args = [] then head
+      else
+        let args_str = List.map string_of_mono_type args in
+        head ^ "<" ^ String.concat ", " args_str ^ ">"
   | FixedPoint (_, body) -> string_of_mono_type body
   | RecordType fields ->
       let field_strs = List.map (fun (name, t) ->
@@ -278,6 +305,7 @@ let get_mono_type_vars (t : mono_type) : string list =
     | CListType t' -> aux t' acc
     | TypeName _ -> acc
     | CTypeApp (_, args) -> List.fold_left (fun a t -> aux t a) acc args
+    | TCtorApp (_, args) -> List.fold_left (fun a t -> aux t a) acc args
     | FixedPoint (_, body) -> aux body acc
     | RecordType fields -> List.fold_left (fun a (_, t) -> aux t a) acc fields
   in

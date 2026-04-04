@@ -1,4 +1,4 @@
-let apply (f : int -> int) (x : int) : int = f x
+let apply (f : Int -> Int) (x : Int) : Int = f x
 
 let inc y = y + 1
 

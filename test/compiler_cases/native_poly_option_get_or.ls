@@ -2,7 +2,7 @@ Expected:
 110
 
 Source:
-type Option<'a> = | None | Some of 'a
+type Option<a> = | None | Some of a
 
 let get_or d o =
   case o do

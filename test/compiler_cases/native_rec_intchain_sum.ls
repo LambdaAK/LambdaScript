@@ -2,7 +2,7 @@ Expected:
 30
 
 Source:
-type rec IntChain = | End | Link of (int, IntChain)
+type rec IntChain = | End | Link of (Int, IntChain)
 
 let rec sum c =
   case c do

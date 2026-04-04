@@ -332,6 +332,7 @@ and generate_witness_for_type (t : mono_type) (constructor_env : constructor_env
             sorted
         in
         "{" ^ String.concat ", " inner ^ "}"
+    | TCtorApp _ -> "_"
     | CTypeApp (type_name, _) | TypeName type_name | FixedPoint (type_name, _) ->
         (* Find a constructor for this type, prefer nullary ones *)
         let constructors =

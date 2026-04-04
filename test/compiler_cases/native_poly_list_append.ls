@@ -2,7 +2,7 @@ Expected:
 3
 
 Source:
-type rec List<'a> = | Nil | Cons of ('a, List<'a>)
+type rec List<a> = | Nil | Cons of (a, List<a>)
 
 let rec append a b =
   case a do

@@ -1,6 +1,6 @@
 let () = println "Testing simple type"
 
-type MyInt = int
+type MyInt = Int
 
 let () = println "Simple type works!"
 

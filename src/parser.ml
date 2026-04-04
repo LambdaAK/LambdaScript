@@ -286,6 +286,10 @@ module ParserUtils = struct
     | [] -> Some (false, tokens)
     | token :: _ -> Some (token = next_token, tokens)
 
+  (** Lowercase type parameters / type variables in source ([a], [ab], …). *)
+  let is_plain_type_var_name (s : string) : bool =
+    s <> "" && String.for_all (fun c -> c >= 'a' && c <= 'z') s
+
   let int_to_expr (i : int) : expr =
     ConsExpr
       (DisjunctionUnderCons
@@ -544,12 +548,12 @@ end = struct
        expressions *)
     let* id =
       expect_token_get_data (function
-        | BooleanType -> Some "bool"
-        | IntegerType -> Some "int"
-        | StringType -> Some "string"
-        | CharType -> Some "char"
-        | FloatType -> Some "float"
-        | UnitType -> Some "unit"
+        | BooleanType -> Some "Bool"
+        | IntegerType -> Some "Int"
+        | StringType -> Some "String"
+        | CharType -> Some "Char"
+        | FloatType -> Some "Float"
+        | UnitType -> Some "Unit"
         | _ -> None)
     in
     return (Id id)
@@ -1059,7 +1063,7 @@ end = struct
   let type_var_written_parser : factor_type parser =
     let* s =
       expect_token_get_data (function
-        | TypeVar s -> Some s
+        | Id s when is_plain_type_var_name s -> Some s
         | _ -> None)
     in
     return (TypeVarWritten s)
@@ -1070,8 +1074,7 @@ end = struct
         | Id s -> Some s
         | _ -> None)
     in
-
-    return (TypeName s)
+    if is_plain_type_var_name s then fail else return (TypeName s)
 
   let paren_factor_type_parser : factor_type parser =
     let* () = expect_token LParen in
@@ -1137,9 +1140,9 @@ end = struct
   let factor_type_parser () : factor_type parser =
     integer_type_parser <|> string_type_parser <|> boolean_type_parser
     <|> unit_type_parser <|> float_type_parser <|> char_type_parser
-    <|> type_var_written_parser <|> vector_type_parser
-    <|> paren_factor_type_parser <|> list_type_parser <|> type_app_parser
-    <|> record_type_parser <|> type_name_parser
+    <|> paren_factor_type_parser <|> vector_type_parser <|> list_type_parser
+    <|> type_app_parser <|> record_type_parser <|> type_var_written_parser
+    <|> type_name_parser
 
   let factor_type_parser = factor_type_parser ()
 end
@@ -1257,7 +1260,7 @@ end = struct
   let string_parser : string parser =
     let* s =
       expect_token_get_data (function
-        | TypeVar s -> Some s
+        | Id s when is_plain_type_var_name s -> Some s
         | _ -> None)
     in
     return s
@@ -1265,9 +1268,21 @@ end = struct
   let method_row_parser : (string * compound_type) parser =
     let* () = expect_token Val in
     let* name =
-      expect_token_get_data (function
+      (expect_token_get_data (function
         | Id s -> Some s
-        | _ -> None)
+        | _ -> None))
+      <|>
+      (* [val (>>=) : …] — same parenthesized-operator syntax as expressions *)
+      (let* () = expect_token LParen in
+       let* s =
+         expect_token_get_data (function
+           | Relop s | Addop s | Mulop s | Logop s -> Some s
+           | AND -> Some "&&"
+           | OR -> Some "||"
+           | _ -> None)
+       in
+       let* () = expect_token RParen in
+       return s)
     in
     let* () = expect_token Colon in
     let* ct = CompoundTypeParser.compound_type_parser in
@@ -1332,11 +1347,11 @@ end = struct
          in
          let name =
            match pat with
-           | SubPat (IdPat s) -> s
+           | SubPat (IdPat s) | SubPat (InfixPat s) -> s
            | _ ->
                failwith
                  "parser: impl methods must use a simple name (e.g. let show = … \
-                  or let mappend x y = …)"
+                  or let (++) x y = …)"
          in
          let e2 = id_to_expr name in
          return
@@ -1355,11 +1370,11 @@ end = struct
          in
          let name =
            match pat with
-           | SubPat (IdPat s) -> s
+           | SubPat (IdPat s) | SubPat (InfixPat s) -> s
            | _ ->
                failwith
                  "parser: impl methods must use a simple name (e.g. let show = … \
-                  or let mappend x y = …)"
+                  or let (++) x y = …)"
          in
          return (name, body))
       in

@@ -1,4 +1,4 @@
-type rec L = | Nil | C of (int, L)
+type rec L = | Nil | C of (Int, L)
 
 let x = C (1, Nil)
 

@@ -24,12 +24,12 @@ let built_ins : (string * value * c_type) list =
       Mono (StringType => (IntType => (IntType => StringType))) );
     (* Built-in type constructors - these represent the types themselves when used as values *)
     (* Using a fresh type variable that will be unified during type checking *)
-    ("bool", UnitValue, Mono BoolType);
-    ("int", UnitValue, Mono IntType);
-    ("string", UnitValue, Mono StringType);
-    ("char", UnitValue, Mono CharType);
-    ("float", UnitValue, Mono FloatType);
-    ("unit", UnitValue, Mono UnitType);
+    ("Bool", UnitValue, Mono BoolType);
+    ("Int", UnitValue, Mono IntType);
+    ("String", UnitValue, Mono StringType);
+    ("Char", UnitValue, Mono CharType);
+    ("Float", UnitValue, Mono FloatType);
+    ("Unit", UnitValue, Mono UnitType);
     (* Arithmetic operators *)
     ("+", UnitValue, Mono (IntType => (IntType => IntType)));
     ("-", UnitValue, Mono (IntType => (IntType => IntType)));

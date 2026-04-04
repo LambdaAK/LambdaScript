@@ -1,3 +1,3 @@
 type rec IntList =
   | Empty
-  | Cell of int
+  | Cell of Int

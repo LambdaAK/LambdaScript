@@ -1,6 +1,6 @@
 type Point = {
-  x: int,
-  y: int
+  x: Int,
+  y: Int
 }
 
 let p1 : Point = {x: 10, y: 20}
