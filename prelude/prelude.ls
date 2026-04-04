@@ -1,8 +1,18 @@
-// Standard prelude: canonical typeclass headers (implement in user code).
+// Standard prelude: typeclass hierarchy (implement instances in user code).
 
-trait Monad<m<_>> where
-  val bind : m<a> -> (a -> m<b>) -> m<b>
-  val pure : a -> m<a>
+trait Functor<f<_>> where
+  val fmap : (a -> b) -> f<a> -> f<b>
+end
+
+trait Applicative<f<_>> requires Functor<f> where
+  val ap : f<a -> b> -> f<a> -> f<b>
+  val pure : a -> f<a>
+end
+
+trait Monad<f<_>> requires Applicative<f> where
+  val bind : f<a> -> (a -> f<b>) -> f<b>
+  val (>>=) : f<a> -> (a -> f<b>) -> f<b>
+  let (>>=) x f = bind x f
 end
 
 trait Foldable<f<_>> where

@@ -2064,17 +2064,17 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       in
 
       return (all_bindings, [], [])
-  | CClassDecl (cls_name, params, methods) -> (
+  | CClassDecl (_trait_name, params, methods) -> (
       match params with
       | [ p ] ->
           let w = forge_written_param p in
           let bindings =
             List.map
-              (fun (mname, mty) ->
+              (fun (mname, mty, dispatch_cls) ->
                 ( mname,
                   PolyType
                     ( w,
-                      Constrained ([ (cls_name, TypeVar w) ], Mono mty) ) ))
+                      Constrained ([ (dispatch_cls, TypeVar w) ], Mono mty) ) ))
               methods
           in
           return (bindings, [], [])

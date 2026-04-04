@@ -492,6 +492,13 @@ and string_of_factor (factor : factor) (level : int) =
       ^ string_of_factor f (level + 1)
       ^ ", " ^ field_name ^ ")"
 
+and string_of_trait_item (item : trait_item) (level : int) : string =
+  match item with
+  | TraitVal (m, ct) ->
+      "TraitVal (val " ^ m ^ " : " ^ string_of_compound_type ct (level + 1) ^ ")"
+  | TraitLet (m, e) ->
+      "TraitLet (" ^ m ^ ", " ^ string_of_expr e (level + 1) ^ ")"
+
 and string_of_defn (d : defn) (level : int) =
   let cto_string cto =
     match cto with
@@ -578,7 +585,7 @@ and string_of_defn (d : defn) (level : int) =
                ^ "])")
              types)
       ^ "])"
-  | ClassDef (name, args, methods) ->
+  | ClassDef (name, args, requires, items) ->
       "ClassDef ("
       ^ name
       ^ (if args = [] then ""
@@ -590,12 +597,15 @@ and string_of_defn (d : defn) (level : int) =
                     a ^ if k >= 0 then "(" ^ string_of_int k ^ ")" else "(infer)")
                   args)
            ^ "]")
-      ^ ", ["
+      ^ ", requires ["
       ^ String.concat ", "
           (List.map
-             (fun (m, ct) ->
-               "val " ^ m ^ " : " ^ string_of_compound_type ct (level + 1))
-             methods)
+             (fun (c, ct) ->
+               c ^ " " ^ string_of_compound_type ct (level + 1))
+             requires)
+      ^ "], ["
+      ^ String.concat ", "
+          (List.map (fun it -> string_of_trait_item it (level + 1)) items)
       ^ "])"
   | InstanceDef (cls, head_ty, impls) ->
       "InstanceDef ("

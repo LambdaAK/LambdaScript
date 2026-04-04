@@ -364,6 +364,189 @@ and cons_from_list : c_expr list -> c_expr = function
   | [] -> ENil
   | e :: es -> EBop (CCons, e, cons_from_list es)
 
+(** Replace free [EId] keys in [sub] (mapping to arbitrary expressions). *)
+let rec subst_c_expr (sub : (string * c_expr) list) (e : c_expr) : c_expr =
+  let s = subst_c_expr sub in
+  match e with
+  | EId x -> (
+      match List.assoc_opt x sub with
+      | Some e' -> e'
+      | None -> e)
+  | EApp (a, b) -> EApp (s a, s b)
+  | EFunction (p, t, b) -> EFunction (p, t, s b)
+  | EBind (p, t, e1, e2, r) -> EBind (p, t, s e1, s e2, r)
+  | EBindRec (p, t, e1, e2, r) -> EBindRec (p, t, s e1, s e2, r)
+  | EBindMutRec (bs, body) ->
+      EBindMutRec
+        ( List.map
+            (fun (p, t, e1, r, n) -> (p, t, s e1, r, n))
+            bs,
+          s body )
+  | EBlock parts ->
+      EBlock
+        (List.map
+           (function
+             | Expr ex -> Expr (s ex)
+             | Defn d -> Defn d)
+           parts)
+  | ETernary (a, b, c) -> ETernary (s a, s b, s c)
+  | ESwitch (scr, brs) ->
+      ESwitch
+        ( s scr,
+          List.map (fun (p, e') -> (p, s e')) brs )
+  | EBop (op, a, b) -> EBop (op, s a, s b)
+  | EVector es -> EVector (List.map s es)
+  | EListComprehension (e, gens) ->
+      EListComprehension
+        (s e, List.map (fun (p, ge) -> (p, s ge)) gens)
+  | ERecordLit fs -> ERecordLit (List.map (fun (n, e') -> (n, s e')) fs)
+  | ERecordUpdate (e', fs) ->
+      ERecordUpdate (s e', List.map (fun (n, e'') -> (n, s e'')) fs)
+  | EFieldAccess (e', f) -> EFieldAccess (s e', f)
+  | EListEnumeration (a, b) -> EListEnumeration (s a, s b)
+  | ( EBool _ | EString _ | EUnit | EInt _ | EChar _ | EFloat _ | ENil ) as leaf ->
+      leaf
+
+let sanitize_method_internal (s : string) : string =
+  String.map
+    (function
+      | ('a' .. 'z' | 'A' .. 'Z' | '0' .. '9') as c -> c
+      | _ -> '_')
+    s
+
+let internal_tc_id (dispatch_cls : string) (meth : string) : string =
+  "__forge_tc_" ^ dispatch_cls ^ "_" ^ sanitize_method_internal meth
+
+(** [let rec f … = e in f] parses as [EBindRec (f, e, Id f)]. Dictionary code
+    re-binds under [__forge_tc_*]; strip the outer wrapper so native lowering
+    sees [EFunction …] for [peel_efun]. *)
+let dict_bindrec_payload ~(meth : string) ~(intid : string) (e : c_expr) :
+    (c_type option * c_expr * c_type option) option =
+  match e with
+  | EBindRec (CIdPat nm, ta, e1, EId tail, rt)
+    when String.equal nm meth && String.equal tail intid ->
+      Some (ta, e1, rt)
+  | _ -> None
+
+(** Whether [e] mentions [id] as [EId] (trait dict internals are unique). *)
+let rec expr_refs_c_id (id : string) (e : c_expr) : bool =
+  match e with
+  | EId s -> String.equal s id
+  | EApp (a, b) -> expr_refs_c_id id a || expr_refs_c_id id b
+  | EFunction (_, _, b) -> expr_refs_c_id id b
+  | EBind (_, _, e1, e2, _) ->
+      expr_refs_c_id id e1 || expr_refs_c_id id e2
+  | EBindRec (_, _, e1, e2, _) ->
+      expr_refs_c_id id e1 || expr_refs_c_id id e2
+  | EBindMutRec (bs, body) ->
+      List.exists (fun (_, _, e1, _, _) -> expr_refs_c_id id e1) bs
+      || expr_refs_c_id id body
+  | EBlock parts ->
+      List.exists
+        (function
+          | Expr ex -> expr_refs_c_id id ex
+          | Defn _ -> false)
+        parts
+  | ETernary (a, b, c) ->
+      expr_refs_c_id id a || expr_refs_c_id id b || expr_refs_c_id id c
+  | ESwitch (scr, brs) ->
+      expr_refs_c_id id scr
+      || List.exists (fun (_, e') -> expr_refs_c_id id e') brs
+  | EBop (_, a, b) -> expr_refs_c_id id a || expr_refs_c_id id b
+  | EVector es -> List.exists (expr_refs_c_id id) es
+  | EListComprehension (e, gens) ->
+      expr_refs_c_id id e
+      || List.exists (fun (_, ge) -> expr_refs_c_id id ge) gens
+  | ERecordLit fs -> List.exists (fun (_, e') -> expr_refs_c_id id e') fs
+  | ERecordUpdate (e', fs) ->
+      expr_refs_c_id id e'
+      || List.exists (fun (_, e'') -> expr_refs_c_id id e'') fs
+  | EFieldAccess (e', _) -> expr_refs_c_id id e'
+  | EListEnumeration (a, b) -> expr_refs_c_id id a || expr_refs_c_id id b
+  | ( EBool _ | EString _ | EUnit | EInt _ | EChar _ | EFloat _ | ENil ) ->
+      false
+
+(** Order methods for dict binding: dependencies (other methods' internal ids
+    in the rhs) come earlier. Self-reference is excluded (handled via [EBindRec]).
+    On cycle, return [None] (caller falls back to [EBindMutRec]). *)
+let topo_dict_methods ~(dispatch_d : string) (names : string list)
+    (condensed : (string * c_expr) list) : (string * c_expr) list option =
+  let prereqs m =
+    let e = List.assoc m condensed in
+    List.filter
+      (fun m' ->
+        (not (String.equal m m'))
+        && expr_refs_c_id (internal_tc_id dispatch_d m') e)
+      names
+  in
+  let deg =
+    ref (List.map (fun n -> (n, List.length (prereqs n))) names)
+  in
+  let get n = List.assoc n !deg in
+  let set n d =
+    deg := List.map (fun (x, d0) -> if x = n then (x, d) else (x, d0)) !deg
+  in
+  let rec go emitted =
+    if List.length emitted = List.length names then
+      Some (List.map (fun m -> (m, List.assoc m condensed)) (List.rev emitted))
+    else
+      match
+        List.find_opt
+          (fun n -> (not (List.mem n emitted)) && get n = 0)
+          names
+      with
+      | None -> None
+      | Some u ->
+          List.iter
+            (fun v ->
+              if
+                (not (List.mem v emitted)) && List.mem u (prereqs v)
+              then set v (get v - 1))
+            names;
+          go (u :: emitted)
+  in
+  go []
+
+(** Stable emission order for multi-dict [impl] (unknown classes sort last). *)
+let preferred_dict_order = [ "Functor"; "Applicative"; "Monad" ]
+
+let dict_class_rank (c : string) : int =
+  let rec go i = function
+    | [] ->
+        if c = "" then 2000
+        else 1000 + Char.code (String.get c 0)
+    | h :: t -> if String.equal h c then i else go (i + 1) t
+  in
+  go 0 preferred_dict_order
+
+type class_entry = {
+  params : string list;
+  param_arities : (string * int) list;
+  (** Declared on this trait only — [CClassDecl]. *)
+  declared_triples : (string * mono_type * string) list;
+  (** Full method set for [impl Class] (inheritance + defaults). *)
+  impl_spec : (string * mono_type * string * expr option) list;
+}
+
+let verify_requires_head (our_param : string) ((_super, head_ct) : string * compound_type)
+    : unit =
+  match head_ct with
+  | BasicType (TypeVarWritten v) when v = our_param -> ()
+  | BasicType (TypeName v) when v = our_param -> ()
+  | _ ->
+      failwith
+        "forge: requires must use the trait type parameter (e.g. requires \
+         Functor<f> when the trait is <f>)"
+
+let merge_inherited_specs (acc : (string * mono_type * string * expr option) list)
+    (more : (string * mono_type * string * expr option) list) :
+    (string * mono_type * string * expr option) list =
+  List.fold_left
+    (fun a ((n, _, _, _) as item) ->
+      if List.exists (fun (n', _, _, _) -> String.equal n' n) a then a
+      else item :: a)
+    acc more
+
 (** Expand [inter] / [impl] into [CClassDecl] plus dictionary [let]s. Definitions
     must appear in order: each [impl] references an [inter] defined earlier in
     the same file. *)
@@ -380,31 +563,67 @@ let condense_program (defns : defn list) : c_defn list =
           seen group
     | _ -> seen
   in
-  let rec walk
-      (classes :
-        (string * (string list * (string * mono_type) list * (string * int) list))
-        list)
+  let rec walk (classes : (string * class_entry) list)
       (seen_ctors : (string * int) list) (seen_instances : string list)
       (acc : c_defn list) = function
     | [] -> List.rev acc
-    | ClassDef (name, param_specs, methods) :: rest ->
+    | ClassDef (name, param_specs, requires, items) :: rest ->
         let params = List.map fst param_specs in
         if params = [] then
           failwith "forge: inter/trait needs a type parameter list <a> (MVP)";
         let params_uniq = List.sort_uniq String.compare params in
         if List.length params_uniq <> List.length params then
           failwith "forge: duplicate type parameter in inter/trait";
-        if List.exists (fun (n, _) -> n = name) classes then
+        if List.exists (fun (n, _) -> String.equal n name) classes then
           failwith ("forge: duplicate inter/trait: " ^ name);
         if List.length params <> 1 then
           failwith
             "forge: exactly one inter/trait type parameter is supported in this MVP";
-        let methods_mono_raw =
-          List.map (fun (m, ct) -> (m, condense_compound_type ct)) methods
+        let our_param = List.hd params in
+        List.iter (verify_requires_head our_param) requires;
+        let own_vals =
+          List.filter_map
+            (function TraitVal (m, ct) -> Some (m, ct) | TraitLet _ -> None)
+            items
         in
+        let own_lets =
+          List.filter_map
+            (function TraitLet (m, e) -> Some (m, e) | TraitVal _ -> None)
+            items
+        in
+        let lets_map = own_lets in
+        let inherited =
+          List.fold_left
+            (fun acc_req (super, _head) ->
+              match List.assoc_opt super classes with
+              | None ->
+                  failwith
+                    ("forge: trait " ^ name ^ " requires unknown trait '" ^ super
+                   ^ "'")
+              | Some super_entry ->
+                  merge_inherited_specs acc_req super_entry.impl_spec)
+            [] requires
+        in
+        let own_names = List.map fst own_vals in
+        let own_names_uniq = List.sort_uniq String.compare own_names in
+        if List.length own_names_uniq <> List.length own_names then
+          failwith ("forge: duplicate method name in trait " ^ name);
+        List.iter
+          (fun (ln, _) ->
+            if not (List.mem ln own_names) then
+              failwith
+                ("forge: trait " ^ name ^ ": default let for '" ^ ln
+               ^ "' has no matching val in this trait"))
+          lets_map;
+        let methods_mono_raw_own =
+          List.map
+            (fun (m, ct) -> (m, condense_compound_type ct))
+            own_vals
+        in
+        let inherited_types = List.map (fun (_, mt, _, _) -> mt) inherited in
         let param_arities_inferred =
           Type_arity.infer_inter_param_arities params
-            (List.map snd methods_mono_raw)
+            (inherited_types @ List.map snd methods_mono_raw_own)
         in
         let param_arities =
           List.map
@@ -421,32 +640,49 @@ let condense_program (defns : defn list) : c_defn list =
               else (p, inferred))
             param_specs
         in
-        let methods_mono =
+        let methods_mono_own =
           List.map
             (fun (m, mt) ->
               ( m,
                 Type_arity.replace_inter_heads_with_tctor ~params mt ))
-            methods_mono_raw
+            methods_mono_raw_own
         in
-        let method_names = List.map fst methods_mono in
-        let names_uniq = List.sort_uniq String.compare method_names in
-        if List.length names_uniq <> List.length method_names then
-          failwith "forge: duplicate method name in inter";
-        let decl = CClassDecl (name, params, methods_mono) in
-        walk
-          ((name, (params, methods_mono, param_arities)) :: classes)
-          seen_ctors seen_instances (decl :: acc) rest
+        let declared_triples =
+          List.map
+            (fun (m, mt) -> (m, mt, name))
+            methods_mono_own
+        in
+        let own_meth_names = List.map fst own_vals in
+        let impl_spec =
+          List.filter
+            (fun (n, _, _, _) -> not (List.mem n own_meth_names))
+            inherited
+          @ List.map
+              (fun (m, mt) -> (m, mt, name, List.assoc_opt m lets_map))
+              methods_mono_own
+        in
+        let decl = CClassDecl (name, params, declared_triples) in
+        let entry =
+          {
+            params;
+            param_arities;
+            declared_triples;
+            impl_spec;
+          }
+        in
+        walk ((name, entry) :: classes) seen_ctors seen_instances (decl :: acc)
+          rest
     | InstanceDef (cls, inst_ct, impls) :: rest -> (
         match List.assoc_opt cls classes with
         | None ->
             failwith
               ("forge: impl for unknown inter '" ^ cls
              ^ "' — declare [inter] above this [impl]")
-        | Some (params, meth_specs, param_arities) -> (
-            match params with
+        | Some entry -> (
+            match entry.params with
             | [ p ] ->
                 let inst_mono = condense_compound_type inst_ct in
-                let arity = List.assoc p param_arities in
+                let arity = List.assoc p entry.param_arities in
                 Type_arity.validate_impl_head ~class_name:cls ~required_arity:arity
                   ~seen_ctors inst_mono;
                 let w = Type_arity.written_param_var p in
@@ -454,47 +690,128 @@ let condense_program (defns : defn list) : c_defn list =
                   Type_arity.substitute_instance_in_mono ~written_var:w
                     ~inst:inst_mono arity mt
                 in
-                let field_types =
-                  List.map (fun (m, mt) -> (m, subst mt)) meth_specs
-                in
-                let expected = RecordType field_types in
+                let slug = mono_type_slug inst_mono in
                 let impl_names = List.map fst impls in
                 let impl_uniq = List.sort_uniq String.compare impl_names in
                 if List.length impl_uniq <> List.length impl_names then
                   failwith "forge: duplicate method in impl";
                 List.iter
                   (fun (m, _) ->
-                    if not (List.mem_assoc m meth_specs) then
+                    if not (List.exists (fun (n, _, _, _) -> String.equal n m) entry.impl_spec) then
                       failwith ("forge: impl has unknown method: " ^ m))
                   impls;
                 List.iter
-                  (fun (m, _) ->
-                    if not (List.mem m impl_names) then
+                  (fun (m, _, _, def) ->
+                    let has_impl = List.mem m impl_names in
+                    let has_def = match def with None -> false | Some _ -> true in
+                    if not has_impl && not has_def then
                       failwith ("forge: impl missing method: " ^ m))
-                  meth_specs;
-                let dict_fields =
-                  List.map
-                    (fun (m, _) -> (m, condense_expr (List.assoc m impls)))
-                    meth_specs
+                  entry.impl_spec;
+                let dispatch_classes =
+                  entry.impl_spec
+                  |> List.map (fun (_, _, d, _) -> d)
+                  |> List.sort_uniq String.compare
+                  |> List.sort (fun a b -> compare (dict_class_rank a) (dict_class_rank b))
                 in
-                let slug = mono_type_slug inst_mono in
-                let key = cls ^ "#" ^ slug in
-                if List.mem key seen_instances then
-                  failwith
-                    ("forge: duplicate impl for inter " ^ cls ^ " at type "
-                   ^ slug);
-                let dict_name = dict_for_instance ~class_name:cls inst_mono in
-                let cdefn =
-                  CDefn
-                    ( CIdPat dict_name,
-                      [],
-                      Some (Mono expected),
-                      ERecordLit dict_fields,
-                      None,
-                      0 )
+                let expr_for_method (meth : string) : c_expr =
+                  match List.assoc_opt meth impls with
+                  | Some e -> condense_expr e
+                  | None -> (
+                      match
+                        List.find_opt
+                          (fun (n, _, _, _) -> String.equal n meth)
+                          entry.impl_spec
+                      with
+                      | Some (_, _, _, Some def) -> condense_expr def
+                      | _ -> failwith ("forge: internal: missing body for " ^ meth))
                 in
-                walk classes seen_ctors (key :: seen_instances) (cdefn :: acc)
-                  rest
+                let build_dict_expr (dispatch_d : string)
+                    (fields : (string * mono_type) list) : c_expr =
+                  let names = List.map fst fields in
+                  let internals =
+                    List.map (fun m -> (m, internal_tc_id dispatch_d m)) names
+                  in
+                  let sub =
+                    List.map (fun (m, intid) -> (m, EId intid)) internals
+                  in
+                  let condensed =
+                    List.map
+                      (fun m ->
+                        (m, subst_c_expr sub (expr_for_method m)))
+                      names
+                  in
+                  let record =
+                    ERecordLit
+                      (List.map
+                         (fun (m, intid) -> (m, EId intid))
+                         internals)
+                  in
+                  let bind_chain ordered =
+                    List.fold_right
+                      (fun (m, e) acc ->
+                        let intid = internal_tc_id dispatch_d m in
+                        match dict_bindrec_payload ~meth:m ~intid e with
+                        | Some (ta, e1, rt) ->
+                            EBindRec (CIdPat intid, ta, e1, acc, rt)
+                        | None ->
+                            if expr_refs_c_id intid e then
+                              EBindRec (CIdPat intid, None, e, acc, None)
+                            else EBind (CIdPat intid, None, e, acc, None))
+                      ordered record
+                  in
+                  match topo_dict_methods ~dispatch_d names condensed with
+                  | Some ordered -> bind_chain ordered
+                  | None ->
+                      EBindMutRec
+                        ( List.map
+                            (fun (m, intid) ->
+                              let e0 = List.assoc m condensed in
+                              let ta, rhs, rt =
+                                match dict_bindrec_payload ~meth:m ~intid e0 with
+                                | Some (ta, e1, rt) -> (ta, e1, rt)
+                                | None -> (None, e0, None)
+                              in
+                              (CIdPat intid, ta, rhs, rt, 0))
+                            internals,
+                          record )
+                in
+                let new_seen, new_cdefns =
+                  List.fold_left
+                    (fun (seen_acc, cdefns_acc) dispatch_d ->
+                      let fields_here =
+                        List.filter_map
+                          (fun (m, mt, d, _) ->
+                            if String.equal d dispatch_d then Some (m, mt)
+                            else None)
+                          entry.impl_spec
+                      in
+                      let field_types =
+                        List.map (fun (m, mt) -> (m, subst mt)) fields_here
+                      in
+                      let expected = RecordType field_types in
+                      let key = dispatch_d ^ "#" ^ slug in
+                      if List.mem key seen_acc then
+                        failwith
+                          ("forge: duplicate impl dict for " ^ dispatch_d
+                         ^ " at type " ^ slug);
+                      let dict_name =
+                        dict_for_instance ~class_name:dispatch_d inst_mono
+                      in
+                      let body = build_dict_expr dispatch_d fields_here in
+                      let cdefn =
+                        CDefn
+                          ( CIdPat dict_name,
+                            [],
+                            Some (Mono expected),
+                            body,
+                            None,
+                            0 )
+                      in
+                      (key :: seen_acc, cdefn :: cdefns_acc))
+                    (seen_instances, []) dispatch_classes
+                in
+                walk classes seen_ctors new_seen
+                  (List.rev_append new_cdefns acc) rest
             | _ -> failwith "forge: internal inter arity"))
     | d :: rest ->
         let seen_ctors' = record_ctor_arities seen_ctors d in

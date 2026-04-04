@@ -59,10 +59,11 @@ type defn =
   | Defn of pat * (string * compound_type) list * compound_type option * expr * compound_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)
   | DefnRec of pat * (string * compound_type) list * compound_type option * expr * compound_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)
   | DefnMutRec of (pat * (string * compound_type) list * compound_type option * expr * compound_type option * int) list (* mutually recursive definitions *)
-  | ClassDef of string * (string * int) list * (string * compound_type) list
-        (** [(param, arity)] with arity [-1] = infer from method types, [n >= 0]
-            = explicit kind ([m<_>] → [1], [f<_, _>] → [2], plain [a] → [0] via
-            [-1] infer). *)
+  | ClassDef of
+      string
+      * (string * int) list
+      * (string * compound_type) list
+      * trait_item list
   | InstanceDef of string * compound_type * (string * expr) list
   | TypeDef of string * string list * compound_type
   | SumTypeDef of string * string list * (string * compound_type option) list
@@ -84,6 +85,11 @@ and expr =
   | BindMutRec of (pat * compound_type option * expr * compound_type option * int) list * expr (* mutually recursive bindings and body *)
   | Switch of expr * switch_branch list
   | Block of expr_or_defn list
+
+(** Trait member: abstract [val] or default [let] (body may use [BindRec] desugar). *)
+and trait_item =
+  | TraitVal of string * compound_type
+  | TraitLet of string * expr
 
 and cons_expr =
   (* :: *)

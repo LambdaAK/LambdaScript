@@ -69,8 +69,9 @@ and c_defn =
   | CDefn of c_pat * (string * mono_type) list * c_type option * c_expr * c_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)
   | CDefnRec of c_pat * (string * mono_type) list * c_type option * c_expr * c_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)
   | CDefnMutRec of (c_pat * (string * mono_type) list * c_type option * c_expr * c_type option * int) list (* mutually recursive definitions *)
-  | CClassDecl of string * string list * (string * mono_type) list
-      (** Elaborated class header; runtime/LLVM ignore it; kept for tooling/errors. *)
+  | CClassDecl of string * string list * (string * mono_type * string) list
+      (** [(method, mono type, dispatch_class)] — [dispatch_class] selects which
+          dictionary receives the method at [impl] time ([Functor], [Monad], …). *)
   | CTypeAlias of string * string list * mono_type
   | CSumType of string * string list * (string * c_type option) list
   | CSumTypeRec of string * string list * (string * c_type option) list

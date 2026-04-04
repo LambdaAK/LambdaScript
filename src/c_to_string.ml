@@ -292,7 +292,8 @@ and string_of_defn : c_defn -> string = function
       in
       let meth_strs =
         List.map
-          (fun (m, t) -> "val " ^ m ^ " : " ^ string_of_mono_type t)
+          (fun (m, t, d) ->
+            Printf.sprintf "val %s : %s  [@%s]" m (string_of_mono_type t) d)
           methods
       in
       "inter " ^ name ^ args_str ^ " {\n  "

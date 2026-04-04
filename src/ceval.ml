@@ -955,12 +955,13 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       in
 
       return all_bindings
-  | CClassDecl (cls_name, params, methods) -> (
+  | CClassDecl (_trait_name, params, methods) -> (
       match params with
       | [ _ ] ->
           let bindings =
             List.map
-              (fun (mname, _) -> (mname, TypeClassMethod (cls_name, mname)))
+              (fun (mname, _, dispatch_cls) ->
+                (mname, TypeClassMethod (dispatch_cls, mname)))
               methods
           in
           return bindings

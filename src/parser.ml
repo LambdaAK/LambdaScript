@@ -1323,28 +1323,129 @@ end = struct
     in
     return s
 
+  let method_name_after_val_parser : string parser =
+    (expect_token_get_data (function
+      | Id s -> Some s
+      | _ -> None))
+    <|>
+    (* [val (>>=) : …] — same parenthesized-operator syntax as expressions *)
+    (let* () = expect_token LParen in
+     let* s =
+       expect_token_get_data (function
+         | Relop s | Addop s | Mulop s | Logop s -> Some s
+         | AND -> Some "&&"
+         | OR -> Some "||"
+         | _ -> None)
+     in
+     let* () = expect_token RParen in
+     return s)
+
   let method_row_parser : (string * compound_type) parser =
     let* () = expect_token Val in
-    let* name =
-      (expect_token_get_data (function
-        | Id s -> Some s
-        | _ -> None))
-      <|>
-      (* [val (>>=) : …] — same parenthesized-operator syntax as expressions *)
-      (let* () = expect_token LParen in
-       let* s =
-         expect_token_get_data (function
-           | Relop s | Addop s | Mulop s | Logop s -> Some s
-           | AND -> Some "&&"
-           | OR -> Some "||"
-           | _ -> None)
-       in
-       let* () = expect_token RParen in
-       return s)
-    in
+    let* name = method_name_after_val_parser in
     let* () = expect_token Colon in
     let* ct = CompoundTypeParser.compound_type_parser in
     return (name, ct)
+
+  (** [Super<f>] or [Super f] after [requires]. *)
+  let requires_super_parser : (string * compound_type) parser =
+    let* cls =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    (let* () =
+       expect_token_get_data (function
+         | Relop s when s = "<" -> Some ()
+         | _ -> None)
+     in
+     let* args =
+       parse_sep_delim CompoundTypeParser.compound_type_parser Comma
+     in
+     let* () =
+       expect_token_get_data (function
+         | Relop s when s = ">" -> Some ()
+         | _ -> None)
+     in
+     let () =
+       if List.length args <> 1 then
+         failwith
+           "parser: requires Super<trait_param> must have exactly one type \
+            argument (e.g. Functor<f>)"
+     in
+     return (cls, List.hd args))
+    <|>
+    (let* ct = CompoundTypeParser.compound_type_parser in
+     return (cls, ct))
+
+  let trait_let_row_parser : trait_item parser =
+    let* () = expect_token Let in
+    let* name, body_expr =
+      (let* () = expect_token Rec in
+       let*
+         ( pat,
+           class_constraints,
+           final_cto,
+           body,
+           return_type_option,
+           _num_explicit_params )
+         =
+         parse_single_defn_component ()
+       in
+       let () =
+         match (class_constraints, final_cto, return_type_option) with
+         | [], None, None -> ()
+         | _ ->
+             failwith
+               "parser: constraints/type annotations are not allowed on trait \
+                default let"
+       in
+       let name =
+         match pat with
+         | SubPat (IdPat s) | SubPat (InfixPat s) -> s
+         | _ ->
+             failwith
+               "parser: trait defaults must use a simple name (e.g. let (>>=) x \
+                f = …)"
+       in
+       let e2 = id_to_expr name in
+       return
+         (name, BindRec (pat, final_cto, body, e2, return_type_option)))
+      <|>
+      (let*
+         ( pat,
+           class_constraints,
+           final_cto,
+           body,
+           return_type_option,
+           _num_explicit_params )
+         =
+         parse_single_defn_component ()
+       in
+       let () =
+         match (class_constraints, final_cto, return_type_option) with
+         | [], None, None -> ()
+         | _ ->
+             failwith
+               "parser: constraints/type annotations are not allowed on trait \
+                default let"
+       in
+       let name =
+         match pat with
+         | SubPat (IdPat s) | SubPat (InfixPat s) -> s
+         | _ ->
+             failwith
+               "parser: trait defaults must use a simple name (e.g. let (>>=) x \
+                f = …)"
+       in
+       return (name, body))
+    in
+    return (TraitLet (name, body_expr))
+
+  let trait_item_parser : trait_item parser =
+    (let* name, ct = method_row_parser in
+     return (TraitVal (name, ct)))
+    <|> trait_let_row_parser
 
   (** One trait/inter type parameter: [a] or [m<_>] / [f<_, _>] (kind = count of
       [_]). Without a kind annotation, arity is [-1] (inferred).
@@ -1398,18 +1499,24 @@ end = struct
         | _ -> None)
     in
     let* params = trait_param_list_parser in
-    let* methods =
+    let* requires =
+      (let* () = expect_token Requires in
+       let* rs = parse_sep_delim requires_super_parser Comma in
+       return rs)
+      <|> return []
+    in
+    let* items =
       (let* () = expect_token Where in
-       let* ms = parse_one_or_more_opt_commas method_row_parser in
+       let* ms = parse_one_or_more_opt_commas trait_item_parser in
        let* () = expect_token End in
        return ms)
       <|>
       (let* () = expect_token LBrace in
-       let* ms = parse_one_or_more_opt_commas method_row_parser in
+       let* ms = parse_one_or_more_opt_commas trait_item_parser in
        let* () = expect_token RBrace in
        return ms)
     in
-    return (ClassDef (class_name, params, methods))
+    return (ClassDef (class_name, params, requires, items))
 
   let instance_defn_parser () : defn parser =
     let impl_row_parser =

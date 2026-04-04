@@ -2311,23 +2311,24 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
                             "right-hand side of :: must be a list in native lowering"))
               | _ -> unsupported ("Binary operator not supported in Min_IR lowering yet"))))
   | EBind (CIdPat x, _ta, e1, e2, _rt) -> (
+      let se0 = static_env_for_mono_call static_env env in
+      let ct_rhs =
+        match Typecheck.type_of_c_expr se0 type_env e1 with
+        | Ok ct -> ct
+        | Error err ->
+            unsupported ("let: " ^ Typecheck.string_of_type_check_error err)
+      in
+      let static_here = (x, ct_rhs) :: se0 in
       match lower_expr e1 env ctx static_env type_env shadows with
       | LVal (o1, t1) ->
-          let se0 = static_env_for_mono_call static_env env in
-          let m1 =
-            match Typecheck.type_of_c_expr se0 type_env e1 with
-            | Ok ct -> static_mono_for_native ct
-            | Error err ->
-                unsupported
-                  ("let: " ^ Typecheck.string_of_type_check_error err)
-          in
+          let m1 = static_mono_for_native ct_rhs in
           emit_instr ctx (Assign (x, Copy o1));
           let env' = (x, Val (Local x, t1, Some m1)) :: env in
-          lower_expr e2 env' ctx static_env type_env
+          lower_expr e2 env' ctx static_here type_env
             (shadow_add_pat (CIdPat x) shadows)
       | LPartial c ->
           let env' = (x, C c) :: env in
-          lower_expr e2 env' ctx static_env type_env
+          lower_expr e2 env' ctx static_here type_env
             (shadow_add_pat (CIdPat x) shadows))
   | EBind (pat, _ta, e1, e2, _rt) when pat <> CWildcardPat && not (match pat with CIdPat _ -> true | _ -> false) -> (
       match lower_expr e1 env ctx static_env type_env shadows with
