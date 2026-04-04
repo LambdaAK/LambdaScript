@@ -1597,6 +1597,48 @@ let program_expression_type_tests =
                }
              |}
              ~expr:"mappend [1] [2]" ~expected_type:"[Int]" );
+         ( "Functor fmap on Option" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               type Option<a> = | None | Some of a
+               inter Functor <f> {
+                 val fmap : (a -> b) -> f<a> -> f<b>
+               }
+               impl Functor for Option {
+                 let fmap g x =
+                   case x do
+                   | None -> None
+                   | Some v -> Some (g v)
+               }
+             |}
+             ~expr:"fmap (fn x -> x + 1) (Some 10)"
+             ~expected_type:"Option<Int>" );
+         ( "Semigroup Int sappend" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               inter Semigroup <a> {
+                 val sappend : a -> a -> a
+               }
+               impl Semigroup for Int {
+                 let sappend x y = x + y
+               }
+             |}
+             ~expr:"sappend 3 4" ~expected_type:"Int" );
+         ( "Eq Int eq in if" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               inter Eq <a> {
+                 val eq : a -> a -> bool
+               }
+               impl Eq for Int {
+                 let eq x y = x == y
+               }
+             |}
+             ~expr:"if eq 2 2 then 1 else 0"
+             ~expected_type:"Int" );
          ( "type after multiple definitions" >:: fun _ ->
            assert_expression_has_type
              ~program:

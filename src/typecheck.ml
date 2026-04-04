@@ -21,16 +21,105 @@ let rec scheme_has_class_constraint (t : c_type) : bool =
   | PolyType (_, inner) -> scheme_has_class_constraint inner
   | Mono _ -> false
 
-let rec instantiate_infer_scheme (t : c_type) : mono_type * class_equations =
+(** Solver metavariable heads [[t123]] from [fresh_type_var] — safe to rename per
+    use site. Rigid heads like [[$written(List)]] must stay. *)
+let is_solver_tctor_head_name (w : string) : bool =
+  String.length w >= 2
+  && w.[0] = 't'
+  &&
+  let rest = String.sub w 1 (String.length w - 1) in
+  rest <> ""
+  && String.for_all (fun c -> c >= '0' && c <= '9') rest
+
+(** Names that appear as [TypeVar] in the method type or preds (before freshen),
+    plus [TCtorApp] heads that are solver metavariables (see
+    {!is_solver_tctor_head_name}). Rigid heads like [$written(List)] stay
+    unchanged. *)
+let flex_tyvar_names_in_method (m : mono_type) (preds : class_equations) :
+    string list =
+  let acc = ref [] in
+  let add v = if not (List.mem v !acc) then acc := v :: !acc in
+  let rec walk_mono (t : mono_type) : unit =
+    match t with
+    | TypeVar v -> add v
+    | FunctionType (a, b) ->
+        walk_mono a;
+        walk_mono b
+    | VectorType ts -> List.iter walk_mono ts
+    | CListType e -> walk_mono e
+    | CTypeApp (_, args) -> List.iter walk_mono args
+    | TCtorApp (w, args) ->
+        if is_solver_tctor_head_name w then add w;
+        List.iter walk_mono args
+    | FixedPoint (_, body) -> walk_mono body
+    | RecordType fs -> List.iter (fun (_, t) -> walk_mono t) fs
+    | IntType | FloatType | BoolType | StringType | CharType | UnitType
+    | TypeName _ ->
+        ()
+  in
+  List.iter (fun (_, ty) -> walk_mono ty) preds;
+  walk_mono m;
+  !acc
+
+(** After peeling [Poly]/[Constrained], copy the method [mono] and class preds so
+    every source type variable is renamed to a fresh name **for this use site**.
+    Otherwise method parameters from the [inter] (e.g. [a] in [a -> m<a>]) are
+    shared across all applications of [return] / [>>=], and nested calls like
+    [return (return 10)] wrongly force the same [a] to be both [Int] and [m
+    Int]. *)
+let freshen_method_mono_and_preds (m : mono_type) (preds : class_equations) :
+    mono_type * class_equations =
+  let flex = flex_tyvar_names_in_method m preds in
+  let is_flex_head w = List.mem w flex || is_solver_tctor_head_name w in
+  let map : (string * string) list ref = ref [] in
+  let fresh_name () =
+    match fresh_type_var () with
+    | TypeVar s -> s
+    | _ -> assert false
+  in
+  let map_var (v : string) : string =
+    match List.assoc_opt v !map with
+    | Some v' -> v'
+    | None ->
+        let v' = fresh_name () in
+        map := (v, v') :: !map;
+        v'
+  in
+  let rec freshen (t : mono_type) : mono_type =
+    match t with
+    | TypeVar v -> TypeVar (map_var v)
+    | FunctionType (a, b) -> FunctionType (freshen a, freshen b)
+    | VectorType ts -> VectorType (List.map freshen ts)
+    | CListType e -> CListType (freshen e)
+    | CTypeApp (name, args) -> CTypeApp (name, List.map freshen args)
+    | TCtorApp (w, args) ->
+        let w' = if is_flex_head w then map_var w else w in
+        TCtorApp (w', List.map freshen args)
+    | FixedPoint (n, body) -> FixedPoint (n, freshen body)
+    | RecordType fields ->
+        RecordType (List.map (fun (name, t) -> (name, freshen t)) fields)
+    | ( IntType | FloatType | BoolType | StringType | CharType | UnitType
+      | TypeName _ ) as prim ->
+        prim
+  in
+  let preds' = List.map (fun (c, ty) -> (c, freshen ty)) preds in
+  let m' = freshen m in
+  (m', preds')
+
+let rec instantiate_infer_scheme_inner (t : c_type) : mono_type * class_equations =
   match t with
   | Mono m -> (m, [])
   | Constrained (ps, inner) ->
-      let m, ps2 = instantiate_infer_scheme inner in
+      let m, ps2 = instantiate_infer_scheme_inner inner in
       (m, ps @ ps2)
   | PolyType (v, body) ->
       let arg = fresh_type_var () in
       let body' = substitute_type body v arg in
-      instantiate_infer_scheme body'
+      instantiate_infer_scheme_inner body'
+
+let instantiate_infer_scheme (t : c_type) : mono_type * class_equations =
+  let m, preds = instantiate_infer_scheme_inner t in
+  freshen_method_mono_and_preds m preds
 
 type type_error =
   | UnboundVariable of string
@@ -261,6 +350,33 @@ let instantiate_dict_scheme_to_record ~(sch : c_type) ~(tau : mono_type) :
       | RecordType _ -> Some substituted
       | _ -> None
 
+(** Slug segment of [dict_name] after [__forge_dict_<class>_], if any. *)
+let forge_dict_slug ~(class_name : string) (dict_name : string) : string option =
+  let p = "__forge_dict_" ^ class_name ^ "_" in
+  if String.starts_with ~prefix:p dict_name then
+    Some
+      (String.sub dict_name (String.length p)
+         (String.length dict_name - String.length p))
+  else None
+
+(** Reject dictionary candidates whose instance head (encoded in the dict name)
+    cannot apply to [tau]. Without this, [instantiate_dict_scheme_to_record]
+    substitutes every top-level [Poly] of the dict scheme with [tau], so e.g.
+    a [Functor Option] dict spuriously "matches" [[Int]] and steals dispatch
+    from [Functor [u]]. *)
+let dict_candidate_matches_tau ~(dict_name : string) ~(class_name : string)
+    (tau : mono_type) : bool =
+  match forge_dict_slug ~class_name dict_name with
+  | None -> false
+  | Some sfx ->
+      let sfx_starts (pre : string) = String.starts_with ~prefix:pre sfx in
+      match tau with
+      | TypeVar _ -> true
+      | CListType _ -> sfx_starts "list"
+      | CTypeApp (n, _) -> sfx_starts n || sfx_starts (n ^ "__")
+      | FixedPoint (n, _) -> sfx_starts ("mu_" ^ n) || sfx_starts n
+      | _ -> true
+
 let find_compatible_dict_name ~(static_env : static_env) ~(class_name : string)
     ~(method_name : string) ~(tau : mono_type) : string option =
   let prefix = "__forge_dict_" ^ class_name ^ "_" in
@@ -272,10 +388,13 @@ let find_compatible_dict_name ~(static_env : static_env) ~(class_name : string)
       | [] -> None
       | (name, sch) :: rest ->
           if String.starts_with ~prefix name then
-            match instantiate_dict_scheme_to_record ~sch ~tau with
-            | Some (RecordType fields) when List.mem_assoc method_name fields ->
-                Some name
-            | _ -> scan rest
+            if not (dict_candidate_matches_tau ~dict_name:name ~class_name tau)
+            then scan rest
+            else
+              match instantiate_dict_scheme_to_record ~sch ~tau with
+              | Some (RecordType fields) when List.mem_assoc method_name fields ->
+                  Some name
+              | _ -> scan rest
           else scan rest
     in
     scan static_env
@@ -292,6 +411,7 @@ let forge_dict_resolves_for_class ~(static_env : static_env) ~(class_name : stri
     List.exists
       (fun (name, sch) ->
         String.starts_with ~prefix name
+        && dict_candidate_matches_tau ~dict_name:name ~class_name tau
         &&
         match instantiate_dict_scheme_to_record ~sch ~tau with
         | Some (RecordType _) -> true
@@ -364,18 +484,28 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
       in
       process_updates record_equations updates
   | EFieldAccess (record_expr, field_name) ->
-      (* Generate type for the record expression *)
       let- record_type, record_equations, _ = generate env type_env record_expr in
-      (* Create fresh type variable for the field *)
-      let field_type = fresh_type_var () in
-      (* Create constraint: record_type must be a record with at least this field *)
-      (* For now, we'll use a simpler approach - just return the field type *)
-      (* and add an equation that record_type = RecordType with this field *)
-      (* This is simplified - full row polymorphism would be more complex *)
-      let minimal_record = RecordType [(field_name, field_type)] in
-      (* Add equation: record_type = minimal_record (simplified, should handle subtyping) *)
-      let equation = (record_type, minimal_record) in
-      return (field_type, equation :: record_equations, [])
+      (* Known record shape (e.g. typeclass dictionary): use the field's type and
+         freshen its metavariables so each access site is independent — same issue
+         as [instantiate_infer_scheme] for [inter] methods. *)
+      (match record_type with
+      | RecordType fields -> (
+          match List.assoc_opt field_name fields with
+          | None ->
+              let field_type = fresh_type_var () in
+              let minimal_record = RecordType [(field_name, field_type)] in
+              return
+                ( field_type,
+                  (record_type, minimal_record) :: record_equations,
+                  [] )
+          | Some ft ->
+              let ft', _ = freshen_method_mono_and_preds ft [] in
+              return (ft', record_equations, []))
+      | _ ->
+          let field_type = fresh_type_var () in
+          let minimal_record = RecordType [(field_name, field_type)] in
+          let equation = (record_type, minimal_record) in
+          return (field_type, equation :: record_equations, []))
   | EBlock [] -> return (UnitType, [], [])
   | EBlock parts -> (
       (* if the last part is a definition, then the entire thing evaluates to
@@ -1050,6 +1180,13 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
           | FunctionType (i1, o1), FunctionType (i2, o2) ->
               reduce_eq_acc acc ((i1, i2) :: (o1, o2) :: c')
           | CListType et1, CListType et2 -> reduce_eq_acc acc ((et1, et2) :: c')
+          (* Native lists are [CListType elem]; HKT signatures use [TCtorApp(w,[elem])]
+             for the class parameter (e.g. [impl Functor for [u]]). *)
+          | TCtorApp (_, as1), CListType et2
+          | CListType et2, TCtorApp (_, as1) ->
+              if List.length as1 = 1 then
+                reduce_eq_acc acc ((List.hd as1, et2) :: c')
+              else raise TypeFailure
           | CTypeApp (name1, args1), CTypeApp (name2, args2) ->
               if name1 = name2 && List.length args1 = List.length args2 then
                 let arg_equations = List.combine args1 args2 in
@@ -1066,6 +1203,17 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
                 let arg_equations = List.combine as1 as2 in
                 reduce_eq_acc acc ((TypeVar w, TypeName n) :: arg_equations @ c')
               else raise TypeFailure
+          (* Recursive sum types like [type rec List<a> = ...] are μ-types
+             (FixedPoint) in the environment, while class method signatures use
+             TCtorApp for the type-class parameter applied to [a]. Unify the same
+             way as [TCtorApp] vs [CTypeApp]: bind the head to the type name and
+             relate the μ-body to a fully applied [CTypeApp]. *)
+          | TCtorApp (w, as1), FixedPoint (name, body)
+          | FixedPoint (name, body), TCtorApp (w, as1) ->
+              reduce_eq_acc acc
+                ((TypeVar w, TypeName name)
+                :: (body, CTypeApp (name, as1))
+                :: c')
           | VectorType types1, VectorType types2 -> (
               match (types1, types2) with
               | type1 :: tail1, type2 :: tail2 ->
@@ -1241,8 +1389,10 @@ and inside (inside_type : mono_type) (outside_type : mono_type) : bool =
   | VectorType ts -> List.exists (inside inside_type) ts
   | CListType t -> inside inside_type t
   | CTypeApp (_, args) -> List.exists (inside inside_type) args
-  | TCtorApp (_, args) ->
-      List.exists (inside inside_type) args
+  | TCtorApp (w, args) -> (
+      match inside_type with
+      | TypeVar id when id = w -> true
+      | _ -> List.exists (inside inside_type) args)
   | FixedPoint (_, body) -> inside inside_type body
   | RecordType fields -> List.exists (fun (_, t) -> inside inside_type t) fields
   | _ -> false
@@ -1298,6 +1448,8 @@ and substitute (var_id : string) (t : mono_type) (equations : type_equations) :
     | TCtorApp (w, args) when w = var_id -> (
         match t with
         | TypeName n -> CTypeApp (n, List.map substitute_in_type args)
+        | CTypeApp (n, prefix_args) ->
+            CTypeApp (n, prefix_args @ List.map substitute_in_type args)
         | CListType _ when List.length args = 1 ->
             CListType (substitute_in_type (List.hd args))
         | _ -> TCtorApp (w, List.map substitute_in_type args))
@@ -1557,7 +1709,10 @@ and mono_fun_type_of_curried_app (env : static_env) (type_env : type_env)
   match List.assoc_opt f_name env with
   | None -> Error (OtherError ("mono_fun_type_of_curried_app: unbound `" ^ f_name ^ "`"))
   | Some ct ->
-      let m0 = instantiate ct in
+      (* Use the same freshening path as [generate_e_id] so monomorphization of
+         curried class methods (e.g. [fmap g xs]) does not reuse stale solver
+         metavariables from [instantiate] alone. *)
+      let m0 = fst (instantiate_infer_scheme ct) in
       let rec simplify_constraint_list acc = function
         | [] -> return (List.rev acc)
         | (t1, t2) :: rest ->
