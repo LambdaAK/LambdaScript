@@ -86,7 +86,7 @@ and string_of_value = function
   | BooleanValue b -> string_of_bool b
   | UnitValue -> "()"
   | FunctionClosure _ | RecursiveFunctionClosure _ | BuiltInFunction _
-  | TypeClassMethod _ ->
+  | TypeClassMethod _ | TypeClassMethodPending _ ->
       "function"
   | VectorValue values ->
       let values_string : string =
@@ -292,7 +292,7 @@ let rec mono_type_of_value (v : value) : mono_type option =
       | Some pairs -> Some (RecordType pairs)
       | None -> None)
   | VariantValue _ | FunctionClosure _ | RecursiveFunctionClosure _
-  | BuiltInFunction _ | TypeClassMethod _ ->
+  | BuiltInFunction _ | TypeClassMethod _ | TypeClassMethodPending _ ->
       None
 
 (** [eval_c_expr ce env] evaluates a condensed expression [ce] in the context of
@@ -409,7 +409,9 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
           | Some env'' -> eval_c_expr e (env'' @ env')
           | None -> Error (OtherError "eval_c_expr: EApp"))
       | TypeClassMethod (cls_name, method_name) ->
-          dispatch_typeclass_method_app env cls_name method_name v2
+          dispatch_typeclass_method_args env cls_name method_name [ v2 ]
+      | TypeClassMethodPending (cls_name, method_name, applied_args) ->
+          dispatch_typeclass_method_args env cls_name method_name (applied_args @ [ v2 ])
       | _ -> Error (OtherError "eval_c_expr: EApp"))
   | EBind (pattern, _, e1, e2, _) ->
       (* We have let p = e1 in e2. We can convert this to (fun p -> e2) e1 and
@@ -552,64 +554,100 @@ and apply_function_value env v_fn v_arg : value eval_result =
       | Some env'' -> eval_c_expr e (env'' @ env')
       | None -> Error (OtherError "eval_c_expr: EApp"))
   | TypeClassMethod (cls_name, method_name) ->
-      dispatch_typeclass_method_app env cls_name method_name v_arg
+      dispatch_typeclass_method_args env cls_name method_name [ v_arg ]
+  | TypeClassMethodPending (cls_name, method_name, applied_args) ->
+      dispatch_typeclass_method_args env cls_name method_name (applied_args @ [ v_arg ])
   | _ -> Error (OtherError "apply_function_value: not callable")
-and dispatch_typeclass_method_app env cls_name method_name v_arg : value eval_result =
-  let from_mono tau =
-    let dict = dict_for_instance ~class_name:cls_name tau in
-    match List.assoc_opt dict env with
-    | Some (RecordValue fields) -> (
-        match List.assoc_opt method_name fields with
-        | Some method_fn -> apply_function_value env method_fn v_arg
-        | None ->
-            Error
-              (OtherError
-                 ("missing method " ^ method_name ^ " on dictionary " ^ dict)))
-    | Some _ ->
-        Error (OtherError ("expected record instance dictionary " ^ dict))
-    | None ->
-        Error
-          (TypeError
-             ("no " ^ cls_name ^ " instance for `" ^ mono_type_slug tau ^ "`"))
+and dispatch_typeclass_method_args env cls_name method_name (args : value list) :
+    value eval_result =
+  let apply_all (method_fn : value) : value eval_result =
+    let rec go fn = function
+      | [] -> return fn
+      | arg :: rest ->
+          let* fn' = apply_function_value env fn arg in
+          go fn' rest
+    in
+    go method_fn args
   in
-  match mono_type_of_value v_arg with
-  | Some tau -> from_mono tau
-  | None -> (
-      (* [] has no element type at runtime; pick any list instance dict for this
-         class (e.g. polymorphic [instance Show = ['a] { ... }]). *)
-      match v_arg with
-      | ListValue [] -> (
-          let prefix = "__forge_dict_" ^ cls_name ^ "_list__" in
-          match
-            List.find_map
-              (fun (k, v) ->
-                if not (String.starts_with ~prefix k) then None
-                else
-                  match v with
-                  | RecordValue fields -> Some (k, fields)
-                  | _ -> None)
-              env
-          with
-          | Some (dict_name, fields) -> (
-              match List.assoc_opt method_name fields with
-              | Some method_fn -> apply_function_value env method_fn v_arg
-              | None ->
-                  Error
-                    (OtherError
-                       ("missing method " ^ method_name ^ " on dictionary "
-                      ^ dict_name)))
-          | None ->
-              Error
-                (TypeError
-                   (cls_name
-                   ^ ": cannot select an instance for this value at runtime (unsupported \
-                      shape)")))
-      | _ ->
-          Error
-            (TypeError
-               (cls_name
-               ^ ": cannot select an instance for this value at runtime (unsupported \
-                  shape)")))
+  let method_for_dict (dict_name : string) : value option =
+    match List.assoc_opt dict_name env with
+    | Some (RecordValue fields) -> List.assoc_opt method_name fields
+    | _ -> None
+  in
+  let try_from_tau (tau : mono_type) : value eval_result option =
+    let dict_name = dict_for_instance ~class_name:cls_name tau in
+    match method_for_dict dict_name with
+    | Some method_fn -> Some (apply_all method_fn)
+    | None -> None
+  in
+  let try_from_empty_list_shape () : value eval_result option =
+    let prefix = "__forge_dict_" ^ cls_name ^ "_list__" in
+    let rec scan = function
+      | [] -> None
+      | (k, _) :: rest ->
+          if String.starts_with ~prefix k then
+            (match method_for_dict k with
+            | Some method_fn -> Some (apply_all method_fn)
+            | None -> scan rest)
+          else scan rest
+    in
+    scan env
+  in
+  let try_any_dict_for_class () : value eval_result option =
+    let prefix = "__forge_dict_" ^ cls_name ^ "_" in
+    let rec scan = function
+      | [] -> None
+      | (k, _) :: rest ->
+          if String.starts_with ~prefix k then
+            (match method_for_dict k with
+            | Some method_fn -> (
+                match apply_all method_fn with
+                | Ok v -> Some (Ok v)
+                | Error _ -> scan rest)
+            | None -> scan rest)
+          else scan rest
+    in
+    scan env
+  in
+  (* Prefer later arguments first: for curried methods like fold_left, the
+     class key often appears near the end (the container argument). *)
+  let rec try_args = function
+    | [] -> None
+    | arg :: rest -> (
+        match mono_type_of_value arg with
+        | Some tau -> (
+            match try_from_tau tau with
+            | Some (Ok v) -> Some (Ok v)
+            | Some (Error _) | None -> (
+                match arg with
+                | ListValue [] -> (
+                    match try_from_empty_list_shape () with
+                    | Some (Ok v) -> Some (Ok v)
+                    | Some (Error _) | None -> (
+                        match try_any_dict_for_class () with
+                        | Some (Ok v) -> Some (Ok v)
+                        | Some (Error _) | None -> try_args rest))
+                | _ -> (
+                    match try_any_dict_for_class () with
+                    | Some (Ok v) -> Some (Ok v)
+                    | Some (Error _) | None -> try_args rest)))
+        | None -> (
+            match arg with
+            | ListValue [] -> (
+                match try_from_empty_list_shape () with
+                | Some (Ok v) -> Some (Ok v)
+                | Some (Error _) | None -> (
+                    match try_any_dict_for_class () with
+                    | Some (Ok v) -> Some (Ok v)
+                    | Some (Error _) | None -> try_args rest))
+            | _ -> (
+                match try_any_dict_for_class () with
+                | Some (Ok v) -> Some (Ok v)
+                | Some (Error _) | None -> try_args rest)))
+  in
+  match try_args (List.rev args) with
+  | Some result -> result
+  | None -> return (TypeClassMethodPending (cls_name, method_name, args))
 and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   match (f, v) with
   | Println, StringValue s ->

@@ -21,7 +21,6 @@ impl Monad for Option {
   let return x = Some x
 }
 
-
 type rec List<a> =
   | Nil
   | Cons of (a, List<a>)
@@ -52,4 +51,6 @@ let res = fold_left (fn acc -> fn x -> acc + x) 0 my_list
 
 let () = println (int_to_str res)
 
-let join<Monad m> (x : m<m<a>>) = x
+let fold<Foldable t> (f : b -> a -> b) (acc : b) (xs : t<a>) = fold_left f acc xs
+
+let f<Monad m> (x : a) = return x

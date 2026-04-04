@@ -1193,9 +1193,13 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
                 reduce_eq_acc acc (arg_equations @ c')
               else raise TypeFailure
           | TCtorApp (w1, as1), TCtorApp (w2, as2) ->
-              if w1 = w2 && List.length as1 = List.length as2 then
+              if List.length as1 = List.length as2 then
                 let arg_equations = List.combine as1 as2 in
-                reduce_eq_acc acc (arg_equations @ c')
+                if w1 = w2 then reduce_eq_acc acc (arg_equations @ c')
+                else if is_solver_tctor_head_name w1 || is_solver_tctor_head_name w2 then
+                  reduce_eq_acc acc
+                    ((TypeVar w1, TypeVar w2) :: arg_equations @ c')
+                else raise TypeFailure
               else raise TypeFailure
           | TCtorApp (w, as1), CTypeApp (n, as2)
           | CTypeApp (n, as2), TCtorApp (w, as1) ->
@@ -1341,7 +1345,7 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
               Error
                 (OtherError
                    "internal: [] expects exactly one type argument in this context"))
-      | TypeVar _ -> return (TCtorApp (w, resolved_args))
+      | TypeVar w' -> return (TCtorApp (w', resolved_args))
       | _ ->
           Error
             (OtherError
@@ -1533,6 +1537,7 @@ and generalize ?(class_preds : class_equations = []) (constraints : type_equatio
   in
   let preds_with_remaining_tyvars =
     List.filter (fun (_, tau) -> get_type_vars tau <> []) preds_solved
+    |> List.sort_uniq compare
   in
   let pred_tyvars_for_gen =
     List.concat_map (fun (_, tau) -> get_type_vars tau) preds_with_remaining_tyvars
@@ -1789,14 +1794,17 @@ and swap_all_variables_in_type (t : mono_type) : mono_type type_check_result =
 
 and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
     (static_env * type_env * constructor_env) type_check_result =
-  let align_explicit_constraints_to_inferred
-      (inferred : class_equations)
-      (explicit : class_equations) : class_equations =
-    List.map
-      (fun (cls, ty_explicit) ->
-        match List.find_opt (fun (c, _) -> c = cls) inferred with
-        | Some (_, ty_inferred) -> (cls, ty_inferred)
-        | None -> (cls, ty_explicit))
+  let class_constraint_link_equations (inferred : class_equations)
+      (explicit : class_equations) : type_equations =
+    List.filter_map
+      (fun (cls_explicit, ty_explicit) ->
+        match
+          List.find_opt
+            (fun (cls_inferred, _) -> cls_inferred = cls_explicit)
+            inferred
+        with
+        | Some (_, ty_inferred) -> Some (ty_inferred, ty_explicit)
+        | None -> None)
       explicit
   in
   match defn with
@@ -1811,8 +1819,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       let- body_type, body_equations, _ = generate env type_env body in
       let p_body = !pending_expression_class_preds in
       pending_expression_class_preds := [];
-      let explicit_constraints' =
-        align_explicit_constraints_to_inferred p_body explicit_class_constraints
+      let class_link_equations =
+        class_constraint_link_equations p_body explicit_class_constraints
       in
 
       (* Get pattern type and bindings *)
@@ -1852,13 +1860,14 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       (* Combine all equations *)
       let all_equations =
         body_equations @ pattern_equations @ annotation_equations
-        @ return_type_equations @ [ pattern_body_constraint ]
+        @ return_type_equations @ class_link_equations
+        @ [ pattern_body_constraint ]
       in
 
       (* Generalize the body type *)
       let- generalized_type =
         generalize
-          ~class_preds:(p_body @ explicit_constraints')
+          ~class_preds:(p_body @ explicit_class_constraints)
           all_equations env type_env body_type
       in
 
@@ -1895,8 +1904,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       let- body_type, body_equations, _ = generate rec_env type_env body in
       let p_body = !pending_expression_class_preds in
       pending_expression_class_preds := [];
-      let explicit_constraints' =
-        align_explicit_constraints_to_inferred p_body explicit_class_constraints
+      let class_link_equations =
+        class_constraint_link_equations p_body explicit_class_constraints
       in
 
       (* Add constraint that the recursive type must match the body type *)
@@ -1934,13 +1943,14 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       (* Combine all equations *)
       let all_equations =
         body_equations @ pattern_equations @ annotation_equations
-        @ return_type_equations @ [ rec_constraint; pattern_body_constraint ]
+        @ return_type_equations @ class_link_equations
+        @ [ rec_constraint; pattern_body_constraint ]
       in
 
       (* Generalize the body type *)
       let- generalized_type =
         generalize
-          ~class_preds:(p_body @ explicit_constraints')
+          ~class_preds:(p_body @ explicit_class_constraints)
           all_equations env type_env body_type
       in
 

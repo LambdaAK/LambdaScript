@@ -121,6 +121,9 @@ and value =
   | BuiltInFunction of builtin_function
   (** Resolve [class_name, method_name] at apply-time using instance dicts in the env. *)
   | TypeClassMethod of string * string
+  (** Curried typeclass method call waiting for an argument that reveals
+      the instance shape. Stores already-applied arguments. *)
+  | TypeClassMethodPending of string * string * value list
   | VariantValue of string * value option
   | RecordValue of (string * value) list
 (* Constructor name and optional payload value *)
