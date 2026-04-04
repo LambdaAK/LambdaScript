@@ -581,7 +581,15 @@ and string_of_defn (d : defn) (level : int) =
   | ClassDef (name, args, methods) ->
       "ClassDef ("
       ^ name
-      ^ (if args = [] then "" else ", [" ^ String.concat ", " args ^ "]")
+      ^ (if args = [] then ""
+         else
+           ", ["
+           ^ String.concat ", "
+               (List.map
+                  (fun (a, k) ->
+                    a ^ if k >= 0 then "(" ^ string_of_int k ^ ")" else "(infer)")
+                  args)
+           ^ "]")
       ^ ", ["
       ^ String.concat ", "
           (List.map

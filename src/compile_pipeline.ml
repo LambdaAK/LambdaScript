@@ -19,6 +19,10 @@ let read_file filename =
   in
   read ""
 
+let read_program_source ?(prelude = true) (src_path : string) : string =
+  let raw = read_file src_path in
+  Prelude.prepend_to_source ~enabled:prelude ~src_path raw
+
 let runtime_c_path () =
   let candidate_in dir = Filename.concat dir "runtime/ls_runtime.c" in
   let rec search_up dir =
@@ -56,9 +60,9 @@ let rec typecheck_defns static_env type_env ctor_env defns
           typecheck_defns (nb @ static_env) (nte @ type_env) (nce @ ctor_env) rest
       | Error e -> Error (string_of_type_check_error e))
 
-let compile ?(quiet = false) (src_path : string) (out_path : string) :
-    (unit, string) result =
-  let file_contents = read_file src_path in
+let compile ?(quiet = false) ?(prelude = true) (src_path : string)
+    (out_path : string) : (unit, string) result =
+  let file_contents = read_program_source ~prelude src_path in
   let tokens =
     lex (file_contents |> String.to_seq |> List.of_seq)
     |> List.map (fun t -> t.token_type)

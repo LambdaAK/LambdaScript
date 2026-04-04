@@ -1175,6 +1175,11 @@ end = struct
     return (cls, ty)
 
   let optional_class_constraints_parser : (string * compound_type) list parser =
+    (let* () = expect_token LBracket in
+     let* cs = parse_sep_delim class_constraint_parser Comma in
+     let* () = expect_token RBracket in
+     return cs)
+    <|>
     (let* () =
        expect_token_get_data (function
          | Relop "<" -> Some ()
@@ -1341,43 +1346,72 @@ end = struct
     let* ct = CompoundTypeParser.compound_type_parser in
     return (name, ct)
 
+  (** One trait/inter type parameter: [a] or [m<_>] / [f<_, _>] (kind = count of
+      [_]). Without a kind annotation, arity is [-1] (inferred).
+
+      Kind slots use [_] or [_] as [Id "_"]: the lexer treats a lone [_] as an
+      identifier because underscore is [is_letter]. *)
+  let kind_slot_parser : unit parser =
+    expect_token WildcardPattern
+    <|> expect_token_get_data (function
+      | Id s when s = "_" -> Some ()
+      | _ -> None)
+
+  let trait_type_param_parser : (string * int) parser =
+    let* name = string_parser in
+    (let* () =
+       expect_token_get_data (function
+         | Relop s when s = "<" -> Some ()
+         | _ -> None)
+     in
+     let* slots = parse_sep_delim kind_slot_parser Comma in
+     let* () =
+       expect_token_get_data (function
+         | Relop s when s = ">" -> Some ()
+         | _ -> None)
+     in
+     return (name, List.length slots))
+    <|> return (name, -1)
+
+  let trait_param_list_parser : (string * int) list parser =
+    (let* () =
+       expect_token_get_data (function
+         | Relop s when s = "<" -> Some ()
+         | _ -> None)
+     in
+     let* ps = parse_sep_delim trait_type_param_parser Comma in
+     let* () =
+       expect_token_get_data (function
+         | Relop s when s = ">" -> Some ()
+         | _ -> None)
+     in
+     return ps)
+    <|> return []
+
   let class_defn_parser () : defn parser =
-    let* () = expect_token Inter in
+    let* () =
+      expect_token Inter <|> expect_token Trait
+    in
     let* class_name =
       expect_token_get_data (function
         | Id s -> Some s
         | _ -> None)
     in
-    let* params =
-      (let* () =
-         expect_token_get_data (function
-           | Relop "<" -> Some ()
-           | _ -> None)
-       in
-       let* ps = parse_sep_delim string_parser Comma in
-       let* () =
-         expect_token_get_data (function
-           | Relop ">" -> Some ()
-           | _ -> None)
-       in
-       return ps)
-      <|> return []
+    let* params = trait_param_list_parser in
+    let* methods =
+      (let* () = expect_token Where in
+       let* ms = parse_one_or_more_opt_commas method_row_parser in
+       let* () = expect_token End in
+       return ms)
+      <|>
+      (let* () = expect_token LBrace in
+       let* ms = parse_one_or_more_opt_commas method_row_parser in
+       let* () = expect_token RBrace in
+       return ms)
     in
-    let* () = expect_token LBrace in
-    let* methods = parse_one_or_more_opt_commas method_row_parser in
-    let* () = expect_token RBrace in
     return (ClassDef (class_name, params, methods))
 
   let instance_defn_parser () : defn parser =
-    let* () = expect_token Impl in
-    let* cls =
-      expect_token_get_data (function
-        | Id s -> Some s
-        | _ -> None)
-    in
-    let* () = expect_token For in
-    let* head_ty = CompoundTypeParser.compound_type_parser in
-    let* () = expect_token LBrace in
     let impl_row_parser =
       let* () = expect_token Let in
       let* (name, body_expr) =
@@ -1403,7 +1437,7 @@ end = struct
            | _ ->
                failwith
                  "parser: constraints/type annotations are not allowed on impl let \
-                  bindings (types come from the inter)"
+                  bindings (types come from the inter/trait)"
          in
          let name =
            match pat with
@@ -1433,7 +1467,7 @@ end = struct
            | _ ->
                failwith
                  "parser: constraints/type annotations are not allowed on impl let \
-                  bindings (types come from the inter)"
+                  bindings (types come from the inter/trait)"
          in
          let name =
            match pat with
@@ -1447,9 +1481,34 @@ end = struct
       in
       return (name, body_expr)
     in
-    let* impls = parse_one_or_more_opt_commas impl_row_parser in
-    let* () = expect_token RBrace in
-    return (InstanceDef (cls, head_ty, impls))
+    let* () = expect_token Impl in
+    let* cls =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    (let* () =
+       expect_token_get_data (function
+         | Relop s when s = "<" -> Some ()
+         | _ -> None)
+     in
+     let* head_ty = CompoundTypeParser.compound_type_parser in
+     let* () =
+       expect_token_get_data (function
+         | Relop s when s = ">" -> Some ()
+         | _ -> None)
+     in
+     let* () = expect_token Where in
+     let* impls = parse_one_or_more_opt_commas impl_row_parser in
+     let* () = expect_token End in
+     return (InstanceDef (cls, head_ty, impls)))
+    <|>
+    (let* () = expect_token For in
+     let* head_ty = CompoundTypeParser.compound_type_parser in
+     let* () = expect_token LBrace in
+     let* impls = parse_one_or_more_opt_commas impl_row_parser in
+     let* () = expect_token RBrace in
+     return (InstanceDef (cls, head_ty, impls)))
 
   let constructor_parser : (string * compound_type option) parser =
     let* () = expect_token Pipe in

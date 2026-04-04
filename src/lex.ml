@@ -43,7 +43,6 @@ type token_type =
   | FloatType
   | LBracket
   | RBracket
-  | Bind
   | In
   | BindArrow
   | LBrace
@@ -68,8 +67,11 @@ type token_type =
   | Dot
   | With
   | Inter
+  | Trait
   | Impl
   | Val
+  | Where
+  | End
 
 type token = {
   token_type : token_type;
@@ -123,7 +125,6 @@ let string_of_token_type : token_type -> string = function
   | UnitType -> "<unit type>"
   | LBracket -> "<left bracket>"
   | RBracket -> "<right bracket>"
-  | Bind -> "<bind>"
   | BindArrow -> "<bind arrow>"
   | In -> "<in>"
   | LBrace -> "<lbrace>"
@@ -152,8 +153,11 @@ let string_of_token_type : token_type -> string = function
   | Dot -> "<dot>"
   | With -> "<with>"
   | Inter -> "<inter>"
+  | Trait -> "<trait>"
   | Impl -> "<impl>"
   | Val -> "<val>"
+  | Where -> "<where>"
+  | End -> "<end>"
 [@@coverage off]
 
 let string_of_token : token -> string =
@@ -302,7 +306,6 @@ let keywords =
     ("let", Let);
     ("rec", Rec);
     ("and", And);
-    ("bind", Bind);
     ("fn", Fn);
     ("for", For);
     ("switch", Switch);
@@ -317,7 +320,10 @@ let keywords =
     (* [inter] shares a prefix with [in]; [in] must appear earlier so lexing
        retries and eventually matches [inter]. *)
     ("inter", Inter);
+    ("trait", Trait);
     ("impl", Impl);
+    ("where", Where);
+    ("end", End);
   ]
   |> List.map (fun (s, t) -> (list_of_string s, t))
 

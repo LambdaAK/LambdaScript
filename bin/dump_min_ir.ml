@@ -6,20 +6,12 @@ open Language.Build_env
 open Language.Min_ir
 
 let dump_ir (filename : string) =
-  let channel =
-    try open_in filename
+  let file_contents =
+    try Language.Compile_pipeline.read_program_source filename
     with Sys_error msg ->
       print_endline ("Error opening file: " ^ msg);
       exit 1
   in
-  let file_contents =
-    let rec read_all acc =
-      try read_all (acc ^ input_line channel ^ "\n")
-      with End_of_file -> acc
-    in
-    read_all ""
-  in
-  close_in channel;
 
   let tokens =
     lex (file_contents |> String.to_seq |> List.of_seq)

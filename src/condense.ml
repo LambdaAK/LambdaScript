@@ -387,23 +387,39 @@ let condense_program (defns : defn list) : c_defn list =
       (seen_ctors : (string * int) list) (seen_instances : string list)
       (acc : c_defn list) = function
     | [] -> List.rev acc
-    | ClassDef (name, params, methods) :: rest ->
+    | ClassDef (name, param_specs, methods) :: rest ->
+        let params = List.map fst param_specs in
         if params = [] then
-          failwith "forge: inter needs a type parameter list <a> (MVP)";
+          failwith "forge: inter/trait needs a type parameter list <a> (MVP)";
         let params_uniq = List.sort_uniq String.compare params in
         if List.length params_uniq <> List.length params then
-          failwith "forge: duplicate type parameter in inter";
+          failwith "forge: duplicate type parameter in inter/trait";
         if List.exists (fun (n, _) -> n = name) classes then
-          failwith ("forge: duplicate inter: " ^ name);
+          failwith ("forge: duplicate inter/trait: " ^ name);
         if List.length params <> 1 then
           failwith
-            "forge: exactly one inter type parameter is supported in this MVP";
+            "forge: exactly one inter/trait type parameter is supported in this MVP";
         let methods_mono_raw =
           List.map (fun (m, ct) -> (m, condense_compound_type ct)) methods
         in
-        let param_arities =
+        let param_arities_inferred =
           Type_arity.infer_inter_param_arities params
             (List.map snd methods_mono_raw)
+        in
+        let param_arities =
+          List.map
+            (fun (p, explicit) ->
+              let inferred = List.assoc p param_arities_inferred in
+              if explicit >= 0 then (
+                if inferred > 0 && inferred <> explicit then
+                  failwith
+                    ("forge: trait " ^ name ^ ": explicit arity for " ^ p
+                   ^ " does not match use in method signatures (expected "
+                   ^ string_of_int explicit ^ ", inferred "
+                   ^ string_of_int inferred ^ ")");
+                (p, explicit))
+              else (p, inferred))
+            param_specs
         in
         let methods_mono =
           List.map

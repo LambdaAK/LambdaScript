@@ -106,7 +106,7 @@ let test_one case_path =
   let src = Filename.concat dir "prog.ls" in
   let exe = Filename.concat dir "prog_out" in
   Out_channel.with_open_bin src (fun oc -> Out_channel.output_string oc program);
-  match Language.Compile_pipeline.compile ~quiet:true src exe with
+  match Language.Compile_pipeline.compile ~quiet:true ~prelude:false src exe with
   | Error msg -> assert_failure ("compile failed: " ^ msg)
   | Ok () ->
       let actual = run_exe_capture_stdout exe in

@@ -349,9 +349,7 @@ let rec run_repl_loop static_env dynamic_env type_env history =
 
 let load_file_into_env filename static_env dynamic_env type_env =
   try
-    let ic = open_in filename in
-    let content = really_input_string ic (in_channel_length ic) in
-    close_in ic;
+    let content = Language.Compile_pipeline.read_program_source filename in
 
     let input = content |> String.to_seq |> List.of_seq in
     let tokens = lex input |> List.map (fun t -> t.token_type) in
@@ -390,6 +388,31 @@ let load_file_into_env filename static_env dynamic_env type_env =
       print_error ("Error loading file: " ^ Printexc.to_string e);
       (static_env, dynamic_env, type_env)
 
+let merge_prelude static_env dynamic_env type_env =
+  let pre = Language.Prelude.contents () in
+  if String.trim pre = "" then (static_env, dynamic_env, type_env)
+  else
+    let input = pre |> String.to_seq |> List.of_seq in
+    let tokens = Language.Lex.lex input |> List.map (fun t -> t.token_type) in
+    match Language.Parser.ProgramParser.program_parser tokens with
+    | Some (program, []) ->
+        if program = [] then (static_env, dynamic_env, type_env)
+        else
+          let c_defns = Language.Condense.condense_program program in
+          (match process_condensed_defns static_env dynamic_env type_env c_defns with
+          | Language.Typecheck.Ok (se, de, te, _, _, _) -> (se, de, te)
+          | Language.Typecheck.Error e ->
+              print_error ("Prelude: " ^ string_of_type_check_error e);
+              (static_env, dynamic_env, type_env))
+    | Some (_, rem) ->
+        print_error
+          (Printf.sprintf "Prelude: %d token(s) left after parse"
+             (List.length rem));
+        (static_env, dynamic_env, type_env)
+    | None ->
+        print_error "Prelude: parse failed";
+        (static_env, dynamic_env, type_env)
+
 let run_repl ?preload_file () =
   (* Print welcome message *)
   print_colored_line (color_bold ^ color_cyan) "💻 Forge REPL";
@@ -401,6 +424,10 @@ let run_repl ?preload_file () =
     Language.Ceval.initial_env () |> Language.Ceval.unwrap_eval_result
   in
   let type_env = [] in
+
+  let static_env, dynamic_env, type_env =
+    merge_prelude static_env dynamic_env type_env
+  in
 
   (* Load preload file if provided *)
   let static_env, dynamic_env, type_env =
