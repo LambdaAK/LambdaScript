@@ -9,8 +9,6 @@ type Option<a> =
   | None
   | Some of a
 
-
-
 // The Functor typeclass abstracts over data types that can be mapped over.
 // A Functor represents types that can be “lifted” with a function from (a -> b)
 // so that the function is applied inside the container/context f<_>.
@@ -116,6 +114,15 @@ impl Show for String where
   let show s = s
 end
 
+impl Semigroup for String where
+  let mappend x y = str_concat x y
+  let (++) x y = mappend x y
+end
+
+impl Monoid for String where
+  let empty = ""
+end
+
 // List
 
 impl Semigroup for List<a> where
@@ -154,8 +161,6 @@ impl Monad for Option where
     | None -> None
     | Some v -> f v
 end
-
-// Option
 
 impl Semigroup for Option<a> where
   let mappend x y = 
