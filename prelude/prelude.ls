@@ -85,6 +85,8 @@ end
 // Eq provides equality comparison for a type.
 trait Eq<a> where
   val (==) : a -> a -> Bool
+  val (!=) : a -> a -> Bool
+  let (!=) x y = if (==) x y then false else true
 end
 
 // Ord provides ordering comparison for a type.

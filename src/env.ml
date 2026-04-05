@@ -79,7 +79,6 @@ let built_ins : (string * value * c_type) list =
     (">=", UnitValue, Mono (IntType => (IntType => BoolType)));
     ("==", UnitValue, Mono (IntType => (IntType => BoolType)));
     ("!=", UnitValue, Mono (IntType => (IntType => BoolType)));
-    ("<>", UnitValue, Mono (IntType => (IntType => BoolType)));
     (* Logical operators *)
     ("&&", UnitValue, Mono (BoolType => (BoolType => BoolType)));
     ("||", UnitValue, Mono (BoolType => (BoolType => BoolType)));
@@ -139,7 +138,6 @@ filter|}
     (">=", {|fn a -> fn b -> a >= b|});
     ("==", {|fn a -> fn b -> a == b|});
     ("!=", {|fn a -> fn b -> if a == b then false else true|});
-    ("<>", {|fn a -> fn b -> if a == b then false else true|});
     ("&&", {|fn a -> fn b -> a && b|});
     ("||", {|fn a -> fn b -> a || b|});
     ( "list_length",
