@@ -189,6 +189,8 @@ and builtin_function =
   | StrSlice
   | StrSlicePartial1 of string
   | StrSlicePartial2 of string * int
+  | GenericEq
+  | GenericEqPartial of value
 
 and env = (string * value) list
 

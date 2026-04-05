@@ -30,6 +30,23 @@ let built_ins : (string * value * c_type) list =
     ("Char", UnitValue, Mono CharType);
     ("Float", UnitValue, Mono FloatType);
     ("Unit", UnitValue, Mono UnitType);
+    (* Equality primitives for Eq typeclass *)
+    ("int_eq", BuiltInFunction GenericEq, Mono (IntType => (IntType => BoolType)));
+    ( "float_eq",
+      BuiltInFunction GenericEq,
+      Mono (FloatType => (FloatType => BoolType)) );
+    ( "str_eq",
+      BuiltInFunction GenericEq,
+      Mono (StringType => (StringType => BoolType)) );
+    ( "char_eq",
+      BuiltInFunction GenericEq,
+      Mono (CharType => (CharType => BoolType)) );
+    ( "bool_eq",
+      BuiltInFunction GenericEq,
+      Mono (BoolType => (BoolType => BoolType)) );
+    ( "unit_eq",
+      BuiltInFunction GenericEq,
+      Mono (UnitType => (UnitType => BoolType)) );
     (* Arithmetic operators *)
     ("+", UnitValue, Mono (IntType => (IntType => IntType)));
     ("-", UnitValue, Mono (IntType => (IntType => IntType)));

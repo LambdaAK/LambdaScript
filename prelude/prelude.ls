@@ -77,6 +77,11 @@ trait Show<a> where
   val show : a -> String
 end
 
+// Eq provides equality comparison for a type.
+trait Eq<a> where
+  val (==) : a -> a -> Bool
+end
+
 // Semigroup represents types with an associative binary operation called mappend.
 trait Semigroup<a> where
   // mappend : a -> a -> a
@@ -98,10 +103,18 @@ impl Show for Int where
   let show x = int_to_str x
 end
 
+impl Eq for Int where
+  let (==) x y = int_eq x y
+end
+
 // Bool
 
 impl Show for Bool where
   let show x = if x then "true" else "false"
+end
+
+impl Eq for Bool where
+  let (==) x y = bool_eq x y
 end
 
 // Unit
@@ -110,8 +123,18 @@ impl Show for Unit where
   let show () = "()"
 end
 
+impl Eq for Unit where
+  let (==) x y = unit_eq x y
+end
+
+// String
+
 impl Show for String where
   let show s = s
+end
+
+impl Eq for String where
+  let (==) x y = str_eq x y
 end
 
 impl Semigroup for String where
@@ -121,6 +144,18 @@ end
 
 impl Monoid for String where
   let empty = ""
+end
+
+// Float
+
+impl Eq for Float where
+  let (==) x y = float_eq x y
+end
+
+// Char
+
+impl Eq for Char where
+  let (==) x y = char_eq x y
 end
 
 // List

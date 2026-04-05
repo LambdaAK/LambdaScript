@@ -706,6 +706,8 @@ and eval_builtin (f : builtin_function) (v : value) : value eval_result =
       let start = max 0 (min start s_len) in
       let len = max 0 (min len (s_len - start)) in
       StringValue (String.sub s start len) |> return
+  | GenericEq, v -> BuiltInFunction (GenericEqPartial v) |> return
+  | GenericEqPartial v1, v2 -> BooleanValue (v1 = v2) |> return
   | StrLength, _ -> Error (OtherError "str_length: expected string")
   | StrConcat, _ -> Error (OtherError "str_concat: expected string")
   | StrConcatPartial _, _ -> Error (OtherError "str_concat: expected string")

@@ -1,8 +1,8 @@
-let greeting = "hello" ++ " " ++ "world"
-let () = println greeting
-
-let s = mappend "foo" "bar"
-let () = println s
-
-let e = empty ++ "test"
-let () = println e
+let () = println (1 == 1)
+let () = println (1 == 2)
+let () = println ("hello" == "hello")
+let () = println ("hello" == "world")
+let () = println (true == true)
+let () = println (true == false)
+let () = println ('a' == 'a')
+let () = println ('a' == 'b')
