@@ -39,7 +39,8 @@ let rec ty_list_equal_ll (a : ty list) (b : ty list) : bool =
 
 and ty_equal_ll (a : ty) (b : ty) : bool =
   match (a, b) with
-  | I32, I32 | I1, I1 | String, String | Unit, Unit | RawPtr, RawPtr -> true
+  | I32, I32 | I1, I1 | F64, F64 | String, String | Unit, Unit | RawPtr, RawPtr
+    -> true
   | Tuple ts1, Tuple ts2 -> ty_list_equal_ll ts1 ts2
   | List e1, List e2 -> ty_equal_ll e1 e2
   | Fun (p1, r1), Fun (p2, r2) ->
@@ -77,6 +78,7 @@ and llvm_ll_ty_ctx (ctx : emit_ctx) (t : ty) : string =
   match t with
   | I32 -> "i32"
   | I1 -> "i1"
+  | F64 -> "double"
   | String -> "i8*"
   | Unit -> "void"
   | RawPtr -> "i8*"
@@ -130,6 +132,7 @@ and llvm_struct_elem_ty (ctx : emit_ctx) (t : ty) : string =
   match t with
   | I32 -> "i32"
   | I1 -> "i1"
+  | F64 -> "double"
   | String | RawPtr | Clos _ | List _ -> "i8*"
   | Unit -> "i8"
   | Fun (ps, r) -> llvm_fun_ptr_ty_ctx ctx ps r
@@ -151,6 +154,7 @@ let llvm_env_field_ll_ty (ctx : emit_ctx) (t : ty) : string =
   match t with
   | I1 -> "i32"
   | I32 -> "i32"
+  | F64 -> "double"
   | String | RawPtr | Clos _ | List _ -> "i8*"
   | Unit -> "i8"
   | Fun (ps, r) -> llvm_fun_ptr_ty_ctx ctx ps r
@@ -173,6 +177,7 @@ let rec layout_byte_size (xs : ty list) : int =
   let sz_al = function
     | I32 -> (4, 4)
     | I1 -> (4, 4)
+    | F64 -> (8, 8)
     | String | RawPtr | Clos _ | List _ -> (8, 8)
     | Unit -> (1, 8)
     | Fun _ -> (8, 8)
@@ -278,6 +283,12 @@ let runtime_declarations : string =
    declare i8* @ls_int_to_str(i32)\n\
    declare i8* @ls_str_concat(i8*, i8*)\n\
    declare i32 @strcmp(i8*, i8*)\n\
+   declare i32 @ls_float_eq(double, double)\n\
+   declare i8* @ls_ordering_int32(i32, i32)\n\
+   declare i8* @ls_ordering_str(i8*, i8*)\n\
+   declare i8* @ls_ordering_bool(i8, i8)\n\
+   declare i8* @ls_ordering_float(double, double)\n\
+   declare i8* @ls_ordering_char(i32, i32)\n\
    declare i8* @ls_malloc(i64)\n\
    declare i8* @ls_mkclos(i8*, i8*)\n\
    declare i8* @ls_variant_mk(i32, i8*)\n\
@@ -310,6 +321,7 @@ let emit_global_string ctx (dst : string) (s : string) : string =
 let operand_min_ty (h : (string, ty) H.t) : operand -> ty = function
   | ConstI32 _ -> I32
   | ConstI1 _ -> I1
+  | ConstF64 _ -> F64
   | ConstStr _ -> String
   | ConstUnit -> Unit
   | FnAddr (_, ps, r) -> Fun (ps, r)
@@ -324,6 +336,7 @@ let emit_operand (ctx : emit_ctx) (h : (string, ty) H.t) (op : operand) :
   match op with
   | ConstI32 n -> ("i32", string_of_int n)
   | ConstI1 b -> ("i1", if b then "true" else "false")
+  | ConstF64 f -> ("double", Printf.sprintf "double %.17g" f)
   | ConstStr _ -> failwith "llvm_emit: ConstStr must use Copy/global"
   | ConstUnit -> ("i8", "0")
   | FnAddr (name, ps, r) ->
@@ -407,6 +420,11 @@ let emit_copy_dst (ctx : emit_ctx) (h : (string, ty) H.t)
       in
       lines := !lines @ [ ins ];
       H.replace h dst (operand_min_ty h o)
+  | ConstF64 _ ->
+      let _, v = emit_operand ctx h o in
+      let ins = Printf.sprintf "  %%%s = fadd double %s, 0.0" dst v in
+      lines := !lines @ [ ins ];
+      H.replace h dst F64
   | ConstUnit ->
       lines := !lines @ [ Printf.sprintf "  %%%s = add i8 0, 0" dst ];
       H.replace h dst Unit
@@ -433,6 +451,8 @@ let emit_copy_dst (ctx : emit_ctx) (h : (string, ty) H.t)
               Printf.sprintf "  %%%s = bitcast %s %s to %s" dst t v t
             else if t = "i32" then Printf.sprintf "  %%%s = add nsw i32 %s, 0" dst v
             else if t = "i1" then Printf.sprintf "  %%%s = xor i1 %s, false" dst v
+            else if t = "double" then
+              Printf.sprintf "  %%%s = fadd double %s, 0.0" dst v
             else if t = "i8*" then
               Printf.sprintf "  %%%s = bitcast i8* %s to i8*" dst v
             else if (match ty with Clos _ | RawPtr -> true | _ -> false) then
@@ -459,6 +479,9 @@ let phi_incoming_val (h : (string, ty) H.t) (exp_ty : ty) (op : operand) :
   | ConstI1 b ->
       check_exp_const I1;
       if b then "true" else "false"
+  | ConstF64 f ->
+      check_exp_const F64;
+      Printf.sprintf "double %.17g" f
   | Local x -> (
       (* Merge blocks may be emitted before all predecessors in block order;
          the local may not be in [h] yet. LLVM phis only reference values from
@@ -671,6 +694,117 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
                       ];
                   H.replace h dst I32
               | _ -> failwith "llvm_emit: strcmp arity")
+          | "float_eq" -> (
+              match args with
+              | [ a; b ] ->
+                  let ta, va = emit_operand ctx h a in
+                  let tb, vb = emit_operand ctx h b in
+                  if ta <> "double" || tb <> "double" then
+                    failwith "llvm_emit: float_eq expects two doubles";
+                  lines :=
+                    !lines
+                    @ [
+                        Printf.sprintf
+                          "  %%%s = call i32 @ls_float_eq(double %s, double %s)" dst
+                          va vb;
+                      ];
+                  H.replace h dst I32
+              | _ -> failwith "llvm_emit: float_eq arity")
+          | "ordering_int32" -> (
+              match args with
+              | [ a; b ] ->
+                  let ta, va = emit_operand ctx h a in
+                  let tb, vb = emit_operand ctx h b in
+                  if ta <> "i32" || tb <> "i32" then
+                    failwith "llvm_emit: ordering_int32 expects i32";
+                  lines :=
+                    !lines
+                    @ [
+                        Printf.sprintf
+                          "  %%%s = call i8* @ls_ordering_int32(i32 %s, i32 %s)" dst va
+                          vb;
+                      ];
+                  H.replace h dst RawPtr
+              | _ -> failwith "llvm_emit: ordering_int32 arity")
+          | "ordering_char" -> (
+              match args with
+              | [ a; b ] ->
+                  let ta, va = emit_operand ctx h a in
+                  let tb, vb = emit_operand ctx h b in
+                  if ta <> "i32" || tb <> "i32" then
+                    failwith "llvm_emit: ordering_char expects i32";
+                  lines :=
+                    !lines
+                    @ [
+                        Printf.sprintf
+                          "  %%%s = call i8* @ls_ordering_char(i32 %s, i32 %s)" dst va vb;
+                      ];
+                  H.replace h dst RawPtr
+              | _ -> failwith "llvm_emit: ordering_char arity")
+          | "ordering_str" -> (
+              match args with
+              | [ a; b ] ->
+                  let i8star_arg op =
+                    match op with
+                    | ConstStr s ->
+                        let tmp = fresh_emit_aux ctx in
+                        lines := !lines @ [ emit_global_string ctx tmp s ];
+                        H.replace h tmp String;
+                        Printf.sprintf "i8* %%%s" tmp
+                    | _ ->
+                        let ta, va = emit_operand ctx h op in
+                        if ta <> "i8*" then
+                          failwith "llvm_emit: ordering_str expects strings";
+                        Printf.sprintf "i8* %s" va
+                  in
+                  let aa = i8star_arg a in
+                  let ab = i8star_arg b in
+                  lines :=
+                    !lines
+                    @ [
+                        Printf.sprintf "  %%%s = call i8* @ls_ordering_str(%s, %s)" dst aa
+                          ab;
+                      ];
+                  H.replace h dst RawPtr
+              | _ -> failwith "llvm_emit: ordering_str arity")
+          | "ordering_bool" -> (
+              match args with
+              | [ a; b ] ->
+                  let zext_i1 op =
+                    let t, v = emit_operand ctx h op in
+                    if t <> "i1" then failwith "llvm_emit: ordering_bool expects i1";
+                    let tmp = fresh_emit_aux ctx in
+                    lines :=
+                      !lines
+                      @ [ Printf.sprintf "  %%%s = zext i1 %s to i8" tmp v ];
+                    Printf.sprintf "i8 %%%s" tmp
+                  in
+                  let aa = zext_i1 a in
+                  let ab = zext_i1 b in
+                  lines :=
+                    !lines
+                    @ [
+                        Printf.sprintf "  %%%s = call i8* @ls_ordering_bool(%s, %s)" dst aa
+                          ab;
+                      ];
+                  H.replace h dst RawPtr
+              | _ -> failwith "llvm_emit: ordering_bool arity")
+          | "ordering_float" -> (
+              match args with
+              | [ a; b ] ->
+                  let ta, va = emit_operand ctx h a in
+                  let tb, vb = emit_operand ctx h b in
+                  if ta <> "double" || tb <> "double" then
+                    failwith "llvm_emit: ordering_float expects double";
+                  lines :=
+                    !lines
+                    @ [
+                        Printf.sprintf
+                          "  %%%s = call i8* @ls_ordering_float(double %s, double %s)" dst
+                          va vb;
+                      ];
+                  H.replace h dst RawPtr
+              | _ -> failwith "llvm_emit: ordering_float arity")
           | "ls_variant_mk" -> (
               match args with
               | [ tag; pl ] ->
@@ -1029,6 +1163,15 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
                 Printf.sprintf "  %%%s = bitcast i8* %%%s to i32*" bp dst;
                 Printf.sprintf "  store i32 %%%s, i32* %%%s" wz bp;
               ]
+      | F64 ->
+          let got_ll, vv = emit_operand ctx h op in
+          if got_ll <> "double" then failwith "llvm_emit: HeapBox f64";
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf "  %%%s = bitcast i8* %%%s to double*" bp dst;
+                Printf.sprintf "  store double %s, double* %%%s" vv bp;
+              ]
       | Unit ->
           lines :=
             !lines
@@ -1090,6 +1233,14 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
                 Printf.sprintf "  %%%s = icmp ne i32 %%%s, 0" dst wl;
               ];
           H.replace h dst I1
+      | F64 ->
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf "  %%%s = bitcast i8* %s to double*" bp pv;
+                Printf.sprintf "  %%%s = load double, double* %%%s" dst bp;
+              ];
+          H.replace h dst F64
       | Unit ->
           lines :=
             !lines
@@ -1169,7 +1320,15 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
       | _ -> failwith "llvm_emit: MkClos result must be Clos")
   | ClosApply { clo; arg; result_ty } ->
       let _, clos_v = emit_operand ctx h clo in
-      let aty, av = emit_operand ctx h arg in
+      let aty, av =
+        match arg with
+        | ConstStr s ->
+            let tmp = fresh_emit_aux ctx in
+            lines := !lines @ [ emit_global_string ctx tmp s ];
+            H.replace h tmp String;
+            ("i8*", "%" ^ tmp)
+        | _ -> emit_operand ctx h arg
+      in
       let ret_ll = llvm_ll_ty_ctx ctx result_ty in
       let p = dst ^ "_cp" in
       let g_code = dst ^ "_gcd" in
@@ -1214,9 +1373,16 @@ let emit_term (ctx : emit_ctx) (h : (string, ty) H.t)
     | false, I1, Some o ->
         let _ty, v = emit_operand ctx h o in
         lines := !lines @ [ Printf.sprintf "  ret i1 %s" v ]
-    | false, String, Some o ->
-        let _ty, v = emit_operand ctx h o in
-        lines := !lines @ [ Printf.sprintf "  ret i8* %s" v ]
+    | false, String, Some o -> (
+        match o with
+        | ConstStr s ->
+            let tmp = fresh_emit_aux ctx in
+            lines := !lines @ [ emit_global_string ctx tmp s ];
+            H.replace h tmp String;
+            lines := !lines @ [ Printf.sprintf "  ret i8* %%%s" tmp ]
+        | _ ->
+            let _ty, v = emit_operand ctx h o in
+            lines := !lines @ [ Printf.sprintf "  ret i8* %s" v ])
     | false, Fun _, Some o ->
         let ty, v = emit_operand ctx h o in
         lines := !lines @ [ Printf.sprintf "  ret %s %s" ty v ]

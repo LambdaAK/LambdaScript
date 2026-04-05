@@ -19,6 +19,7 @@
 type ty =
   | I32
   | I1
+  | F64
   | String
   | Unit
   (** Heterogeneous tuple; lowered to an LLVM struct type. *)
@@ -42,6 +43,7 @@ type operand =
   | Local of string
   | ConstI32 of int
   | ConstI1 of bool
+  | ConstF64 of float
   (* UTF-8 string literal; lowering from [EString]. Codegen links to runtime. *)
   | ConstStr of string
   (* Placeholder result of [void] I/O; used when sequencing [println] etc. *)
@@ -150,6 +152,7 @@ let labels_of_func (f : func_def) : string list = List.map fst f.blocks
 let rec string_of_ty = function
   | I32 -> "i32"
   | I1 -> "i1"
+  | F64 -> "f64"
   | String -> "string"
   | Unit -> "unit"
   | Tuple ts ->
@@ -198,6 +201,7 @@ let string_of_operand = function
   | Local x -> "%" ^ x
   | ConstI32 n -> string_of_int n
   | ConstI1 b -> if b then "true" else "false"
+  | ConstF64 f -> Printf.sprintf "%.17g" f
   | ConstStr s -> Printf.sprintf "\"%s\"" (escape_string s)
   | ConstUnit -> "()"
   | FnAddr (n, ps, r) ->

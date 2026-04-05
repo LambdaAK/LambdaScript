@@ -80,6 +80,42 @@ char *ls_int_to_str(int32_t x) {
   return p;
 }
 
+/* --- Forge Eq / Ord builtins (native compiler) --- */
+
+int32_t ls_float_eq(double a, double b) { return (a == b) ? 1 : 0; }
+
+void *ls_ordering_int32(int32_t a, int32_t b) {
+  int32_t tag = (a < b) ? 0 : (a > b) ? 2 : 1;
+  return ls_variant_mk(tag, NULL);
+}
+
+void *ls_ordering_char(int32_t a, int32_t b) {
+  return ls_ordering_int32(a, b);
+}
+
+void *ls_ordering_str(const char *a, const char *b) {
+  int c = strcmp(a ? a : "", b ? b : "");
+  int32_t tag = (c < 0) ? 0 : (c > 0) ? 2 : 1;
+  return ls_variant_mk(tag, NULL);
+}
+
+void *ls_ordering_bool(int8_t xa, int8_t xb) {
+  int32_t a = xa ? 1 : 0;
+  int32_t b = xb ? 1 : 0;
+  return ls_ordering_int32(a, b);
+}
+
+void *ls_ordering_float(double a, double b) {
+  int32_t tag;
+  if (a < b)
+    tag = 0;
+  else if (a > b)
+    tag = 2;
+  else
+    tag = 1;
+  return ls_variant_mk(tag, NULL);
+}
+
 char *ls_str_concat(const char *a, const char *b) {
   size_t la = a ? strlen(a) : 0;
   size_t lb = b ? strlen(b) : 0;

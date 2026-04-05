@@ -137,6 +137,8 @@ and mono_to_min (m : mono_type) : ty =
   match m with
   | IntType -> I32
   | BoolType -> I1
+  | CharType -> I32
+  | FloatType -> F64
   | StringType -> String
   | UnitType -> Unit
   | FunctionType _ ->
@@ -155,7 +157,7 @@ and mono_to_min (m : mono_type) : ty =
          specialization) are pointer-like at runtime in current backend usage
          (sum/list instances). *)
       RawPtr
-  | FloatType | CharType | TypeName _ | CTypeApp _ | FixedPoint _ ->
+  | TypeName _ | CTypeApp _ | FixedPoint _ ->
       unsupported "Type not supported for native parameter/return yet"
   | RecordType fields ->
       let sorted = Cexpr.record_fields_sorted fields in
@@ -165,7 +167,8 @@ and mono_to_min (m : mono_type) : ty =
 
 let rec ty_equal (a : ty) (b : ty) : bool =
   match (a, b) with
-  | I32, I32 | I1, I1 | String, String | Unit, Unit | RawPtr, RawPtr -> true
+  | I32, I32 | I1, I1 | F64, F64 | String, String | Unit, Unit | RawPtr, RawPtr
+    -> true
   | Tuple t1, Tuple t2 ->
       List.length t1 = List.length t2 && List.for_all2 ty_equal t1 t2
   | Fun (p1, r1), Fun (p2, r2) ->
@@ -266,15 +269,54 @@ type expr_result =
 type env_binding =
   | Val of operand * ty * mono_type option
   | C of callable
+  (** Instance dictionary: getter function [name ^ "__getter"] returns the dict
+      value; avoids binding as a [Local] in [main] that nested functions cannot
+      see in LLVM. *)
+  | ForgeDict of ty
 
 type env = (string * env_binding) list
 
-(** Names handled by dedicated [EApp [`Id]] lowering; they are not stored in
-    [env] but resolve as global runtime symbols when used as values or inside
-    lambdas. *)
+(** Names handled by dedicated lowering; they are not stored in [env]. Excluded
+    from closure capture and resolved when referenced inside lambdas. *)
 let is_native_builtin_name : string -> bool = function
   | "print" | "print_string" | "int_to_str" -> true
+  | "str_concat" -> true
+  | "int_eq" | "float_eq" | "str_eq" | "char_eq" | "bool_eq" | "unit_eq" -> true
+  | "int_compare" | "float_compare" | "str_compare" | "char_compare"
+  | "bool_compare" | "unit_compare" ->
+      true
   | _ -> false
+
+(** Curried binary builtins: lowering uses synthetic {!callable} values and
+    {!emit_saturated_call} dispatches on [multi_direct]. *)
+let native_builtin_binary_callable (name : string) : callable option =
+  let mk md ps rt =
+    Some
+      {
+        multi_direct = md;
+        step_codes = [];
+        cap_tys = [];
+        cap_ops = [];
+        fixed = [];
+        param_tys = ps;
+        ret_ty = rt;
+      }
+  in
+  match name with
+  | "int_eq" -> mk "__builtin_int_eq" [ I32; I32 ] I1
+  | "bool_eq" -> mk "__builtin_bool_eq" [ I1; I1 ] I1
+  | "unit_eq" -> mk "__builtin_unit_eq" [ Unit; Unit ] I1
+  | "str_eq" -> mk "__builtin_str_eq" [ String; String ] I1
+  | "char_eq" -> mk "__builtin_char_eq" [ I32; I32 ] I1
+  | "float_eq" -> mk "__builtin_float_eq" [ F64; F64 ] I1
+  | "int_compare" -> mk "__builtin_int_compare" [ I32; I32 ] RawPtr
+  | "str_compare" -> mk "__builtin_str_compare" [ String; String ] RawPtr
+  | "bool_compare" -> mk "__builtin_bool_compare" [ I1; I1 ] RawPtr
+  | "unit_compare" -> mk "__builtin_unit_compare" [ Unit; Unit ] RawPtr
+  | "char_compare" -> mk "__builtin_char_compare" [ I32; I32 ] RawPtr
+  | "float_compare" -> mk "__builtin_float_compare" [ F64; F64 ] RawPtr
+  | "str_concat" -> mk "__builtin_str_concat" [ String; String ] String
+  | _ -> None
 
 (** LLVM symbols [ls_print], [ls_println], [ls_int_to_str] (see runtime). *)
 let native_builtin_as_fun_ptr (name : string) : (operand * ty) option =
@@ -406,6 +448,7 @@ let rec layout_byte_size_lower (xs : ty list) : int =
   let sz_al = function
     | I32 -> (4, 4)
     | I1 -> (4, 4)
+    | F64 -> (8, 8)
     | String | RawPtr | Clos _ | List _ -> (8, 8)
     | Unit -> (1, 8)
     | Fun _ -> (8, 8)
@@ -421,10 +464,18 @@ let rec layout_byte_size_lower (xs : ty list) : int =
     xs;
   max !acc 1
 
+let forge_dict_getter_symbol (dict_name : string) : string =
+  dict_name ^ "__getter"
+
 let rec capture_operand_for_var (env : env) (ctx : fn_ctx) (v : string) :
     ty * operand =
   match List.assoc_opt v env with
   | None -> unsupported ("Lambda captures unbound `" ^ v ^ "`")
+  | Some (ForgeDict t) ->
+      let tmp = fresh () in
+      emit_instr ctx
+        (Assign (tmp, Call (forge_dict_getter_symbol v, [])));
+      (t, Local tmp)
   | Some (Val (op, t, _)) -> (t, op)
   | Some (C c) ->
       let op, clo_ty = materialize_clos_lower env ctx c in
@@ -499,6 +550,14 @@ let is_poly_static (name : string) (static_env : static_env) : bool =
   | Some (PolyType _) | Some (Constrained _) -> true
   | Some (Mono _) | None -> false
 
+(** Instance dictionaries ([__forge_dict_*]) may carry a generalized scheme in the
+    static environment even though each binding is a single monomorphic record
+    at runtime. They must participate in closure capture like ordinary free
+    variables so nested functions do not reference outer-function locals that are
+    not in scope in LLVM. *)
+let is_forge_dict_name (name : string) : bool =
+  String.starts_with ~prefix:"__forge_dict_" name
+
 (** Map simple Min_IR types back to [mono_type] for typing local value bindings
     when resolving polymorphic call instantiations inside function bodies.
     Min_IR → mono for monomorph keys (curried [Fun] / [Clos] chains). *)
@@ -506,6 +565,7 @@ let rec min_ty_to_mono (t : ty) : mono_type =
   match t with
   | I32 -> IntType
   | I1 -> BoolType
+  | F64 -> FloatType
   | String -> StringType
   | Unit -> UnitType
   | Tuple ts -> VectorType (List.map min_ty_to_mono ts)
@@ -525,6 +585,7 @@ let rec min_ty_to_mono (t : ty) : mono_type =
 and min_ty_to_mono_opt : ty -> mono_type option = function
   | I32 -> Some IntType
   | I1 -> Some BoolType
+  | F64 -> Some FloatType
   | String -> Some StringType
   | Unit -> Some UnitType
   | Tuple ts -> Some (VectorType (List.map min_ty_to_mono ts))
@@ -548,6 +609,11 @@ let static_env_for_mono_call (global : static_env) (env : env) : static_env =
             in
             (name, Mono m) :: acc
           with Unsupported _ -> acc)
+      | ForgeDict _ ->
+          (* Keep the surface/static binding for this dictionary (record /
+             constrained scheme). A [Mono] from Min_IR [Tuple] would break
+             [type_of_c_expr] on [EFieldAccess]. *)
+          acc
       | C _ -> acc)
     [] env
   @ global
@@ -1437,6 +1503,9 @@ and lower_expr_val_as_call_arg ?(callee_fn_expr : c_expr option) (arg : c_expr)
                 "Internal: monomorphized polymorphic function type mismatch at \
                  call";
             (op, got)
+        | Some (ForgeDict _) ->
+            unsupported
+              "Internal: forge dict binding where monomorphized value expected"
         | None ->
             unsupported ("Missing monomorphized specialization `" ^ mangle ^ "`")
       end
@@ -1510,13 +1579,94 @@ and emit_saturated_call ctx (c : callable) : expr_result =
   let all_args = c.cap_ops @ c.fixed in
   if List.length all_args <> cap_n + List.length c.param_tys then
     unsupported "Internal: saturated call length mismatch";
-  if c.ret_ty = Unit then (
-    emit_instr ctx (VoidCall (c.multi_direct, all_args));
-    LVal (ConstUnit, Unit))
-  else
-    let t = fresh () in
-    emit_instr ctx (Assign (t, Call (c.multi_direct, all_args)));
-    LVal (Local t, c.ret_ty)
+  match c.multi_direct with
+  | "__builtin_int_eq" | "__builtin_char_eq" -> (
+      match all_args with
+      | [ o1; o2 ] ->
+          let t = fresh () in
+          emit_instr ctx (Assign (t, ICmp (Eq, o1, o2)));
+          LVal (Local t, I1)
+      | _ -> unsupported "internal: int_eq / char_eq arity")
+  | "__builtin_bool_eq" -> (
+      match all_args with
+      | [ o1; o2 ] ->
+          let t = fresh () in
+          emit_instr ctx (Assign (t, ICmp (Eq, o1, o2)));
+          LVal (Local t, I1)
+      | _ -> unsupported "internal: bool_eq arity")
+  | "__builtin_unit_eq" -> LVal (ConstI1 true, I1)
+  | "__builtin_str_eq" -> (
+      match all_args with
+      | [ o1; o2 ] ->
+          let tmp = fresh () in
+          emit_instr ctx (Assign (tmp, Call ("strcmp", [ o1; o2 ])));
+          let t = fresh () in
+          emit_instr ctx (Assign (t, ICmp (Eq, Local tmp, ConstI32 0)));
+          LVal (Local t, I1)
+      | _ -> unsupported "internal: str_eq arity")
+  | "__builtin_float_eq" -> (
+      match all_args with
+      | [ o1; o2 ] ->
+          let tmp = fresh () in
+          emit_instr ctx (Assign (tmp, Call ("float_eq", [ o1; o2 ])));
+          let t = fresh () in
+          emit_instr ctx (Assign (t, ICmp (Ne, Local tmp, ConstI32 0)));
+          LVal (Local t, I1)
+      | _ -> unsupported "internal: float_eq arity")
+  | "__builtin_int_compare" -> (
+      match all_args with
+      | [ o1; o2 ] ->
+          let v = fresh () in
+          emit_instr ctx (Assign (v, Call ("ordering_int32", [ o1; o2 ])));
+          LVal (Local v, RawPtr)
+      | _ -> unsupported "internal: int_compare arity")
+  | "__builtin_char_compare" -> (
+      match all_args with
+      | [ o1; o2 ] ->
+          let v = fresh () in
+          emit_instr ctx (Assign (v, Call ("ordering_char", [ o1; o2 ])));
+          LVal (Local v, RawPtr)
+      | _ -> unsupported "internal: char_compare arity")
+  | "__builtin_str_compare" -> (
+      match all_args with
+      | [ o1; o2 ] ->
+          let v = fresh () in
+          emit_instr ctx (Assign (v, Call ("ordering_str", [ o1; o2 ])));
+          LVal (Local v, RawPtr)
+      | _ -> unsupported "internal: str_compare arity")
+  | "__builtin_bool_compare" -> (
+      match all_args with
+      | [ o1; o2 ] ->
+          let v = fresh () in
+          emit_instr ctx (Assign (v, Call ("ordering_bool", [ o1; o2 ])));
+          LVal (Local v, RawPtr)
+      | _ -> unsupported "internal: bool_compare arity")
+  | "__builtin_unit_compare" -> (
+      let v = fresh () in
+      emit_instr ctx (Assign (v, VariantMk (1, RawNull)));
+      LVal (Local v, RawPtr))
+  | "__builtin_float_compare" -> (
+      match all_args with
+      | [ o1; o2 ] ->
+          let v = fresh () in
+          emit_instr ctx (Assign (v, Call ("ordering_float", [ o1; o2 ])));
+          LVal (Local v, RawPtr)
+      | _ -> unsupported "internal: float_compare arity")
+  | "__builtin_str_concat" -> (
+      match all_args with
+      | [ o1; o2 ] ->
+          let v = fresh () in
+          emit_instr ctx (Assign (v, Call ("str_concat", [ o1; o2 ])));
+          LVal (Local v, String)
+      | _ -> unsupported "internal: str_concat arity")
+  | _ ->
+      if c.ret_ty = Unit then (
+        emit_instr ctx (VoidCall (c.multi_direct, all_args));
+        LVal (ConstUnit, Unit))
+      else
+        let t = fresh () in
+        emit_instr ctx (Assign (t, Call (c.multi_direct, all_args)));
+        LVal (Local t, c.ret_ty)
 
 (** Indirect LLVM calls cannot pass string literals as [i8*] the way
     {!lower_builtin_print} explicitly copies them to a local. *)
@@ -1593,7 +1743,7 @@ and apply_clos1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
 and resolve_callable (name : string) (env : env) : callable option =
   match List.assoc_opt name env with
   | Some (C c) -> Some c
-  | Some (Val _) | None -> None
+  | Some (Val _) | Some (ForgeDict _) | None -> None
 
 (** Combine boolean SSA operands (short-circuit not required). *)
 and iand_operands (ctx : fn_ctx) (conds : operand list) : operand =
@@ -2154,10 +2304,13 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
             | Some c ->
                 apply_call_args ~callee_fn_expr:(EId name) env ctx static_env
                   type_env c args shadows
-            | None ->
-                unsupported
-                  ("Missing monomorphized specialization for `" ^ name
-                 ^ "` — compiler bug")))
+            | None -> (
+                match try_dict_dispatch_fallback () with
+                | Some lowered -> lowered
+                | None ->
+                    unsupported
+                      ("Missing monomorphized specialization for `" ^ name
+                     ^ "` — compiler bug"))))
 
 and desugar_list_comp (body : c_expr) (generators : (c_pat * c_expr) list) :
     c_expr =
@@ -2251,6 +2404,11 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       lower_list_int_enumeration env ctx static_env type_env shadows e_lo e_hi
   | EId x -> (
       match List.assoc_opt x env with
+      | Some (ForgeDict t) ->
+          let tmp = fresh () in
+          emit_instr ctx
+            (Assign (tmp, Call (forge_dict_getter_symbol x, [])));
+          LVal (Local tmp, t)
       | Some (Val (o, t, _)) -> LVal (o, t)
       | Some (C c) ->
           if callable_remaining c > 0 then LPartial c
@@ -2271,21 +2429,28 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
                     ("constructor: " ^ Typecheck.string_of_type_check_error err)
               )
           | _ -> (
-              match native_builtin_as_fun_ptr x with
-              | Some (op, t) -> LVal (op, t)
-              | None ->
-                  if is_poly_static x static_env then
-                    match eta_poly_partial_spine static_env x [] with
-                    | Some e_eta ->
-                        lower_expr e_eta env ctx static_env type_env shadows
-                    | None ->
+              match native_builtin_binary_callable x with
+              | Some c when callable_remaining c > 0 -> LPartial c
+              | Some _ ->
+                  unsupported
+                    ("Native builtin `" ^ x
+                   ^ "` is not a saturated call (compiler bug)")
+              | None -> (
+                  match native_builtin_as_fun_ptr x with
+                  | Some (op, t) -> LVal (op, t)
+                  | None ->
+                      if is_poly_static x static_env then
+                        match eta_poly_partial_spine static_env x [] with
+                        | Some e_eta ->
+                            lower_expr e_eta env ctx static_env type_env shadows
+                        | None ->
+                            unsupported
+                              ("Polymorphic function `" ^ x
+                             ^ "` cannot be used as a value here; call it fully \
+                                applied")
+                      else
                         unsupported
-                          ("Polymorphic function `" ^ x
-                         ^ "` cannot be used as a value here; call it fully \
-                            applied")
-                  else
-                    unsupported
-                      ("Unbound name `" ^ x ^ "` (not a lowering target)"))))
+                          ("Unbound name `" ^ x ^ "` (not a lowering target)")))))
   | EBop (op, e1, e2) -> (
       match map_arith_bop op with
       | Some b ->
@@ -2574,7 +2739,8 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               let fv =
                 S.filter
                   (fun v ->
-                    (not (is_poly_static v static_env))
+                    ((not (is_poly_static v static_env))
+                    || is_forge_dict_name v)
                     && not (is_native_builtin_name v))
                   fv
               in
@@ -2621,7 +2787,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       let fv =
         S.filter
           (fun v ->
-            (not (is_poly_static v static_env))
+            ((not (is_poly_static v static_env)) || is_forge_dict_name v)
             && not (is_native_builtin_name v))
           fv
       in
@@ -2771,7 +2937,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       let all_fv =
         S.filter
           (fun v ->
-            (not (is_poly_static v static_env))
+            ((not (is_poly_static v static_env)) || is_forge_dict_name v)
             && not (is_native_builtin_name v))
           all_fv
       in
@@ -2838,8 +3004,10 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
         (List.fold_left
            (fun acc nm -> shadow_add_pat (CIdPat nm) acc)
            shadows names)
-  | EChar _ | EFloat _ ->
-      unsupported "Expression form not supported in Min_IR lowering yet"
+  | EChar c ->
+      LVal (ConstI32 (Char.code c), I32)
+  | EFloat f ->
+      LVal (ConstF64 f, F64)
   | ERecordLit fields -> (
       let se = static_env_for_mono_call static_env env in
       match Typecheck.type_of_c_expr se type_env (ERecordLit fields) with
@@ -3239,21 +3407,69 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
     let instances = collect_mono_instantiations defs static_env type_env in
     let user_funs = ref [] in
     let env_mono = build_mono_instance_env instances defs static_env in
+    let ctx_main = create_fn_ctx () in
+    let env_with_dicts =
+      List.fold_left
+        (fun env_acc defn ->
+          match defn with
+          | CDefn (CIdPat nm, _, _, body, _, _) ->
+              if not (is_forge_dict_name nm) then env_acc
+              else
+                let param_pats, _, _ = peel_efun [] [] body in
+                if param_pats <> [] then env_acc
+                else (
+                  let ctx_g = create_fn_ctx () in
+                  let g = forge_dict_getter_symbol nm in
+                  match
+                    lower_expr body env_acc ctx_g static_env type_env S.empty
+                  with
+                  | LVal (o, t) ->
+                      close_block ctx_g (Ret (Some o));
+                      let fn_def =
+                        {
+                          name = g;
+                          params = [];
+                          ret = t;
+                          entry = "entry";
+                          blocks = blocks_assoc ctx_g;
+                        }
+                      in
+                      user_funs :=
+                        !user_funs @ ctx_g.nested_funcs @ [ fn_def ];
+                      (nm, ForgeDict t) :: env_acc
+                  | LPartial _ ->
+                      unsupported
+                        "forge dictionary binding cannot be a partial application")
+          | CDefn _ -> env_acc
+          | CDefnRec _ | CDefnMutRec _ | CClassDecl _ | CTypeAlias _ | CSumType _
+          | CSumTypeRec _ | CSumTypeRecMutRec _ ->
+              env_acc)
+        env_mono defs
+    in
     List.iter
       (fun (name, mono) ->
         match find_cdefn_function name defs with
         | None -> ()
         | Some (param_pats, anns, inner) ->
             let emit = mangle_poly_instance name mono in
+            let bound = List.concat (List.map pat_bound_simple param_pats) in
+            let fv0 = S.diff (free_vars_cexpr inner) (S.of_list bound) in
+            let fv =
+              S.filter
+                (fun v ->
+                  ((not (is_poly_static v static_env)) || is_forge_dict_name v)
+                  && not (is_native_builtin_name v))
+                fv0
+            in
+            let cap_entries = lambda_captures env_with_dicts ctx_main fv in
             let fn, nested =
-              lower_user_function ~ty_key:emit ~emit param_pats anns inner
-                env_mono
+              lower_user_function ~captures:cap_entries ~ty_key:emit ~emit
+                param_pats anns inner env_with_dicts
                 ((emit, Mono mono) :: static_env)
                 type_env S.empty
             in
             user_funs := !user_funs @ nested @ [ fn ])
       instances;
-    let ctx_main = create_fn_ctx () in
     let env_with_values =
       List.fold_left
         (fun env_acc (name, mono) ->
@@ -3298,7 +3514,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                           (Assign (emit, VariantMk (tag, RawNull)));
                         (emit, Val (Local emit, t_expect, Some mono)) :: env_acc
                   | _ -> env_acc)))
-        env_mono instances
+        env_with_dicts instances
     in
     let rec walk env = function
       | [] -> ()
@@ -3383,6 +3599,9 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
               List.fold_left (fun acc (n, c) -> (n, C c) :: acc) env stubs
             in
             walk env' rest
+      | CDefn (CIdPat name, _, _, _, _, _) :: rest
+        when is_forge_dict_name name ->
+          walk env rest
       | CDefn (pat, _, _, body, _, _) :: rest -> (
           match pat with
           | CIdPat name -> (
