@@ -708,6 +708,12 @@ and eval_builtin (f : builtin_function) (v : value) : value eval_result =
       StringValue (String.sub s start len) |> return
   | GenericEq, v -> BuiltInFunction (GenericEqPartial v) |> return
   | GenericEqPartial v1, v2 -> BooleanValue (v1 = v2) |> return
+  | GenericCompare, v -> BuiltInFunction (GenericComparePartial v) |> return
+  | GenericComparePartial v1, v2 ->
+      let c = compare v1 v2 in
+      if c < 0 then VariantValue ("LT", None) |> return
+      else if c > 0 then VariantValue ("GT", None) |> return
+      else VariantValue ("EQ", None) |> return
   | StrLength, _ -> Error (OtherError "str_length: expected string")
   | StrConcat, _ -> Error (OtherError "str_concat: expected string")
   | StrConcatPartial _, _ -> Error (OtherError "str_concat: expected string")
@@ -766,10 +772,10 @@ and eval_bop (op : c_bop) (e1 : c_expr) (e2 : c_expr) (env : env) :
           StringValue (s1 ^ s2) |> return
       | CEQ, a, b -> BooleanValue (a = b) |> return
       | CNE, a, b -> BooleanValue (a <> b) |> return
-      | CLT, IntegerValue a, IntegerValue b -> BooleanValue (a < b) |> return
-      | CLE, IntegerValue a, IntegerValue b -> BooleanValue (a <= b) |> return
-      | CGT, IntegerValue a, IntegerValue b -> BooleanValue (a > b) |> return
-      | CGE, IntegerValue a, IntegerValue b -> BooleanValue (a >= b) |> return
+      | CLT, a, b -> BooleanValue (compare a b < 0) |> return
+      | CLE, a, b -> BooleanValue (compare a b <= 0) |> return
+      | CGT, a, b -> BooleanValue (compare a b > 0) |> return
+      | CGE, a, b -> BooleanValue (compare a b >= 0) |> return
       | CCons, v, ListValue vs -> ListValue (v :: vs) |> return
       | _ -> Error (OtherError "eval_bop: unimplemented"))
 

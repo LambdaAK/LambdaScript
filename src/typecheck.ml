@@ -690,11 +690,8 @@ and generate_e_bop (env : static_env) (type_env : type_env) (op : c_bop)
   | CConcat ->
       (* string concatenation: both operands must be string, result is string *)
       return (StringType, ((t1, StringType) :: (t2, StringType) :: c1) @ c2, [])
-  | CGE | CGT | CLE | CLT ->
-      (* comparisons: both operands must be int, result is bool *)
-      return (BoolType, ((t1, IntType) :: (t2, IntType) :: c1) @ c2, [])
-  | CEQ | CNE ->
-      (* equality/inequality: operands must be same type, result is bool *)
+  | CGE | CGT | CLE | CLT | CEQ | CNE ->
+      (* comparisons and equality: operands must be same type, result is bool *)
       return (BoolType, ((t1, t2) :: c1) @ c2, [])
   | CAnd | COr ->
       (* logical: both operands must be bool, result is bool *)

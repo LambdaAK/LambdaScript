@@ -47,6 +47,25 @@ let built_ins : (string * value * c_type) list =
     ( "unit_eq",
       BuiltInFunction GenericEq,
       Mono (UnitType => (UnitType => BoolType)) );
+    (* Compare primitives for Ord typeclass — return Ordering (LT|EQ|GT) *)
+    ( "int_compare",
+      BuiltInFunction GenericCompare,
+      Mono (IntType => (IntType => CTypeApp ("Ordering", []))) );
+    ( "float_compare",
+      BuiltInFunction GenericCompare,
+      Mono (FloatType => (FloatType => CTypeApp ("Ordering", []))) );
+    ( "str_compare",
+      BuiltInFunction GenericCompare,
+      Mono (StringType => (StringType => CTypeApp ("Ordering", []))) );
+    ( "char_compare",
+      BuiltInFunction GenericCompare,
+      Mono (CharType => (CharType => CTypeApp ("Ordering", []))) );
+    ( "bool_compare",
+      BuiltInFunction GenericCompare,
+      Mono (BoolType => (BoolType => CTypeApp ("Ordering", []))) );
+    ( "unit_compare",
+      BuiltInFunction GenericCompare,
+      Mono (UnitType => (UnitType => CTypeApp ("Ordering", []))) );
     (* Arithmetic operators *)
     ("+", UnitValue, Mono (IntType => (IntType => IntType)));
     ("-", UnitValue, Mono (IntType => (IntType => IntType)));

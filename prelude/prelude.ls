@@ -9,6 +9,11 @@ type Option<a> =
   | None
   | Some of a
 
+type Ordering =
+  | LT
+  | EQ
+  | GT
+
 // The Functor typeclass abstracts over data types that can be mapped over.
 // A Functor represents types that can be “lifted” with a function from (a -> b)
 // so that the function is applied inside the container/context f<_>.
@@ -82,6 +87,19 @@ trait Eq<a> where
   val (==) : a -> a -> Bool
 end
 
+// Ord provides ordering comparison for a type.
+trait Ord<a> requires Eq<a> where
+  val compare : a -> a -> Ordering
+  val (<) : a -> a -> Bool
+  val (<=) : a -> a -> Bool
+  val (>) : a -> a -> Bool
+  val (>=) : a -> a -> Bool
+  let (<) x y = case compare x y do | LT -> true | _ -> false
+  let (<=) x y = case compare x y do | GT -> false | _ -> true
+  let (>) x y = case compare x y do | GT -> true | _ -> false
+  let (>=) x y = case compare x y do | LT -> false | _ -> true
+end
+
 // Semigroup represents types with an associative binary operation called mappend.
 trait Semigroup<a> where
   // mappend : a -> a -> a
@@ -97,6 +115,25 @@ trait Monoid<a> requires Semigroup<a> where
   val empty : a
 end
 
+// Ordering
+
+impl Eq for Ordering where
+  let (==) x y =
+    case (x, y) do
+    | (LT, LT) -> true
+    | (EQ, EQ) -> true
+    | (GT, GT) -> true
+    | _ -> false
+end
+
+impl Show for Ordering where
+  let show x =
+    case x do
+    | LT -> "LT"
+    | EQ -> "EQ"
+    | GT -> "GT"
+end
+
 // Int
 
 impl Show for Int where
@@ -105,6 +142,10 @@ end
 
 impl Eq for Int where
   let (==) x y = int_eq x y
+end
+
+impl Ord for Int where
+  let compare x y = int_compare x y
 end
 
 // Bool
@@ -117,6 +158,10 @@ impl Eq for Bool where
   let (==) x y = bool_eq x y
 end
 
+impl Ord for Bool where
+  let compare x y = bool_compare x y
+end
+
 // Unit
 
 impl Show for Unit where
@@ -127,6 +172,10 @@ impl Eq for Unit where
   let (==) x y = unit_eq x y
 end
 
+impl Ord for Unit where
+  let compare x y = unit_compare x y
+end
+
 // String
 
 impl Show for String where
@@ -135,6 +184,10 @@ end
 
 impl Eq for String where
   let (==) x y = str_eq x y
+end
+
+impl Ord for String where
+  let compare x y = str_compare x y
 end
 
 impl Semigroup for String where
@@ -152,10 +205,18 @@ impl Eq for Float where
   let (==) x y = float_eq x y
 end
 
+impl Ord for Float where
+  let compare x y = float_compare x y
+end
+
 // Char
 
 impl Eq for Char where
   let (==) x y = char_eq x y
+end
+
+impl Ord for Char where
+  let compare x y = char_compare x y
 end
 
 // List
