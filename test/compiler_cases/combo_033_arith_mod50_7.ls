@@ -2,4 +2,4 @@ Expected:
 1
 
 Source:
-let () = println (int_to_str (50 % 7))
+let () = print_string (int_to_str (50 % 7))

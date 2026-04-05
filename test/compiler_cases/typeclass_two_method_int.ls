@@ -7,9 +7,9 @@ inter Numish <a> {
   val double : a -> a
 }
 
-impl Numish for Int {
+impl Numish for Int where
   let add1 x = x + 1
   let double x = x * 2
-}
+end
 
-let () = println (int_to_str (double (add1 10)))
+let () = print_string (int_to_str (double (add1 10)))

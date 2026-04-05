@@ -7,4 +7,4 @@ let rec fib n =
   else if n == 1 then 1
   else fib (n - 1) + fib (n - 2)
 
-let () = println (int_to_str (fib 10))
+let () = print_string (int_to_str (fib 10))

@@ -6,4 +6,4 @@ let id x y = x
 
 let a = (id (id id 10) true) 1 (fn x -> x)
 
-let () = println (int_to_str a)
+let () = print_string (int_to_str a)

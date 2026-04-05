@@ -8,5 +8,5 @@ let rec length lst =
     | [] -> 0
     | _ :: t -> 1 + length t
 
-let () = println (int_to_str (length (1 :: 2 :: 3 :: [])))
-let () = println (int_to_str (length []))
+let () = print_string (int_to_str (length (1 :: 2 :: 3 :: [])))
+let () = print_string (int_to_str (length []))

@@ -8,4 +8,4 @@ let triangle n =
     else go (n - 1) (acc + n)
   in
   go n 0
-let () = println (int_to_str (triangle 10))
+let () = print_string (int_to_str (triangle 10))

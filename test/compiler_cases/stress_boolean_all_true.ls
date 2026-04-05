@@ -9,4 +9,4 @@ let rec all_pos lst =
 
 let xs = [1, 2, 3, 4, 9]
 
-let () = println (int_to_str (if all_pos xs then 1 else 0))
+let () = print_string (int_to_str (if all_pos xs then 1 else 0))

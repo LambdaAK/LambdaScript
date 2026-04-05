@@ -3,4 +3,4 @@ hello
 
 Source:
 let s = "hello"
-let () = println s
+let () = print_string s

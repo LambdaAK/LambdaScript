@@ -4,4 +4,4 @@ Expected:
 Source:
 let apply (f : Int -> Int) (x : Int) : Int = f x
 let inc y = y + 1
-let () = println (int_to_str (apply inc 41))
+let () = print_string (int_to_str (apply inc 41))

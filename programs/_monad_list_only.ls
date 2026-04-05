@@ -7,11 +7,11 @@ type rec List<a> =
   | Nil
   | Cons of (a, List<a>)
 
-impl Monad for List {
+impl Monad for List where
   let rec (>>=) x f =
     case x do
     | Nil -> Nil
     | Cons (h, t) -> Cons (h, (>>=) t f)
 
   let return x = Cons (x, Nil)
-}
+end

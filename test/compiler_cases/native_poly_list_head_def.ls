@@ -7,4 +7,4 @@ let rec head_def d lst =
     | [] -> d
     | h :: _ -> h
 
-let () = println (int_to_str (head_def 0 (5 :: [])))
+let () = print_string (int_to_str (head_def 0 (5 :: [])))

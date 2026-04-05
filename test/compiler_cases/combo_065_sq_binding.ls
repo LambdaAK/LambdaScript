@@ -4,4 +4,4 @@ Expected:
 Source:
 let square n = n * n
 let v = square 9
-let () = println (int_to_str v)
+let () = print_string (int_to_str v)

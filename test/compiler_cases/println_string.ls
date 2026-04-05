@@ -2,4 +2,4 @@ Expected:
 hello
 
 Source:
-let () = println "hello"
+let () = print_string "hello"

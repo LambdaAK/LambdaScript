@@ -16,4 +16,4 @@ let u = 1 :: []
 let v = 2 :: 3 :: []
 let w = append u v
 
-let () = println (int_to_str (len w))
+let () = print_string (int_to_str (len w))

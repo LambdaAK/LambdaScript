@@ -4,7 +4,7 @@ z
 Source:
 let id x = x
 
-let f = println
+let f = print_string
 
 let g = id f
 

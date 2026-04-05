@@ -6,8 +6,8 @@ Expected:
 1
 
 Source:
-let () = println (int_to_str (100 % 10))
-let () = println (int_to_str (7 % 7))
-let () = println (int_to_str (17 % 7))
-let () = println (int_to_str (17 / 7))
-let () = println (int_to_str (17 % 2))
+let () = print_string (int_to_str (100 % 10))
+let () = print_string (int_to_str (7 % 7))
+let () = print_string (int_to_str (17 % 7))
+let () = print_string (int_to_str (17 / 7))
+let () = print_string (int_to_str (17 % 2))

@@ -3,5 +3,5 @@ Expected:
 2
 
 Source:
-let () = println (int_to_str 1)
-let () = println (int_to_str 2)
+let () = print_string (int_to_str 1)
+let () = print_string (int_to_str 2)

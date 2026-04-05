@@ -4,4 +4,4 @@ Expected:
 Source:
 let rec wrap x = x
 and unwrap y = wrap y
-let () = println (int_to_str (unwrap 3))
+let () = print_string (int_to_str (unwrap 3))

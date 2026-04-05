@@ -2,4 +2,4 @@ Expected:
 600
 
 Source:
-let () = println (int_to_str (25 * 24))
+let () = print_string (int_to_str (25 * 24))

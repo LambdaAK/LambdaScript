@@ -5,5 +5,5 @@ bar
 Source:
 let a = "foo"
 let b = "bar"
-let () = println a
-let () = println b
+let () = print_string a
+let () = print_string b

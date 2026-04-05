@@ -11,4 +11,4 @@ let get_or d o =
 
 let a = Some 10
 let b = None
-let () = println (int_to_str (get_or 0 a + get_or 100 b))
+let () = print_string (int_to_str (get_or 0 a + get_or 100 b))

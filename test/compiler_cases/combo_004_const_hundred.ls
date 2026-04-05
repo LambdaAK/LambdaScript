@@ -3,4 +3,4 @@ Expected:
 
 Source:
 let const x _ = x
-let () = println (int_to_str (const 100 0))
+let () = print_string (int_to_str (const 100 0))

@@ -2,4 +2,4 @@ Expected:
 2024
 
 Source:
-let () = println (int_to_str 2024)
+let () = print_string (int_to_str 2024)

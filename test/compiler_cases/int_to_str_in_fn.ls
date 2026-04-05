@@ -3,4 +3,4 @@ Expected:
 
 Source:
 let show n = int_to_str n
-let () = println (show 42)
+let () = print_string (show 42)

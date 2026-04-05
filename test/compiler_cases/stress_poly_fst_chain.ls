@@ -4,4 +4,4 @@ Expected:
 Source:
 let fst a b = a
 
-let () = println (int_to_str (fst (fst (fst 100 1) 2) 3))
+let () = print_string (int_to_str (fst (fst (fst 100 1) 2) 3))

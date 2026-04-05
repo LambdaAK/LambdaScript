@@ -4,4 +4,4 @@ Expected:
 Source:
 let id x = x
 let h = id
-let () = println (int_to_str (h 1))
+let () = print_string (int_to_str (h 1))

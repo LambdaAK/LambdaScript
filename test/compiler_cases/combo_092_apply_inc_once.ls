@@ -4,4 +4,4 @@ Expected:
 Source:
 let a f x = f x
 let inc v = v + 1
-let () = println (int_to_str (a inc 40))
+let () = print_string (int_to_str (a inc 40))

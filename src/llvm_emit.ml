@@ -219,7 +219,7 @@ let icmp_ll : icmp -> string = function
 
 let callee_ll : string -> string = function
   | "print" -> "ls_print"
-  | "println" -> "ls_println"
+  | "print_string" -> "ls_println"
   | "abort" -> "ls_abort"
   | "int_to_str" -> "ls_int_to_str"
   | "str_concat" -> "ls_str_concat"
@@ -495,7 +495,7 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
       H.replace h dst t
   | VoidCall (name, args) -> (
       match name with
-      | "print" | "println" -> (
+      | "print" | "print_string" -> (
           match args with
           | [ arg ] ->
               let at, av =

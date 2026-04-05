@@ -3,4 +3,4 @@ Expected:
 
 Source:
 let g _ = 99
-let () = println (int_to_str (g 0))
+let () = print_string (int_to_str (g 0))

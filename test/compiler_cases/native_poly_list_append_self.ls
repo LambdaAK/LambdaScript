@@ -13,4 +13,4 @@ let rec len lst =
     | _ :: t -> 1 + len t
 
 let xs = 1 :: 2 :: []
-let () = println (int_to_str (len (append xs xs)))
+let () = print_string (int_to_str (len (append xs xs)))

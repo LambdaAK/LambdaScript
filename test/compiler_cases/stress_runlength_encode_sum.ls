@@ -10,4 +10,4 @@ let rec run_sum xs prev acc =
 
 let xs = [1, 1, 2, 2, 2, 3, 4, 4, 5]
 
-let () = println (int_to_str (run_sum xs 999 0))
+let () = print_string (int_to_str (run_sum xs 999 0))

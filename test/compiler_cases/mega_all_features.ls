@@ -56,7 +56,7 @@ done
 Source:
 // Kitchen sink: arithmetic, recursion, mutual recursion, HOFs, polymorphism,
 // partial application, lambdas from Unit, strings, lists, blocks, wildcards,
-// closures capturing ints, builtins (println, int_to_str) inside lambdas,
+// closures capturing ints, builtins (print_string, int_to_str) inside lambdas,
 // first-class builtins via id, curried (id succ) apply, string concat (^).
 
 // Arithmetic helpers
@@ -184,75 +184,75 @@ let mega_nums = [1, 2, 3, 4]
 let xs = [0, 1, 2]
 let ys = map_add1 (map_add1 (map_add1 xs))
 
-let print_line = id (fn s -> println s)
+let print_string = id (fn s -> print_string s)
 
 // String values
 let ok_str   = "ok"
 let done_str = "done"
 
 // Output — massive baseline
-let () = println (int_to_str (abs_val (0 - 42)))
-let () = println (int_to_str (min_of 7 3))
-let () = println (int_to_str (max_of 7 3))
-let () = println (int_to_str (clamp 0 10 15))
-let () = println (int_to_str (clamp 0 10 (0 - 5)))
-let () = println (int_to_str (sign (0 - 99)))
-let () = println (int_to_str (sign 0))
-let () = println (int_to_str (sign 42))
+let () = print_string (int_to_str (abs_val (0 - 42)))
+let () = print_string (int_to_str (min_of 7 3))
+let () = print_string (int_to_str (max_of 7 3))
+let () = print_string (int_to_str (clamp 0 10 15))
+let () = print_string (int_to_str (clamp 0 10 (0 - 5)))
+let () = print_string (int_to_str (sign (0 - 99)))
+let () = print_string (int_to_str (sign 0))
+let () = print_string (int_to_str (sign 42))
 
-let () = println (int_to_str (factorial 10))
-let () = println (int_to_str (fib 12))
-let () = println (int_to_str (fib_iter 0 1 20))
-let () = println (int_to_str (gcd 252 98))
-let () = println (int_to_str (power 3 7))
-let () = println (int_to_str (sum_to 100))
-let () = println (int_to_str (product_to 7))
-let () = println (int_to_str (digit_sum 98765))
-let () = println (int_to_str (digit_count 100000))
-let () = println (int_to_str (range_sum 1 50))
-let () = println (int_to_str (is_prime 97))
-let () = println (int_to_str (is_prime 100))
-let () = println (int_to_str (collatz 27))
+let () = print_string (int_to_str (factorial 10))
+let () = print_string (int_to_str (fib 12))
+let () = print_string (int_to_str (fib_iter 0 1 20))
+let () = print_string (int_to_str (gcd 252 98))
+let () = print_string (int_to_str (power 3 7))
+let () = print_string (int_to_str (sum_to 100))
+let () = print_string (int_to_str (product_to 7))
+let () = print_string (int_to_str (digit_sum 98765))
+let () = print_string (int_to_str (digit_count 100000))
+let () = print_string (int_to_str (range_sum 1 50))
+let () = print_string (int_to_str (is_prime 97))
+let () = print_string (int_to_str (is_prime 100))
+let () = print_string (int_to_str (collatz 27))
 
-let () = println (int_to_str (triangle 10))
-let () = println (int_to_str (nested_product 8))
+let () = print_string (int_to_str (triangle 10))
+let () = print_string (int_to_str (nested_product 8))
 
-let () = println (int_to_str (even 12))
-let () = println (int_to_str (odd 13))
-let () = println (int_to_str (even 7))
+let () = print_string (int_to_str (even 12))
+let () = print_string (int_to_str (odd 13))
+let () = print_string (int_to_str (even 7))
 
-let () = println (int_to_str (compose add1 double 5))
-let () = println (int_to_str (compose square add1 3))
-let () = println (int_to_str (twice  add1 40))
-let () = println (int_to_str (thrice add1 39))
-let () = println (int_to_str (both   square 5))
-let () = println (int_to_str (flip   sub 3 13))
-let () = println (int_to_str (call_with add1 41))
+let () = print_string (int_to_str (compose add1 double 5))
+let () = print_string (int_to_str (compose square add1 3))
+let () = print_string (int_to_str (twice  add1 40))
+let () = print_string (int_to_str (thrice add1 39))
+let () = print_string (int_to_str (both   square 5))
+let () = print_string (int_to_str (flip   sub 3 13))
+let () = print_string (int_to_str (call_with add1 41))
 
-let () = println (int_to_str (id 99))
-let () = println (int_to_str (const 42 100))
-let () = println (int_to_str (if const true false then 1 else 0))
+let () = print_string (int_to_str (id 99))
+let () = print_string (int_to_str (const 42 100))
+let () = print_string (int_to_str (if const true false then 1 else 0))
 
-let () = println (int_to_str (add5  37))
-let () = println (int_to_str (triple 14))
+let () = print_string (int_to_str (add5  37))
+let () = print_string (int_to_str (triple 14))
 
-let () = println (int_to_str ((get_inc    ()) 41))
-let () = println (int_to_str ((get_double ()) 21))
+let () = print_string (int_to_str ((get_inc    ()) 41))
+let () = print_string (int_to_str ((get_double ()) 21))
 
 // Extra surface area: block, list match, wildcard param, closure,
-// iter with println/int_to_str in lambda, curried id on monomorphic fn
-let () = println (int_to_str ({ 1; 2; 3 + 4 }))
-let () = println (int_to_str (fst_pair 5 99))
-let () = println (int_to_str (list_sum mega_nums))
-let () = println (int_to_str (list_len ys))
+// iter with print_string/int_to_str in lambda, curried id on monomorphic fn
+let () = print_string (int_to_str ({ 1; 2; 3 + 4 }))
+let () = print_string (int_to_str (fst_pair 5 99))
+let () = print_string (int_to_str (list_sum mega_nums))
+let () = print_string (int_to_str (list_len ys))
 let () =
-  iter_line (fn x -> println (int_to_str x)) [1, 2, 3]
-let () = println (int_to_str ((mk_add 40) 32))
-let () = println (int_to_str ((id succ) 41))
-let () = print_line "tag"
+  iter_line (fn x -> print_string (int_to_str x)) [1, 2, 3]
+let () = print_string (int_to_str ((mk_add 40) 32))
+let () = print_string (int_to_str ((id succ) 41))
+let () = print_string "tag"
 let one_a = "a"
 let one_b = "b"
-let () = println (one_a ^ one_b)
+let () = print_string (one_a ^ one_b)
 
-let () = println ok_str
-let () = println done_str
+let () = print_string ok_str
+let () = print_string done_str

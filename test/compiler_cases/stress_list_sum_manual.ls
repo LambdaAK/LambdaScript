@@ -9,4 +9,4 @@ let rec sum lst =
 
 let xs = [3, 10, 5, 20, 40]
 
-let () = println (int_to_str (sum xs))
+let () = print_string (int_to_str (sum xs))

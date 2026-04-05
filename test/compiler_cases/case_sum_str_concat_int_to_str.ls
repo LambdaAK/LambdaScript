@@ -12,5 +12,5 @@ let str_of_t t =
     | A -> "A"
     | B n -> "B " ^ int_to_str n
 
-let () = println (str_of_t A)
-let () = println (str_of_t (B 1))
+let () = print_string (str_of_t A)
+let () = print_string (str_of_t (B 1))

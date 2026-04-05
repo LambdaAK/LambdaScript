@@ -32,4 +32,4 @@ let r24 = r23 24
 let r25 = r24 25
 let r26 = r25 26
 
-let () = println (int_to_str r26)
+let () = print_string (int_to_str r26)

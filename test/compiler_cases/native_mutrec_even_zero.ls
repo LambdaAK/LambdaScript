@@ -13,4 +13,4 @@ and odd_val o =
   case o do
     | SuccO e -> 1 + even_val e
 
-let () = println (int_to_str (even_val Zero))
+let () = print_string (int_to_str (even_val Zero))

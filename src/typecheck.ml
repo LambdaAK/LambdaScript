@@ -390,7 +390,15 @@ let find_compatible_dict_name ~(static_env : static_env) ~(class_name : string)
     ~(method_name : string) ~(tau : mono_type) : string option =
   let prefix = "__forge_dict_" ^ class_name ^ "_" in
   let exact = dict_for_instance ~class_name tau in
-  if List.mem_assoc exact static_env then Some exact
+  let exact_ok =
+    match List.assoc_opt exact static_env with
+    | Some sch -> (
+        match instantiate_dict_scheme_to_record ~sch ~tau with
+        | Some (RecordType fields) -> List.mem_assoc method_name fields
+        | _ -> false)
+    | None -> false
+  in
+  if exact_ok then Some exact
   else
     let rec scan env =
       match env with
@@ -407,6 +415,50 @@ let find_compatible_dict_name ~(static_env : static_env) ~(class_name : string)
           else scan rest
     in
     scan static_env
+
+(** Like [find_compatible_dict_name] but does not require the method name to be
+    a field of the dictionary.  Used when dispatching a non-method function that
+    carries a class constraint (dictionary-passing style). *)
+let find_dict_for_class ~(static_env : static_env) ~(class_name : string)
+    ~(tau : mono_type) : string option =
+  let prefix = "__forge_dict_" ^ class_name ^ "_" in
+  let exact = dict_for_instance ~class_name tau in
+  if List.mem_assoc exact static_env then Some exact
+  else
+    let rec scan = function
+      | [] -> None
+      | (name, sch) :: rest ->
+          if String.starts_with ~prefix name
+             && dict_candidate_matches_tau ~dict_name:name ~class_name tau
+          then
+            match instantiate_dict_scheme_to_record ~sch ~tau with
+            | Some (RecordType _) -> Some name
+            | _ -> scan rest
+          else scan rest
+    in
+    scan static_env
+
+(** Return the method names declared in [class_name] by inspecting existing
+    dictionary records in the static environment. *)
+let class_method_names ~(static_env : static_env) ~(class_name : string) :
+    string list =
+  let prefix = "__forge_dict_" ^ class_name ^ "_" in
+  let rec peel_mono (t : c_type) : mono_type =
+    match t with
+    | Mono t -> t
+    | PolyType (_, t) | Constrained (_, t) -> peel_mono t
+  in
+  List.fold_left
+    (fun acc (name, sch) ->
+      if String.starts_with ~prefix name then
+        match peel_mono sch with
+        | RecordType fields ->
+            List.fold_left
+              (fun a (f, _) -> if List.mem f a then a else f :: a)
+              acc fields
+        | _ -> acc
+      else acc)
+    [] static_env
 
 (** Polymorphic instance heads (e.g. [impl Monoid for [a]]) use dictionary names
     that do not match the exact [dict_for_instance] slug of a concrete [tau];
@@ -2775,6 +2827,52 @@ let dict_expected_record_type ~(static_env : static_env) ~(class_name : string)
     let fields = List.sort (fun (a, _) (b, _) -> compare a b) method_fields in
     Some (RecordType fields)
 
+(** Substitute occurrences of class method names with dictionary field
+    accesses.  Used to elaborate the body of a constrained non-method function
+    so that [show x] becomes [__dict.show x]. *)
+let subst_methods_with_dict_access ~(dict_param : string)
+    ~(method_names : string list) (expr : c_expr) : c_expr =
+  let rec go (e : c_expr) : c_expr =
+    match e with
+    | EId name when List.mem name method_names ->
+        EFieldAccess (EId dict_param, name)
+    | EApp (e1, e2) -> EApp (go e1, go e2)
+    | EFunction (p, a, b) -> EFunction (p, a, go b)
+    | EBind (p, a, e1, e2, r) -> EBind (p, a, go e1, go e2, r)
+    | EBindRec (p, a, e1, e2, r) -> EBindRec (p, a, go e1, go e2, r)
+    | EBindMutRec (bs, body) ->
+        EBindMutRec
+          ( List.map (fun (p, a, e, r, n) -> (p, a, go e, r, n)) bs,
+            go body )
+    | EBlock parts ->
+        EBlock
+          (List.map
+             (function
+               | Expr e -> Expr (go e)
+               | Defn d -> (
+                   match d with
+                   | CDefn (p, cs, a, b, r, n) ->
+                       Defn (CDefn (p, cs, a, go b, r, n))
+                   | CDefnRec (p, cs, a, b, r, n) ->
+                       Defn (CDefnRec (p, cs, a, go b, r, n))
+                   | other -> Defn other))
+             parts)
+    | ETernary (e1, e2, e3) -> ETernary (go e1, go e2, go e3)
+    | ESwitch (e, br) ->
+        ESwitch (go e, List.map (fun (p, ee) -> (p, go ee)) br)
+    | EVector es -> EVector (List.map go es)
+    | EListEnumeration (e1, e2) -> EListEnumeration (go e1, go e2)
+    | EListComprehension (e, gs) ->
+        EListComprehension (go e, List.map (fun (p, ge) -> (p, go ge)) gs)
+    | EBop (o, e1, e2) -> EBop (o, go e1, go e2)
+    | ERecordLit fs -> ERecordLit (List.map (fun (n, ee) -> (n, go ee)) fs)
+    | ERecordUpdate (e, fs) ->
+        ERecordUpdate (go e, List.map (fun (n, ee) -> (n, go ee)) fs)
+    | EFieldAccess (e, fld) -> EFieldAccess (go e, fld)
+    | _ -> e
+  in
+  go expr
+
 (** Rewrite [Class.method e] to record dispatch after whole-program typecheck.
 *)
 let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
@@ -2845,7 +2943,20 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
                                        (fun acc arg -> EApp (acc, arg))
                                        (EFieldAccess (EId dict, f))
                                        all_args)
-                              | None -> None)
+                              | None ->
+                                  if Hashtbl.mem dict_wrapped_fns f then
+                                    match
+                                      find_dict_for_class ~static_env
+                                        ~class_name:cls ~tau
+                                    with
+                                    | Some dict ->
+                                        Some
+                                          (List.fold_left
+                                             (fun acc arg -> EApp (acc, arg))
+                                             (EApp (EId f, EId dict))
+                                             all_args)
+                                    | None -> None
+                                  else None)
                           | Error _ -> None))))
         | _ -> None)
     | _ -> None
@@ -2915,10 +3026,35 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
   in
   aux []
 
+and dict_wrapped_fns : (string, bool) Hashtbl.t = Hashtbl.create 16
+
+and elaborate_constrained_body (static_env : static_env)
+    (type_env : type_env) (name : string) (body : c_expr) : c_expr =
+  match List.assoc_opt name static_env with
+  | Some sch when scheme_has_class_constraint sch -> (
+      match primary_class_constraint sch with
+      | Some cls ->
+          let dict_param = "__dict_" ^ cls in
+          let method_names = class_method_names ~static_env ~class_name:cls in
+          let body' = elaborate_expr static_env type_env body in
+          let body'' =
+            subst_methods_with_dict_access ~dict_param ~method_names body'
+          in
+          if body' = body'' then body'
+          else (
+            Hashtbl.replace dict_wrapped_fns name true;
+            EFunction (CIdPat dict_param, None, body''))
+      | None -> elaborate_expr static_env type_env body)
+  | _ -> elaborate_expr static_env type_env body
+
 and elaborate_defn (static_env : static_env) (type_env : type_env) d : c_defn =
   match d with
+  | CDefn (CIdPat name as pat, cs, a, body, r, n) ->
+      CDefn (pat, cs, a, elaborate_constrained_body static_env type_env name body, r, n)
   | CDefn (pat, cs, a, body, r, n) ->
       CDefn (pat, cs, a, elaborate_expr static_env type_env body, r, n)
+  | CDefnRec (CIdPat name as pat, cs, a, body, r, n) ->
+      CDefnRec (pat, cs, a, elaborate_constrained_body static_env type_env name body, r, n)
   | CDefnRec (pat, cs, a, body, r, n) ->
       CDefnRec (pat, cs, a, elaborate_expr static_env type_env body, r, n)
   | CDefnMutRec defs ->

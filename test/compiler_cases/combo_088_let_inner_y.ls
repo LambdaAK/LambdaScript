@@ -3,4 +3,4 @@ Expected:
 
 Source:
 let x = let y = 5 in y + y
-let () = println (int_to_str x)
+let () = print_string (int_to_str x)

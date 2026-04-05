@@ -4,4 +4,4 @@ a
 Source:
 let id x = x
 
-let () = println (id "a")
+let () = print_string (id "a")

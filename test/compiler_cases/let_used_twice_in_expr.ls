@@ -3,4 +3,4 @@ Expected:
 
 Source:
 let x = 21
-let () = println (int_to_str (x + x))
+let () = print_string (int_to_str (x + x))

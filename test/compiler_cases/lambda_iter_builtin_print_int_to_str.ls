@@ -13,4 +13,4 @@ let rec iter f lst =
 
 let my_list = [1, 2, 3]
 
-let () = iter (fn x -> println (int_to_str x)) my_list
+let () = iter (fn x -> print_string (int_to_str x)) my_list

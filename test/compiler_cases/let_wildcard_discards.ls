@@ -3,4 +3,4 @@ ok
 
 Source:
 let _ = 100
-let () = println "ok"
+let () = print_string "ok"

@@ -1168,7 +1168,7 @@ and CompoundTypeParser : sig
   val compound_type_parser : compound_type parser
 end = struct
   (* Parse [factor (-> compound_type)*] without committing to an arrow until we
-     see one — so [impl Show for int {] does not consume [int] then fail. *)
+     see one — so [impl Show for int where] does not consume [int] then fail. *)
   let rec compound_type_parser () : compound_type parser =
     let* ft = FactorTypeParser.factor_type_parser in
     (let* () = expect_token Arrow in
@@ -1623,9 +1623,14 @@ end = struct
     <|>
     let* () = expect_token For in
     let* head_ty = CompoundTypeParser.compound_type_parser in
-    let* () = expect_token LBrace in
+    (let* () = expect_token LBrace in
+     let* impls = parse_one_or_more_opt_commas impl_row_parser in
+     let* () = expect_token RBrace in
+     return (InstanceDef (cls, head_ty, impls)))
+    <|>
+    let* () = expect_token Where in
     let* impls = parse_one_or_more_opt_commas impl_row_parser in
-    let* () = expect_token RBrace in
+    let* () = expect_token End in
     return (InstanceDef (cls, head_ty, impls))
 
   let constructor_parser : (string * compound_type option) parser =

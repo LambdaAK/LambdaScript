@@ -4,4 +4,4 @@ Expected:
 Source:
 let wrap = fn x -> fn y -> x * y + x
 
-let () = println (int_to_str ((wrap 3) 8))
+let () = print_string (int_to_str ((wrap 3) 8))

@@ -127,8 +127,8 @@ type func_def = {
 
 type prog = { funcs : func_def list; entry : string option }
 
-(** I/O builtins: [VoidCall ("print", \[s\])], [VoidCall ("println", \[s\])]. *)
-let runtime_void_symbols = [ "print"; "println" ]
+(** I/O builtins: [VoidCall ("print", \[s\])], [VoidCall ("print_string", \[s\])]. *)
+let runtime_void_symbols = [ "print"; "print_string" ]
 
 (** String-producing runtime (not defined in [prog.funcs]): use
     [Assign (tmp, Call ("int_to_str", \[operand\]))] or

@@ -7,61 +7,61 @@ inter Show <a> {
   val show : a -> string
 }
 
-impl Show for Int {
+impl Show for Int where
   let show = int_to_str
-}
+end
 
-impl Show for Bool {
+impl Show for Bool where
   let show = fn b -> if b then "true" else "false"
-}
+end
 
-impl Show for [a] {
+impl Show for [a] where
   let show xs =
     case xs do
     | [] -> "[]"
     | _ :: _ -> "[?]"
-}
+end
 
 inter Eq <a> {
   val eq : a -> a -> bool
 }
 
-impl Eq for Int {
+impl Eq for Int where
   let eq x y = x == y
-}
+end
 
-impl Eq for Bool {
+impl Eq for Bool where
   let eq x y = if x then y else if y then false else true
-}
+end
 
 inter Semigroup <a> {
   val sappend : a -> a -> a
 }
 
-impl Semigroup for Int {
+impl Semigroup for Int where
   let sappend x y = x + y
-}
+end
 
-impl Semigroup for [a] {
+impl Semigroup for [a] where
   let rec sappend xs ys =
     case xs do
     | [] -> ys
     | h :: t -> h :: sappend t ys
-}
+end
 
 inter Monoid <a> {
   val mappend : a -> a -> a
   val mempty : a
 }
 
-impl Monoid for [a] {
+impl Monoid for [a] where
   let rec mappend x y =
     case x do
     | [] -> y
     | h :: t -> h :: mappend t y
 
   let mempty = []
-}
+end
 
 type Option<a> =
   | None
@@ -71,12 +71,12 @@ inter Functor <f> {
   val fmap : (a -> b) -> f<a> -> f<b>
 }
 
-impl Functor for Option {
+impl Functor for Option where
   let fmap g x =
     case x do
     | None -> None
     | Some v -> Some (g v)
-}
+end
 
 let rec len xs =
   case xs do

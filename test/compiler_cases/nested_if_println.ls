@@ -3,7 +3,7 @@ ok
 0
 
 Source:
-let () = if false then println "skip" else (
-  if true then println "ok" else println "bad"
+let () = if false then print_string "skip" else (
+  if true then print_string "ok" else print_string "bad"
 )
-let () = println (int_to_str 0)
+let () = print_string (int_to_str 0)

@@ -1538,7 +1538,7 @@ let program_typecheck_tests =
          ( "type annotation mismatch detected" >:: fun _ ->
            assert_program_fails_typecheck "let (x : Bool) = 42" );
          ( "impl declaration tokenizes and parses to EOF" >:: fun _ ->
-           let s = "impl Show for Int { let rec show x = int_to_str x }\n" in
+           let s = "impl Show for Int where let rec show x = int_to_str x end\n" in
            let tokens =
              lex (s |> String.to_seq |> List.of_seq)
              |> List.map (fun t -> t.token_type)
@@ -1588,13 +1588,13 @@ let program_expression_type_tests =
                  val mappend : a -> a -> a
                  val mempty : a
                }
-               impl Monoid for [a] {
+               impl Monoid for [a] where
                  let rec mappend x y =
                    case x do
                    | [] -> y
                    | h :: t -> h :: mappend t y
                  let mempty = []
-               }
+               end
              |}
              ~expr:"mappend [1] [2]" ~expected_type:"List<Int>" );
          ( "Functor fmap on Option" >:: fun _ ->
@@ -1605,12 +1605,12 @@ let program_expression_type_tests =
                inter Functor <f> {
                  val fmap : (a -> b) -> f<a> -> f<b>
                }
-               impl Functor for Option {
+               impl Functor for Option where
                  let fmap g x =
                    case x do
                    | None -> None
                    | Some v -> Some (g v)
-               }
+               end
              |}
              ~expr:"fmap (fn x -> x + 1) (Some 10)"
              ~expected_type:"Option<Int>" );
@@ -1621,9 +1621,9 @@ let program_expression_type_tests =
                inter Semigroup <a> {
                  val sappend : a -> a -> a
                }
-               impl Semigroup for Int {
+               impl Semigroup for Int where
                  let sappend x y = x + y
-               }
+               end
              |}
              ~expr:"sappend 3 4" ~expected_type:"Int" );
          ( "Eq Int eq in if" >:: fun _ ->
@@ -1633,9 +1633,9 @@ let program_expression_type_tests =
                inter Eq <a> {
                  val eq : a -> a -> bool
                }
-               impl Eq for Int {
+               impl Eq for Int where
                  let eq x y = x == y
-               }
+               end
              |}
              ~expr:"if eq 2 2 then 1 else 0"
              ~expected_type:"Int" );

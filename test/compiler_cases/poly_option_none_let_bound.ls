@@ -11,4 +11,4 @@ let extract_default default option =
     | None -> default
     | Some v -> v
 
-let () = println (int_to_str (extract_default 0 none))
+let () = print_string (int_to_str (extract_default 0 none))

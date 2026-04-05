@@ -3,4 +3,4 @@ Expected:
 
 Source:
 let n = 100 - 1
-let () = println (int_to_str n)
+let () = print_string (int_to_str n)

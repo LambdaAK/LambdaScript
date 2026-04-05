@@ -3,4 +3,4 @@ Expected:
 
 Source:
 let seven () = 7
-let () = println (int_to_str (seven ()))
+let () = print_string (int_to_str (seven ()))

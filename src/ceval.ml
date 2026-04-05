@@ -300,6 +300,25 @@ let rec mono_type_of_value (v : value) : mono_type option =
   | TypeClassMethod _
   | TypeClassMethodPending _ -> None
 
+let resolve_tc_method_value (env : env) (v : value) : value =
+  match v with
+  | TypeClassMethod (cls, meth) ->
+      let prefix = "__forge_dict_" ^ cls ^ "_" in
+      let rec scan = function
+        | [] -> v
+        | (k, _) :: rest ->
+            if String.starts_with ~prefix k then
+              match List.assoc_opt k env with
+              | Some (RecordValue fields) -> (
+                  match List.assoc_opt meth fields with
+                  | Some resolved -> resolved
+                  | None -> scan rest)
+              | _ -> scan rest
+            else scan rest
+      in
+      scan env
+  | _ -> v
+
 (** [eval_c_expr ce env] evaluates a condensed expression [ce] in the context of
     environment [env].
     @param ce The condensed expression to evaluate
@@ -386,7 +405,8 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       | _ -> Error (OtherError "eval_c_expr: ETernary"))
   | EApp (e1, e2) -> (
       let* v1 : value = eval_c_expr e1 env in
-      let* v2 : value = eval_c_expr e2 env in
+      let* v2_raw : value = eval_c_expr e2 env in
+      let v2 = resolve_tc_method_value env v2_raw in
       match v1 with
       | BuiltInFunction f -> eval_builtin f v2
       | FunctionClosure (env', p, _, e) -> (
@@ -540,6 +560,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       | _ -> Error (OtherError "Field access on non-record value"))
 
 and apply_function_value env v_fn v_arg : value eval_result =
+  let v_arg = resolve_tc_method_value env v_arg in
   match v_fn with
   | BuiltInFunction f -> eval_builtin f v_arg
   | FunctionClosure (env', p, _, e) -> (

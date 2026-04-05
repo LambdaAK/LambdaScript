@@ -7,4 +7,4 @@ let v = case re do
   | { x: 1 } -> true
   | _ -> false
 let () =
-  if v then println "yes" else println "no"
+  if v then print_string "yes" else print_string "no"

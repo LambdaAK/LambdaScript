@@ -5,7 +5,7 @@ c
 
 Source:
 let () = {
-  println "a";
-  println "b";
-  println "c"
+  print_string "a";
+  print_string "b";
+  print_string "c"
 }

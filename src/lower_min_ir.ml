@@ -273,7 +273,7 @@ type env = (string * env_binding) list
     [env] but resolve as global runtime symbols when used as values or inside
     lambdas. *)
 let is_native_builtin_name : string -> bool = function
-  | "print" | "println" | "int_to_str" -> true
+  | "print" | "print_string" | "int_to_str" -> true
   | _ -> false
 
 (** LLVM symbols [ls_print], [ls_println], [ls_int_to_str] (see runtime). *)
@@ -281,7 +281,7 @@ let native_builtin_as_fun_ptr (name : string) : (operand * ty) option =
   match name with
   | "print" ->
       Some (FnAddr ("ls_print", [ String ], Unit), Fun ([ String ], Unit))
-  | "println" ->
+  | "print_string" ->
       Some (FnAddr ("ls_println", [ String ], Unit), Fun ([ String ], Unit))
   | "int_to_str" ->
       Some (FnAddr ("ls_int_to_str", [ I32 ], String), Fun ([ I32 ], String))

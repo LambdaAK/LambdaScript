@@ -56,7 +56,7 @@ let process_condensed_defns ?after_step (static_env : static_env)
         match T.generate_defn se te cd with
         | T.Error e -> T.Error e
         | T.Ok (nb, nte, _) ->
-            let cd = T.elaborate_defn se te cd in
+            let cd = T.elaborate_defn (nb @ se) (nte @ te) cd in
             let nd = unwrap_eval_result (eval_defn cd de) in
             let de' = nd @ de in
             (match after_step with Some f -> f nb de' | None -> ());
@@ -162,9 +162,7 @@ let handle_command cmd static_env dynamic_env type_env history =
             print_error "Failed to parse expression";
             NoChange
         | Some (Expr expr, _) ->
-            let c_expr =
-              condense_expr expr |> elaborate_expr static_env type_env
-            in
+            let c_expr = condense_expr expr in
             (match type_of_c_expr static_env type_env c_expr with
             | Ok t ->
                 print_colored color_blue "Type: ";
@@ -301,12 +299,11 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env)
             print_error "Parsing failed";
             (NoChange, new_history)
         | Some (Expr expr, _) -> (
-        let c_expr =
-          condense_expr expr |> elaborate_expr static_env type_env
-        in
+        let c_expr = condense_expr expr in
         let result = type_of_c_expr static_env type_env c_expr in
         match result with
         | Ok t ->
+            let c_expr = elaborate_expr static_env type_env c_expr in
             (match eval_c_expr c_expr dynamic_env with
             | Ok value ->
                 print_separator ();

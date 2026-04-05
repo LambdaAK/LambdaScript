@@ -8,4 +8,4 @@ let a =
   let d = c + 4 in
     d + d / 2
 
-let () = println (int_to_str a)
+let () = print_string (int_to_str a)

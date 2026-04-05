@@ -4,4 +4,4 @@ Expected:
 Source:
 let both (f : Int -> Int) (x : Int) : Int = f x + f x
 let square x = x * x
-let () = println (int_to_str (both square 3))
+let () = print_string (int_to_str (both square 3))

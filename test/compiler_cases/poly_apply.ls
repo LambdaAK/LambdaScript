@@ -4,4 +4,4 @@ Expected:
 Source:
 let apply f x = f x
 let square n = n * n
-let () = println (int_to_str (apply square 5))
+let () = print_string (int_to_str (apply square 5))

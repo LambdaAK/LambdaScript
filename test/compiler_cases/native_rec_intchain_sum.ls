@@ -9,4 +9,4 @@ let rec sum c =
     | End -> 0
     | Link (n, rest) -> n + sum rest
 
-let () = println (int_to_str (sum (Link (10, Link (20, End)))))
+let () = print_string (int_to_str (sum (Link (10, Link (20, End)))))

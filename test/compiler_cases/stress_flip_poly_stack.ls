@@ -13,6 +13,6 @@ let rec odd n =
   else if n == 1 then true
   else odd (n - 2)
 
-let () = println (int_to_str (flip sub 3 10))
-let () = println (int_to_str (flip sub 10 100))
-let () = println (int_to_str (if odd 7 then 0 else 1))
+let () = print_string (int_to_str (flip sub 3 10))
+let () = print_string (int_to_str (flip sub 10 100))
+let () = print_string (int_to_str (if odd 7 then 0 else 1))

@@ -16,4 +16,4 @@ let rec len lst =
     | [] -> 0
     | _ :: r -> 1 + len r
 
-let () = println (int_to_str (len ys))
+let () = print_string (int_to_str (len ys))

@@ -4,4 +4,4 @@ Expected:
 Source:
 let x = 10
 let y = x * x
-let () = println (int_to_str y)
+let () = print_string (int_to_str y)

@@ -4,7 +4,7 @@ open Cexpr
 
 let built_ins : (string * value * c_type) list =
   [
-    ("println", BuiltInFunction Println, Mono (StringType => UnitType));
+    ("print_string", BuiltInFunction Println, Mono (StringType => UnitType));
     ("print", BuiltInFunction Print, Mono (StringType => UnitType));
     ("int_to_str", BuiltInFunction IntToString, Mono (IntType => StringType));
     ("int_to_float", BuiltInFunction IntToFloat, Mono (IntType => FloatType));

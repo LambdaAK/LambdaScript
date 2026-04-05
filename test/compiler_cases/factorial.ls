@@ -9,4 +9,4 @@ let fact n =
   in
   fact_helper n 1
 
-let () = println (int_to_str (fact 5))
+let () = print_string (int_to_str (fact 5))

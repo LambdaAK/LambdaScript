@@ -7,4 +7,4 @@ let t =
     if 2 == 2 then 8 * 9 else 0
   else 1
 
-let () = println (int_to_str t)
+let () = print_string (int_to_str t)

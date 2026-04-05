@@ -6,4 +6,4 @@ let rec gcd a b =
   if b == 0 then a
   else gcd b (a % b)
 
-let () = println (int_to_str (gcd 378 273))
+let () = print_string (int_to_str (gcd 378 273))

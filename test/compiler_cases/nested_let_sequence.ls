@@ -8,4 +8,4 @@ let x =
   let c = 3 in
   let d = 4 in
   a + b + c + d
-let () = println (int_to_str x)
+let () = print_string (int_to_str x)

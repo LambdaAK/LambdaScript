@@ -5,4 +5,4 @@ Source:
 let compose f g x = f (g x)
 let add1 x = x + 1
 let double x = x * 2
-let () = println (int_to_str (compose double add1 4))
+let () = print_string (int_to_str (compose double add1 4))

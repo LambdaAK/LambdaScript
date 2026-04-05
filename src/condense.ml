@@ -673,30 +673,32 @@ let condense_program (defns : defn list) : c_defn list =
                   failwith "forge: duplicate method in impl";
                 List.iter
                   (fun (m, _) ->
-                    if
-                      not
-                        (List.exists
-                           (fun (n, _, _, _) -> String.equal n m)
-                           entry.impl_spec)
-                    then failwith ("forge: impl has unknown method: " ^ m))
+                    match
+                      List.find_opt
+                        (fun (n, _, _, _) -> String.equal n m)
+                        entry.impl_spec
+                    with
+                    | None ->
+                        failwith ("forge: impl has unknown method: " ^ m)
+                    | Some (_, _, d, _) when not (String.equal d cls) ->
+                        failwith
+                          ("forge: method '" ^ m ^ "' belongs to trait '" ^ d
+                         ^ "'; provide it in impl " ^ d ^ " instead")
+                    | _ -> ())
                   impls;
                 List.iter
-                  (fun (m, _, _, def) ->
-                    let has_impl = List.mem m impl_names in
-                    let has_def =
-                      match def with
-                      | None -> false
-                      | Some _ -> true
-                    in
-                    if (not has_impl) && not has_def then
-                      failwith ("forge: impl missing method: " ^ m))
+                  (fun (m, _, d, def) ->
+                    if String.equal d cls then
+                      let has_impl = List.mem m impl_names in
+                      let has_def =
+                        match def with
+                        | None -> false
+                        | Some _ -> true
+                      in
+                      if (not has_impl) && not has_def then
+                        failwith ("forge: impl missing method: " ^ m))
                   entry.impl_spec;
-                let dispatch_classes =
-                  entry.impl_spec
-                  |> List.map (fun (_, _, d, _) -> d)
-                  |> List.sort_uniq String.compare
-                  |> List.sort (fun a b ->
-                         compare (dict_class_rank a) (dict_class_rank b))
+                let dispatch_classes = [ cls ]
                 in
                 let expr_for_method (meth : string) : c_expr =
                   match List.assoc_opt meth impls with

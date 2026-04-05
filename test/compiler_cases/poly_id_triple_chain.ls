@@ -3,4 +3,4 @@ Expected:
 
 Source:
 let id x = x
-let () = println (int_to_str ((id id id) 5))
+let () = print_string (int_to_str ((id id id) 5))

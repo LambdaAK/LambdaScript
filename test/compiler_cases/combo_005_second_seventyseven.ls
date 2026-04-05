@@ -3,4 +3,4 @@ Expected:
 
 Source:
 let second _ y = y
-let () = println (int_to_str (second 0 77))
+let () = print_string (int_to_str (second 0 77))

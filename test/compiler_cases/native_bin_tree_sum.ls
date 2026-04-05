@@ -9,4 +9,4 @@ let rec sum_tree t =
     | Leaf n -> n
     | Node (a, b) -> sum_tree a + sum_tree b
 
-let () = println (int_to_str (sum_tree (Node (Leaf 1, Node (Leaf 2, Leaf 3)))))
+let () = print_string (int_to_str (sum_tree (Node (Leaf 1, Node (Leaf 2, Leaf 3)))))

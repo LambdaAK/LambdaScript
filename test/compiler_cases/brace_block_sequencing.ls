@@ -2,4 +2,4 @@ Expected:
 12
 
 Source:
-let () = println (int_to_str ({ 10; 11 + 1 }))
+let () = print_string (int_to_str ({ 10; 11 + 1 }))

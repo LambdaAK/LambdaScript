@@ -8,4 +8,4 @@ let ff = f 1
 
 let fff = ff 2
 
-let () = println (int_to_str fff)
+let () = print_string (int_to_str fff)

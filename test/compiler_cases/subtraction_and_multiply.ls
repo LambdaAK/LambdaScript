@@ -2,4 +2,4 @@ Expected:
 4
 
 Source:
-let () = println (int_to_str (10 - 3 * 2))
+let () = print_string (int_to_str (10 - 3 * 2))

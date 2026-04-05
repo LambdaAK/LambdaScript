@@ -12,4 +12,4 @@ let rec max_list lst =
 
 let xs = [3, 99, 7, 12, 45, 8]
 
-let () = println (int_to_str (max_list xs))
+let () = print_string (int_to_str (max_list xs))

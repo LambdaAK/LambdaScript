@@ -8,14 +8,14 @@ inter Functor<f> {
   val fmap : (a -> b) -> f<a> -> f<b>
 }
 
-impl Functor for Option {
+impl Functor for Option where
   let fmap g x =
     case x do
     | None -> None
     | Some v -> Some(g v)
-}
+end
 
 let () =
   case fmap (fn x -> x + 1) (Some 3) do
-  | Some n -> println (int_to_str n)
-  | None -> println "no"
+  | Some n -> print_string (int_to_str n)
+  | None -> print_string "no"

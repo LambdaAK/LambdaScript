@@ -13,4 +13,4 @@ let inner = Some 7
 let outer = Some inner
 
 let () =
-  println (int_to_str (unwrap_or 0 (unwrap_or inner outer)))
+  print_string (int_to_str (unwrap_or 0 (unwrap_or inner outer)))
