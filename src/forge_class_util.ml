@@ -1,4 +1,5 @@
-(** Shared naming for typeclass dictionaries (must stay in sync with [condense]). *)
+(** Shared naming for typeclass dictionaries (must stay in sync with
+    [condense]). *)
 
 open Cexpr
 
@@ -20,8 +21,7 @@ let rec mono_type_slug (t : mono_type) : string =
   | CTypeApp (name, args) ->
       name ^ "__" ^ String.concat "__" (List.map mono_type_slug args)
   | TCtorApp (w, args) ->
-      mono_type_slug (TypeVar w)
-      ^ "__"
+      mono_type_slug (TypeVar w) ^ "__"
       ^ String.concat "__" (List.map mono_type_slug args)
   | CListType e -> "list__" ^ mono_type_slug e
   | VectorType ts -> "vec__" ^ String.concat "__" (List.map mono_type_slug ts)

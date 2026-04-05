@@ -2,7 +2,8 @@ open Cexpr
 
 (** Source names use [$written(name)] in the solver. *)
 let is_forge_written_var (v : string) : bool =
-  String.length v > 9 && String.sub v 0 9 = "$written("
+  String.length v > 9
+  && String.sub v 0 9 = "$written("
   && String.ends_with ~suffix:")" v
 
 (** Type variables that stand for the class dictionary slot (e.g. [f] in
@@ -110,10 +111,10 @@ let fix_type (t : mono_type) : mono_type =
         CTypeApp (name, List.map (fun t -> apply_substitution t subs) args)
     | TCtorApp (w, args) ->
         TCtorApp (w, List.map (fun t -> apply_substitution t subs) args)
-    | FixedPoint (name, body) ->
-        FixedPoint (name, apply_substitution body subs)
+    | FixedPoint (name, body) -> FixedPoint (name, apply_substitution body subs)
     | RecordType fields ->
-        RecordType (List.map (fun (name, t) -> (name, apply_substitution t subs)) fields)
+        RecordType
+          (List.map (fun (name, t) -> (name, apply_substitution t subs)) fields)
   in
   let subs = create_substitution t [] in
   apply_substitution t subs
@@ -138,9 +139,13 @@ let fix_c_type (ct : c_type) : c_type =
     | CTypeApp (_, args) | TCtorApp (_, args) -> List.iter walk_mono args
     | FixedPoint (_, body) -> walk_mono body
     | RecordType fields -> List.iter (fun (_, t) -> walk_mono t) fields
-    | IntType | FloatType | BoolType | StringType | CharType | UnitType
-    | TypeName _ ->
-        ()
+    | IntType
+    | FloatType
+    | BoolType
+    | StringType
+    | CharType
+    | UnitType
+    | TypeName _ -> ()
   in
   let rec walk_c (t : c_type) : unit =
     match t with
@@ -163,37 +168,27 @@ let fix_c_type (ct : c_type) : c_type =
   in
   let rec apply_mono (m : mono_type) : mono_type =
     match m with
-    | TypeVar v -> (
-        try TypeVar (List.assoc v subs) with Not_found -> m)
-    | FunctionType (t1, t2) ->
-        FunctionType (apply_mono t1, apply_mono t2)
+    | TypeVar v -> ( try TypeVar (List.assoc v subs) with Not_found -> m)
+    | FunctionType (t1, t2) -> FunctionType (apply_mono t1, apply_mono t2)
     | VectorType ts -> VectorType (List.map apply_mono ts)
     | CListType e -> CListType (apply_mono e)
     | TypeName v -> TypeName v
-    | CTypeApp (name, args) ->
-        CTypeApp (name, List.map apply_mono args)
-    | TCtorApp (w, args) ->
-        TCtorApp (w, List.map apply_mono args)
-    | FixedPoint (name, body) ->
-        FixedPoint (name, apply_mono body)
+    | CTypeApp (name, args) -> CTypeApp (name, List.map apply_mono args)
+    | TCtorApp (w, args) -> TCtorApp (w, List.map apply_mono args)
+    | FixedPoint (name, body) -> FixedPoint (name, apply_mono body)
     | RecordType fields ->
-        RecordType
-          (List.map (fun (name, t) -> (name, apply_mono t)) fields)
+        RecordType (List.map (fun (name, t) -> (name, apply_mono t)) fields)
     | (IntType | FloatType | BoolType | StringType | CharType | UnitType) as
-        prim ->
-        prim
+      prim -> prim
   in
   let rec apply_c (t : c_type) : c_type =
     match t with
     | Mono m -> Mono (apply_mono m)
     | PolyType (v, inner) ->
-        let v' =
-          try List.assoc v subs with Not_found -> v
-        in
+        let v' = try List.assoc v subs with Not_found -> v in
         PolyType (v', apply_c inner)
     | Constrained (ps, inner) ->
         Constrained
-          ( List.map (fun (c, m) -> (c, apply_mono m)) ps,
-            apply_c inner )
+          (List.map (fun (c, m) -> (c, apply_mono m)) ps, apply_c inner)
   in
   apply_c ct

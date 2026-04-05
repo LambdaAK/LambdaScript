@@ -85,9 +85,11 @@ and string_of_value = function
   | CharValue c -> "'" ^ String.make 1 c ^ "'"
   | BooleanValue b -> string_of_bool b
   | UnitValue -> "()"
-  | FunctionClosure _ | RecursiveFunctionClosure _ | BuiltInFunction _
-  | TypeClassMethod _ | TypeClassMethodPending _ ->
-      "function"
+  | FunctionClosure _
+  | RecursiveFunctionClosure _
+  | BuiltInFunction _
+  | TypeClassMethod _
+  | TypeClassMethodPending _ -> "function"
   | VectorValue values ->
       let values_string : string =
         values |> List.map string_of_value |> String.concat ", "
@@ -99,9 +101,9 @@ and string_of_value = function
       in
       "[" ^ values_string ^ "]"
   | RecordValue fields ->
-      let field_strs = List.map (fun (name, v) ->
-        name ^ ": " ^ string_of_value v
-      ) fields in
+      let field_strs =
+        List.map (fun (name, v) -> name ^ ": " ^ string_of_value v) fields
+      in
       "{" ^ String.concat ", " field_strs ^ "}"
   | VariantValue (cons_name, None) -> cons_name
   | VariantValue (cons_name, Some payload) ->
@@ -277,7 +279,7 @@ let rec mono_type_of_value (v : value) : mono_type option =
             | None -> None)
       in
       go [] vs
-  | RecordValue fields ->
+  | RecordValue fields -> (
       let rec map_fields = function
         | [] -> Some []
         | (nm, fv) :: rest -> (
@@ -288,12 +290,15 @@ let rec mono_type_of_value (v : value) : mono_type option =
                 | None -> None
                 | Some tl -> Some ((nm, t) :: tl)))
       in
-      (match map_fields fields with
+      match map_fields fields with
       | Some pairs -> Some (RecordType pairs)
       | None -> None)
-  | VariantValue _ | FunctionClosure _ | RecursiveFunctionClosure _
-  | BuiltInFunction _ | TypeClassMethod _ | TypeClassMethodPending _ ->
-      None
+  | VariantValue _
+  | FunctionClosure _
+  | RecursiveFunctionClosure _
+  | BuiltInFunction _
+  | TypeClassMethod _
+  | TypeClassMethodPending _ -> None
 
 (** [eval_c_expr ce env] evaluates a condensed expression [ce] in the context of
     environment [env].
@@ -411,7 +416,8 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       | TypeClassMethod (cls_name, method_name) ->
           dispatch_typeclass_method_args env cls_name method_name [ v2 ]
       | TypeClassMethodPending (cls_name, method_name, applied_args) ->
-          dispatch_typeclass_method_args env cls_name method_name (applied_args @ [ v2 ])
+          dispatch_typeclass_method_args env cls_name method_name
+            (applied_args @ [ v2 ])
       | _ -> Error (OtherError "eval_c_expr: EApp"))
   | EBind (pattern, _, e1, e2, _) ->
       (* We have let p = e1 in e2. We can convert this to (fun p -> e2) e1 and
@@ -450,30 +456,30 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
           | None -> Error (OtherError "no pattern matched in let rec")
           | Some new_bindings -> eval_c_expr e2 (new_bindings @ env)))
   | EBindMutRec (bindings, body) ->
-      (* For mutually recursive bindings:
-         1. Evaluate all bodies to get closures
-         2. Create recursive closures for all of them
-         3. Create bindings for all of them
-         4. Backpatch all environment references
-         5. Evaluate body in the extended environment *)
+      (* For mutually recursive bindings: 1. Evaluate all bodies to get closures
+         2. Create recursive closures for all of them 3. Create bindings for all
+         of them 4. Backpatch all environment references 5. Evaluate body in the
+         extended environment *)
 
       (* First pass: evaluate bodies and create recursive closures *)
       let* bindings_and_refs =
         let rec process_bindings acc = function
           | [] -> return (List.rev acc)
-          | (pat, _, expr, _, _) :: rest ->
+          | (pat, _, expr, _, _) :: rest -> (
               let* value = eval_c_expr expr env in
               let value_rec, env_ref_opt =
                 match value with
                 | FunctionClosure (closure_env, closure_pat, _, closure_body) ->
                     let env_ref = ref closure_env in
-                    (RecursiveFunctionClosure (env_ref, closure_pat, None, closure_body),
-                     Some env_ref)
-                | _ ->
-                    (value, None)
+                    ( RecursiveFunctionClosure
+                        (env_ref, closure_pat, None, closure_body),
+                      Some env_ref )
+                | _ -> (value, None)
               in
-              (match bind_pat pat value_rec with
-              | None -> Error (OtherError "no pattern matched in mutually recursive let")
+              match bind_pat pat value_rec with
+              | None ->
+                  Error
+                    (OtherError "no pattern matched in mutually recursive let")
               | Some new_bindings ->
                   process_bindings ((new_bindings, env_ref_opt) :: acc) rest)
         in
@@ -481,9 +487,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       in
 
       (* Collect all bindings *)
-      let all_bindings =
-        List.flatten (List.map fst bindings_and_refs)
-      in
+      let all_bindings = List.flatten (List.map fst bindings_and_refs) in
 
       (* Second pass: backpatch all recursive function closures *)
       let () =
@@ -530,8 +534,11 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       | RecordValue fields -> (
           match List.assoc_opt field_name fields with
           | Some v -> return v
-          | None -> Error (OtherError ("Field " ^ field_name ^ " not found in record")))
+          | None ->
+              Error
+                (OtherError ("Field " ^ field_name ^ " not found in record")))
       | _ -> Error (OtherError "Field access on non-record value"))
+
 and apply_function_value env v_fn v_arg : value eval_result =
   match v_fn with
   | BuiltInFunction f -> eval_builtin f v_arg
@@ -548,18 +555,20 @@ and apply_function_value env v_fn v_arg : value eval_result =
           match bind_pat p v_arg with
           | Some env'' -> eval_c_expr e (env'' @ env')
           | None -> Error (OtherError "eval_c_expr: EApp")))
-  | RecursiveFunctionClosure (env'_ref, p, _, e) ->
+  | RecursiveFunctionClosure (env'_ref, p, _, e) -> (
       let env' : env = !env'_ref in
-      (match bind_pat p v_arg with
+      match bind_pat p v_arg with
       | Some env'' -> eval_c_expr e (env'' @ env')
       | None -> Error (OtherError "eval_c_expr: EApp"))
   | TypeClassMethod (cls_name, method_name) ->
       dispatch_typeclass_method_args env cls_name method_name [ v_arg ]
   | TypeClassMethodPending (cls_name, method_name, applied_args) ->
-      dispatch_typeclass_method_args env cls_name method_name (applied_args @ [ v_arg ])
+      dispatch_typeclass_method_args env cls_name method_name
+        (applied_args @ [ v_arg ])
   | _ -> Error (OtherError "apply_function_value: not callable")
-and dispatch_typeclass_method_args env cls_name method_name (args : value list) :
-    value eval_result =
+
+and dispatch_typeclass_method_args env cls_name method_name (args : value list)
+    : value eval_result =
   let apply_all (method_fn : value) : value eval_result =
     let rec go fn = function
       | [] -> return fn
@@ -586,9 +595,9 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list) 
       | [] -> None
       | (k, _) :: rest ->
           if String.starts_with ~prefix k then
-            (match method_for_dict k with
+            match method_for_dict k with
             | Some method_fn -> Some (apply_all method_fn)
-            | None -> scan rest)
+            | None -> scan rest
           else scan rest
     in
     scan env
@@ -599,18 +608,18 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list) 
       | [] -> None
       | (k, _) :: rest ->
           if String.starts_with ~prefix k then
-            (match method_for_dict k with
+            match method_for_dict k with
             | Some method_fn -> (
                 match apply_all method_fn with
                 | Ok v -> Some (Ok v)
                 | Error _ -> scan rest)
-            | None -> scan rest)
+            | None -> scan rest
           else scan rest
     in
     scan env
   in
-  (* Prefer later arguments first: for curried methods like fold_left, the
-     class key often appears near the end (the container argument). *)
+  (* Prefer later arguments first: for curried methods like fold_left, the class
+     key often appears near the end (the container argument). *)
   let rec try_args = function
     | [] -> None
     | arg :: rest -> (
@@ -648,6 +657,7 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list) 
   match try_args (List.rev args) with
   | Some result -> result
   | None -> return (TypeClassMethodPending (cls_name, method_name, args))
+
 and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   match (f, v) with
   | Println, StringValue s ->
@@ -665,12 +675,9 @@ and eval_builtin (f : builtin_function) (v : value) : value eval_result =
       in
       ListValue char_list |> return
   | StrLength, StringValue s -> IntegerValue (String.length s) |> return
-  | StrConcat, StringValue s1 ->
-      BuiltInFunction (StrConcatPartial s1) |> return
-  | StrConcatPartial s1, StringValue s2 ->
-      StringValue (s1 ^ s2) |> return
-  | StrSlice, StringValue s ->
-      BuiltInFunction (StrSlicePartial1 s) |> return
+  | StrConcat, StringValue s1 -> BuiltInFunction (StrConcatPartial s1) |> return
+  | StrConcatPartial s1, StringValue s2 -> StringValue (s1 ^ s2) |> return
+  | StrSlice, StringValue s -> BuiltInFunction (StrSlicePartial1 s) |> return
   | StrSlicePartial1 s, IntegerValue start ->
       BuiltInFunction (StrSlicePartial2 (s, start)) |> return
   | StrSlicePartial2 (s, start), IntegerValue len ->
@@ -838,8 +845,8 @@ and create_generic_type : c_pat -> c_type = function
                   | Mono t -> t
                   | PolyType (_, _) | Constrained _ ->
                       failwith
-                        "Polymorphic types not supported in create_generic_type \
-                         for records" ))
+                        "Polymorphic types not supported in \
+                         create_generic_type for records" ))
               fields))
   | CVariantPat (_cons_name, payload_pat_opt) -> (
       match payload_pat_opt with
@@ -911,28 +918,31 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
           | _ -> ());
           new_bindings |> return)
   | CDefnMutRec defns ->
-      (* For mutually recursive definitions:
-         1. Create recursive closures for all functions
-         2. Create bindings for all of them
-         3. Backpatch all environment references *)
+      (* For mutually recursive definitions: 1. Create recursive closures for
+         all functions 2. Create bindings for all of them 3. Backpatch all
+         environment references *)
 
-      (* First pass: create bindings with temporary values and collect closure refs *)
+      (* First pass: create bindings with temporary values and collect closure
+         refs *)
       let* initial_bindings_and_refs =
         let rec process_defns acc = function
           | [] -> return (List.rev acc)
-          | (pat, _, _, body, _, _) :: rest ->
+          | (pat, _, _, body, _, _) :: rest -> (
               let* value = eval_c_expr body env in
               let value_rec, env_ref_opt =
                 match value with
                 | FunctionClosure (closure_env, closure_pat, _, closure_body) ->
                     let env_ref = ref closure_env in
-                    (RecursiveFunctionClosure (env_ref, closure_pat, None, closure_body),
-                     Some env_ref)
-                | _ ->
-                    (value, None)
+                    ( RecursiveFunctionClosure
+                        (env_ref, closure_pat, None, closure_body),
+                      Some env_ref )
+                | _ -> (value, None)
               in
-              (match bind_pat pat value_rec with
-              | None -> Error (OtherError "eval_defn: pattern match failed in mutual recursion")
+              match bind_pat pat value_rec with
+              | None ->
+                  Error
+                    (OtherError
+                       "eval_defn: pattern match failed in mutual recursion")
               | Some new_bindings ->
                   process_defns ((new_bindings, env_ref_opt) :: acc) rest)
         in
@@ -1035,7 +1045,8 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
                     (* Constructor with payload *)
                     ( cons_name,
                       FunctionClosure
-                        ([], CIdPat ("__constructor_" ^ cons_name), None, EUnit) ))
+                        ([], CIdPat ("__constructor_" ^ cons_name), None, EUnit)
+                    ))
               constructors)
           types
       in

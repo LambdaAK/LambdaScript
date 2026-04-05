@@ -50,14 +50,15 @@ let runtime_c_path () =
               "Cannot find runtime/ls_runtime.c — run from the Forge repo root \
                or set FORGE_ROOT (legacy: LAMBDASCRIPT_ROOT)")
 
-let rec typecheck_defns static_env type_env ctor_env defns
-    : (typechecked_envs, string) result =
+let rec typecheck_defns static_env type_env ctor_env defns :
+    (typechecked_envs, string) result =
   match defns with
   | [] -> Ok (static_env, type_env, ctor_env)
   | defn :: rest -> (
       match generate_defn static_env type_env defn with
       | Ok (nb, nte, nce) ->
-          typecheck_defns (nb @ static_env) (nte @ type_env) (nce @ ctor_env) rest
+          typecheck_defns (nb @ static_env) (nte @ type_env) (nce @ ctor_env)
+            rest
       | Error e -> Error (string_of_type_check_error e))
 
 let compile ?(quiet = false) ?(prelude = true) (src_path : string)

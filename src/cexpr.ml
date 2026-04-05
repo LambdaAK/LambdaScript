@@ -5,7 +5,8 @@ type c_pat =
   | CConsPat of c_pat * c_pat
   | CWildcardPat
   | CVectorPat of c_pat list
-  | CRecordPat of (string * c_pat) list (* { x: pat, y: pat } — field order in source is arbitrary *)
+  | CRecordPat of (string * c_pat) list
+    (* { x: pat, y: pat } — field order in source is arbitrary *)
   | CCharPat of char
   | CStringPat of string
   | CIdPat of string
@@ -63,19 +64,46 @@ type c_type =
   | Mono of mono_type
   | PolyType of type_var * c_type (* Represents ∀x.τ *)
   | Constrained of (string * mono_type) list * c_type
-        (** Typeclass constraints [(class_name, type)] ... before inner scheme. *)
+      (** Typeclass constraints [(class_name, type)] ... before inner scheme. *)
 
 and c_defn =
-  | CDefn of c_pat * (string * mono_type) list * c_type option * c_expr * c_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)
-  | CDefnRec of c_pat * (string * mono_type) list * c_type option * c_expr * c_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)
-  | CDefnMutRec of (c_pat * (string * mono_type) list * c_type option * c_expr * c_type option * int) list (* mutually recursive definitions *)
+  | CDefn of
+      c_pat
+      * (string * mono_type) list
+      * c_type option
+      * c_expr
+      * c_type option
+      * int
+    (* pat, constraints, type_annotation, body, return_type,
+       num_explicit_params *)
+  | CDefnRec of
+      c_pat
+      * (string * mono_type) list
+      * c_type option
+      * c_expr
+      * c_type option
+      * int
+    (* pat, constraints, type_annotation, body, return_type,
+       num_explicit_params *)
+  | CDefnMutRec of
+      (c_pat
+      * (string * mono_type) list
+      * c_type option
+      * c_expr
+      * c_type option
+      * int)
+      list
+    (* mutually recursive definitions *)
   | CClassDecl of string * string list * (string * mono_type * string) list
       (** [(method, mono type, dispatch_class)] — [dispatch_class] selects which
-          dictionary receives the method at [impl] time ([Functor], [Monad], …). *)
+          dictionary receives the method at [impl] time ([Functor], [Monad], …).
+      *)
   | CTypeAlias of string * string list * mono_type
   | CSumType of string * string list * (string * c_type option) list
   | CSumTypeRec of string * string list * (string * c_type option) list
-  | CSumTypeRecMutRec of (string * string list * (string * c_type option) list) list (* mutually recursive sum types *)
+  | CSumTypeRecMutRec of
+      (string * string list * (string * c_type option) list) list
+(* mutually recursive sum types *)
 
 and c_switch_branch = c_pat * c_expr
 
@@ -85,9 +113,21 @@ and c_expr_or_c_defn =
 
 and c_expr =
   | EFunction of c_pat * c_type option * c_expr
-  | EBind of c_pat * c_type option * c_expr * c_expr * c_type option (* pat, type_annotation, e1, e2, return_type *)
-  | EBindRec of c_pat * c_type option * c_expr * c_expr * c_type option (* pat, type_annotation, e1, e2, return_type *)
-  | EBindMutRec of (c_pat * c_type option * c_expr * c_type option * int) list * c_expr (* mutually recursive bindings and body *)
+  | EBind of
+      c_pat
+      * c_type option
+      * c_expr
+      * c_expr
+      * c_type option (* pat, type_annotation, e1, e2, return_type *)
+  | EBindRec of
+      c_pat
+      * c_type option
+      * c_expr
+      * c_expr
+      * c_type option (* pat, type_annotation, e1, e2, return_type *)
+  | EBindMutRec of
+      (c_pat * c_type option * c_expr * c_type option * int) list
+      * c_expr (* mutually recursive bindings and body *)
   | EBlock of c_expr_or_c_defn list
   | ETernary of c_expr * c_expr * c_expr
   | ESwitch of c_expr * c_switch_branch list
@@ -105,7 +145,8 @@ and c_expr =
   | EListEnumeration of c_expr * c_expr
   | EListComprehension of c_expr * (c_pat * c_expr) list
   | ERecordLit of (string * c_expr) list
-  | ERecordUpdate of c_expr * (string * c_expr) list (* { expr with field = value, ... } *)
+  | ERecordUpdate of
+      c_expr * (string * c_expr) list (* { expr with field = value, ... } *)
   | EFieldAccess of c_expr * string
 
 and value =
@@ -120,10 +161,11 @@ and value =
   | VectorValue of value list
   | ListValue of value list
   | BuiltInFunction of builtin_function
-  (** Resolve [class_name, method_name] at apply-time using instance dicts in the env. *)
+      (** Resolve [class_name, method_name] at apply-time using instance dicts
+          in the env. *)
   | TypeClassMethod of string * string
-  (** Curried typeclass method call waiting for an argument that reveals
-      the instance shape. Stores already-applied arguments. *)
+      (** Curried typeclass method call waiting for an argument that reveals the
+          instance shape. Stores already-applied arguments. *)
   | TypeClassMethodPending of string * string * value list
   | VariantValue of string * value option
   | RecordValue of (string * value) list
@@ -153,7 +195,8 @@ and env = (string * value) list
 type static_env = (string * c_type) list
 type c_program = c_defn list
 
-(** Deterministic field order for record layout (native codegen uses a tuple in this order). *)
+(** Deterministic field order for record layout (native codegen uses a tuple in
+    this order). *)
 let record_fields_sorted (fields : (string * 'a) list) : (string * 'a) list =
   List.sort (fun (a, _) (b, _) -> String.compare a b) fields
 
@@ -182,9 +225,7 @@ and substitute_type (t : c_type) (var : type_var) (replacement : mono_type) :
   match t with
   | Constrained (ps, body) ->
       Constrained
-        ( List.map
-            (fun (c, ty) -> (c, substitute_mono ty var replacement))
-            ps,
+        ( List.map (fun (c, ty) -> (c, substitute_mono ty var replacement)) ps,
           substitute_type body var replacement )
   | Mono (TypeVar v) -> if v = var then Mono replacement else t
   | Mono (FunctionType (t1, t2)) ->
@@ -205,7 +246,11 @@ and substitute_type (t : c_type) (var : type_var) (replacement : mono_type) :
   | Mono (FixedPoint (name, body)) ->
       Mono (FixedPoint (name, substitute_mono body var replacement))
   | Mono (RecordType fields) ->
-      Mono (RecordType (List.map (fun (name, t) -> (name, substitute_mono t var replacement)) fields))
+      Mono
+        (RecordType
+           (List.map
+              (fun (name, t) -> (name, substitute_mono t var replacement))
+              fields))
   | Mono t -> Mono t
   | PolyType (v, body) ->
       if v = var then t else PolyType (v, substitute_type body var replacement)
@@ -236,7 +281,10 @@ and substitute_mono (t : mono_type) (var : type_var) (replacement : mono_type) :
   | FixedPoint (name, body) ->
       FixedPoint (name, substitute_mono body var replacement)
   | RecordType fields ->
-      RecordType (List.map (fun (name, t) -> (name, substitute_mono t var replacement)) fields)
+      RecordType
+        (List.map
+           (fun (name, t) -> (name, substitute_mono t var replacement))
+           fields)
   | _ -> t
 
 let rec string_of_mono_type : mono_type -> string = function
@@ -254,7 +302,7 @@ let rec string_of_mono_type : mono_type -> string = function
   | VectorType ts ->
       let ts_str = List.map string_of_mono_type ts in
       "[" ^ String.concat ", " ts_str ^ "]"
-  | CListType t -> "[" ^ string_of_mono_type t ^ "]"
+  | CListType t -> "List<" ^ string_of_mono_type t ^ ">"
   | TypeName v -> v
   | CTypeApp (name, args) ->
       if args = [] then name
@@ -264,7 +312,8 @@ let rec string_of_mono_type : mono_type -> string = function
   | TCtorApp (w, args) ->
       let head =
         if
-          String.length w > 9 && String.sub w 0 9 = "$written("
+          String.length w > 9
+          && String.sub w 0 9 = "$written("
           && String.ends_with ~suffix:")" w
         then String.sub w 9 (String.length w - 10)
         else w
@@ -275,9 +324,9 @@ let rec string_of_mono_type : mono_type -> string = function
         head ^ "<" ^ String.concat ", " args_str ^ ">"
   | FixedPoint (_, body) -> string_of_mono_type body
   | RecordType fields ->
-      let field_strs = List.map (fun (name, t) ->
-        name ^ ": " ^ string_of_mono_type t
-      ) fields in
+      let field_strs =
+        List.map (fun (name, t) -> name ^ ": " ^ string_of_mono_type t) fields
+      in
       "{" ^ String.concat ", " field_strs ^ "}"
 
 let rec string_of_type : c_type -> string = function

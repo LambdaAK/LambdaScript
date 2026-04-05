@@ -9,9 +9,8 @@ let merge_param_arity (acc : (string * int) list) (param : string) (n : int) :
   match List.assoc_opt param acc with
   | Some k when k <> n ->
       failwith
-        ("Inconsistent arity for type constructor "
-        ^ param
-        ^ " (expected " ^ string_of_int k ^ ", got " ^ string_of_int n ^ ")")
+        ("Inconsistent arity for type constructor " ^ param ^ " (expected "
+       ^ string_of_int k ^ ", got " ^ string_of_int n ^ ")")
   | Some _ -> acc
   | None -> (param, n) :: acc
 
@@ -27,7 +26,8 @@ let rec collect_ctypeapp_heads_for_params (params : string list)
   | CListType e -> collect_ctypeapp_heads_for_params params acc e
   | CTypeApp (name, args) ->
       let acc' =
-        if List.mem name params then merge_param_arity acc name (List.length args)
+        if List.mem name params then
+          merge_param_arity acc name (List.length args)
         else acc
       in
       List.fold_left (collect_ctypeapp_heads_for_params params) acc' args
@@ -38,9 +38,14 @@ let rec collect_ctypeapp_heads_for_params (params : string list)
         acc fields
   | TCtorApp (_, args) ->
       List.fold_left (collect_ctypeapp_heads_for_params params) acc args
-  | IntType | FloatType | BoolType | StringType | CharType | UnitType
-  | TypeVar _ | TypeName _ ->
-      acc
+  | IntType
+  | FloatType
+  | BoolType
+  | StringType
+  | CharType
+  | UnitType
+  | TypeVar _
+  | TypeName _ -> acc
 
 (** Per inter parameter: inferred arity from [p<...>] uses, or [0] if none. *)
 let infer_inter_param_arities (params : string list)
@@ -51,15 +56,20 @@ let infer_inter_param_arities (params : string list)
       [] method_monos
   in
   List.map
-    (fun p -> (p, match List.assoc_opt p acc with Some n -> n | None -> 0))
+    (fun p ->
+      ( p,
+        match List.assoc_opt p acc with
+        | Some n -> n
+        | None -> 0 ))
     params
 
-let rec replace_inter_heads_with_tctor ~(params : string list)
-    (t : mono_type) : mono_type =
+let rec replace_inter_heads_with_tctor ~(params : string list) (t : mono_type) :
+    mono_type =
   match t with
   | FunctionType (a, b) ->
       FunctionType
-        (replace_inter_heads_with_tctor ~params a, replace_inter_heads_with_tctor ~params b)
+        ( replace_inter_heads_with_tctor ~params a,
+          replace_inter_heads_with_tctor ~params b )
   | VectorType ts ->
       VectorType (List.map (replace_inter_heads_with_tctor ~params) ts)
   | CListType e -> CListType (replace_inter_heads_with_tctor ~params e)
@@ -76,14 +86,20 @@ let rec replace_inter_heads_with_tctor ~(params : string list)
         (List.map
            (fun (nm, t') -> (nm, replace_inter_heads_with_tctor ~params t'))
            fields)
-  | ( IntType | FloatType | BoolType | StringType | CharType | UnitType
-    | TypeVar _ | TypeName _ ) as leaf ->
-      leaf
+  | ( IntType
+    | FloatType
+    | BoolType
+    | StringType
+    | CharType
+    | UnitType
+    | TypeVar _
+    | TypeName _ ) as leaf -> leaf
   | TCtorApp (w, args) ->
       TCtorApp (w, List.map (replace_inter_heads_with_tctor ~params) args)
 
 (** Apply impl head [inst] to type arguments (after inner substitution). *)
-let expand_instance_head (inst : mono_type) (args : mono_type list) : mono_type =
+let expand_instance_head (inst : mono_type) (args : mono_type list) : mono_type
+    =
   match (inst, args) with
   | TypeName n, _ -> CTypeApp (n, args)
   | CListType _, [ elem ] -> CListType elem
@@ -105,23 +121,27 @@ let rec substitute_instance_in_mono ~(written_var : string) ~(inst : mono_type)
   | TypeVar v when v = written_var && arity = 0 -> inst
   | TypeVar v -> TypeVar v
   | TCtorApp (w, args) when w = written_var && arity > 0 ->
-      let args' = List.map (substitute_instance_in_mono ~written_var ~inst arity) args in
+      let args' =
+        List.map (substitute_instance_in_mono ~written_var ~inst arity) args
+      in
       expand_instance_head inst args'
   | TCtorApp (w, args) ->
       TCtorApp
-        ( w,
-          List.map (substitute_instance_in_mono ~written_var ~inst arity) args )
+        (w, List.map (substitute_instance_in_mono ~written_var ~inst arity) args)
   | FunctionType (a, b) ->
       FunctionType
         ( substitute_instance_in_mono ~written_var ~inst arity a,
           substitute_instance_in_mono ~written_var ~inst arity b )
   | VectorType ts ->
-      VectorType (List.map (substitute_instance_in_mono ~written_var ~inst arity) ts)
-  | CListType e -> CListType (substitute_instance_in_mono ~written_var ~inst arity e)
+      VectorType
+        (List.map (substitute_instance_in_mono ~written_var ~inst arity) ts)
+  | CListType e ->
+      CListType (substitute_instance_in_mono ~written_var ~inst arity e)
   | CTypeApp (name, args) ->
       CTypeApp
         ( name,
-          List.map (substitute_instance_in_mono ~written_var ~inst arity) args )
+          List.map (substitute_instance_in_mono ~written_var ~inst arity) args
+        )
   | FixedPoint (n, body) ->
       FixedPoint (n, substitute_instance_in_mono ~written_var ~inst arity body)
   | RecordType fields ->
@@ -130,9 +150,13 @@ let rec substitute_instance_in_mono ~(written_var : string) ~(inst : mono_type)
            (fun (nm, t') ->
              (nm, substitute_instance_in_mono ~written_var ~inst arity t'))
            fields)
-  | (IntType | FloatType | BoolType | StringType | CharType | UnitType | TypeName _)
-    as leaf ->
-      leaf
+  | ( IntType
+    | FloatType
+    | BoolType
+    | StringType
+    | CharType
+    | UnitType
+    | TypeName _ ) as leaf -> leaf
 
 let arity_of_name_in_seen (seen : (string * int) list) (n : string) : int option
     =
@@ -151,23 +175,24 @@ let validate_impl_head ~(class_name : string) ~(required_arity : int)
         match arity_of_name_in_seen seen_ctors n with
         | Some k when k <> required_arity ->
             failwith
-              ("Cannot use " ^ n ^ " as " ^ class_name
-             ^ " (expected arity " ^ string_of_int required_arity ^ ", got "
-             ^ string_of_int k ^ ")")
+              ("Cannot use " ^ n ^ " as " ^ class_name ^ " (expected arity "
+              ^ string_of_int required_arity
+              ^ ", got " ^ string_of_int k ^ ")")
         | _ -> ())
     | CListType _ when required_arity = 1 -> ()
     | CListType _ ->
         failwith
           ("Cannot use [] as " ^ class_name ^ " (expected arity "
-         ^ string_of_int required_arity ^ ", got 1)")
+          ^ string_of_int required_arity
+          ^ ", got 1)")
     | _ ->
         failwith
           ("forge: impl for " ^ class_name
          ^ " requires a bare type constructor (type name or [u])")
 
 (** Which curried argument position carries the functor / instance key type. *)
-let rec peel_dom (acc : mono_type list) (t : mono_type) : mono_type list * mono_type
-    =
+let rec peel_dom (acc : mono_type list) (t : mono_type) :
+    mono_type list * mono_type =
   match t with
   | FunctionType (a, r) -> peel_dom (a :: acc) r
   | ret -> (List.rev acc, ret)
@@ -184,13 +209,19 @@ let rec contains_tctor_for_var (written_var : string) (t : mono_type) : bool =
   | FixedPoint (_, body) -> contains_tctor_for_var written_var body
   | RecordType fields ->
       List.exists (fun (_, t') -> contains_tctor_for_var written_var t') fields
-  | IntType | FloatType | BoolType | StringType | CharType | UnitType
-  | TypeVar _ | TypeName _ ->
-      false
+  | IntType
+  | FloatType
+  | BoolType
+  | StringType
+  | CharType
+  | UnitType
+  | TypeVar _
+  | TypeName _ -> false
 
 (** [0] if the class parameter appears only as a type variable; otherwise the
     arity of [TCtorApp(w, ...)] uses for [w]. *)
-let rec ctor_arity_for_written_var (written_var : string) (t : mono_type) : int =
+let rec ctor_arity_for_written_var (written_var : string) (t : mono_type) : int
+    =
   match t with
   | FunctionType (a, b) -> (
       match ctor_arity_for_written_var written_var a with
@@ -215,9 +246,14 @@ let rec ctor_arity_for_written_var (written_var : string) (t : mono_type) : int 
       List.fold_left
         (fun acc u -> max acc (ctor_arity_for_written_var written_var u))
         k args
-  | IntType | FloatType | BoolType | StringType | CharType | UnitType
-  | TypeVar _ | TypeName _ ->
-      0
+  | IntType
+  | FloatType
+  | BoolType
+  | StringType
+  | CharType
+  | UnitType
+  | TypeVar _
+  | TypeName _ -> 0
 
 let dict_resolution_arg_index (mty : mono_type) (written_class_var : string) :
     int =
@@ -225,6 +261,7 @@ let dict_resolution_arg_index (mty : mono_type) (written_class_var : string) :
   let rec scan i = function
     | [] -> 0
     | arg :: rest ->
-        if contains_tctor_for_var written_class_var arg then i else scan (i + 1) rest
+        if contains_tctor_for_var written_class_var arg then i
+        else scan (i + 1) rest
   in
   scan 0 dom

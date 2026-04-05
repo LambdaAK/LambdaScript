@@ -17,11 +17,11 @@ let build_full_static_env () : static_env =
         let token_types = List.map (fun t -> t.token_type) tokens in
         match expr_parser token_types with
         | None -> failwith ("Failed to parse code_mapping for " ^ id)
-        | Some (e, _) ->
+        | Some (e, _) -> (
             let c_e = condense_expr e in
-            ( match type_of_c_expr built_ins_types [] c_e with
+            match type_of_c_expr built_ins_types [] c_e with
             | Ok t -> (id, t)
-            | Error e -> failwith (string_of_type_check_error e) ))
+            | Error e -> failwith (string_of_type_check_error e)))
       code_mapping
   in
   code_mapping_types @ built_ins_types

@@ -28,7 +28,11 @@ let with_tmpdir f =
 (** Drop carriage returns so fixture files can be edited on Windows. *)
 let drop_cr s =
   let b = Buffer.create (String.length s) in
-  String.iter (function '\r' -> () | c -> Buffer.add_char b c) s;
+  String.iter
+    (function
+      | '\r' -> ()
+      | c -> Buffer.add_char b c)
+    s;
   Buffer.contents b
 
 let find_sub_from (s : string) (sub : string) (from : int) : int option =
@@ -50,9 +54,7 @@ let parse_case_file path : string * string =
   if not (String.starts_with ~prefix content) then
     invalid_arg (path ^ ": must start with Expected:");
   let after_label = String.length prefix in
-  if
-    after_label >= String.length content
-    || (not (content.[after_label] = '\n'))
+  if after_label >= String.length content || not (content.[after_label] = '\n')
   then invalid_arg (path ^ ": Expected: must be followed by a newline");
   let body_start = after_label + 1 in
   let marker = "\nSource:\n" in
@@ -65,8 +67,7 @@ let parse_case_file path : string * string =
       let source =
         if source_start >= String.length content then ""
         else
-          String.sub content source_start
-            (String.length content - source_start)
+          String.sub content source_start (String.length content - source_start)
       in
       (expected, source)
 
@@ -74,7 +75,9 @@ let compiler_cases_dir () : string =
   let candidates =
     [
       Filename.concat (Sys.getcwd ()) "test/compiler_cases";
-      Filename.concat (Filename.dirname Sys.executable_name) "test/compiler_cases";
+      Filename.concat
+        (Filename.dirname Sys.executable_name)
+        "test/compiler_cases";
       Filename.concat (Filename.dirname Sys.executable_name) "compiler_cases";
     ]
   in
@@ -82,8 +85,8 @@ let compiler_cases_dir () : string =
   | Some d -> d
   | None ->
       failwith
-        "Cannot find compiler_cases — run tests from the workspace root \
-         (e.g. dune runtest with (chdir %{workspace_root} ...)) or ensure \
+        "Cannot find compiler_cases — run tests from the workspace root (e.g. \
+         dune runtest with (chdir %{workspace_root} ...)) or ensure \
          test/compiler_cases exists."
 
 let list_case_files () : string list =
@@ -94,8 +97,7 @@ let list_case_files () : string list =
     |> List.map (fun name -> Filename.concat dir name)
     |> List.sort String.compare
   in
-  if cases = [] then
-    failwith ("No .ls compiler case files under " ^ dir);
+  if cases = [] then failwith ("No .ls compiler case files under " ^ dir);
   cases
 
 let test_one case_path =
@@ -106,7 +108,9 @@ let test_one case_path =
   let src = Filename.concat dir "prog.ls" in
   let exe = Filename.concat dir "prog_out" in
   Out_channel.with_open_bin src (fun oc -> Out_channel.output_string oc program);
-  match Language.Compile_pipeline.compile ~quiet:true ~prelude:false src exe with
+  match
+    Language.Compile_pipeline.compile ~quiet:true ~prelude:false src exe
+  with
   | Error msg -> assert_failure ("compile failed: " ^ msg)
   | Ok () ->
       let actual = run_exe_capture_stdout exe in
@@ -114,7 +118,5 @@ let test_one case_path =
         ~printer:(fun s -> Printf.sprintf "%S" s)
         expected_stdout actual
 
-let suite =
-  "compiler_integration" >::: List.map test_one (list_case_files ())
-
+let suite = "compiler_integration" >::: List.map test_one (list_case_files ())
 let () = run_test_tt_main suite

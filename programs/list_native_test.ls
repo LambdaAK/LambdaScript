@@ -1,4 +1,4 @@
-let rec sum (lst : [Int]) : Int = case lst do
+let rec sum (lst : List<Int>) : Int = case lst do
   | [] -> 0
   | h :: t -> h + sum t
 

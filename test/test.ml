@@ -555,7 +555,7 @@ let function_type_tests =
     ("let rec f x = x in f", "a -> a");
     ("let rec f (x : Unit) = x in f", "Unit -> Unit");
     ("let rec f (x : Int -> Int) = x in f", "(Int -> Int) -> Int -> Int");
-    ("fn  (a : [Int]) -> a", "[Int] -> [Int]");
+    ("fn  (a : [Int]) -> a", "List<Int> -> List<Int>");
     ("let rec f x = if x == 0 then 0 else f (x - 1) in f", "Int -> Int");
     (* factorial *)
     ("let rec f x = if x == 0 then 1 else x * f (x - 1) in f", "Int -> Int");
@@ -618,7 +618,7 @@ let function_type_tests =
       \  in\n\
       \  \n\
       \  map",
-      "(a -> b) -> [a] -> [b]" );
+      "(a -> b) -> List<a> -> List<b>" );
     (* filter implemented using fold_right *)
     ( {|let rec fold op lst acc =
     case lst do
@@ -630,7 +630,7 @@ let function_type_tests =
   let filter pred = fold (fn x -> fn acc -> if pred x then x :: acc else acc) []
   
   in filter|},
-      "(a -> Bool) -> [a] -> [a]" );
+      "(a -> Bool) -> List<a> -> List<a>" );
     (* filter implemented using fold_left *)
     ( {|let rec fold op acc lst =
     case lst do
@@ -642,7 +642,7 @@ let function_type_tests =
   let filter pred = fold (fn x -> fn acc -> if pred x then x :: acc else acc) []
   
   in filter|},
-      "(a -> Bool) -> [a] -> [a]" );
+      "(a -> Bool) -> List<a> -> List<a>" );
   ]
 
 let pair_type_tests =
@@ -685,32 +685,32 @@ let vector_type_tests =
 
 let list_type_tests =
   [
-    ("[]", "[a]");
-    ("1 :: []", "[Int]");
-    ("1 :: 2 :: []", "[Int]");
-    ("1 :: 2 :: 3 :: []", "[Int]");
-    ("1 :: 2 :: 3 :: 4 :: []", "[Int]");
-    ("(1, 2) :: []", "[(Int, Int)]");
-    ("(1, 2) :: (3, 4) :: []", "[(Int, Int)]");
+    ("[]", "List<a>");
+    ("1 :: []", "List<Int>");
+    ("1 :: 2 :: []", "List<Int>");
+    ("1 :: 2 :: 3 :: []", "List<Int>");
+    ("1 :: 2 :: 3 :: 4 :: []", "List<Int>");
+    ("(1, 2) :: []", "List<(Int, Int)>");
+    ("(1, 2) :: (3, 4) :: []", "List<(Int, Int)>");
     (* with other types *)
-    ("true :: []", "[Bool]");
+    ("true :: []", "List<Bool>");
     (* nested list *)
-    ("(1 :: []) :: []", "[[Int]]");
-    ("(1 :: 2 :: []) :: []", "[[Int]]");
-    ("[] :: []", "[[a]]");
-    ("[] :: [] :: []", "[[a]]");
-    ("([] :: []) :: []", "[[[a]]]");
-    ("(([] :: []) :: []) :: []", "[[[[a]]]]");
-    ("[1 ... 10000]", "[Int]");
-    ("[1 ... 10000000]", "[Int]");
-    ("[1 ... 0]", "[Int]");
-    ("[x * x | x <- [1, 2, 3, 4, 5]]", "[Int]");
+    ("(1 :: []) :: []", "List<List<Int>>");
+    ("(1 :: 2 :: []) :: []", "List<List<Int>>");
+    ("[] :: []", "List<List<a>>");
+    ("[] :: [] :: []", "List<List<a>>");
+    ("([] :: []) :: []", "List<List<List<a>>>");
+    ("(([] :: []) :: []) :: []", "List<List<List<List<a>>>>");
+    ("[1 ... 10000]", "List<Int>");
+    ("[1 ... 10000000]", "List<Int>");
+    ("[1 ... 0]", "List<Int>");
+    ("[x * x | x <- [1, 2, 3, 4, 5]]", "List<Int>");
     ( {|[(x, y, z) | x <- [1, 2, 3], y <- ["hello", "world"], z <- [true, false]]|},
-      "[(Int, String, Bool)]" );
+      "List<(Int, String, Bool)>" );
     ({|
       [x | x <- [1, 2, 3, 4, 5], x <- [true, false]]
-      |}, "[Bool]");
-    ({|[x | x <- [1, 2, 3, 4, 5], x <- []]|}, "[a]");
+      |}, "List<Bool>");
+    ({|[x | x <- [1, 2, 3, 4, 5], x <- []]|}, "List<a>");
   ]
 
 let polymorphism_tests =
@@ -964,7 +964,7 @@ let fold_type_tests =
     in
     fold
   |},
-      "(a -> b -> a) -> [b] -> a -> a" );
+      "(a -> b -> a) -> List<b> -> a -> a" );
     ( {|
   let rec fold op arr acc =
     case arr do
@@ -974,7 +974,7 @@ let fold_type_tests =
   in
   fold
   |},
-      "(a -> b -> b) -> [a] -> b -> b" );
+      "(a -> b -> b) -> List<a> -> b -> b" );
   ]
 
 let complex_tests =
@@ -1596,7 +1596,7 @@ let program_expression_type_tests =
                  let mempty = []
                }
              |}
-             ~expr:"mappend [1] [2]" ~expected_type:"[Int]" );
+             ~expr:"mappend [1] [2]" ~expected_type:"List<Int>" );
          ( "Functor fmap on Option" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -1711,7 +1711,7 @@ let program_expression_type_tests =
                type IntList = [Int]
                let (xs : IntList) = [1, 2, 3]
              |}
-             ~expr:"xs" ~expected_type:"[Int]" );
+             ~expr:"xs" ~expected_type:"List<Int>" );
          ( "type alias with function type" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -1727,7 +1727,7 @@ let program_expression_type_tests =
                type MyList<a> = [a]
                let (xs : MyList<Int>) = [1, 2, 3]
              |}
-             ~expr:"xs" ~expected_type:"[Int]" );
+             ~expr:"xs" ~expected_type:"List<Int>" );
          ( "type alias in recursive function" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -1738,7 +1738,7 @@ let program_expression_type_tests =
                  | [] -> 0
                  | h :: t -> h + sum t
              |}
-             ~expr:"sum" ~expected_type:"[Int] -> Int" );
+             ~expr:"sum" ~expected_type:"List<Int> -> Int" );
          ( "multiple type aliases composition" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -1788,7 +1788,7 @@ let program_expression_type_tests =
                type Pair<a> = (a, a)
                let pairs = [(1, 2), (3, 4), (5, 6)]
              |}
-             ~expr:"pairs" ~expected_type:"[(Int, Int)]" );
+             ~expr:"pairs" ~expected_type:"List<(Int, Int)>" );
          ( "type alias in switch pattern" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -2147,21 +2147,21 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec MyList<a> = | Nil | Cons of (a, MyList<a>)
              |}
              ~expr:"Nil" ~expected_value:"Nil" );
          ( "recursive list - Cons with Nil" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec MyList<a> = | Nil | Cons of (a, MyList<a>)
              |}
              ~expr:"Cons (1, Nil)" ~expected_value:"Cons (1, Nil)" );
          ( "recursive list - nested Cons" >:: fun _ ->
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec MyList<a> = | Nil | Cons of (a, MyList<a>)
              |}
              ~expr:"Cons (1, Cons (2, Nil))"
              ~expected_value:"Cons (1, Cons (2, Nil))" );
@@ -2169,7 +2169,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec MyList<a> = | Nil | Cons of (a, MyList<a>)
              |}
              ~expr:
                {|
@@ -2182,7 +2182,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec MyList<a> = | Nil | Cons of (a, MyList<a>)
              |}
              ~expr:
                {|
@@ -2195,7 +2195,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec MyList<a> = | Nil | Cons of (a, MyList<a>)
                let rec length lst =
                  case lst do
                  | Nil -> 0
@@ -2207,7 +2207,7 @@ let sum_type_evaluation_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec MyList<a> = | Nil | Cons of (a, MyList<a>)
                let rec sum lst =
                  case lst do
                  | Nil -> 0
@@ -2547,7 +2547,7 @@ let type_evaluation_tests =
              |}
                "IntList"
            in
-           assert_equal result "[Int]" );
+           assert_equal result "List<Int>" );
          ( "list type with parameter" >:: fun _ ->
            let result =
              evaluate_type_expression
@@ -2556,7 +2556,7 @@ let type_evaluation_tests =
              |}
                "List<Bool>"
            in
-           assert_equal result "[Bool]" );
+           assert_equal result "List<Bool>" );
          ( "list of tuples" >:: fun _ ->
            let result =
              evaluate_type_expression
@@ -2565,7 +2565,7 @@ let type_evaluation_tests =
              |}
                "PairList<Int, Bool>"
            in
-           assert_equal result "[(Int, Bool)]" );
+           assert_equal result "List<(Int, Bool)>" );
          (* Complex nested structures *)
          ( "tuple of lists" >:: fun _ ->
            let result =
@@ -2575,7 +2575,7 @@ let type_evaluation_tests =
              |}
                "Lists<Int, Bool>"
            in
-           assert_equal result "([Int], [Bool])" );
+           assert_equal result "(List<Int>, List<Bool>)" );
          ( "list of functions" >:: fun _ ->
            let result =
              evaluate_type_expression
@@ -2584,7 +2584,7 @@ let type_evaluation_tests =
              |}
                "FuncList<Int>"
            in
-           assert_equal result "[Int -> Int]" );
+           assert_equal result "List<Int -> Int>" );
          ( "function taking list" >:: fun _ ->
            let result =
              evaluate_type_expression
@@ -2593,7 +2593,7 @@ let type_evaluation_tests =
              |}
                "Func<Int>"
            in
-           assert_equal result "[Int] -> Int" );
+           assert_equal result "List<Int> -> Int" );
          ( "function returning list" >:: fun _ ->
            let result =
              evaluate_type_expression
@@ -2602,7 +2602,7 @@ let type_evaluation_tests =
              |}
                "Func<Bool>"
            in
-           assert_equal result "Bool -> [Bool]" );
+           assert_equal result "Bool -> List<Bool>" );
          (* Multiple interdependent type aliases *)
          (* Note: Tests for aliases referencing other aliases in their bodies
             are commented out as they may require additional parser/evaluator support *)
@@ -2678,7 +2678,7 @@ let type_evaluation_tests =
              |}
                "ComplexList<Int, Bool>"
            in
-           assert_equal result "[((Int, Bool), (Bool, Int))]" );
+           assert_equal result "List<((Int, Bool), (Bool, Int))>" );
          (* Edge cases with built-in types *)
          ( "all built-in types in tuple" >:: fun _ ->
            let result =
@@ -4908,7 +4908,7 @@ let builtin_type_tests =
       ("str_slice \"hello\" 0 1", "String");
       ("list_length [1, 2, 3]", "Int");
       ("list_head [1, 2, 3]", "Int");
-      ("list_tail [1, 2, 3]", "[Int]");
+      ("list_tail [1, 2, 3]", "List<Int>");
       ("list_nth [1, 2, 3] 0", "Int");
       ("tuple_fst (1, 2)", "Int");
       ("tuple_snd (1, 2)", "Int");
@@ -4937,9 +4937,9 @@ let extended_record_type_tests =
         "{a: Int, b: String, c: Bool, d: Char}" );
       ("{x: 1, y: 2, z: 3}", "{x: Int, y: Int, z: Int}");
       (* Records with lists *)
-      ("{items: []}", "{items: [a]}");
-      ("{items: [1, 2, 3]}", "{items: [Int]}");
-      ("{names: [\"a\", \"b\"]}", "{names: [String]}");
+      ("{items: []}", "{items: List<a>}");
+      ("{items: [1, 2, 3]}", "{items: List<Int>}");
+      ("{names: [\"a\", \"b\"]}", "{names: List<String>}");
       (* Records with tuples *)
       ("{pair: (1, 2)}", "{pair: (Int, Int)}");
       ("{triple: (1, \"x\", true)}", "{triple: (Int, String, Bool)}");
@@ -4948,7 +4948,7 @@ let extended_record_type_tests =
       ("{add: fn x -> fn y -> x + y}", "{add: Int -> Int -> Int}");
       ( "{map_func: fn f -> fn lst -> case lst do | [] -> [] | h :: t -> f h \
          :: []}",
-        "{map_func: (a -> b) -> [a] -> [b]}" );
+        "{map_func: (a -> b) -> List<a> -> List<b>}" );
       (* Deeply nested records *)
       ("{a: {b: {c: 1}}}", "{a: {b: {c: Int}}}");
       ("{a: {b: {c: {d: true}}}}", "{a: {b: {c: {d: Bool}}}}");
@@ -4962,7 +4962,7 @@ let extended_record_type_tests =
       ("(fn x -> fn y -> {x: x, y: y}) 1 true", "{x: Int, y: Bool}");
       (* Functions taking records and returning values *)
       ("fn r -> r.x + r.y", "{x: Int, y: Int} -> Int");
-      ("fn r -> r.x :: r.y", "{x: a, y: [a]} -> [a]");
+      ("fn r -> r.x :: r.y", "{x: a, y: List<a>} -> List<a>");
       ( "fn r -> if r.flag then r.value else 0",
         "{flag: Bool, value: Int} -> Int" );
       (* Functions taking records and returning records *)
@@ -4986,7 +4986,7 @@ let extended_record_type_tests =
       (* Recursive functions with records *)
       ( "let rec sum_field = fn lst -> case lst do | [] -> 0 | h :: t -> \
          h.value + sum_field t in sum_field",
-        "[{value: Int}] -> Int" );
+        "List<{value: Int}> -> Int" );
     ]
 
 let extended_record_eval_tests =
@@ -5093,9 +5093,9 @@ let very_complex_record_tests =
            assert_expression_has_value
              ~program:
                {|
-               type rec List<a> =
+               type rec MyList<a> =
                  | Nil
-                 | Cons of {head: a, tail: List<a>}
+                 | Cons of {head: a, tail: MyList<a>}
 
                let rec length = fn lst ->
                  case lst do
@@ -5726,7 +5726,7 @@ let mutual_recursion_type_tests =
                  | [] -> []
                  | h :: t -> h :: process_a t
              |}
-             ~expr:"process_a" ~expected_type:"[a] -> [a]" );
+             ~expr:"process_a" ~expected_type:"List<a> -> List<a>" );
        ]
 
 let mutual_recursion_complex_tests =
@@ -5970,7 +5970,7 @@ let simple_constructor_type_tests =
                {|
                type Container<a> = | Empty | Full of [a]
              |}
-             ~expr:"Full" ~expected_type:"[a] -> Container<a>" );
+             ~expr:"Full" ~expected_type:"List<a> -> Container<a>" );
          ( "constructor with multiple type params" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -5995,37 +5995,37 @@ let recursive_constructor_type_tests =
            assert_expression_has_type
              ~program:
                {|
-               type rec List = | Nil | Cons of (Int, List)
+               type rec MyList = | Nil | Cons of (Int, MyList)
              |}
-             ~expr:"Nil" ~expected_type:"List" );
+             ~expr:"Nil" ~expected_type:"MyList" );
          ( "recursive list cons" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec List = | Nil | Cons of (Int, List)
+               type rec MyList = | Nil | Cons of (Int, MyList)
              |}
-             ~expr:"Cons" ~expected_type:"(Int, List) -> List" );
+             ~expr:"Cons" ~expected_type:"(Int, MyList) -> MyList" );
          ( "recursive list with multiple self-references" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec List = | Nil | Cons of (Int, List) | ConsTwo of (Int, List, List)
+               type rec MyList = | Nil | Cons of (Int, MyList) | ConsTwo of (Int, MyList, MyList)
              |}
-             ~expr:"ConsTwo" ~expected_type:"(Int, List, List) -> List" );
+             ~expr:"ConsTwo" ~expected_type:"(Int, MyList, MyList) -> MyList" );
          ( "parameterized recursive list nil" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec MyList<a> = | Nil | Cons of (a, MyList<a>)
              |}
-             ~expr:"Nil" ~expected_type:"List<a>" );
+             ~expr:"Nil" ~expected_type:"MyList<a>" );
          ( "parameterized recursive list cons" >:: fun _ ->
            assert_expression_has_type
              ~program:
                {|
-               type rec List<a> = | Nil | Cons of (a, List<a>)
+               type rec MyList<a> = | Nil | Cons of (a, MyList<a>)
              |}
-             ~expr:"Cons" ~expected_type:"(a, List<a>) -> List<a>" );
+             ~expr:"Cons" ~expected_type:"(a, MyList<a>) -> MyList<a>" );
          ( "binary tree leaf" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -6149,7 +6149,7 @@ let complex_constructor_type_tests =
                  | Leaf of a
                  | Branch of [MultiTree<a>]
              |}
-             ~expr:"Branch" ~expected_type:"[MultiTree<a>] -> MultiTree<a>" );
+             ~expr:"Branch" ~expected_type:"List<MultiTree<a>> -> MultiTree<a>" );
          ( "constructor combining records and recursion" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -6256,7 +6256,7 @@ let string_operation_tests =
              ~expr:"\"\" ^ \"hello\" ^ \"\"" ~expected_value:"\"hello\"" );
          ( "string to list conversion type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"string_to_list"
-             ~expected_type:"String -> [Char]" );
+             ~expected_type:"String -> List<Char>" );
          ( "int to string type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"int_to_str"
              ~expected_type:"Int -> String" );
@@ -6291,11 +6291,11 @@ let list_comprehension_tests =
              ~expected_value:"[11, 21, 12, 22]" );
          ( "comprehension type inference" >:: fun _ ->
            assert_expression_has_type ~program:""
-             ~expr:"[x * 2 | x <- [1, 2, 3]]" ~expected_type:"[Int]" );
+             ~expr:"[x * 2 | x <- [1, 2, 3]]" ~expected_type:"List<Int>" );
          ( "tuple comprehension type" >:: fun _ ->
            assert_expression_has_type ~program:""
              ~expr:"[(x, y) | x <- [1, 2], y <- [3, 4]]"
-             ~expected_type:"[(Int, Int)]" );
+             ~expected_type:"List<(Int, Int)>" );
        ]
 
 (* Pattern Matching Tests *)
@@ -6461,7 +6461,7 @@ let type_alias_tests =
              ~expr:"fn x -> x + 1" ~expected_type:"Int -> Int" );
          ( "list type alias" >:: fun _ ->
            assert_expression_has_type ~program:"type IntList = [Int]"
-             ~expr:"[1, 2, 3]" ~expected_type:"[Int]" );
+             ~expr:"[1, 2, 3]" ~expected_type:"List<Int>" );
          ( "parameterized type alias" >:: fun _ ->
            assert_expression_has_type ~program:"type Box<a> = (a, a)"
              ~expr:"(1, 2)" ~expected_type:"(Int, Int)" );
@@ -6482,7 +6482,7 @@ let edge_case_tests =
   >::: [
          ( "empty list type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"[]"
-             ~expected_type:"[a]" );
+             ~expected_type:"List<a>" );
          ( "unit value type" >:: fun _ ->
            assert_expression_has_type ~program:"" ~expr:"()"
              ~expected_type:"Unit" );
@@ -10498,9 +10498,9 @@ let very_complex_integration_tests =
            assert_expression_has_value
              ~program:
                {|
-              let rec range = fn start -> fn end ->
-                if start > end then []
-                else start :: range (start + 1) end
+              let rec range = fn start -> fn stop ->
+                if start > stop then []
+                else start :: range (start + 1) stop
 
               let rec sum = fn list ->
                 case list do

@@ -60,6 +60,7 @@ let code_mapping : (string * string) list =
     ("not", {|
 fn a -> if a then false else true
 |});
+    ("::", {|fn a -> fn b -> a :: b|});
     ( "map",
       {|let rec map f arr =
 case arr do
@@ -108,21 +109,13 @@ filter|}
     ( "list_length",
       {|let rec length lst = case lst do | [] -> 0 | _ :: t -> 1 + length t in length|}
     );
-    ( "list_head",
-      {|let head = fn lst -> case lst do | h :: _ -> h in head|}
-    );
-    ( "list_tail",
-      {|let tail = fn lst -> case lst do | _ :: t -> t in tail|}
-    );
+    ("list_head", {|let head = fn lst -> case lst do | h :: _ -> h in head|});
+    ("list_tail", {|let tail = fn lst -> case lst do | _ :: t -> t in tail|});
     ( "list_nth",
       {|let rec nth lst n = case lst do | h :: t -> if n == 0 then h else nth t (n - 1) in nth|}
     );
-    ( "tuple_fst",
-      {|fn p -> case p do | (a, b) -> a|}
-    );
-    ( "tuple_snd",
-      {|fn p -> case p do | (a, b) -> b|}
-    );
+    ("tuple_fst", {|fn p -> case p do | (a, b) -> a|});
+    ("tuple_snd", {|fn p -> case p do | (a, b) -> b|});
   ]
 
 (* definitions of the REPL *)

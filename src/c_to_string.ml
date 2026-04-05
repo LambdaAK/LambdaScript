@@ -19,25 +19,25 @@ let rec string_of_mono_type : mono_type -> string = function
       let ts_str = List.map string_of_mono_type ts in
       "(" ^ String.concat ", " ts_str ^ ")"
   | TypeName t -> t
-  | CListType t -> "[" ^ string_of_mono_type t ^ "]"
+  | CListType t -> "List<" ^ string_of_mono_type t ^ ">"
   | CTypeApp (name, args) ->
       if args = [] then name
       else
         let args_str = List.map string_of_mono_type args in
         name ^ "<" ^ String.concat ", " args_str ^ ">"
-  | TCtorApp (w, args) ->
-      Cexpr.string_of_mono_type (TCtorApp (w, args))
+  | TCtorApp (w, args) -> Cexpr.string_of_mono_type (TCtorApp (w, args))
   | FixedPoint (_, body) -> string_of_mono_type body
   | RecordType fields ->
-      let field_strs = List.map (fun (name, t) ->
-        name ^ ": " ^ string_of_mono_type t
-      ) fields in
+      let field_strs =
+        List.map (fun (name, t) -> name ^ ": " ^ string_of_mono_type t) fields
+      in
       "{" ^ String.concat ", " field_strs ^ "}"
 
 let rec string_of_c_type (ct : c_type) : string =
   let pretty_tv (v : string) : string =
     if
-      String.length v > 9 && String.sub v 0 9 = "$written("
+      String.length v > 9
+      && String.sub v 0 9 = "$written("
       && String.ends_with ~suffix:")" v
     then String.sub v 9 (String.length v - 10)
     else v
@@ -47,15 +47,14 @@ let rec string_of_c_type (ct : c_type) : string =
     | FunctionType (t1, t2) ->
         let t1_str =
           match t1 with
-          | FunctionType _ ->
-              "(" ^ string_of_mono_for_display t1 ^ ")"
+          | FunctionType _ -> "(" ^ string_of_mono_for_display t1 ^ ")"
           | _ -> string_of_mono_for_display t1
         in
         t1_str ^ " -> " ^ string_of_mono_for_display t2
     | VectorType ts ->
         let ts_str = List.map string_of_mono_for_display ts in
         "(" ^ String.concat ", " ts_str ^ ")"
-    | CListType t -> "[" ^ string_of_mono_for_display t ^ "]"
+    | CListType t -> "List<" ^ string_of_mono_for_display t ^ ">"
     | CTypeApp (name, args) ->
         if args = [] then name
         else
@@ -71,15 +70,13 @@ let rec string_of_c_type (ct : c_type) : string =
     | RecordType fields ->
         let field_strs =
           List.map
-            (fun (name, t) ->
-              name ^ ": " ^ string_of_mono_for_display t)
+            (fun (name, t) -> name ^ ": " ^ string_of_mono_for_display t)
             fields
         in
         "{" ^ String.concat ", " field_strs ^ "}"
     | TypeName t -> t
-    | ( IntType | FloatType | BoolType | StringType | CharType | UnitType )
-      as m ->
-        string_of_mono_type m
+    | (IntType | FloatType | BoolType | StringType | CharType | UnitType) as m
+      -> string_of_mono_type m
   in
   (* Peel leading [PolyType] for the spine; do not print a separate quantifier
      prefix (e.g. [a (a -> t) -> ...]) — that reads like type application. Type
@@ -94,9 +91,9 @@ let rec string_of_c_type (ct : c_type) : string =
     match rest with
     | Constrained (ps, inner') ->
         ( ps,
-          (match inner' with
+          match inner' with
           | Mono m -> `Mono m
-          | PolyType _ | Constrained _ -> `Nested inner') )
+          | PolyType _ | Constrained _ -> `Nested inner' )
     | Mono m -> ([], `Mono m)
     | PolyType _ -> ([], `Nested rest)
   in
@@ -232,22 +229,26 @@ let rec string_of_expr : c_expr -> string = function
              generators)
       ^ "]"
   | ERecordLit fields ->
-      let field_strs = List.map (fun (name, e) ->
-        name ^ ": " ^ string_of_expr e
-      ) fields in
+      let field_strs =
+        List.map (fun (name, e) -> name ^ ": " ^ string_of_expr e) fields
+      in
       "{" ^ String.concat ", " field_strs ^ "}"
   | ERecordUpdate (e, updates) ->
-      let update_strs = List.map (fun (name, e) ->
-        name ^ " = " ^ string_of_expr e
-      ) updates in
+      let update_strs =
+        List.map (fun (name, e) -> name ^ " = " ^ string_of_expr e) updates
+      in
       "{" ^ string_of_expr e ^ " with " ^ String.concat ", " update_strs ^ "}"
-  | EFieldAccess (e, field) ->
-      string_of_expr e ^ "." ^ field
+  | EFieldAccess (e, field) -> string_of_expr e ^ "." ^ field
   | EBindMutRec (bindings, body) ->
-      let binding_strs = List.map (fun (pat, _, expr, _, _) ->
-        string_of_pat pat ^ " = " ^ string_of_expr expr
-      ) bindings in
-      "let rec " ^ String.concat "\nand " binding_strs ^ " in\n" ^ string_of_expr body
+      let binding_strs =
+        List.map
+          (fun (pat, _, expr, _, _) ->
+            string_of_pat pat ^ " = " ^ string_of_expr expr)
+          bindings
+      in
+      "let rec "
+      ^ String.concat "\nand " binding_strs
+      ^ " in\n" ^ string_of_expr body
 
 and string_of_defn : c_defn -> string = function
   | CDefn (pat, _cs, t_opt, e, return_type_opt, _) ->
@@ -261,7 +262,8 @@ and string_of_defn : c_defn -> string = function
         | Some t -> " : " ^ string_of_type t
         | None -> ""
       in
-      "let " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = " ^ string_of_expr e
+      "let " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = "
+      ^ string_of_expr e
   | CDefnRec (pat, _cs, t_opt, e, return_type_opt, _) ->
       let type_annot =
         match t_opt with
@@ -273,16 +275,20 @@ and string_of_defn : c_defn -> string = function
         | Some t -> " : " ^ string_of_type t
         | None -> ""
       in
-      "let rec " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = " ^ string_of_expr e
+      "let rec " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = "
+      ^ string_of_expr e
   | CDefnMutRec defns ->
-      let defn_strs = List.map (fun (pat, _cs, t_opt, e, _, _) ->
-        let type_annot =
-          match t_opt with
-          | Some t -> " : " ^ string_of_type t
-          | None -> ""
-        in
-        string_of_pat pat ^ type_annot ^ " = " ^ string_of_expr e
-      ) defns in
+      let defn_strs =
+        List.map
+          (fun (pat, _cs, t_opt, e, _, _) ->
+            let type_annot =
+              match t_opt with
+              | Some t -> " : " ^ string_of_type t
+              | None -> ""
+            in
+            string_of_pat pat ^ type_annot ^ " = " ^ string_of_expr e)
+          defns
+      in
       "let rec " ^ String.concat "\nand " defn_strs
   | CClassDecl (name, args, methods) ->
       let args_str =
@@ -337,7 +343,8 @@ and string_of_defn : c_defn -> string = function
                 "| " ^ cons_name ^ " of " ^ string_of_c_type payload_type)
           constructors
       in
-      "type rec " ^ name ^ args_str ^ " = " ^ String.concat "\n  " constructors_str
+      "type rec " ^ name ^ args_str ^ " = "
+      ^ String.concat "\n  " constructors_str
   | CSumTypeRecMutRec types ->
       let type_strs =
         List.mapi
@@ -357,7 +364,8 @@ and string_of_defn : c_defn -> string = function
                 constructors
             in
             let prefix = if i = 0 then "type rec " else "and " in
-            prefix ^ name ^ args_str ^ " = " ^ String.concat "\n  " constructors_str)
+            prefix ^ name ^ args_str ^ " = "
+            ^ String.concat "\n  " constructors_str)
           types
       in
       String.concat "\n" type_strs

@@ -90,8 +90,7 @@ module ParserUtils = struct
             | t -> t
           in
           go (v :: acc) rest
-      | None ->
-          if acc = [] then None else Some (List.rev acc, tokens)
+      | None -> if acc = [] then None else Some (List.rev acc, tokens)
     in
     go []
 
@@ -417,6 +416,7 @@ end = struct
           | Relop s | Addop s | Mulop s | Logop s -> Some s
           | AND -> Some "&&"
           | OR -> Some "||"
+          | ConsToken -> Some "::"
           | _ -> None)
       in
       let* () = expect_token RParen in
@@ -566,6 +566,7 @@ end = struct
         | Relop s | Addop s | Mulop s | Logop s -> Some s
         | AND -> Some "&&"
         | OR -> Some "||"
+        | ConsToken -> Some "::"
         | _ -> None)
     in
 
@@ -651,9 +652,11 @@ end = struct
     let* record_expr = expr_parser in
     let* () = expect_token With in
     let parse_field_update () =
-      let* field_name = expect_token_get_data (function
-        | Id id -> Some id
-        | _ -> None) in
+      let* field_name =
+        expect_token_get_data (function
+          | Id id -> Some id
+          | _ -> None)
+      in
       let* () = expect_token Equals in
       let* field_expr = expr_parser in
       return (field_name, field_expr)
@@ -667,9 +670,11 @@ end = struct
     let* () = expect_token LBrace in
     (* Parse comma-separated field:value pairs *)
     let parse_fields () =
-      let* field_name = expect_token_get_data (function
-        | Id id -> Some id
-        | _ -> None) in
+      let* field_name =
+        expect_token_get_data (function
+          | Id id -> Some id
+          | _ -> None)
+      in
       let* () = expect_token Colon in
       let* field_expr = expr_parser in
       return (field_name, field_expr)
@@ -713,15 +718,17 @@ end = struct
   and field_access_parser () : factor parser =
     let rec parse_field_accesses base_factor =
       let* () = expect_token Dot in
-      let* field_name = expect_token_get_data (function
-        | Id id -> Some id
-        | _ -> None) in
+      let* field_name =
+        expect_token_get_data (function
+          | Id id -> Some id
+          | _ -> None)
+      in
       let new_factor = FieldAccess (base_factor, field_name) in
       (* Try to parse more field accesses *)
-      (parse_field_accesses new_factor) <|> return new_factor
+      parse_field_accesses new_factor <|> return new_factor
     in
     let* base = factor_parser () in
-    (parse_field_accesses base) <|> return base
+    parse_field_accesses base <|> return base
 
   let factor_with_field_access_parser = field_access_parser ()
   let factor_parser = factor_with_field_access_parser
@@ -932,11 +939,13 @@ end = struct
      return (pat, Some ct))
     <|>
     (* Otherwise parse just pat without annotation *)
-    (let* pat = PatParser.pat_parser in
-     return (pat, None))
+    let* pat = PatParser.pat_parser in
+    return (pat, None)
 
-  (* Helper to parse a single binding component (pattern, args, type, body) for expressions *)
-  and parse_single_bind_component () : (pat * compound_type option * expr * compound_type option * int) parser =
+  (* Helper to parse a single binding component (pattern, args, type, body) for
+     expressions *)
+  and parse_single_bind_component () :
+      (pat * compound_type option * expr * compound_type option * int) parser =
     let* pat, cto = pat_and_type_annotation_parser in
     (* parse argument patterns *)
     let* arg_pats_and_type_annotations : (pat * compound_type option) list =
@@ -954,7 +963,12 @@ end = struct
 
     (* wrap body in functions *)
     let num_explicit_params = List.length arg_pats_and_type_annotations in
-    return (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, return_type_option, num_explicit_params)
+    return
+      ( pat,
+        cto,
+        wrap_e1_in_functions e1 arg_pats_and_type_annotations,
+        return_type_option,
+        num_explicit_params )
 
   and bind_rec_parser () : expr parser =
     let* () = expect_token Let in
@@ -963,10 +977,9 @@ end = struct
 
     (* Try to parse 'and' clauses for mutual recursion *)
     let* and_binds =
-      parse_several (
-        let* () = expect_token And in
-        parse_single_bind_component ()
-      )
+      parse_several
+        (let* () = expect_token And in
+         parse_single_bind_component ())
     in
 
     let* () = expect_token In in
@@ -975,10 +988,9 @@ end = struct
     (* If we have and clauses, return BindMutRec, otherwise BindRec *)
     match and_binds with
     | [] ->
-        let (pat, cto, e1, return_type_option, _) = first_bind in
+        let pat, cto, e1, return_type_option, _ = first_bind in
         return (BindRec (pat, cto, e1, e2, return_type_option))
-    | _ ->
-        return (BindMutRec (first_bind :: and_binds, e2))
+    | _ -> return (BindMutRec (first_bind :: and_binds, e2))
 
   and bind_parser () : expr parser =
     let* () = expect_token Let in
@@ -1002,7 +1014,12 @@ end = struct
 
     (* wrap body in functions *)
     return
-      (Bind (pat, cto, wrap_e1_in_functions e1 arg_pats_and_type_annotations, e2, return_type_option))
+      (Bind
+         ( pat,
+           cto,
+           wrap_e1_in_functions e1 arg_pats_and_type_annotations,
+           e2,
+           return_type_option ))
 
   and branch_parser () : switch_branch parser =
     (* | pat -> expr *)
@@ -1179,19 +1196,18 @@ end = struct
      let* cs = parse_sep_delim class_constraint_parser Comma in
      let* () = expect_token RBracket in
      return cs)
-    <|>
-    (let* () =
-       expect_token_get_data (function
-         | Relop "<" -> Some ()
-         | _ -> None)
-     in
-     let* cs = parse_sep_delim class_constraint_parser Comma in
-     let* () =
-       expect_token_get_data (function
-         | Relop ">" -> Some ()
-         | _ -> None)
-     in
-     return cs)
+    <|> (let* () =
+           expect_token_get_data (function
+             | Relop "<" -> Some ()
+             | _ -> None)
+         in
+         let* cs = parse_sep_delim class_constraint_parser Comma in
+         let* () =
+           expect_token_get_data (function
+             | Relop ">" -> Some ()
+             | _ -> None)
+         in
+         return cs)
     <|> return []
 
   let let_defn_parser () : defn parser =
@@ -1216,10 +1232,12 @@ end = struct
     let final_cto, return_type_option =
       match (arg_pats_and_type_annotations, cto, type_annot_option) with
       | [], None, Some t ->
-          (* No arguments and no prior type annotation: this is a value type annotation *)
+          (* No arguments and no prior type annotation: this is a value type
+             annotation *)
           (Some t, None)
       | _, _, Some t ->
-          (* Has arguments or prior type annotation: this is a return type annotation *)
+          (* Has arguments or prior type annotation: this is a return type
+             annotation *)
           (cto, Some t)
       | _, _, None ->
           (* No type annotation after arguments *)
@@ -1237,8 +1255,16 @@ end = struct
            return_type_option,
            num_explicit_params ))
 
-  (* Helper to parse a single definition component (pattern, args, type, body) *)
-  let parse_single_defn_component () : (pat * (string * compound_type) list * compound_type option * expr * compound_type option * int) parser =
+  (* Helper to parse a single definition component (pattern, args, type,
+     body) *)
+  let parse_single_defn_component () :
+      (pat
+      * (string * compound_type) list
+      * compound_type option
+      * expr
+      * compound_type option
+      * int)
+      parser =
     let* pat, cto = ExprParser.pat_and_type_annotation_parser in
     let* class_constraints = optional_class_constraints_parser in
     (* parse argument patterns *)
@@ -1259,10 +1285,12 @@ end = struct
     let final_cto, return_type_option =
       match (arg_pats_and_type_annotations, cto, type_annot_option) with
       | [], None, Some t ->
-          (* No arguments and no prior type annotation: this is a value type annotation *)
+          (* No arguments and no prior type annotation: this is a value type
+             annotation *)
           (Some t, None)
       | _, _, Some t ->
-          (* Has arguments or prior type annotation: this is a return type annotation *)
+          (* Has arguments or prior type annotation: this is a return type
+             annotation *)
           (cto, Some t)
       | _, _, None ->
           (* No type annotation after arguments *)
@@ -1286,23 +1314,21 @@ end = struct
 
     (* Try to parse 'and' clauses for mutual recursion *)
     let* and_defns =
-      parse_several (
-        let* () = expect_token And in
-        parse_single_defn_component ()
-      )
+      parse_several
+        (let* () = expect_token And in
+         parse_single_defn_component ())
     in
 
     (* If we have and clauses, return DefnMutRec, otherwise DefnRec *)
     match and_defns with
     | [] ->
-        let
-          ( pat,
-            class_constraints,
-            final_cto,
-            body,
-            return_type_option,
-            num_explicit_params )
-          = first_defn
+        let ( pat,
+              class_constraints,
+              final_cto,
+              body,
+              return_type_option,
+              num_explicit_params ) =
+          first_defn
         in
         return
           (DefnRec
@@ -1312,8 +1338,7 @@ end = struct
                body,
                return_type_option,
                num_explicit_params ))
-    | _ ->
-        return (DefnMutRec (first_defn :: and_defns))
+    | _ -> return (DefnMutRec (first_defn :: and_defns))
 
   let string_parser : string parser =
     let* s =
@@ -1324,21 +1349,22 @@ end = struct
     return s
 
   let method_name_after_val_parser : string parser =
-    (expect_token_get_data (function
+    expect_token_get_data (function
       | Id s -> Some s
-      | _ -> None))
+      | _ -> None)
     <|>
     (* [val (>>=) : …] — same parenthesized-operator syntax as expressions *)
-    (let* () = expect_token LParen in
-     let* s =
-       expect_token_get_data (function
-         | Relop s | Addop s | Mulop s | Logop s -> Some s
-         | AND -> Some "&&"
-         | OR -> Some "||"
-         | _ -> None)
-     in
-     let* () = expect_token RParen in
-     return s)
+    let* () = expect_token LParen in
+    let* s =
+      expect_token_get_data (function
+        | Relop s | Addop s | Mulop s | Logop s -> Some s
+        | AND -> Some "&&"
+        | OR -> Some "||"
+        | ConsToken -> Some "::"
+        | _ -> None)
+    in
+    let* () = expect_token RParen in
+    return s
 
   let method_row_parser : (string * compound_type) parser =
     let* () = expect_token Val in
@@ -1375,21 +1401,19 @@ end = struct
      in
      return (cls, List.hd args))
     <|>
-    (let* ct = CompoundTypeParser.compound_type_parser in
-     return (cls, ct))
+    let* ct = CompoundTypeParser.compound_type_parser in
+    return (cls, ct)
 
   let trait_let_row_parser : trait_item parser =
     let* () = expect_token Let in
     let* name, body_expr =
       (let* () = expect_token Rec in
-       let*
-         ( pat,
-           class_constraints,
-           final_cto,
-           body,
-           return_type_option,
-           _num_explicit_params )
-         =
+       let* ( pat,
+              class_constraints,
+              final_cto,
+              body,
+              return_type_option,
+              _num_explicit_params ) =
          parse_single_defn_component ()
        in
        let () =
@@ -1405,40 +1429,37 @@ end = struct
          | SubPat (IdPat s) | SubPat (InfixPat s) -> s
          | _ ->
              failwith
-               "parser: trait defaults must use a simple name (e.g. let (>>=) x \
-                f = …)"
+               "parser: trait defaults must use a simple name (e.g. let (>>=) \
+                x f = …)"
        in
        let e2 = id_to_expr name in
-       return
-         (name, BindRec (pat, final_cto, body, e2, return_type_option)))
+       return (name, BindRec (pat, final_cto, body, e2, return_type_option)))
       <|>
-      (let*
-         ( pat,
-           class_constraints,
-           final_cto,
-           body,
-           return_type_option,
-           _num_explicit_params )
-         =
-         parse_single_defn_component ()
-       in
-       let () =
-         match (class_constraints, final_cto, return_type_option) with
-         | [], None, None -> ()
-         | _ ->
-             failwith
-               "parser: constraints/type annotations are not allowed on trait \
-                default let"
-       in
-       let name =
-         match pat with
-         | SubPat (IdPat s) | SubPat (InfixPat s) -> s
-         | _ ->
-             failwith
-               "parser: trait defaults must use a simple name (e.g. let (>>=) x \
-                f = …)"
-       in
-       return (name, body))
+      let* ( pat,
+             class_constraints,
+             final_cto,
+             body,
+             return_type_option,
+             _num_explicit_params ) =
+        parse_single_defn_component ()
+      in
+      let () =
+        match (class_constraints, final_cto, return_type_option) with
+        | [], None, None -> ()
+        | _ ->
+            failwith
+              "parser: constraints/type annotations are not allowed on trait \
+               default let"
+      in
+      let name =
+        match pat with
+        | SubPat (IdPat s) | SubPat (InfixPat s) -> s
+        | _ ->
+            failwith
+              "parser: trait defaults must use a simple name (e.g. let (>>=) x \
+               f = …)"
+      in
+      return (name, body)
     in
     return (TraitLet (name, body_expr))
 
@@ -1455,8 +1476,8 @@ end = struct
   let kind_slot_parser : unit parser =
     expect_token WildcardPattern
     <|> expect_token_get_data (function
-      | Id s when s = "_" -> Some ()
-      | _ -> None)
+          | Id s when s = "_" -> Some ()
+          | _ -> None)
 
   let trait_type_param_parser : (string * int) parser =
     let* name = string_parser in
@@ -1490,9 +1511,7 @@ end = struct
     <|> return []
 
   let class_defn_parser () : defn parser =
-    let* () =
-      expect_token Inter <|> expect_token Trait
-    in
+    let* () = expect_token Inter <|> expect_token Trait in
     let* class_name =
       expect_token_get_data (function
         | Id s -> Some s
@@ -1511,31 +1530,26 @@ end = struct
        let* () = expect_token End in
        return ms)
       <|>
-      (let* () = expect_token LBrace in
-       let* ms = parse_one_or_more_opt_commas trait_item_parser in
-       let* () = expect_token RBrace in
-       return ms)
+      let* () = expect_token LBrace in
+      let* ms = parse_one_or_more_opt_commas trait_item_parser in
+      let* () = expect_token RBrace in
+      return ms
     in
     return (ClassDef (class_name, params, requires, items))
 
   let instance_defn_parser () : defn parser =
     let impl_row_parser =
       let* () = expect_token Let in
-      let* (name, body_expr) =
-        (* Desugar:
-           let rec f x y = rhs
-           into:
-           let rec f x y = rhs in f
-           so the method position can still be represented as an [expr]. *)
+      let* name, body_expr =
+        (* Desugar: let rec f x y = rhs into: let rec f x y = rhs in f so the
+           method position can still be represented as an [expr]. *)
         (let* () = expect_token Rec in
-         let*
-           ( pat,
-             class_constraints,
-             final_cto,
-             body,
-             return_type_option,
-             _num_explicit_params )
-           =
+         let* ( pat,
+                class_constraints,
+                final_cto,
+                body,
+                return_type_option,
+                _num_explicit_params ) =
            parse_single_defn_component ()
          in
          let () =
@@ -1543,48 +1557,45 @@ end = struct
            | [], None, None -> ()
            | _ ->
                failwith
-                 "parser: constraints/type annotations are not allowed on impl let \
-                  bindings (types come from the inter/trait)"
+                 "parser: constraints/type annotations are not allowed on impl \
+                  let bindings (types come from the inter/trait)"
          in
          let name =
            match pat with
            | SubPat (IdPat s) | SubPat (InfixPat s) -> s
            | _ ->
                failwith
-                 "parser: impl methods must use a simple name (e.g. let show = … \
-                  or let (++) x y = …)"
+                 "parser: impl methods must use a simple name (e.g. let show = \
+                  … or let (++) x y = …)"
          in
          let e2 = id_to_expr name in
-         return
-           (name, BindRec (pat, final_cto, body, e2, return_type_option)))
+         return (name, BindRec (pat, final_cto, body, e2, return_type_option)))
         <|>
-        (let*
-           ( pat,
-             class_constraints,
-             final_cto,
-             body,
-             return_type_option,
-             _num_explicit_params )
-           =
-           parse_single_defn_component ()
-         in
-         let () =
-           match (class_constraints, final_cto, return_type_option) with
-           | [], None, None -> ()
-           | _ ->
-               failwith
-                 "parser: constraints/type annotations are not allowed on impl let \
-                  bindings (types come from the inter/trait)"
-         in
-         let name =
-           match pat with
-           | SubPat (IdPat s) | SubPat (InfixPat s) -> s
-           | _ ->
-               failwith
-                 "parser: impl methods must use a simple name (e.g. let show = … \
-                  or let (++) x y = …)"
-         in
-         return (name, body))
+        let* ( pat,
+               class_constraints,
+               final_cto,
+               body,
+               return_type_option,
+               _num_explicit_params ) =
+          parse_single_defn_component ()
+        in
+        let () =
+          match (class_constraints, final_cto, return_type_option) with
+          | [], None, None -> ()
+          | _ ->
+              failwith
+                "parser: constraints/type annotations are not allowed on impl \
+                 let bindings (types come from the inter/trait)"
+        in
+        let name =
+          match pat with
+          | SubPat (IdPat s) | SubPat (InfixPat s) -> s
+          | _ ->
+              failwith
+                "parser: impl methods must use a simple name (e.g. let show = \
+                 … or let (++) x y = …)"
+        in
+        return (name, body)
       in
       return (name, body_expr)
     in
@@ -1610,16 +1621,32 @@ end = struct
      let* () = expect_token End in
      return (InstanceDef (cls, head_ty, impls)))
     <|>
-    (let* () = expect_token For in
-     let* head_ty = CompoundTypeParser.compound_type_parser in
-     let* () = expect_token LBrace in
-     let* impls = parse_one_or_more_opt_commas impl_row_parser in
-     let* () = expect_token RBrace in
-     return (InstanceDef (cls, head_ty, impls)))
+    let* () = expect_token For in
+    let* head_ty = CompoundTypeParser.compound_type_parser in
+    let* () = expect_token LBrace in
+    let* impls = parse_one_or_more_opt_commas impl_row_parser in
+    let* () = expect_token RBrace in
+    return (InstanceDef (cls, head_ty, impls))
 
   let constructor_parser : (string * compound_type option) parser =
     let* () = expect_token Pipe in
-    let* name =
+    (* Try special constructor names: [] and (::) *)
+    (let* () = expect_token LBracket in
+     let* () = expect_token RBracket in
+     return ("[]", None))
+    <|>
+    (let* () = expect_token LParen in
+     let* () = expect_token ConsToken in
+     let* () = expect_token RParen in
+     let* payload_type =
+       (let* () = expect_token Of in
+        let* ct = CompoundTypeParser.compound_type_parser in
+        return (Some ct))
+       <|> return None
+     in
+     return ("(::)", payload_type))
+    <|>
+    (let* name =
       expect_token_get_data (function
         | Id s -> Some s
         | _ -> None)
@@ -1638,7 +1665,7 @@ end = struct
        return (Some ct))
       <|> return None
     in
-    return (name, payload_type)
+    return (name, payload_type))
 
   let type_alias_defn_parser_no_args () : defn parser =
     let* () = expect_token Type in
@@ -1659,7 +1686,8 @@ end = struct
       return (TypeDef (name, [], ct))
 
   (* Helper to parse a single sum type component (name, args, constructors) *)
-  let parse_single_sum_type_component () : (string * string list * (string * compound_type option) list) parser =
+  let parse_single_sum_type_component () :
+      (string * string list * (string * compound_type option) list) parser =
     let* name =
       expect_token_get_data (function
         | Id s -> Some s
@@ -1693,19 +1721,18 @@ end = struct
 
     (* Try to parse 'and' clauses for mutual recursion *)
     let* and_types =
-      parse_several (
-        let* () = expect_token And in
-        parse_single_sum_type_component ()
-      )
+      parse_several
+        (let* () = expect_token And in
+         parse_single_sum_type_component ())
     in
 
-    (* If we have and clauses, return SumTypeDefMutRec, otherwise SumTypeDefRec *)
+    (* If we have and clauses, return SumTypeDefMutRec, otherwise
+       SumTypeDefRec *)
     match and_types with
     | [] ->
-        let (name, args, constructors) = first_type in
+        let name, args, constructors = first_type in
         return (SumTypeDefRec (name, args, constructors))
-    | _ ->
-        return (SumTypeDefMutRec (first_type :: and_types))
+    | _ -> return (SumTypeDefMutRec (first_type :: and_types))
 
   let rec_sum_type_defn_parser_no_args () : defn parser =
     let* () = expect_token Type in
@@ -1714,19 +1741,18 @@ end = struct
 
     (* Try to parse 'and' clauses for mutual recursion *)
     let* and_types =
-      parse_several (
-        let* () = expect_token And in
-        parse_single_sum_type_component ()
-      )
+      parse_several
+        (let* () = expect_token And in
+         parse_single_sum_type_component ())
     in
 
-    (* If we have and clauses, return SumTypeDefMutRec, otherwise SumTypeDefRec *)
+    (* If we have and clauses, return SumTypeDefMutRec, otherwise
+       SumTypeDefRec *)
     match and_types with
     | [] ->
-        let (name, args, constructors) = first_type in
+        let name, args, constructors = first_type in
         return (SumTypeDefRec (name, args, constructors))
-    | _ ->
-        return (SumTypeDefMutRec (first_type :: and_types))
+    | _ -> return (SumTypeDefMutRec (first_type :: and_types))
 
   let sum_type_defn_parser_with_args () : defn parser =
     let* () = expect_token Type in
@@ -1795,8 +1821,7 @@ end = struct
       return (TypeDef (name, args, ct))
 
   let defn_parser : defn parser =
-    class_defn_parser ()
-    <|> instance_defn_parser ()
+    class_defn_parser () <|> instance_defn_parser ()
     <|> type_alias_defn_parser_with_args ()
     <|> type_alias_defn_parser_no_args ()
     <|> rec_sum_type_defn_parser_with_args ()

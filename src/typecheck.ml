@@ -7,12 +7,12 @@ open Forge_class_util
 type type_equation = mono_type * mono_type
 type type_equations = type_equation list
 
-(** Class constraints collected while inferring a single expression (see
-    [generate_e_id] / [generate_class_method_app]). Flushed in [type_of_c_expr]. *)
 type class_equations = (string * mono_type) list
+(** Class constraints collected while inferring a single expression (see
+    [generate_e_id] / [generate_class_method_app]). Flushed in [type_of_c_expr].
+*)
 
 let pending_expression_class_preds : class_equations ref = ref []
-
 let forge_written_param (p : string) : string = "$written(" ^ p ^ ")"
 
 let rec scheme_has_class_constraint (t : c_type) : bool =
@@ -21,15 +21,14 @@ let rec scheme_has_class_constraint (t : c_type) : bool =
   | PolyType (_, inner) -> scheme_has_class_constraint inner
   | Mono _ -> false
 
-(** Solver metavariable heads [[t123]] from [fresh_type_var] — safe to rename per
-    use site. Rigid heads like [[$written(List)]] must stay. *)
+(** Solver metavariable heads [[t123]] from [fresh_type_var] — safe to rename
+    per use site. Rigid heads like [[$written(List)]] must stay. *)
 let is_solver_tctor_head_name (w : string) : bool =
   String.length w >= 2
   && w.[0] = 't'
   &&
   let rest = String.sub w 1 (String.length w - 1) in
-  rest <> ""
-  && String.for_all (fun c -> c >= '0' && c <= '9') rest
+  rest <> "" && String.for_all (fun c -> c >= '0' && c <= '9') rest
 
 (** Names that appear as [TypeVar] in the method type or preds (before freshen),
     plus [TCtorApp] heads that are solver metavariables (see
@@ -53,20 +52,24 @@ let flex_tyvar_names_in_method (m : mono_type) (preds : class_equations) :
         List.iter walk_mono args
     | FixedPoint (_, body) -> walk_mono body
     | RecordType fs -> List.iter (fun (_, t) -> walk_mono t) fs
-    | IntType | FloatType | BoolType | StringType | CharType | UnitType
-    | TypeName _ ->
-        ()
+    | IntType
+    | FloatType
+    | BoolType
+    | StringType
+    | CharType
+    | UnitType
+    | TypeName _ -> ()
   in
   List.iter (fun (_, ty) -> walk_mono ty) preds;
   walk_mono m;
   !acc
 
-(** After peeling [Poly]/[Constrained], copy the method [mono] and class preds so
-    every source type variable is renamed to a fresh name **for this use site**.
-    Otherwise method parameters from the [inter] (e.g. [a] in [a -> m<a>]) are
-    shared across all applications of [return] / [>>=], and nested calls like
-    [return (return 10)] wrongly force the same [a] to be both [Int] and [m
-    Int]. *)
+(** After peeling [Poly]/[Constrained], copy the method [mono] and class preds
+    so every source type variable is renamed to a fresh name **for this use
+    site**. Otherwise method parameters from the [inter] (e.g. [a] in
+    [a -> m<a>]) are shared across all applications of [return] / [>>=], and
+    nested calls like [return (return 10)] wrongly force the same [a] to be both
+    [Int] and [m Int]. *)
 let freshen_method_mono_and_preds (m : mono_type) (preds : class_equations) :
     mono_type * class_equations =
   let flex = flex_tyvar_names_in_method m preds in
@@ -98,15 +101,20 @@ let freshen_method_mono_and_preds (m : mono_type) (preds : class_equations) :
     | FixedPoint (n, body) -> FixedPoint (n, freshen body)
     | RecordType fields ->
         RecordType (List.map (fun (name, t) -> (name, freshen t)) fields)
-    | ( IntType | FloatType | BoolType | StringType | CharType | UnitType
-      | TypeName _ ) as prim ->
-        prim
+    | ( IntType
+      | FloatType
+      | BoolType
+      | StringType
+      | CharType
+      | UnitType
+      | TypeName _ ) as prim -> prim
   in
   let preds' = List.map (fun (c, ty) -> (c, freshen ty)) preds in
   let m' = freshen m in
   (m', preds')
 
-let rec instantiate_infer_scheme_inner (t : c_type) : mono_type * class_equations =
+let rec instantiate_infer_scheme_inner (t : c_type) :
+    mono_type * class_equations =
   match t with
   | Mono m -> (m, [])
   | Constrained (ps, inner) ->
@@ -170,11 +178,12 @@ let assert_distinct_record_field_names (names : string list) : unit =
 (* maps type names to their types *)
 type type_env = (string * string list * mono_type) list
 
-(** Declared sum types: type name, type parameters, ordered constructors. *)
 type sum_type_decl = string * string list * (string * c_type option) list
+(** Declared sum types: type name, type parameters, ordered constructors. *)
 
-(** All sum type declarations in scope (for native lowering / exhaustiveness). *)
 type constructor_env = sum_type_decl list
+(** All sum type declarations in scope (for native lowering / exhaustiveness).
+*)
 
 let string_of_type_env (env : type_env) : string =
   let rec aux acc = function
@@ -287,16 +296,16 @@ and string_of_mono_type (t : mono_type) : string =
   | CTypeApp (name, args) ->
       let args_str = List.map string_of_mono_type args in
       name ^ "<" ^ String.concat ", " args_str ^ ">"
-  | TCtorApp (w, args) ->
-      Cexpr.string_of_mono_type (TCtorApp (w, args))
+  | TCtorApp (w, args) -> Cexpr.string_of_mono_type (TCtorApp (w, args))
   | FixedPoint (name, body) -> "μ" ^ name ^ ". " ^ string_of_mono_type body
   | RecordType fields ->
-      let field_strs = List.map (fun (name, t) ->
-        name ^ ": " ^ string_of_mono_type t
-      ) fields in
+      let field_strs =
+        List.map (fun (name, t) -> name ^ ": " ^ string_of_mono_type t) fields
+      in
       "{" ^ String.concat ", " field_strs ^ "}"
 
-(** Substitute a type variable inside a monomorphic type (used for forge dicts). *)
+(** Substitute a type variable inside a monomorphic type (used for forge dicts).
+*)
 let rec replace_typevar_in_mono ~(var_id : string) ~(with_ty : mono_type)
     (t : mono_type) : mono_type =
   match t with
@@ -319,8 +328,7 @@ let rec replace_typevar_in_mono ~(var_id : string) ~(with_ty : mono_type)
   | RecordType fields ->
       RecordType
         (List.map
-           (fun (name, t) ->
-             (name, replace_typevar_in_mono ~var_id ~with_ty t))
+           (fun (name, t) -> (name, replace_typevar_in_mono ~var_id ~with_ty t))
            fields)
 
 let instantiate_dict_scheme_to_record ~(sch : c_type) ~(tau : mono_type) :
@@ -340,7 +348,7 @@ let instantiate_dict_scheme_to_record ~(sch : c_type) ~(tau : mono_type) :
   in
   match strip_to_mono sch with
   | None -> None
-  | Some mono_body ->
+  | Some mono_body -> (
       let substituted =
         List.fold_left
           (fun acc var_id -> replace_typevar_in_mono ~var_id ~with_ty:tau acc)
@@ -348,10 +356,11 @@ let instantiate_dict_scheme_to_record ~(sch : c_type) ~(tau : mono_type) :
       in
       match substituted with
       | RecordType _ -> Some substituted
-      | _ -> None
+      | _ -> None)
 
 (** Slug segment of [dict_name] after [__forge_dict_<class>_], if any. *)
-let forge_dict_slug ~(class_name : string) (dict_name : string) : string option =
+let forge_dict_slug ~(class_name : string) (dict_name : string) : string option
+    =
   let p = "__forge_dict_" ^ class_name ^ "_" in
   if String.starts_with ~prefix:p dict_name then
     Some
@@ -361,21 +370,21 @@ let forge_dict_slug ~(class_name : string) (dict_name : string) : string option 
 
 (** Reject dictionary candidates whose instance head (encoded in the dict name)
     cannot apply to [tau]. Without this, [instantiate_dict_scheme_to_record]
-    substitutes every top-level [Poly] of the dict scheme with [tau], so e.g.
-    a [Functor Option] dict spuriously "matches" [[Int]] and steals dispatch
-    from [Functor [u]]. *)
+    substitutes every top-level [Poly] of the dict scheme with [tau], so e.g. a
+    [Functor Option] dict spuriously "matches" [[Int]] and steals dispatch from
+    [Functor [u]]. *)
 let dict_candidate_matches_tau ~(dict_name : string) ~(class_name : string)
     (tau : mono_type) : bool =
   match forge_dict_slug ~class_name dict_name with
   | None -> false
-  | Some sfx ->
+  | Some sfx -> (
       let sfx_starts (pre : string) = String.starts_with ~prefix:pre sfx in
       match tau with
       | TypeVar _ -> true
       | CListType _ -> sfx_starts "list"
       | CTypeApp (n, _) -> sfx_starts n || sfx_starts (n ^ "__")
       | FixedPoint (n, _) -> sfx_starts ("mu_" ^ n) || sfx_starts n
-      | _ -> true
+      | _ -> true)
 
 let find_compatible_dict_name ~(static_env : static_env) ~(class_name : string)
     ~(method_name : string) ~(tau : mono_type) : string option =
@@ -392,8 +401,8 @@ let find_compatible_dict_name ~(static_env : static_env) ~(class_name : string)
             then scan rest
             else
               match instantiate_dict_scheme_to_record ~sch ~tau with
-              | Some (RecordType fields) when List.mem_assoc method_name fields ->
-                  Some name
+              | Some (RecordType fields) when List.mem_assoc method_name fields
+                -> Some name
               | _ -> scan rest
           else scan rest
     in
@@ -402,8 +411,8 @@ let find_compatible_dict_name ~(static_env : static_env) ~(class_name : string)
 (** Polymorphic instance heads (e.g. [impl Monoid for [a]]) use dictionary names
     that do not match the exact [dict_for_instance] slug of a concrete [tau];
     [generalize] still needs to accept those predicates. *)
-let forge_dict_resolves_for_class ~(static_env : static_env) ~(class_name : string)
-    (tau : mono_type) : bool =
+let forge_dict_resolves_for_class ~(static_env : static_env)
+    ~(class_name : string) (tau : mono_type) : bool =
   let exact = dict_for_instance ~class_name tau in
   if List.mem_assoc exact static_env then true
   else
@@ -448,9 +457,12 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
   | EBop (op, e1, e2) -> generate_e_bop env type_env op e1 e2
   | EFunction (pat, cto, body) -> generate_e_function env type_env pat cto body
   | EApp (e1, e2) -> generate_e_app env type_env e1 e2
-  | EBind (pat, cto, e1, e2, return_type) -> generate_e_bind env type_env pat cto e1 e2 return_type
-  | EBindRec (pat, _, e1, e2, return_type) -> generate_e_bind_rec env type_env pat e1 e2 return_type
-  | EBindMutRec (bindings, body) -> generate_e_bind_mut_rec env type_env bindings body
+  | EBind (pat, cto, e1, e2, return_type) ->
+      generate_e_bind env type_env pat cto e1 e2 return_type
+  | EBindRec (pat, _, e1, e2, return_type) ->
+      generate_e_bind_rec env type_env pat e1 e2 return_type
+  | EBindMutRec (bindings, body) ->
+      generate_e_bind_mut_rec env type_env bindings body
   | ETernary (e1, e2, e3) -> generate_e_ternary env type_env e1 e2 e3
   | EVector expressions -> generate_e_vector env type_env expressions
   | EListEnumeration (e1, e2) -> generate_e_list_enumeration env type_env e1 e2
@@ -458,42 +470,51 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
       generate_e_list_comprehension env type_env e generators
   | ESwitch (e1, branches) -> generate_e_switch env type_env e1 branches
   | ERecordLit fields ->
-      let () =
-        assert_distinct_record_field_names (List.map fst fields)
-      in
+      let () = assert_distinct_record_field_names (List.map fst fields) in
       (* Generate constraints for each field expression *)
       let rec process_fields acc_types acc_equations = function
         | [] -> return (List.rev acc_types, acc_equations)
         | (field_name, field_expr) :: rest ->
-            let- field_type, field_equations, _ = generate env type_env field_expr in
-            process_fields ((field_name, field_type) :: acc_types) (acc_equations @ field_equations) rest
+            let- field_type, field_equations, _ =
+              generate env type_env field_expr
+            in
+            process_fields
+              ((field_name, field_type) :: acc_types)
+              (acc_equations @ field_equations)
+              rest
       in
       let- field_types, equations = process_fields [] [] fields in
       return (RecordType field_types, equations, [])
   | ERecordUpdate (record_expr, updates) ->
       (* { expr with field1 = val1, ... } - type is same as record_expr *)
-      let- record_type, record_equations, _ = generate env type_env record_expr in
+      let- record_type, record_equations, _ =
+        generate env type_env record_expr
+      in
       (* For each update, add constraint that the field type matches *)
       let rec process_updates acc_equations = function
         | [] -> return (record_type, acc_equations, [])
         | (field_name, field_expr) :: rest ->
-            let- field_type, field_equations, _ = generate env type_env field_expr in
-            let minimal_record = RecordType [(field_name, field_type)] in
+            let- field_type, field_equations, _ =
+              generate env type_env field_expr
+            in
+            let minimal_record = RecordType [ (field_name, field_type) ] in
             let equation = (record_type, minimal_record) in
-            process_updates (equation :: field_equations @ acc_equations) rest
+            process_updates ((equation :: field_equations) @ acc_equations) rest
       in
       process_updates record_equations updates
-  | EFieldAccess (record_expr, field_name) ->
-      let- record_type, record_equations, _ = generate env type_env record_expr in
-      (* Known record shape (e.g. typeclass dictionary): use the field's type and
-         freshen its metavariables so each access site is independent — same issue
-         as [instantiate_infer_scheme] for [inter] methods. *)
-      (match record_type with
+  | EFieldAccess (record_expr, field_name) -> (
+      let- record_type, record_equations, _ =
+        generate env type_env record_expr
+      in
+      (* Known record shape (e.g. typeclass dictionary): use the field's type
+         and freshen its metavariables so each access site is independent — same
+         issue as [instantiate_infer_scheme] for [inter] methods. *)
+      match record_type with
       | RecordType fields -> (
           match List.assoc_opt field_name fields with
           | None ->
               let field_type = fresh_type_var () in
-              let minimal_record = RecordType [(field_name, field_type)] in
+              let minimal_record = RecordType [ (field_name, field_type) ] in
               return
                 ( field_type,
                   (record_type, minimal_record) :: record_equations,
@@ -503,7 +524,7 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
               return (ft', record_equations, []))
       | _ ->
           let field_type = fresh_type_var () in
-          let minimal_record = RecordType [(field_name, field_type)] in
+          let minimal_record = RecordType [ (field_name, field_type) ] in
           let equation = (record_type, minimal_record) in
           return (field_type, equation :: record_equations, []))
   | EBlock [] -> return (UnitType, [], [])
@@ -587,8 +608,7 @@ and generate_e_id (env : static_env) (x : string) :
   match List.assoc_opt x env with
   | Some sch when scheme_has_class_constraint sch ->
       let m, preds = instantiate_infer_scheme sch in
-      pending_expression_class_preds :=
-        preds @ !pending_expression_class_preds;
+      pending_expression_class_preds := preds @ !pending_expression_class_preds;
       return (m, [], [])
   | Some uninstantiated ->
       let t = instantiate uninstantiated in
@@ -669,8 +689,7 @@ and generate_class_method_app (env : static_env) (type_env : type_env)
     (_f : string) (sch : c_type) (e2 : c_expr) :
     (mono_type * type_equations * type_env) type_check_result =
   let t_fun, preds = instantiate_infer_scheme sch in
-  pending_expression_class_preds :=
-    preds @ !pending_expression_class_preds;
+  pending_expression_class_preds := preds @ !pending_expression_class_preds;
   let- t2, c2, _ = generate env type_env e2 in
   let result_type = fresh_type_var () in
   let app_constraint = (t_fun, FunctionType (t2, result_type)) in
@@ -703,7 +722,8 @@ and generate_e_app (env : static_env) (type_env : type_env) (e1 : c_expr)
     @param e2 The expression in the scope of the binding
     @return A pair containing the type of e2 and constraints for the binding *)
 and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
-    (cto : c_type option) (e1 : c_expr) (e2 : c_expr) (return_type : c_type option) :
+    (cto : c_type option) (e1 : c_expr) (e2 : c_expr)
+    (return_type : c_type option) :
     (mono_type * type_equations * type_env) type_check_result =
   let t_pat, pat_env, pat_constraints = type_of_pat env type_env pat in
   let- t1, c1, _ = generate env type_env e1 in
@@ -750,30 +770,35 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
     let- t2, c2, _ =
       match pat_env with
       | [] ->
-          (* e.g. [let () = e1 in e2]: no identifiers bound; do not call [List.hd] *)
+          (* e.g. [let () = e1 in e2]: no identifiers bound; do not call
+             [List.hd] *)
           generate env type_env e2
-      | _ ->
-          generate ((fst (List.hd pat_env), Mono t1) :: env) type_env e2
+      | _ -> generate ((fst (List.hd pat_env), Mono t1) :: env) type_env e2
     in
     return
       ( t2,
-        pat_constraints @ annotation_constraints @ return_type_constraints @ (new_constraint :: c1) @ c2,
+        pat_constraints @ annotation_constraints @ return_type_constraints
+        @ (new_constraint :: c1) @ c2,
         [] )
   else
     (* Generalize the type of e1 before using it in e2 *)
     let- generalized_type =
       generalize ~class_preds:p1
-        (return_type_constraints @ new_constraint :: c1)
-        env type_env t1 in
+        (return_type_constraints @ (new_constraint :: c1))
+        env type_env t1
+    in
     let- t2, c2, _ =
       match pat_env with
       | [] -> generate env type_env e2
       | _ ->
-          generate ((fst (List.hd pat_env), generalized_type) :: env) type_env e2
+          generate
+            ((fst (List.hd pat_env), generalized_type) :: env)
+            type_env e2
     in
     return
       ( t2,
-        pat_constraints @ annotation_constraints @ return_type_constraints @ (new_constraint :: c1) @ c2,
+        pat_constraints @ annotation_constraints @ return_type_constraints
+        @ (new_constraint :: c1) @ c2,
         [] )
 
 (** [generate_e_bind_rec env pat e1 e2] generates type constraints for recursive
@@ -822,23 +847,26 @@ and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
   (* Use env (not new_env) so that the function's type variable can be generalized *)
   let- generalized_type =
     generalize ~class_preds:p1
-      (return_type_constraints @ new_constraint :: c1)
-      env type_env t1 in
+      (return_type_constraints @ (new_constraint :: c1))
+      env type_env t1
+  in
   let- t2, c2, _ =
     generate ((function_id, generalized_type) :: env) type_env e2
   in
   return (t2, return_type_constraints @ (new_constraint :: c1) @ c2, [])
 
-(** [generate_e_bind_mut_rec env type_env bindings body] generates type constraints
-    for mutually recursive let bindings.
+(** [generate_e_bind_mut_rec env type_env bindings body] generates type
+    constraints for mutually recursive let bindings.
     @param env The static environment
     @param type_env The type environment
-    @param bindings List of (pat, type_annotation, expr, return_type, num_explicit_params)
+    @param bindings
+      List of (pat, type_annotation, expr, return_type, num_explicit_params)
     @param body The expression in the scope of the bindings
     @return Type and constraints for the mutually recursive bindings *)
 and generate_e_bind_mut_rec (env : static_env) (type_env : type_env)
     (bindings : (c_pat * c_type option * c_expr * c_type option * int) list)
-    (body : c_expr) : (mono_type * type_equations * type_env) type_check_result =
+    (body : c_expr) : (mono_type * type_equations * type_env) type_check_result
+    =
   (* Extract function IDs from patterns *)
   let- function_ids =
     let rec extract_ids acc = function
@@ -850,8 +878,8 @@ and generate_e_bind_mut_rec (env : static_env) (type_env : type_env)
             | _ ->
                 Error
                   (OtherError
-                     ("Invalid pattern in mutually recursive let binding: expected an \
-                       identifier, got: " ^ string_of_pat pat))
+                     ("Invalid pattern in mutually recursive let binding: \
+                       expected an identifier, got: " ^ string_of_pat pat))
           in
           extract_ids (id :: acc) rest
     in
@@ -865,9 +893,7 @@ and generate_e_bind_mut_rec (env : static_env) (type_env : type_env)
   let mut_rec_env =
     List.fold_left2
       (fun acc_env id fresh_type -> (id, Mono fresh_type) :: acc_env)
-      env
-      function_ids
-      fresh_types
+      env function_ids fresh_types
   in
 
   (* Typecheck all bodies in the mutual recursive environment *)
@@ -887,10 +913,8 @@ and generate_e_bind_mut_rec (env : static_env) (type_env : type_env)
       (fun acc fresh_type (body_type, body_constraints) ->
         (* Constraint: fresh type must equal body type *)
         let type_constraint = (fresh_type, body_type) in
-        type_constraint :: body_constraints @ acc)
-      []
-      fresh_types
-      body_results
+        (type_constraint :: body_constraints) @ acc)
+      [] fresh_types body_results
   in
 
   (* Generalize all function types *)
@@ -908,9 +932,7 @@ and generate_e_bind_mut_rec (env : static_env) (type_env : type_env)
   let body_env =
     List.fold_left2
       (fun acc_env id gen_type -> (id, gen_type) :: acc_env)
-      env
-      function_ids
-      generalized_types
+      env function_ids generalized_types
   in
 
   (* Typecheck the body *)
@@ -1072,8 +1094,7 @@ and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
       let names = List.map fst field_pats in
       let () = assert_distinct_record_field_names names in
       let types, envs, eqs =
-        split3
-          (List.map (fun (_, p) -> type_of_pat env type_env p) field_pats)
+        split3 (List.map (fun (_, p) -> type_of_pat env type_env p) field_pats)
       in
       ( RecordType (List.map2 (fun nm ty -> (nm, ty)) names types),
         List.flatten envs,
@@ -1125,10 +1146,11 @@ and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
                   (sum_type, [], []))))
 
 and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
-  (* Optimized version: instead of substituting through all accumulated equations
-     on every step, we just accumulate the equations and defer substitution.
-     This changes O(n²) behavior to O(n). *)
-  let rec reduce_eq_acc (acc : type_equations) (c : type_equations) : type_equations =
+  (* Optimized version: instead of substituting through all accumulated
+     equations on every step, we just accumulate the equations and defer
+     substitution. This changes O(n²) behavior to O(n). *)
+  let rec reduce_eq_acc (acc : type_equations) (c : type_equations) :
+      type_equations =
     match c with
     | [] -> List.rev acc
     | (t1, t2) :: c' -> (
@@ -1143,47 +1165,65 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
                 | (TypeVar id2, RecordType fields) :: rest when id = id2 ->
                     collect_record_constraints (fields :: acc_records) rest
                 | other :: rest ->
-                    let (records, others) = collect_record_constraints acc_records rest in
+                    let records, others =
+                      collect_record_constraints acc_records rest
+                    in
                     (records, other :: others)
               in
-              let (other_records, other_constraints) = collect_record_constraints [fields2] c' in
+              let other_records, other_constraints =
+                collect_record_constraints [ fields2 ] c'
+              in
               let all_fields = List.flatten other_records in
               let rec merge_fields acc_fields extra_eqs = function
                 | [] -> (List.rev acc_fields, extra_eqs)
-                | (name, typ) :: rest ->
+                | (name, typ) :: rest -> (
                     match List.assoc_opt name acc_fields with
                     | Some existing_typ ->
-                        let (representative, other) = match (existing_typ, typ) with
-                          | (TypeVar _, _) -> (existing_typ, typ)
-                          | (_, TypeVar _) -> (typ, existing_typ)
+                        let representative, other =
+                          match (existing_typ, typ) with
+                          | TypeVar _, _ -> (existing_typ, typ)
+                          | _, TypeVar _ -> (typ, existing_typ)
                           | _ -> (existing_typ, typ)
                         in
                         let acc_fields_updated =
                           if representative = existing_typ then acc_fields
-                          else List.map (fun (n, t) -> if n = name then (n, representative) else (n, t)) acc_fields
+                          else
+                            List.map
+                              (fun (n, t) ->
+                                if n = name then (n, representative) else (n, t))
+                              acc_fields
                         in
-                        merge_fields acc_fields_updated ((representative, other) :: extra_eqs) rest
+                        merge_fields acc_fields_updated
+                          ((representative, other) :: extra_eqs)
+                          rest
                     | None ->
-                        merge_fields ((name, typ) :: acc_fields) extra_eqs rest
+                        merge_fields ((name, typ) :: acc_fields) extra_eqs rest)
               in
-              let (unique_fields, field_equations) = merge_fields [] [] all_fields in
+              let unique_fields, field_equations =
+                merge_fields [] [] all_fields
+              in
               let merged_record = RecordType unique_fields in
-              (* OPTIMIZATION: Only substitute in remaining constraints, not in acc *)
-              let new_remaining = field_equations @ substitute id merged_record other_constraints in
+              (* OPTIMIZATION: Only substitute in remaining constraints, not in
+                 acc *)
+              let new_remaining =
+                field_equations @ substitute id merged_record other_constraints
+              in
               reduce_eq_acc ((t1, merged_record) :: acc) new_remaining
           | TypeVar id, _ when not (inside t1 t2) ->
-              (* OPTIMIZATION: Only substitute in remaining constraints, not in acc.
-                 The accumulated equations will be processed by get_type which follows chains. *)
+              (* OPTIMIZATION: Only substitute in remaining constraints, not in
+                 acc. The accumulated equations will be processed by get_type
+                 which follows chains. *)
               let new_remaining = substitute id t2 c' in
               reduce_eq_acc ((t1, t2) :: acc) new_remaining
           | _, TypeVar _ -> reduce_eq_acc acc ((t2, t1) :: c')
           | FunctionType (i1, o1), FunctionType (i2, o2) ->
               reduce_eq_acc acc ((i1, i2) :: (o1, o2) :: c')
           | CListType et1, CListType et2 -> reduce_eq_acc acc ((et1, et2) :: c')
-          (* Native lists are [CListType elem]; HKT signatures use [TCtorApp(w,[elem])]
-             for the class parameter (e.g. [impl Functor for [u]]). *)
-          | TCtorApp (_, as1), CListType et2
-          | CListType et2, TCtorApp (_, as1) ->
+          (* Native lists are [CListType elem]; HKT signatures use
+             [TCtorApp(w,[elem])] for the class parameter (e.g. [impl Functor
+             for [u]]). *)
+          | TCtorApp (_, as1), CListType et2 | CListType et2, TCtorApp (_, as1)
+            ->
               if List.length as1 = 1 then
                 reduce_eq_acc acc ((List.hd as1, et2) :: c')
               else raise TypeFailure
@@ -1196,22 +1236,25 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
               if List.length as1 = List.length as2 then
                 let arg_equations = List.combine as1 as2 in
                 if w1 = w2 then reduce_eq_acc acc (arg_equations @ c')
-                else if is_solver_tctor_head_name w1 || is_solver_tctor_head_name w2 then
+                else if
+                  is_solver_tctor_head_name w1 || is_solver_tctor_head_name w2
+                then
                   reduce_eq_acc acc
-                    ((TypeVar w1, TypeVar w2) :: arg_equations @ c')
+                    (((TypeVar w1, TypeVar w2) :: arg_equations) @ c')
                 else raise TypeFailure
               else raise TypeFailure
           | TCtorApp (w, as1), CTypeApp (n, as2)
           | CTypeApp (n, as2), TCtorApp (w, as1) ->
               if List.length as1 = List.length as2 then
                 let arg_equations = List.combine as1 as2 in
-                reduce_eq_acc acc ((TypeVar w, TypeName n) :: arg_equations @ c')
+                reduce_eq_acc acc
+                  (((TypeVar w, TypeName n) :: arg_equations) @ c')
               else raise TypeFailure
           (* Recursive sum types like [type rec List<a> = ...] are μ-types
              (FixedPoint) in the environment, while class method signatures use
-             TCtorApp for the type-class parameter applied to [a]. Unify the same
-             way as [TCtorApp] vs [CTypeApp]: bind the head to the type name and
-             relate the μ-body to a fully applied [CTypeApp]. *)
+             TCtorApp for the type-class parameter applied to [a]. Unify the
+             same way as [TCtorApp] vs [CTypeApp]: bind the head to the type
+             name and relate the μ-body to a fully applied [CTypeApp]. *)
           | TCtorApp (w, as1), FixedPoint (name, body)
           | FixedPoint (name, body), TCtorApp (w, as1) ->
               reduce_eq_acc acc
@@ -1222,11 +1265,12 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
               match (types1, types2) with
               | type1 :: tail1, type2 :: tail2 ->
                   reduce_eq_acc acc
-                    ((type1, type2) :: (VectorType tail1, VectorType tail2) :: c')
+                    ((type1, type2)
+                    :: (VectorType tail1, VectorType tail2)
+                    :: c')
               | _ -> raise TypeFailure)
           | FixedPoint (name1, body1), FixedPoint (name2, body2) ->
-              if name1 = name2 then
-                reduce_eq_acc acc ((body1, body2) :: c')
+              if name1 = name2 then reduce_eq_acc acc ((body1, body2) :: c')
               else raise TypeFailure
           | FixedPoint (name, body), CTypeApp (app_name, args) ->
               if name = app_name then
@@ -1244,16 +1288,22 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
               let rec unify_common_fields acc_fields remaining1 remaining2 =
                 match remaining1 with
                 | [] -> (List.rev acc_fields, [], remaining2)
-                | (name1, type1) :: rest1 ->
+                | (name1, type1) :: rest1 -> (
                     match List.assoc_opt name1 remaining2 with
                     | Some type2 ->
-                        let remaining2' = List.filter (fun (n, _) -> n <> name1) remaining2 in
-                        unify_common_fields ((type1, type2) :: acc_fields) rest1 remaining2'
+                        let remaining2' =
+                          List.filter (fun (n, _) -> n <> name1) remaining2
+                        in
+                        unify_common_fields
+                          ((type1, type2) :: acc_fields)
+                          rest1 remaining2'
                     | None ->
-                        let (eqs, extra1, extra2) = unify_common_fields acc_fields rest1 remaining2 in
-                        (eqs, (name1, type1) :: extra1, extra2)
+                        let eqs, extra1, extra2 =
+                          unify_common_fields acc_fields rest1 remaining2
+                        in
+                        (eqs, (name1, type1) :: extra1, extra2))
               in
-              let (common_eqs, _, _) = unify_common_fields [] fields1 fields2 in
+              let common_eqs, _, _ = unify_common_fields [] fields1 fields2 in
               reduce_eq_acc acc (common_eqs @ c')
           | _ -> raise TypeFailure)
   in
@@ -1327,7 +1377,7 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
             aux (arg_type :: acc) rest
       in
       aux [] args
-  | TCtorApp (w, args) ->
+  | TCtorApp (w, args) -> (
       let- head_resolved = get_type_of_type_var w subs type_env in
       let rec aux acc = function
         | [] -> return (List.rev acc)
@@ -1336,7 +1386,7 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
             aux (arg_type :: acc) rest
       in
       let- resolved_args = aux [] args in
-      (match head_resolved with
+      match head_resolved with
       | TypeName n -> return (CTypeApp (n, resolved_args))
       | CListType _ -> (
           match resolved_args with
@@ -1344,13 +1394,14 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
           | _ ->
               Error
                 (OtherError
-                   "internal: [] expects exactly one type argument in this context"))
+                   "internal: [] expects exactly one type argument in this \
+                    context"))
       | TypeVar w' -> return (TCtorApp (w', resolved_args))
       | _ ->
           Error
             (OtherError
                ("Cannot apply type arguments to "
-              ^ string_of_mono_type head_resolved)))
+               ^ string_of_mono_type head_resolved)))
   | FixedPoint (name, body) ->
       (* Apply substitution to the body of the fixed point *)
       let- body_type = get_type body subs type_env in
@@ -1457,10 +1508,11 @@ and substitute (var_id : string) (t : mono_type) (equations : type_equations) :
         | CListType _ when List.length args = 1 ->
             CListType (substitute_in_type (List.hd args))
         | _ -> TCtorApp (w, List.map substitute_in_type args))
-    | TCtorApp (w, args) ->
-        TCtorApp (w, List.map substitute_in_type args)
+    | TCtorApp (w, args) -> TCtorApp (w, List.map substitute_in_type args)
     | FixedPoint (name, body) -> FixedPoint (name, substitute_in_type body)
-    | RecordType fields -> RecordType (List.map (fun (name, t) -> (name, substitute_in_type t)) fields)
+    | RecordType fields ->
+        RecordType
+          (List.map (fun (name, t) -> (name, substitute_in_type t)) fields)
   in
   match equations with
   | [] -> []
@@ -1517,9 +1569,9 @@ and instantiate_and_simplify (t : c_type) (type_env : type_env) :
     @param env The current static environment
     @param t The monomorphic type to generalize
     @return A polymorphic type with appropriate universal quantifiers *)
-and generalize ?(class_preds : class_equations = []) (constraints : type_equations)
-    (env : static_env) (type_env : type_env) (t : mono_type) :
-    c_type type_check_result =
+and generalize ?(class_preds : class_equations = [])
+    (constraints : type_equations) (env : static_env) (type_env : type_env)
+    (t : mono_type) : c_type type_check_result =
   (* First reduce the constraints to get a solution *)
   let solution = reduce_eq constraints type_env in
 
@@ -1540,7 +1592,9 @@ and generalize ?(class_preds : class_equations = []) (constraints : type_equatio
     |> List.sort_uniq compare
   in
   let pred_tyvars_for_gen =
-    List.concat_map (fun (_, tau) -> get_type_vars tau) preds_with_remaining_tyvars
+    List.concat_map
+      (fun (_, tau) -> get_type_vars tau)
+      preds_with_remaining_tyvars
   in
   (* Generalize tyvars in the result and in any still-ambiguous class predicates
      (e.g. element type of [[]] under Show). *)
@@ -1550,7 +1604,8 @@ and generalize ?(class_preds : class_equations = []) (constraints : type_equatio
   let env_types = List.map snd env in
   let env_types = List.map instantiate env_types in
 
-  (* Apply the solution to environment types so we can see constrained type variables *)
+  (* Apply the solution to environment types so we can see constrained type
+     variables *)
   let- env_types_with_solution =
     let rec apply_solution_to_list acc = function
       | [] -> return (List.rev acc)
@@ -1591,7 +1646,8 @@ and generalize ?(class_preds : class_equations = []) (constraints : type_equatio
         | Error _ as e -> e
         | Ok () ->
             if get_type_vars tau <> [] then Ok ()
-            else if forge_dict_resolves_for_class ~static_env:env ~class_name:c tau
+            else if
+              forge_dict_resolves_for_class ~static_env:env ~class_name:c tau
             then Ok ()
             else
               Error
@@ -1600,7 +1656,8 @@ and generalize ?(class_preds : class_equations = []) (constraints : type_equatio
                   ^ string_of_mono_type tau)))
       (Ok ()) preds_solved
   in
-  (* Keep class preds that still mention type variables (see preds_solved above). *)
+  (* Keep class preds that still mention type variables (see preds_solved
+     above). *)
   let base =
     if preds_with_remaining_tyvars = [] then Mono u1
     else Constrained (preds_with_remaining_tyvars, Mono u1)
@@ -1663,7 +1720,8 @@ and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :
           | (t1, t2) :: rest ->
               let- t1_simplified = simplify_mono_type t1 type_env in
               let- t2_simplified = simplify_mono_type t2 type_env in
-              simplify_constraint_list ((t1_simplified, t2_simplified) :: acc)
+              simplify_constraint_list
+                ((t1_simplified, t2_simplified) :: acc)
                 rest
         in
         simplify_constraint_list [] constraints
@@ -1703,7 +1761,8 @@ and mono_fun_type_of_binary_app (env : static_env) (type_env : type_env)
   let solution =
     try Ok (reduce_eq simplified_constraints type_env)
     with TypeFailure ->
-      Error (OtherError "mono_fun_type_of_binary_app: constraint solving failed")
+      Error
+        (OtherError "mono_fun_type_of_binary_app: constraint solving failed")
   in
   let- solution = solution in
   let- the_mono_type = get_type t1 solution type_env in
@@ -1711,13 +1770,15 @@ and mono_fun_type_of_binary_app (env : static_env) (type_env : type_env)
   return the_mono_type
 
 (** Monomorphic type of top-level [f_name] after applying it left-to-right to
-    [args] (same spine as the surface application). Used to monomorphize
-    curried calls: a binary step alone can leave free type variables
-    (e.g. [f 1] when [f : 'a -> 'b -> unit]); this solves the whole spine. *)
+    [args] (same spine as the surface application). Used to monomorphize curried
+    calls: a binary step alone can leave free type variables (e.g. [f 1] when
+    [f : 'a -> 'b -> unit]); this solves the whole spine. *)
 and mono_fun_type_of_curried_app (env : static_env) (type_env : type_env)
     (f_name : string) (args : c_expr list) : mono_type type_check_result =
   match List.assoc_opt f_name env with
-  | None -> Error (OtherError ("mono_fun_type_of_curried_app: unbound `" ^ f_name ^ "`"))
+  | None ->
+      Error
+        (OtherError ("mono_fun_type_of_curried_app: unbound `" ^ f_name ^ "`"))
   | Some ct ->
       (* Use the same freshening path as [generate_e_id] so monomorphization of
          curried class methods (e.g. [fmap g xs]) does not reuse stale solver
@@ -1734,7 +1795,9 @@ and mono_fun_type_of_curried_app (env : static_env) (type_env : type_env)
       in
       let rec loop cur_ty constraints = function
         | [] ->
-            let- simplified_constraints = simplify_constraint_list [] constraints in
+            let- simplified_constraints =
+              simplify_constraint_list [] constraints
+            in
             let solution =
               try Ok (reduce_eq simplified_constraints type_env)
               with TypeFailure ->
@@ -1845,14 +1908,18 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
         match return_type with
         | Some t ->
             let- simplified_t = instantiate_and_simplify t type_env in
-            (* Extract the return type by skipping the explicit parameter layers *)
+            (* Extract the return type by skipping the explicit parameter
+               layers *)
             let rec extract_return_type n ty =
               match (n, ty) with
               | 0, _ -> ty
-              | n, FunctionType (_, ret) when n > 0 -> extract_return_type (n - 1) ret
+              | n, FunctionType (_, ret) when n > 0 ->
+                  extract_return_type (n - 1) ret
               | _ -> ty
             in
-            let actual_return_type = extract_return_type num_explicit_params body_type in
+            let actual_return_type =
+              extract_return_type num_explicit_params body_type
+            in
             return [ (actual_return_type, simplified_t) ]
         | None -> return []
       in
@@ -1928,14 +1995,18 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
         match return_type with
         | Some t ->
             let- simplified_t = instantiate_and_simplify t type_env in
-            (* Extract the return type by skipping the explicit parameter layers *)
+            (* Extract the return type by skipping the explicit parameter
+               layers *)
             let rec extract_return_type n ty =
               match (n, ty) with
               | 0, _ -> ty
-              | n, FunctionType (_, ret) when n > 0 -> extract_return_type (n - 1) ret
+              | n, FunctionType (_, ret) when n > 0 ->
+                  extract_return_type (n - 1) ret
               | _ -> ty
             in
-            let actual_return_type = extract_return_type num_explicit_params body_type in
+            let actual_return_type =
+              extract_return_type num_explicit_params body_type
+            in
             return [ (actual_return_type, simplified_t) ]
         | None -> return []
       in
@@ -1967,18 +2038,18 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       (* Return value bindings in static env and empty type env *)
       return (new_bindings, [], [])
   | CDefnMutRec defns ->
-      (* For mutually recursive definitions, we need to:
-         1. Create fresh type variables for each definition
-         2. Add all of them to the environment
-         3. Typecheck all bodies in that environment
-         4. Generate constraints and solve them
-         5. Generalize the types *)
+      (* For mutually recursive definitions, we need to: 1. Create fresh type
+         variables for each definition 2. Add all of them to the environment 3.
+         Typecheck all bodies in that environment 4. Generate constraints and
+         solve them 5. Generalize the types *)
 
       (* Extract patterns and create fresh type variables for each *)
       let patterns_and_fresh_types =
         List.map
           (fun (pat, _, _, _, _, _) ->
-            let pattern_type, pattern_env, pattern_equations = type_of_pat env type_env pat in
+            let pattern_type, pattern_env, pattern_equations =
+              type_of_pat env type_env pat
+            in
             let fresh_type = fresh_type_var () in
             (pat, pattern_type, pattern_env, pattern_equations, fresh_type))
           defns
@@ -1988,9 +2059,9 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       let rec_env =
         List.fold_left
           (fun acc_env (_, _, pattern_env, _, fresh_type) ->
-            List.map (fun (id, _) -> (id, Mono fresh_type)) pattern_env @ acc_env)
-          env
-          patterns_and_fresh_types
+            List.map (fun (id, _) -> (id, Mono fresh_type)) pattern_env
+            @ acc_env)
+          env patterns_and_fresh_types
       in
 
       (* Typecheck all bodies and collect equations *)
@@ -1998,7 +2069,9 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
         let rec process_bodies acc_equations = function
           | [] -> return (List.rev acc_equations)
           | (_, _, _, body, _, _) :: rest ->
-              let- body_type, body_equations, _ = generate rec_env type_env body in
+              let- body_type, body_equations, _ =
+                generate rec_env type_env body
+              in
               process_bodies ((body_type, body_equations) :: acc_equations) rest
         in
         process_bodies [] defns
@@ -2007,28 +2080,31 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       (* Generate constraints for each definition *)
       let all_equations =
         List.fold_left2
-          (fun acc (_, pattern_type, _, pattern_equations, fresh_type) (body_type, body_equations) ->
+          (fun acc (_, pattern_type, _, pattern_equations, fresh_type)
+               (body_type, body_equations) ->
             (* Constraint: pattern type must match body type *)
             let pattern_body_constraint = (pattern_type, body_type) in
             (* Constraint: fresh type must match body type *)
             let rec_constraint = (fresh_type, body_type) in
-            pattern_equations @ body_equations @ [pattern_body_constraint; rec_constraint] @ acc)
-          []
-          patterns_and_fresh_types
-          all_body_results
+            pattern_equations @ body_equations
+            @ [ pattern_body_constraint; rec_constraint ]
+            @ acc)
+          [] patterns_and_fresh_types all_body_results
       in
 
       (* Handle type annotations if present *)
       let- annotation_equations =
         let rec process_annotations acc = function
           | [] -> return (List.rev acc)
-          | (_, pattern_type, _, _, _) :: pats_rest ->
-              (match defns with
+          | (_, pattern_type, _, _, _) :: pats_rest -> (
+              match defns with
               | (_, _, type_annotation, _, _, _) :: _ ->
                   let- annot_eqs =
                     match type_annotation with
                     | Some t ->
-                        let- simplified_t = instantiate_and_simplify t type_env in
+                        let- simplified_t =
+                          instantiate_and_simplify t type_env
+                        in
                         return [ (pattern_type, simplified_t) ]
                     | None -> return []
                   in
@@ -2058,9 +2134,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
             match bind_static pat gen_type with
             | Some bindings -> bindings @ acc
             | None -> failwith "Pattern binding failed in mutual recursion")
-          []
-          patterns_and_fresh_types
-          generalized_types
+          [] patterns_and_fresh_types generalized_types
       in
 
       return (all_bindings, [], [])
@@ -2073,8 +2147,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
               (fun (mname, mty, dispatch_cls) ->
                 ( mname,
                   PolyType
-                    ( w,
-                      Constrained ([ (dispatch_cls, TypeVar w) ], Mono mty) ) ))
+                    (w, Constrained ([ (dispatch_cls, TypeVar w) ], Mono mty))
+                ))
               methods
           in
           return (bindings, [], [])
@@ -2099,7 +2173,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
             let sum_type_app =
               CTypeApp (type_name, List.map (fun p -> TypeVar p) type_params)
             in
-            (* Helper function to wrap a type in PolyType quantifiers for each type parameter *)
+            (* Helper function to wrap a type in PolyType quantifiers for each
+               type parameter *)
             let rec make_poly_type_nullary params_left sum_type =
               match params_left with
               | [] -> Mono sum_type
@@ -2108,7 +2183,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
             in
             match payload_type_opt with
             | None ->
-                (* Nullary constructor - wrap in PolyType if there are type parameters *)
+                (* Nullary constructor - wrap in PolyType if there are type
+                   parameters *)
                 (cons_name, make_poly_type_nullary type_params sum_type_app)
             | Some payload_type ->
                 (* Constructor with payload - function type *)
@@ -2122,7 +2198,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                 let payload_simplified =
                   match simplify_mono_type payload_mono type_env with
                   | Ok t -> t
-                  | Error _ -> payload_mono  (* If simplification fails, use original *)
+                  | Error _ ->
+                      payload_mono (* If simplification fails, use original *)
                 in
                 (* Convert TypeName references to type parameters into
                    TypeVar *)
@@ -2147,10 +2224,15 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                   | CTypeApp (name, args) ->
                       CTypeApp (name, List.map convert_params_to_vars args)
                   | RecordType fields ->
-                      RecordType (List.map (fun (n, t) -> (n, convert_params_to_vars t)) fields)
+                      RecordType
+                        (List.map
+                           (fun (n, t) -> (n, convert_params_to_vars t))
+                           fields)
                   | _ -> t
                 in
-                let payload_with_vars = convert_params_to_vars payload_simplified in
+                let payload_with_vars =
+                  convert_params_to_vars payload_simplified
+                in
                 (* Create polymorphic type: ∀params. payload ->
                    SumType<params> *)
                 let rec make_poly_type params_left payload sum_type =
@@ -2163,7 +2245,10 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                   make_poly_type type_params payload_with_vars sum_type_app ))
           constructors
       in
-      return (constructor_bindings, type_env_entry, [ (type_name, type_params, constructors) ])
+      return
+        ( constructor_bindings,
+          type_env_entry,
+          [ (type_name, type_params, constructors) ] )
   | CSumTypeRec (type_name, type_params, constructors) ->
       (* Recursive sum types use FixedPoint (μ) to represent the recursion *)
       (* For type rec List<a> = | Nil | Cons of a * List<a> *)
@@ -2176,7 +2261,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       in
       let fixedpoint_body = FixedPoint (type_name, sum_type_app) in
       let type_env_entry = [ (type_name, type_params, fixedpoint_body) ] in
-      (* Extend type environment with the current type so it can be referenced in payloads *)
+      (* Extend type environment with the current type so it can be referenced
+         in payloads *)
       let extended_type_env = type_env_entry @ type_env in
 
       (* Create constructor bindings *)
@@ -2211,11 +2297,12 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                 let payload_simplified =
                   match simplify_mono_type payload_mono extended_type_env with
                   | Ok t -> t
-                  | Error _ -> payload_mono  (* If simplification fails, use original *)
+                  | Error _ ->
+                      payload_mono (* If simplification fails, use original *)
                 in
-                (* Convert TypeName references to type parameters into
-                   TypeVar, and references to the recursive type itself into
-                   the proper type application *)
+                (* Convert TypeName references to type parameters into TypeVar,
+                   and references to the recursive type itself into the proper
+                   type application *)
                 let rec convert_params_to_vars t =
                   match t with
                   | TypeName v when v = type_name ->
@@ -2242,10 +2329,15 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                   | FixedPoint (name, body) ->
                       FixedPoint (name, convert_params_to_vars body)
                   | RecordType fields ->
-                      RecordType (List.map (fun (n, t) -> (n, convert_params_to_vars t)) fields)
+                      RecordType
+                        (List.map
+                           (fun (n, t) -> (n, convert_params_to_vars t))
+                           fields)
                   | _ -> t
                 in
-                let payload_with_vars = convert_params_to_vars payload_simplified in
+                let payload_with_vars =
+                  convert_params_to_vars payload_simplified
+                in
                 (* Create polymorphic type: ∀params. payload ->
                    SumType<params> *)
                 let rec make_poly_type params_left payload sum_type =
@@ -2258,7 +2350,10 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                   make_poly_type type_params payload_with_vars sum_type_app ))
           constructors
       in
-      return (constructor_bindings, type_env_entry, [ (type_name, type_params, constructors) ])
+      return
+        ( constructor_bindings,
+          type_env_entry,
+          [ (type_name, type_params, constructors) ] )
   | CSumTypeRecMutRec types ->
       (* Mutually recursive sum types - similar to CSumTypeRec but for multiple types *)
       (* For type rec Even = | Zero | SuccE of Odd and Odd = | SuccO of Even *)
@@ -2276,7 +2371,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
           types
       in
 
-      (* Step 2: Extend type environment with all types so they can reference each other *)
+      (* Step 2: Extend type environment with all types so they can reference
+         each other *)
       let extended_type_env = type_env_entries @ type_env in
 
       (* Step 3: Create constructor bindings for all types *)
@@ -2307,25 +2403,36 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                     in
                     (* Simplify the payload type using extended environment *)
                     let payload_simplified =
-                      match simplify_mono_type payload_mono extended_type_env with
+                      match
+                        simplify_mono_type payload_mono extended_type_env
+                      with
                       | Ok t -> t
                       | Error _ -> payload_mono
                     in
                     (* Convert TypeName references to the proper types *)
                     (* This function needs to handle references to ANY of the mutually recursive types *)
-                    let all_type_names = List.map (fun (name, _, _) -> name) types in
+                    let all_type_names =
+                      List.map (fun (name, _, _) -> name) types
+                    in
                     let rec convert_params_to_vars t =
                       match t with
                       | TypeName v when List.mem v all_type_names ->
                           (* Reference to one of the mutually recursive types *)
                           (* Find its type parameters *)
-                          let (_, found_params, _) = List.find (fun (name, _, _) -> name = v) type_env_entries in
-                          CTypeApp (v, List.map (fun p -> TypeVar p) found_params)
+                          let _, found_params, _ =
+                            List.find
+                              (fun (name, _, _) -> name = v)
+                              type_env_entries
+                          in
+                          CTypeApp
+                            (v, List.map (fun p -> TypeVar p) found_params)
                       | TypeName v when List.mem v type_params -> TypeVar v
                       | TypeVar v ->
                           (* Extract variable name from $written(x) format *)
                           let var_name =
-                            if String.length v > 9 && String.sub v 0 9 = "$written("
+                            if
+                              String.length v > 9
+                              && String.sub v 0 9 = "$written("
                             then String.sub v 9 (String.length v - 10)
                             else v
                           in
@@ -2333,7 +2440,8 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                           else TypeVar v
                       | FunctionType (t1, t2) ->
                           FunctionType
-                            (convert_params_to_vars t1, convert_params_to_vars t2)
+                            ( convert_params_to_vars t1,
+                              convert_params_to_vars t2 )
                       | VectorType ts ->
                           VectorType (List.map convert_params_to_vars ts)
                       | CListType t -> CListType (convert_params_to_vars t)
@@ -2342,10 +2450,15 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                       | FixedPoint (name, body) ->
                           FixedPoint (name, convert_params_to_vars body)
                       | RecordType fields ->
-                          RecordType (List.map (fun (n, t) -> (n, convert_params_to_vars t)) fields)
+                          RecordType
+                            (List.map
+                               (fun (n, t) -> (n, convert_params_to_vars t))
+                               fields)
                       | _ -> t
                     in
-                    let payload_with_vars = convert_params_to_vars payload_simplified in
+                    let payload_with_vars =
+                      convert_params_to_vars payload_simplified
+                    in
                     (* Create polymorphic type *)
                     let rec make_poly_type params_left payload sum_type =
                       match params_left with
@@ -2353,7 +2466,9 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
                       | param :: rest ->
                           PolyType (param, make_poly_type rest payload sum_type)
                     in
-                    (cons_name, make_poly_type type_params payload_with_vars sum_type_app))
+                    ( cons_name,
+                      make_poly_type type_params payload_with_vars sum_type_app
+                    ))
               constructors)
           types
       in
@@ -2417,23 +2532,24 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
   | TypeName v -> (
       (* Look up and evaluate the type definition *)
       match List.find_opt (fun (n, _, _) -> n = v) type_env with
-      | Some type_def ->
+      | Some type_def -> (
           let _, _, t = type_def in
           (* Check if this is a recursive sum type (FixedPoint) *)
-          (match t with
-          | FixedPoint (name, body) when name = v ->
-              (* For recursive sum types in annotations, return the CTypeApp directly
-                 rather than the FixedPoint wrapper, as the FixedPoint is just for
-                 internal representation. This allows proper unification with
-                 constructor types which use CTypeApp. *)
-              (match body with
+          match t with
+          | FixedPoint (name, body) when name = v -> (
+              (* For recursive sum types in annotations, return the CTypeApp
+                 directly rather than the FixedPoint wrapper, as the FixedPoint
+                 is just for internal representation. This allows proper
+                 unification with constructor types which use CTypeApp. *)
+              match body with
               | CTypeApp (app_name, _) when app_name = v ->
                   (* Return CTypeApp with no args for nullary recursive types *)
                   return (CTypeApp (v, []))
               | _ -> simplify_mono_type body type_env)
           | _ -> simplify_mono_type t type_env)
       | None -> (
-          (* Surface primitive names (not in [type_env]) match lexer keywords. *)
+          (* Surface primitive names (not in [type_env]) match lexer
+             keywords. *)
           match v with
           | "String" | "string" -> return StringType
           | "Int" | "int" -> return IntType
@@ -2471,88 +2587,95 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
           if List.length params <> List.length simplified_args then
             Error
               (OtherError
-                 ("Type " ^ name ^ " expects " ^ string_of_int (List.length params)
+                 ("Type " ^ name ^ " expects "
+                 ^ string_of_int (List.length params)
                  ^ " arguments, got "
                  ^ string_of_int (List.length simplified_args)))
           else
-
-          (* Check if this is a sum type (body is CTypeApp with same name)
-             or a recursive sum type (FixedPoint) *)
-          let is_sum_type, is_fixedpoint =
-            match body with
-            | CTypeApp (body_name, _) when body_name = name -> (true, false)
-            | FixedPoint _ -> (true, true)
-            | _ -> (false, false)
-          in
-
-          (* For sum types, don't simplify - just return the CTypeApp with
-             simplified args *)
-          (* For recursive sum types (FixedPoint), return the FixedPoint with
-             simplified params substituted *)
-          if is_sum_type then
-            if is_fixedpoint then
-              (* Substitute the type parameters in the FixedPoint body *)
+            (* Check if this is a sum type (body is CTypeApp with same name) or
+               a recursive sum type (FixedPoint) *)
+            let is_sum_type, is_fixedpoint =
               match body with
-              | FixedPoint (fp_name, fp_body) ->
-                  let subst = List.combine params simplified_args in
-                  let rec apply_subst t =
-                    match t with
-                    | TypeVar v -> (
-                        match List.assoc_opt v subst with
-                        | Some arg -> arg
-                        | None -> t)
-                    | FunctionType (i, o) ->
-                        FunctionType (apply_subst i, apply_subst o)
-                    | VectorType types -> VectorType (List.map apply_subst types)
-                    | CListType et -> CListType (apply_subst et)
-                    | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
-                    | TCtorApp (w, args) ->
-                        TCtorApp (w, List.map apply_subst args)
-                    | FixedPoint (n, b) -> FixedPoint (n, apply_subst b)
-                    | RecordType fields -> RecordType (List.map (fun (name, t) -> (name, apply_subst t)) fields)
-                    | _ -> t
-                  in
-                  return (FixedPoint (fp_name, apply_subst fp_body))
-              | _ -> return (CTypeApp (name, simplified_args))
-            else return (CTypeApp (name, simplified_args))
-          else
-            (* Create substitution mapping type parameters to their evaluated
-               arguments *)
-            let subst = List.combine params simplified_args in
-
-            (* Apply the substitution to the body type *)
-            let rec apply_subst t =
-              match t with
-              | TypeVar v -> (
-                  (* Extract the variable name from $written(v) format *)
-                  let var_name =
-                    if String.length v > 9 && String.sub v 0 9 = "$written("
-                    then String.sub v 9 (String.length v - 10)
-                    else v
-                  in
-                  match List.assoc_opt var_name subst with
-                  | Some arg -> arg
-                  | None -> t)
-              | TypeName v -> (
-                  (* Check if this type name is actually a type parameter *)
-                  match List.assoc_opt v subst with
-                  | Some arg -> arg
-                  | None -> t)
-              | FunctionType (i, o) ->
-                  FunctionType (apply_subst i, apply_subst o)
-              | VectorType types -> VectorType (List.map apply_subst types)
-              | CListType et -> CListType (apply_subst et)
-              | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
-              | TCtorApp (w, args) ->
-                  TCtorApp (w, List.map apply_subst args)
-              | FixedPoint (name, body) -> FixedPoint (name, apply_subst body)
-              | RecordType fields -> RecordType (List.map (fun (name, t) -> (name, apply_subst t)) fields)
-              | _ -> t
+              | CTypeApp (body_name, _) when body_name = name -> (true, false)
+              | FixedPoint _ -> (true, true)
+              | _ -> (false, false)
             in
 
-            (* Apply substitution and recursively evaluate the result *)
-            let substituted = apply_subst body in
-            simplify_mono_type substituted type_env
+            (* For sum types, don't simplify - just return the CTypeApp with
+             simplified args *)
+            (* For recursive sum types (FixedPoint), return the FixedPoint with
+             simplified params substituted *)
+            if is_sum_type then
+              if is_fixedpoint then
+                (* Substitute the type parameters in the FixedPoint body *)
+                match body with
+                | FixedPoint (fp_name, fp_body) ->
+                    let subst = List.combine params simplified_args in
+                    let rec apply_subst t =
+                      match t with
+                      | TypeVar v -> (
+                          match List.assoc_opt v subst with
+                          | Some arg -> arg
+                          | None -> t)
+                      | FunctionType (i, o) ->
+                          FunctionType (apply_subst i, apply_subst o)
+                      | VectorType types ->
+                          VectorType (List.map apply_subst types)
+                      | CListType et -> CListType (apply_subst et)
+                      | CTypeApp (n, args) ->
+                          CTypeApp (n, List.map apply_subst args)
+                      | TCtorApp (w, args) ->
+                          TCtorApp (w, List.map apply_subst args)
+                      | FixedPoint (n, b) -> FixedPoint (n, apply_subst b)
+                      | RecordType fields ->
+                          RecordType
+                            (List.map
+                               (fun (name, t) -> (name, apply_subst t))
+                               fields)
+                      | _ -> t
+                    in
+                    return (FixedPoint (fp_name, apply_subst fp_body))
+                | _ -> return (CTypeApp (name, simplified_args))
+              else return (CTypeApp (name, simplified_args))
+            else
+              (* Create substitution mapping type parameters to their evaluated
+                 arguments *)
+              let subst = List.combine params simplified_args in
+
+              (* Apply the substitution to the body type *)
+              let rec apply_subst t =
+                match t with
+                | TypeVar v -> (
+                    (* Extract the variable name from $written(v) format *)
+                    let var_name =
+                      if String.length v > 9 && String.sub v 0 9 = "$written("
+                      then String.sub v 9 (String.length v - 10)
+                      else v
+                    in
+                    match List.assoc_opt var_name subst with
+                    | Some arg -> arg
+                    | None -> t)
+                | TypeName v -> (
+                    (* Check if this type name is actually a type parameter *)
+                    match List.assoc_opt v subst with
+                    | Some arg -> arg
+                    | None -> t)
+                | FunctionType (i, o) ->
+                    FunctionType (apply_subst i, apply_subst o)
+                | VectorType types -> VectorType (List.map apply_subst types)
+                | CListType et -> CListType (apply_subst et)
+                | CTypeApp (n, args) -> CTypeApp (n, List.map apply_subst args)
+                | TCtorApp (w, args) -> TCtorApp (w, List.map apply_subst args)
+                | FixedPoint (name, body) -> FixedPoint (name, apply_subst body)
+                | RecordType fields ->
+                    RecordType
+                      (List.map (fun (name, t) -> (name, apply_subst t)) fields)
+                | _ -> t
+              in
+
+              (* Apply substitution and recursively evaluate the result *)
+              let substituted = apply_subst body in
+              simplify_mono_type substituted type_env
       | None -> Error (OtherError ("Unknown type constructor: " ^ name)))
   | FixedPoint (name, body) ->
       (* Simplify the body of the fixed point *)
@@ -2563,13 +2686,16 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       let rec aux acc = function
         | [] -> return (RecordType (List.rev acc))
         | (field_name, field_type) :: rest ->
-            let- simplified_field_type = simplify_mono_type field_type type_env in
+            let- simplified_field_type =
+              simplify_mono_type field_type type_env
+            in
             aux ((field_name, simplified_field_type) :: acc) rest
       in
       aux [] fields
 
 (** Inferred type of [e1] in [let rec id = e1 in ...], using [env] as the
-    surrounding static environment (for lowering after whole-program typecheck). *)
+    surrounding static environment (for lowering after whole-program typecheck).
+*)
 let type_rec_binding_rhs (env : static_env) (type_env : type_env) (id : string)
     (e1 : c_expr) : c_type type_check_result =
   let function_type = fresh_type_var () in
@@ -2589,14 +2715,20 @@ let rec primary_class_constraint (t : c_type) : string option =
   | PolyType (_, inner) -> primary_class_constraint inner
   | _ -> None
 
-let rec extract_class_param_and_mono_template (class_name : string)
-    (t : c_type) : (string * mono_type) option =
+let rec extract_class_param_and_mono_template (class_name : string) (t : c_type)
+    : (string * mono_type) option =
   match t with
-  | PolyType (_v, inner) -> extract_class_param_and_mono_template class_name inner
+  | PolyType (_v, inner) ->
+      extract_class_param_and_mono_template class_name inner
   | Constrained (preds, inner) -> (
       let pred_match =
         List.find_opt
-          (fun (c, ty) -> c = class_name && match ty with TypeVar _ -> true | _ -> false)
+          (fun (c, ty) ->
+            c = class_name
+            &&
+            match ty with
+            | TypeVar _ -> true
+            | _ -> false)
           preds
       in
       match (pred_match, inner) with
@@ -2612,7 +2744,7 @@ let instantiate_method_type_for_class ~(static_env : static_env)
   | Some sch -> (
       match extract_class_param_and_mono_template class_name sch with
       | None -> None
-      | Some (var_id, mty) ->
+      | Some (var_id, mty) -> (
           let arity = Type_arity.ctor_arity_for_written_var var_id mty in
           let specialized =
             Type_arity.substitute_instance_in_mono ~written_var:var_id ~inst:tau
@@ -2620,7 +2752,7 @@ let instantiate_method_type_for_class ~(static_env : static_env)
           in
           match simplify_mono_type specialized type_env with
           | Ok t -> Some t
-          | Error _ -> Some specialized)
+          | Error _ -> Some specialized))
 
 let dict_expected_record_type ~(static_env : static_env) ~(class_name : string)
     ~(tau : mono_type) ~(type_env : type_env) : mono_type option =
@@ -2629,7 +2761,10 @@ let dict_expected_record_type ~(static_env : static_env) ~(class_name : string)
       (fun (name, sch) ->
         match primary_class_constraint sch with
         | Some c when c = class_name && scheme_has_class_constraint sch -> (
-            match instantiate_method_type_for_class ~static_env ~class_name ~method_name:name ~tau ~type_env with
+            match
+              instantiate_method_type_for_class ~static_env ~class_name
+                ~method_name:name ~tau ~type_env
+            with
             | Some t -> Some (name, t)
             | None -> None)
         | _ -> None)
@@ -2640,7 +2775,8 @@ let dict_expected_record_type ~(static_env : static_env) ~(class_name : string)
     let fields = List.sort (fun (a, _) (b, _) -> compare a b) method_fields in
     Some (RecordType fields)
 
-(** Rewrite [Class.method e] to record dispatch after whole-program typecheck. *)
+(** Rewrite [Class.method e] to record dispatch after whole-program typecheck.
+*)
 let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
     c_expr -> c_expr =
   (* When rewriting overloaded identifiers (e.g. [mappend]) into dictionary
@@ -2653,7 +2789,8 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
     | CIdPat id -> [ id ]
     | CConsPat (a, b) -> pat_bound_simple a @ pat_bound_simple b
     | CVectorPat ps -> List.concat (List.map pat_bound_simple ps)
-    | CRecordPat fs -> List.concat (List.map (fun (_, p) -> pat_bound_simple p) fs)
+    | CRecordPat fs ->
+        List.concat (List.map (fun (_, p) -> pat_bound_simple p) fs)
     | CVariantPat (_, Some p) -> pat_bound_simple p
     | CVariantPat (_, None) -> []
     | CWildcardPat | CUnitPat | CNilPat -> []
@@ -2687,7 +2824,7 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
             | Some cls -> (
                 match extract_class_param_and_mono_template cls sch with
                 | None -> None
-                | Some (var_id, mty) ->
+                | Some (var_id, mty) -> (
                     let idx = Type_arity.dict_resolution_arg_index mty var_id in
                     let all_args = prefix @ [ e2_last ] in
                     if List.length all_args <= idx then None
@@ -2696,12 +2833,12 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
                       | None -> None
                       | Some tau_e -> (
                           match type_of_c_expr static_env type_env tau_e with
-                          | Ok arg_ct ->
+                          | Ok arg_ct -> (
                               let tau = get_mono_type arg_ct in
-                              (match
-                                 find_compatible_dict_name ~static_env
-                                   ~class_name:cls ~method_name:f ~tau
-                               with
+                              match
+                                find_compatible_dict_name ~static_env
+                                  ~class_name:cls ~method_name:f ~tau
+                              with
                               | Some dict ->
                                   Some
                                     (List.fold_left
@@ -2709,7 +2846,7 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
                                        (EFieldAccess (EId dict, f))
                                        all_args)
                               | None -> None)
-                          | Error _ -> None)))
+                          | Error _ -> None))))
         | _ -> None)
     | _ -> None
   in
@@ -2738,9 +2875,7 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
         in
         let shadowed' = add_all shadowed bound_names in
         EBindMutRec
-          ( List.map
-              (fun (p, a, e, r, n) -> (p, a, aux shadowed' e, r, n))
-              bs,
+          ( List.map (fun (p, a, e, r, n) -> (p, a, aux shadowed' e, r, n)) bs,
             aux shadowed' body )
     | EBlock parts ->
         EBlock
@@ -2767,19 +2902,16 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
            and the comprehension body; this is more involved than we need for
            the [impl] case, so we don't attempt to shadow through generators. *)
         EListComprehension
-          ( aux shadowed e,
-            List.map (fun (p, ge) -> (p, aux shadowed ge)) gs )
+          (aux shadowed e, List.map (fun (p, ge) -> (p, aux shadowed ge)) gs)
     | EBop (o, e1, e2) -> EBop (o, aux shadowed e1, aux shadowed e2)
     | ERecordLit fs ->
         ERecordLit (List.map (fun (n, ee) -> (n, aux shadowed ee)) fs)
     | ERecordUpdate (e, fs) ->
         ERecordUpdate
-          ( aux shadowed e,
-            List.map (fun (n, ee) -> (n, aux shadowed ee)) fs )
+          (aux shadowed e, List.map (fun (n, ee) -> (n, aux shadowed ee)) fs)
     | EFieldAccess (e, fld) -> EFieldAccess (aux shadowed e, fld)
     | (EInt _ | EFloat _ | EBool _ | EString _ | EChar _ | EUnit | ENil | EId _)
-      as lit ->
-        lit
+      as lit -> lit
   in
   aux []
 
@@ -2791,8 +2923,8 @@ and elaborate_defn (static_env : static_env) (type_env : type_env) d : c_defn =
       CDefnRec (pat, cs, a, elaborate_expr static_env type_env body, r, n)
   | CDefnMutRec defs ->
       CDefnMutRec
-        ( List.map
-            (fun (p, cs, a, body, r, n) ->
-              (p, cs, a, elaborate_expr static_env type_env body, r, n))
-            defs )
+        (List.map
+           (fun (p, cs, a, body, r, n) ->
+             (p, cs, a, elaborate_expr static_env type_env body, r, n))
+           defs)
   | d -> d

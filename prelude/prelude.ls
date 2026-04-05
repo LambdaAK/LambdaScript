@@ -1,5 +1,9 @@
 // Standard prelude: typeclass hierarchy (implement instances in user code).
 
+type rec List<a> =
+  | []
+  | (::) of (a, List<a>)
+
 trait Functor<f<_>> where
   val fmap : (a -> b) -> f<a> -> f<b>
 end
