@@ -381,7 +381,8 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       in
       eval_vector [] expressions
   | ESwitch (e, branches) -> (
-      let* v : value = eval_c_expr e env in
+      let* v_raw : value = eval_c_expr e env in
+      let v = resolve_tc_method_value env v_raw in
       (* see if v matches any pattern in branches *)
       let rec find_bindings_and_body_if_possible
           (branches : (c_pat * c_expr) list) (v : value) : (env * c_expr) option

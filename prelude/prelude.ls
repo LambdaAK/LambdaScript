@@ -59,6 +59,12 @@ trait Monad<f<_>> requires Applicative<f> where
   let (>>=) x f = bind x f
 end
 
+// Alternative provides a choice operator for Applicative functors.
+trait Alternative<f<_>> requires Applicative<f> where
+  val aempty : f<a>
+  val (<|>) : f<a> -> f<a> -> f<a>
+end
+
 // Foldable abstracts over container types whose elements can be combined/folded.
 trait Foldable<f<_>> where
   // fold_left : (b -> a -> b) -> b -> f<a> -> b
@@ -258,6 +264,14 @@ impl Monad for Option where
     case x do
     | None -> None
     | Some v -> f v
+end
+
+impl Alternative for Option where
+  let aempty = None
+  let (<|>) x y =
+    case x do
+    | Some v -> Some v
+    | None -> y
 end
 
 impl Semigroup for Option<a> where

@@ -2919,12 +2919,18 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
             | Some cls -> (
                 match extract_class_param_and_mono_template cls sch with
                 | None -> None
-                | Some (var_id, mty) -> (
-                    let idx = Type_arity.dict_resolution_arg_index mty var_id in
+                | Some (_var_id, _mty) -> (
                     let all_args = prefix @ [ e2_last ] in
-                    if List.length all_args <= idx then None
-                    else
-                      match arg_at_index idx all_args with
+                    let resolve_sibling_methods dict args =
+                      let meths = class_method_names ~static_env ~class_name:cls in
+                      List.map (fun arg ->
+                        match arg with
+                        | EId id when List.mem id meths && not (List.mem id shadowed) ->
+                            EFieldAccess (EId dict, id)
+                        | _ -> arg) args
+                    in
+                    let try_arg_at i =
+                      match arg_at_index i all_args with
                       | None -> None
                       | Some tau_e -> (
                           match type_of_c_expr static_env type_env tau_e with
@@ -2935,11 +2941,12 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
                                   ~class_name:cls ~method_name:f ~tau
                               with
                               | Some dict ->
+                                  let resolved_args = resolve_sibling_methods dict all_args in
                                   Some
                                     (List.fold_left
                                        (fun acc arg -> EApp (acc, arg))
                                        (EFieldAccess (EId dict, f))
-                                       all_args)
+                                       resolved_args)
                               | None ->
                                   if Hashtbl.mem dict_wrapped_fns f then
                                     match
@@ -2947,14 +2954,27 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
                                         ~class_name:cls ~tau
                                     with
                                     | Some dict ->
+                                        let resolved_args = resolve_sibling_methods dict all_args in
                                         Some
                                           (List.fold_left
                                              (fun acc arg -> EApp (acc, arg))
                                              (EApp (EId f, EId dict))
-                                             all_args)
+                                             resolved_args)
                                     | None -> None
                                   else None)
-                          | Error _ -> None))))
+                          | Error _ -> None)
+                    in
+                    let rec try_args i =
+                      if i >= List.length all_args then None
+                      else
+                        match try_arg_at i with
+                        | Some _ as result -> result
+                        | None -> try_args (i + 1)
+                    in
+                    let idx = Type_arity.dict_resolution_arg_index _mty _var_id in
+                    match try_arg_at idx with
+                    | Some _ as result -> result
+                    | None -> try_args 0)))
         | _ -> None)
     | _ -> None
   in

@@ -2032,35 +2032,56 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
         | Some cls -> (
             match Typecheck.extract_class_param_and_mono_template cls sch with
             | Some (var_id, mty) -> (
+                let resolve_sibling_methods dict arg_list =
+                  let meths = Typecheck.class_method_names ~static_env:static_for_mono ~class_name:cls in
+                  List.map (fun arg ->
+                    match arg with
+                    | EId id when List.mem id meths && not (S.mem id shadows) ->
+                        EFieldAccess (EId dict, id)
+                    | _ -> arg) arg_list
+                in
+                let try_arg_at i =
+                  if i < 0 || i >= List.length args then None
+                  else
+                    let tau_e = List.nth args i in
+                    match
+                      Typecheck.type_of_c_expr static_for_mono type_env tau_e
+                    with
+                    | Ok arg_ct -> (
+                        let tau =
+                          Typecheck.instantiate arg_ct
+                          |> Typecheck.mono_concrete_or_int_default
+                        in
+                        match
+                          Typecheck.find_compatible_dict_name
+                            ~static_env:static_for_mono ~class_name:cls
+                            ~method_name:name ~tau
+                        with
+                        | Some dict ->
+                            let resolved_args = resolve_sibling_methods dict args in
+                            let rewritten =
+                              List.fold_left
+                                (fun acc arg -> EApp (acc, arg))
+                                (EFieldAccess (EId dict, name))
+                                resolved_args
+                            in
+                            Some
+                              (lower_expr rewritten env ctx static_env type_env
+                                 shadows)
+                        | None -> None)
+                    | Error _ -> None
+                in
                 let idx = Type_arity.dict_resolution_arg_index mty var_id in
-                if idx < 0 || idx >= List.length args then None
-                else
-                  let tau_e = List.nth args idx in
-                  match
-                    Typecheck.type_of_c_expr static_for_mono type_env tau_e
-                  with
-                  | Ok arg_ct -> (
-                      let tau =
-                        Typecheck.instantiate arg_ct
-                        |> Typecheck.mono_concrete_or_int_default
-                      in
-                      match
-                        Typecheck.find_compatible_dict_name
-                          ~static_env:static_for_mono ~class_name:cls
-                          ~method_name:name ~tau
-                      with
-                      | Some dict ->
-                          let rewritten =
-                            List.fold_left
-                              (fun acc arg -> EApp (acc, arg))
-                              (EFieldAccess (EId dict, name))
-                              args
-                          in
-                          Some
-                            (lower_expr rewritten env ctx static_env type_env
-                               shadows)
-                      | None -> None)
-                  | Error _ -> None)
+                match try_arg_at idx with
+                | Some _ as result -> result
+                | None ->
+                    let rec try_all i =
+                      if i >= List.length args then None
+                      else match try_arg_at i with
+                        | Some _ as result -> result
+                        | None -> try_all (i + 1)
+                    in
+                    try_all 0)
             | None -> None)
         | None -> None)
     | _ -> None
