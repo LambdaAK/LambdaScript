@@ -723,9 +723,21 @@ let condense_program (defns : defn list) : c_defn list =
                   let sub =
                     List.map (fun (m, intid) -> (m, EId intid)) internals
                   in
+                  (* Do not rewrite the method name inside its own RHS: e.g.
+                     [impl Alternative for Parser] may call [(<|>)] on [Option]
+                     results; syntactically replacing every [(<|>)] with this
+                     dict slot would force erroneous self-dispatch. Sibling
+                     methods still map to internal ids; self-calls resolve via
+                     the usual constrained identifier (same instance by type). *)
                   let condensed =
                     List.map
-                      (fun m -> (m, subst_c_expr sub (expr_for_method m)))
+                      (fun m ->
+                        let sub_i =
+                          List.filter
+                            (fun (m', _) -> not (String.equal m' m))
+                            sub
+                        in
+                        (m, subst_c_expr sub_i (expr_for_method m)))
                       names
                   in
                   let record =
