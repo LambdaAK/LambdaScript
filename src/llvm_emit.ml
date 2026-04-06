@@ -11,6 +11,14 @@ type emit_ctx = {
   mutable tuple_registry : (ty list * string) list;
   mutable list_id : int;
   mutable list_registry : (ty * string) list;
+  (** Zeroinit sentinel cons cells (one per list cell struct name). Used so
+      [ListHead]/[ListTail] never GEP/load through a null [i8*] when native
+      pattern tests emit those ops speculatively before a null guard reaches
+      the branch. *)
+  mutable list_sentinels : (string * string) list;
+  (** Globals used as safe fallbacks when [HeapUnbox] sees a null pointer from
+      speculative [VariantPayload] in native pattern matching. *)
+  mutable heap_unbox_dummies : (ty * string) list;
   (** Fresh SSA names for temps introduced while emitting call operands. *)
   mutable emit_aux_id : int;
 }
@@ -24,8 +32,26 @@ let ctx_create () =
     tuple_registry = [];
     list_id = 0;
     list_registry = [];
+    list_sentinels = [];
+    heap_unbox_dummies = [];
     emit_aux_id = 0;
   }
+
+let ensure_list_sentinel (ctx : emit_ctx) (struct_n : string) : string =
+  match List.assoc_opt struct_n ctx.list_sentinels with
+  | Some g -> g
+  | None ->
+      let g =
+        "ls_lsent_"
+        ^ String.map (function '.' -> '_' | c -> c) struct_n
+      in
+      let line =
+        Printf.sprintf "@%s = private unnamed_addr constant %%%s zeroinitializer"
+          g struct_n
+      in
+      ctx.prelude <- line :: ctx.prelude;
+      ctx.list_sentinels <- (struct_n, g) :: ctx.list_sentinels;
+      g
 
 let fresh_emit_aux (ctx : emit_ctx) : string =
   ctx.emit_aux_id <- ctx.emit_aux_id + 1;
@@ -139,6 +165,42 @@ and llvm_struct_elem_ty (ctx : emit_ctx) (t : ty) : string =
   | Tuple ts ->
       let n = register_tuple_layout ctx ts in
       Printf.sprintf "%%%s" n
+
+let heap_unbox_dummy_i8_expr (ctx : emit_ctx) (elem_ty : ty) (g : string) :
+    string =
+  match elem_ty with
+  | I1 -> Printf.sprintf "bitcast (i32* @%s to i8*)" g
+  | Tuple ts ->
+      let struct_n = register_tuple_layout ctx ts in
+      Printf.sprintf "bitcast (%%%s* @%s to i8*)" struct_n g
+  | _ ->
+      let ll = llvm_ll_ty_ctx ctx elem_ty in
+      Printf.sprintf "bitcast (%s* @%s to i8*)" ll g
+
+let heap_unbox_dummy_global (ctx : emit_ctx) (elem_ty : ty) : string * string =
+  (* Returns [(global_name, i8* source expression bitcasting that global)]. *)
+  match
+    List.find_opt (fun (k, _) -> ty_equal_ll k elem_ty) ctx.heap_unbox_dummies
+  with
+  | Some (_, g) -> (g, heap_unbox_dummy_i8_expr ctx elem_ty g)
+  | None ->
+      let g = "ls_ubox_" ^ string_of_int (List.length ctx.heap_unbox_dummies) in
+      let line =
+        match elem_ty with
+        | I1 ->
+            Printf.sprintf "@%s = private unnamed_addr global i32 0" g
+        | Tuple ts ->
+            let struct_n = register_tuple_layout ctx ts in
+            Printf.sprintf "@%s = private unnamed_addr global %%%s zeroinitializer"
+              g struct_n
+        | _ ->
+            let ll = llvm_ll_ty_ctx ctx elem_ty in
+            Printf.sprintf "@%s = private unnamed_addr global %s zeroinitializer"
+              g ll
+      in
+      ctx.prelude <- line :: ctx.prelude;
+      ctx.heap_unbox_dummies <- (elem_ty, g) :: ctx.heap_unbox_dummies;
+      (g, heap_unbox_dummy_i8_expr ctx elem_ty g)
 
 (** [unit] is not an LLVM value type; use [i8] as the ABI carrier for [unit]
     parameters, call arguments, and SSA locals that hold [unit]. *)
@@ -1012,11 +1074,23 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
           let struct_n = register_list_cell_layout ctx elem_ty in
           let lt, lv = emit_operand ctx h lst in
           if lt <> "i8*" then failwith "llvm_emit: list head expects list i8*";
+          let g_sent = ensure_list_sentinel ctx struct_n in
+          let nn = dst ^ "_nn" in
+          let lroot = dst ^ "_lroot" in
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf "  %%%s = icmp ne i8* %s, null" nn lv;
+                Printf.sprintf
+                  "  %%%s = select i1 %%%s, i8* %s, i8* bitcast (%%%s* @%s to \
+                   i8*)" lroot nn lv struct_n g_sent;
+              ];
           let cp = dst ^ "_lcp" in
           lines :=
             !lines
             @ [
-                Printf.sprintf "  %%%s = bitcast i8* %s to %%%s*" cp lv struct_n;
+                Printf.sprintf "  %%%s = bitcast i8* %%%s to %%%s*" cp lroot
+                  struct_n;
               ];
           let gh = dst ^ "_gh" in
           let head_ll = llvm_struct_elem_ty ctx elem_ty in
@@ -1047,11 +1121,23 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
           let struct_n = register_list_cell_layout ctx elem_ty in
           let lt, lv = emit_operand ctx h lst in
           if lt <> "i8*" then failwith "llvm_emit: list tail expects list i8*";
+          let g_sent = ensure_list_sentinel ctx struct_n in
+          let nn = dst ^ "_tnn" in
+          let lroot = dst ^ "_troot" in
+          lines :=
+            !lines
+            @ [
+                Printf.sprintf "  %%%s = icmp ne i8* %s, null" nn lv;
+                Printf.sprintf
+                  "  %%%s = select i1 %%%s, i8* %s, i8* bitcast (%%%s* @%s to \
+                   i8*)" lroot nn lv struct_n g_sent;
+              ];
           let cp = dst ^ "_tcp" in
           lines :=
             !lines
             @ [
-                Printf.sprintf "  %%%s = bitcast i8* %s to %%%s*" cp lv struct_n;
+                Printf.sprintf "  %%%s = bitcast i8* %%%s to %%%s*" cp lroot
+                  struct_n;
               ];
           let gt = dst ^ "_tg" in
           lines :=
@@ -1213,66 +1299,78 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
   | HeapUnbox (elem_ty, op) ->
       let pt, pv = emit_operand ctx h op in
       if pt <> "i8*" then failwith "llvm_emit: HeapUnbox expects i8*";
-      let bp = dst ^ "_uptr" in
       (match elem_ty with
-      | I32 ->
-          lines :=
-            !lines
-            @ [
-                Printf.sprintf "  %%%s = bitcast i8* %s to i32*" bp pv;
-                Printf.sprintf "  %%%s = load i32, i32* %%%s" dst bp;
-              ];
-          H.replace h dst I32
-      | I1 ->
-          let wl = dst ^ "_wi" in
-          lines :=
-            !lines
-            @ [
-                Printf.sprintf "  %%%s = bitcast i8* %s to i32*" bp pv;
-                Printf.sprintf "  %%%s = load i32, i32* %%%s" wl bp;
-                Printf.sprintf "  %%%s = icmp ne i32 %%%s, 0" dst wl;
-              ];
-          H.replace h dst I1
-      | F64 ->
-          lines :=
-            !lines
-            @ [
-                Printf.sprintf "  %%%s = bitcast i8* %s to double*" bp pv;
-                Printf.sprintf "  %%%s = load double, double* %%%s" dst bp;
-              ];
-          H.replace h dst F64
       | Unit ->
-          lines :=
-            !lines
-            @ [ Printf.sprintf "  %%%s = add i8 0, 0" dst ];
+          lines := !lines @ [ Printf.sprintf "  %%%s = add i8 0, 0" dst ];
           H.replace h dst Unit
-      | String | RawPtr | List _ | Clos _ ->
+      | _ ->
+          let _, dummy_i8 = heap_unbox_dummy_global ctx elem_ty in
+          let nn = dst ^ "_unn" in
+          let psafe = dst ^ "_pubox" in
           lines :=
             !lines
             @ [
-                Printf.sprintf "  %%%s = bitcast i8* %s to i8**" bp pv;
-                Printf.sprintf "  %%%s = load i8*, i8** %%%s" dst bp;
+                Printf.sprintf "  %%%s = icmp ne i8* %s, null" nn pv;
+                Printf.sprintf "  %%%s = select i1 %%%s, i8* %s, i8* %s" psafe nn
+                  pv dummy_i8;
               ];
-          H.replace h dst elem_ty
-      | Fun (ps, r) ->
-          let fpty = llvm_fun_ptr_ty_ctx ctx ps r in
-          lines :=
-            !lines
-            @ [
-                Printf.sprintf "  %%%s = bitcast i8* %s to %s*" bp pv fpty;
-                Printf.sprintf "  %%%s = load %s, %s* %%%s" dst fpty fpty bp;
-              ];
-          H.replace h dst elem_ty
-      | Tuple _ as tup ->
-          let struct_ll = llvm_ll_ty_ctx ctx tup in
-          lines :=
-            !lines
-            @ [
-                Printf.sprintf "  %%%s = bitcast i8* %s to %s*" bp pv struct_ll;
-                Printf.sprintf "  %%%s = load %s, %s* %%%s" dst struct_ll struct_ll
-                  bp;
-              ];
-          H.replace h dst elem_ty)
+          let bp = dst ^ "_uptr" in
+          (match elem_ty with
+          | I32 ->
+              lines :=
+                !lines
+                @ [
+                    Printf.sprintf "  %%%s = bitcast i8* %%%s to i32*" bp psafe;
+                    Printf.sprintf "  %%%s = load i32, i32* %%%s" dst bp;
+                  ];
+              H.replace h dst I32
+          | I1 ->
+              let wl = dst ^ "_wi" in
+              lines :=
+                !lines
+                @ [
+                    Printf.sprintf "  %%%s = bitcast i8* %%%s to i32*" bp psafe;
+                    Printf.sprintf "  %%%s = load i32, i32* %%%s" wl bp;
+                    Printf.sprintf "  %%%s = icmp ne i32 %%%s, 0" dst wl;
+                  ];
+              H.replace h dst I1
+          | F64 ->
+              lines :=
+                !lines
+                @ [
+                    Printf.sprintf "  %%%s = bitcast i8* %%%s to double*" bp psafe;
+                    Printf.sprintf "  %%%s = load double, double* %%%s" dst bp;
+                  ];
+              H.replace h dst F64
+          | String | RawPtr | List _ | Clos _ ->
+              lines :=
+                !lines
+                @ [
+                    Printf.sprintf "  %%%s = bitcast i8* %%%s to i8**" bp psafe;
+                    Printf.sprintf "  %%%s = load i8*, i8** %%%s" dst bp;
+                  ];
+              H.replace h dst elem_ty
+          | Fun (ps, r) ->
+              let fpty = llvm_fun_ptr_ty_ctx ctx ps r in
+              lines :=
+                !lines
+                @ [
+                    Printf.sprintf "  %%%s = bitcast i8* %%%s to %s*" bp psafe fpty;
+                    Printf.sprintf "  %%%s = load %s, %s* %%%s" dst fpty fpty bp;
+                  ];
+              H.replace h dst elem_ty
+          | Tuple _ as tup ->
+              let struct_ll = llvm_ll_ty_ctx ctx tup in
+              lines :=
+                !lines
+                @ [
+                    Printf.sprintf "  %%%s = bitcast i8* %%%s to %s*" bp psafe
+                      struct_ll;
+                    Printf.sprintf "  %%%s = load %s, %s* %%%s" dst struct_ll
+                      struct_ll bp;
+                  ];
+              H.replace h dst elem_ty
+          | Unit -> assert false))
   | VariantMk (tag, payload_op) ->
       let tag_op = ConstI32 tag in
       let tt, tv = emit_operand ctx h tag_op in
