@@ -304,6 +304,52 @@ and string_of_mono_type (t : mono_type) : string =
       in
       "{" ^ String.concat ", " field_strs ^ "}"
 
+(** Renames [TypeVar] / [TCtorApp] heads to [$Canon0], [$Canon1], … in
+    deterministic traversal order so alpha-equivalent instantiations share one
+    monomorph key. Otherwise [collect_mono_instantiations] dedup uses
+    [string_of_mono_type], which still mentions solver-internal names ([t214],
+    …) and the fixpoint queue never stabilizes on nested class calls (e.g.
+    [Parser]'s [(<|>)] using [Option]'s [(<|>)]). *)
+let canonicalize_mono_type_vars_for_instance_key (t : mono_type) : mono_type =
+  let tbl = Hashtbl.create 8 in
+  let next = ref 0 in
+  let fresh () =
+    let k = !next in
+    incr next;
+    "$Canon" ^ string_of_int k
+  in
+  let rec canon t =
+    match t with
+    | TypeVar v -> (
+        match Hashtbl.find_opt tbl v with
+        | Some v' -> TypeVar v'
+        | None ->
+            let v' = fresh () in
+            Hashtbl.add tbl v v';
+            TypeVar v')
+    | FunctionType (a, r) -> FunctionType (canon a, canon r)
+    | VectorType ts -> VectorType (List.map canon ts)
+    | CListType e -> CListType (canon e)
+    | CTypeApp (n, args) -> CTypeApp (n, List.map canon args)
+    | TCtorApp (w, args) ->
+        let w' =
+          match Hashtbl.find_opt tbl w with
+          | Some x -> x
+          | None ->
+              let x = fresh () in
+              Hashtbl.add tbl w x;
+              x
+        in
+        TCtorApp (w', List.map canon args)
+    | FixedPoint (n, b) -> FixedPoint (n, canon b)
+    | RecordType fs ->
+        RecordType (List.map (fun (nm, ty) -> (nm, canon ty)) fs)
+    | ( IntType | FloatType | BoolType | StringType | CharType | UnitType
+      | TypeName _ ) as prim ->
+        prim
+  in
+  canon t
+
 (** Substitute a type variable inside a monomorphic type (used for forge dicts).
 *)
 let rec replace_typevar_in_mono ~(var_id : string) ~(with_ty : mono_type)
@@ -386,8 +432,12 @@ let dict_candidate_matches_tau ~(dict_name : string) ~(class_name : string)
       | FixedPoint (n, _) -> sfx_starts ("mu_" ^ n) || sfx_starts n
       | _ -> true)
 
-let find_compatible_dict_name ~(static_env : static_env) ~(class_name : string)
-    ~(method_name : string) ~(tau : mono_type) : string option =
+let find_compatible_dict_name ~(filter_dict : (string -> bool) option)
+    ~(static_env : static_env) ~(class_name : string) ~(method_name : string)
+    ~(tau : mono_type) : string option =
+  let dict_visible =
+    match filter_dict with None -> fun _ -> true | Some f -> f
+  in
   let prefix = "__forge_dict_" ^ class_name ^ "_" in
   let exact = dict_for_instance ~class_name tau in
   let exact_ok =
@@ -398,7 +448,7 @@ let find_compatible_dict_name ~(static_env : static_env) ~(class_name : string)
         | _ -> false)
     | None -> false
   in
-  if exact_ok then Some exact
+  if exact_ok && dict_visible exact then Some exact
   else
     let rec scan env =
       match env with
@@ -410,7 +460,8 @@ let find_compatible_dict_name ~(static_env : static_env) ~(class_name : string)
             else
               match instantiate_dict_scheme_to_record ~sch ~tau with
               | Some (RecordType fields) when List.mem_assoc method_name fields
-                -> Some name
+                ->
+                  if dict_visible name then Some name else scan rest
               | _ -> scan rest
           else scan rest
     in
@@ -1206,6 +1257,17 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
         if t1 = t2 then reduce_eq_acc acc c'
         else
           match (t1, t2) with
+          | TypeVar id, TypeVar id2 when id <> id2 ->
+              (* Orient [TypeVar]–[TypeVar] edges so the substitution graph is
+                 acyclic: always map the lexicographically larger metavariable to
+                 the smaller. Otherwise [acc] can hold both [(a, b)] and [(b,
+                 a)] (from TCtorApp head unification, nested class calls, …),
+                 and [get_type_of_type_var] follows an infinite chain. *)
+              let hi, lo =
+                if String.compare id id2 > 0 then (id, id2) else (id2, id)
+              in
+              let new_remaining = substitute hi (TypeVar lo) c' in
+              reduce_eq_acc ((TypeVar hi, TypeVar lo) :: acc) new_remaining
           | TypeVar id, RecordType fields2 when not (inside t1 t2) ->
               (* Special handling for type variables unified with records *)
               let rec collect_record_constraints acc_records remaining =
@@ -2937,8 +2999,9 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
                           | Ok arg_ct -> (
                               let tau = get_mono_type arg_ct in
                               match
-                                find_compatible_dict_name ~static_env
-                                  ~class_name:cls ~method_name:f ~tau
+                                find_compatible_dict_name ~filter_dict:None
+                                  ~static_env ~class_name:cls ~method_name:f
+                                  ~tau
                               with
                               | Some dict ->
                                   let resolved_args = resolve_sibling_methods dict all_args in

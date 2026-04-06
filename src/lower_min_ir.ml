@@ -596,10 +596,13 @@ and min_ty_to_mono_opt : ty -> mono_type option = function
     [mono_fun_type_of_binary_app] sees parameters and [let]-bound names in the
     current lowering scope. *)
 let static_env_for_mono_call (global : static_env) (env : env) : static_env =
-  List.fold_left
-    (fun acc (name, b) ->
+  (* Preserve env order (newest bindings first) so [List.assoc_opt] sees the
+     correct shadowing; the old [fold_left] reversed locals and broke
+     [mono_fun_type_of_curried_app] / constructor monomorphization. *)
+  List.filter_map
+    (fun (name, b) ->
       match b with
-      | Val (_, _, Some m) -> (name, Mono m) :: acc
+      | Val (_, _, Some m) -> Some (name, Mono m)
       | Val (_, t, None) -> (
           try
             let m =
@@ -607,15 +610,15 @@ let static_env_for_mono_call (global : static_env) (env : env) : static_env =
               | Some m -> m
               | None -> min_ty_to_mono t
             in
-            (name, Mono m) :: acc
-          with Unsupported _ -> acc)
+            Some (name, Mono m)
+          with Unsupported _ -> None)
       | ForgeDict _ ->
           (* Keep the surface/static binding for this dictionary (record /
              constrained scheme). A [Mono] from Min_IR [Tuple] would break
              [type_of_c_expr] on [EFieldAccess]. *)
-          acc
-      | C _ -> acc)
-    [] env
+          None
+      | C _ -> None)
+    env
   @ global
 
 (** Domain/codomain of [e_fn] in application [(e_fn e_arg)], from the
@@ -1019,6 +1022,9 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
   let all : (string * mono_type) list ref = ref [] in
   let q : (string * mono_type) Queue.t = Queue.create () in
   let add name mono =
+    let mono =
+      Typecheck.canonicalize_mono_type_vars_for_instance_key mono
+    in
     let key = (name, string_of_mono_type mono) in
     if not (Hashtbl.mem seen key) then (
       Hashtbl.add seen key ();
@@ -1187,7 +1193,15 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
     | _ -> ()
   in
   List.iter (collect_visit_defn static_env) defs;
+  let fix_iters = ref 0 in
+  let max_fix_iters = 500_000 in
   while not (Queue.is_empty q) do
+    incr fix_iters;
+    if !fix_iters > max_fix_iters then
+      raise
+        (Unsupported
+           "collect_mono_instantiations: iteration limit exceeded (compiler \
+            bug or pathological polymorphic recursion)");
     let name, mono = Queue.pop q in
     match find_cdefn_function name defs with
     | Some (param_pats, _, inner) ->
@@ -2204,6 +2218,12 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
                         in
                         match
                           Typecheck.find_compatible_dict_name
+                            ~filter_dict:
+                              (Some
+                                 (fun d ->
+                                    if is_forge_dict_name d then
+                                      List.mem_assoc d env
+                                    else true))
                             ~static_env:static_for_mono ~class_name:cls
                             ~method_name:name ~tau
                         with
