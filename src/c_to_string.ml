@@ -97,12 +97,23 @@ let rec string_of_c_type (ct : c_type) : string =
     | Mono m -> ([], `Mono m)
     | PolyType _ -> ([], `Nested rest)
   in
+  let is_atomic_instance_ty : mono_type -> bool = function
+    | IntType | FloatType | BoolType | StringType | CharType | UnitType
+    | TypeVar _ | TypeName _ ->
+        true
+    | CTypeApp (_, []) -> true
+    | _ -> false
+  in
+  let string_of_class_instance_ty (ty : mono_type) : string =
+    let s = string_of_mono_for_display ty in
+    if is_atomic_instance_ty ty then s else "(" ^ s ^ ")"
+  in
   let constr_str =
     if constr = [] then ""
     else
       String.concat ", "
         (List.map
-           (fun (cls, ty) -> cls ^ " " ^ string_of_mono_for_display ty)
+           (fun (cls, ty) -> cls ^ " " ^ string_of_class_instance_ty ty)
            constr)
       ^ " => "
   in

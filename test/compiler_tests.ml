@@ -89,6 +89,23 @@ let compiler_cases_dir () : string =
          dune runtest with (chdir %{workspace_root} ...)) or ensure \
          test/compiler_cases exists."
 
+let repo_root_for_prelude () : string =
+  let has_prelude dir =
+    Sys.file_exists (Filename.concat dir "prelude/prelude.ls")
+  in
+  let rec search_up dir =
+    if has_prelude dir then Some dir
+    else
+      let parent = Filename.dirname dir in
+      if String.equal parent dir then None else search_up parent
+  in
+  match Sys.getenv_opt "DUNE_SOURCEROOT" with
+  | Some root when has_prelude root -> root
+  | _ -> (
+      match search_up (Sys.getcwd ()) with
+      | Some root -> root
+      | None -> Sys.getcwd ())
+
 let list_case_files () : string list =
   let dir = compiler_cases_dir () in
   let entries = Sys.readdir dir |> Array.to_list in
@@ -104,13 +121,23 @@ let test_one case_path =
   let name = Filename.remove_extension (Filename.basename case_path) in
   name >:: fun _ ->
   let expected_stdout, program = parse_case_file case_path in
+  let prelude = String.equal name "parser_expr_programs_test" in
+  let repo_root = repo_root_for_prelude () in
   with_tmpdir @@ fun dir ->
   let src = Filename.concat dir "prog.ls" in
   let exe = Filename.concat dir "prog_out" in
   Out_channel.with_open_bin src (fun oc -> Out_channel.output_string oc program);
-  match
-    Language.Compile_pipeline.compile ~quiet:true ~prelude:false src exe
-  with
+  let compile_result =
+    if prelude then
+      let old_cwd = Sys.getcwd () in
+      Fun.protect
+        ~finally:(fun () -> Sys.chdir old_cwd)
+        (fun () ->
+          Sys.chdir repo_root;
+          Language.Compile_pipeline.compile ~quiet:true ~prelude src exe)
+    else Language.Compile_pipeline.compile ~quiet:true ~prelude src exe
+  in
+  match compile_result with
   | Error msg -> assert_failure ("compile failed: " ^ msg)
   | Ok () ->
       let actual = run_exe_capture_stdout exe in

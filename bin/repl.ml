@@ -36,6 +36,14 @@ let print_name_info name =
   print_colored color_blue "Name : ";
   print_colored_line color_magenta name
 
+(** Hide elaboration-only bindings from REPL listings. *)
+let is_internal_repl_binding name =
+  String.starts_with ~prefix:"__forge_dict_" name
+  || String.starts_with ~prefix:"__dict_" name
+
+let filter_repl_bindings bindings =
+  List.filter (fun (name, _) -> not (is_internal_repl_binding name)) bindings
+
 type repl_result =
   | NoChange
   | NewBindings of static_env * env * type_env
@@ -99,7 +107,8 @@ let print_help () =
   print_colored_line color_green "  :quit, :q        Exit the REPL";
   print_colored_line color_green "  :env             Show current environment";
   print_colored_line color_green "  :type <expr>     Show type of expression";
-  print_colored_line color_green "  :load <file>     Load definitions from file";
+  print_colored_line color_dim
+    "  (preload a file: make repl FILE=path or: dune exec ./bin/repl.exe path)";
   print_colored_line color_green "  :history         Show command history";
   print_colored_line color_green "  :clear           Clear the screen";
   print_newline ();
@@ -109,7 +118,7 @@ let print_help () =
   print_colored_line color_cyan "  - Example: let x = 5;;";
   print_newline ()
 
-let handle_command cmd static_env dynamic_env type_env history =
+let handle_command cmd static_env _dynamic_env type_env history =
   let trimmed = String.trim cmd in
   if trimmed = ":help" || trimmed = ":h" then (
     print_help ();
@@ -142,7 +151,7 @@ let handle_command cmd static_env dynamic_env type_env history =
         (fun (name, typ) ->
           print_colored color_magenta ("  " ^ name ^ " : ");
           print_colored_line color_cyan (string_of_c_type typ))
-        static_env;
+        (filter_repl_bindings static_env);
     print_newline ();
     NoChange)
   else if String.starts_with ~prefix:":type " trimmed then (
@@ -176,60 +185,10 @@ let handle_command cmd static_env dynamic_env type_env history =
         print_error "Failed to parse expression";
         NoChange)
   else if String.starts_with ~prefix:":load " trimmed then (
-    let filename =
-      String.sub trimmed 6 (String.length trimmed - 6) |> String.trim
-    in
-    if filename = "" then (
-      print_error "Usage: :load <filename>";
-      NoChange)
-    else
-      try
-        let ic = open_in filename in
-        let content = really_input_string ic (in_channel_length ic) in
-        close_in ic;
-        print_colored_line color_green ("Loading " ^ filename ^ "...");
-
-        let input = content |> String.to_seq |> List.of_seq in
-        let tokens = lex input |> List.map (fun t -> t.token_type) in
-
-        match Language.Parser.ProgramParser.program_parser tokens with
-        | Some (program, []) when program <> [] -> (
-            let c_defns = condense_program program in
-            match
-              process_condensed_defns static_env dynamic_env type_env c_defns
-            with
-            | Language.Typecheck.Error e ->
-                print_error (string_of_type_check_error e);
-                NoChange
-            | Language.Typecheck.Ok
-                (_, _, _, new_static_bindings, new_dynamic_bindings, new_type_env)
-              ->
-                print_colored_line color_green "File loaded successfully!";
-                List.iter
-                  (fun (name, typ) ->
-                    print_colored color_magenta ("  " ^ name ^ " : ");
-                    print_colored_line color_cyan (string_of_c_type typ))
-                  new_static_bindings;
-                NewBindings
-                  (new_static_bindings, new_dynamic_bindings, new_type_env))
-        | Some ([], []) ->
-            print_error "File has no definitions";
-            NoChange
-        | Some (_, remaining) ->
-            print_error
-              (Printf.sprintf "Parse incomplete (%d token(s) left); use a full program or fix syntax"
-                 (List.length remaining));
-            NoChange
-        | None ->
-            print_error "Failed to parse file content";
-            NoChange
-      with
-      | Sys_error msg ->
-          print_error ("File error: " ^ msg);
-          NoChange
-      | _ ->
-          print_error "Failed to load file";
-          NoChange)
+    print_error
+      ":load is disabled; start the REPL with a file instead: make repl \
+       FILE=path/to/file.ls  (or: dune exec ./bin/repl.exe path)";
+    NoChange)
   else (
     print_error ("Unknown command: " ^ trimmed);
     print_colored_line color_dim "Type :help for available commands";
@@ -274,7 +233,7 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env)
           print_name_info name;
           print_value_and_type value typ;
           print_separator ())
-        nb
+        (filter_repl_bindings nb)
     in
 
     (match Language.Parser.ProgramParser.program_parser tokens with

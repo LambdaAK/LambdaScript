@@ -19,12 +19,14 @@ bisect:
 	dune exec --instrument-with bisect_ppx --force test/test.exe
 	bisect-ppx-report html
 
+# Optional: FILE=path — preload that program after prelude (same as: dune exec ./bin/repl.exe path).
 repl:
 	dune build bin/repl.exe
-	dune exec ./bin/repl.exe
+	@if [ -n "$(FILE)" ]; then dune exec ./bin/repl.exe "$(FILE)"; else dune exec ./bin/repl.exe; fi
 
 repl-with-file:
 	dune build bin/repl.exe
+	@if [ -z "$(FILE)" ]; then echo "Usage: make repl-with-file FILE=path  (or: make repl FILE=path)"; exit 1; fi
 	dune exec ./bin/repl.exe "$(FILE)"
 
 repl-test:

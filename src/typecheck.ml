@@ -1698,8 +1698,18 @@ and generalize ?(class_preds : class_equations = [])
     in
     aux [] class_preds
   in
+  (* Drop class predicates whose instance type mentions type variables that do
+     not occur in the generalized type [u1]. Otherwise we print e.g.
+     [Semigroup a => Tree<Int>] where [a] is unrelated to [Tree<Int>] (stale
+     constraint from sibling bindings in the same solve). *)
+  let u1_tyvars = get_type_vars u1 in
   let preds_with_remaining_tyvars =
-    List.filter (fun (_, tau) -> get_type_vars tau <> []) preds_solved
+    List.filter
+      (fun (_, tau) ->
+        let tau_tyvars = get_type_vars tau in
+        tau_tyvars <> []
+        && List.exists (fun tv -> List.mem tv u1_tyvars) tau_tyvars)
+      preds_solved
     |> List.sort_uniq compare
   in
   let pred_tyvars_for_gen =

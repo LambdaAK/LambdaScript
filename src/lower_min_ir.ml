@@ -149,7 +149,20 @@ and mono_to_min (m : mono_type) : ty =
         "Polymorphic type in native compile (e.g. 'a -> 'a): add monomorphic \
          type annotations on parameters and result, e.g. let f (x : int) : int \
          = x"
+  | CTypeApp (name, args) when name = "List" || name = "list" -> (
+      match args with
+      | [ elem ] -> List (mono_to_min elem)
+      | _ ->
+          unsupported
+            "Internal: List type constructor should have one type argument")
   | CTypeApp (name, _) when is_sum_type_name type_env name -> RawPtr
+  | FixedPoint (name, body) when name = "List" || name = "list" -> (
+      match body with
+      | CTypeApp (n, [ elem ]) when n = name -> List (mono_to_min elem)
+      | _ ->
+          unsupported
+            "Internal: List μ-type should be FixedPoint (List, CTypeApp (List, \
+             [elem]))")
   | FixedPoint (name, _) when is_sum_type_name type_env name -> RawPtr
   | TypeName name when is_sum_type_name type_env name -> RawPtr
   | TCtorApp _ ->
@@ -322,7 +335,26 @@ let dict_record_mono_for_class ~(class_name : string) (tau : mono_type)
   | None ->
       unsupported
         ("Could not build dictionary record type for class `" ^ class_name
-       ^ "` (tau " ^ string_of_mono_type tau' ^ ")")
+         ^ "` (tau " ^ string_of_mono_type tau' ^ ")")
+
+let rec return_ty_of_mono (m : mono_type) : mono_type =
+  match m with
+  | FunctionType (_, r) -> return_ty_of_mono r
+  | _ -> m
+
+(** When [Mono] is fully concrete but the poly binding for [scheme_key] no
+    longer carries a visible [Constrained] class predicate (so
+    {!find_class_predicate_mono} fails), recover [Semigroup]/[Monoid] instance
+    types from the instantiated user arrow for list [(++)]: use the [List _]
+    return type (e.g. [Tree a -> List a] implies [Semigroup (List a)]). *)
+let try_recover_dict_instance_tau ~(class_name : string) (user_after : mono_type)
+    : mono_type option =
+  match class_name with
+  | "Semigroup" | "Monoid" -> (
+      match return_ty_of_mono user_after with
+      | CListType _ as t -> Some t
+      | _ -> None)
+  | _ -> None
 
 (** First [n] argument monos from a curried user arrow (for pairing with leading
     synthetic [__dict_*] parameters). *)
@@ -393,12 +425,69 @@ let inferred_param_mono_list ~(scheme_key : string) ~(instance_key : string)
           | FunctionType (RecordType _, _) ->
               peel_dict_record_domains n_dict user_m_full
           | _ ->
-              let taus = user_domain_monos n_dict user_m_full in
-              List.map2
-                (fun (_, cls) tau ->
-                  dict_record_mono_for_class ~class_name:cls tau static_env
-                    type_env)
-                dict_infos taus)
+              (* Without a leading [RecordType] dict in the instantiated [Mono],
+                 [user_m_full] may either (i) still have [n_dict] dictionary domains
+                 (often not spelled as [RecordType] in the mono AST) or (ii) omit
+                 synthetic dict parameters so the first domains are user types
+                 (e.g. [string -> unit] for [println]).
+
+                 For (i), stripping [n_dict] layers and seeing a [List _] return
+                 recovers [Semigroup (List a)] for list [(++)]. For (ii),
+                 [strip_leading_dict_mono_layers] would peel real parameters — fall
+                 back to [user_domain_monos]. *)
+              let user_after_from_strip =
+                try Some (strip_leading_dict_mono_layers n_dict user_m_full)
+                with Unsupported _ -> None
+              in
+              let semigroup_mono_from_list_return =
+                match user_after_from_strip with
+                | Some u -> (
+                    match return_ty_of_mono u with
+                    | CListType _ -> true
+                    | _ -> false)
+                | None -> false
+              in
+              if semigroup_mono_from_list_return then
+                let user_after =
+                  match user_after_from_strip with
+                  | Some u -> u
+                  | None -> assert false
+                in
+                List.map
+                  (fun (_, cls) ->
+                    let tau =
+                      match List.assoc_opt scheme_key static_env with
+                      | None -> None
+                      | Some sch -> (
+                          match find_class_predicate_mono cls sch with
+                          | Some t ->
+                              Some (Typecheck.mono_concrete_or_int_default t)
+                          | None -> None)
+                    in
+                    let tau =
+                      match tau with
+                      | Some t -> t
+                      | None -> (
+                          match
+                            try_recover_dict_instance_tau ~class_name:cls user_after
+                          with
+                          | Some t -> t
+                          | None ->
+                              unsupported
+                                ("Could not recover dictionary instance type for "
+                               ^ cls ^ " on `" ^ scheme_key
+                               ^ "` (missing class predicate on scheme)"))
+                    in
+                    dict_record_mono_for_class ~class_name:cls tau static_env
+                      type_env)
+                  dict_infos
+              else
+                let taus = user_domain_monos n_dict user_m_full in
+                List.map2
+                  (fun (_, cls) tau ->
+                    dict_record_mono_for_class ~class_name:cls tau static_env
+                      type_env)
+                  dict_infos taus)
       | PolyType _ | Constrained _ ->
           List.map
             (fun (_, cls) ->
@@ -476,7 +565,43 @@ let param_min_ir_tys ~(scheme_key : string) ~(instance_key : string)
          to synthetic [__dict_*] parameters; lowering still needs the dictionary
          record as a tuple so [prepend_implicit_dict_args] matches call sites. *)
       match pat with
-      | CIdPat nm when dict_param_class_name nm <> None -> mono_to_min inf_m
+      | CIdPat nm when dict_param_class_name nm <> None -> (
+          let cls =
+            match dict_param_class_name nm with
+            | Some c -> c
+            | None -> assert false
+          in
+          let m0 = mono_to_min inf_m in
+          match m0 with
+          | RawPtr -> (
+              match List.assoc_opt instance_key static_env with
+              | Some ct -> (
+                  let tau =
+                    match find_class_predicate_mono cls ct with
+                    | Some t -> Typecheck.mono_concrete_or_int_default t
+                    | None -> (
+                        match static_mono_for_native ct with
+                        | FunctionType (RecordType _, rest) -> (
+                            match rest with
+                            | FunctionType (tau0, _) ->
+                                Typecheck.mono_concrete_or_int_default tau0
+                            | _ ->
+                                unsupported
+                                  "dict param recovery: expected user domain after \
+                                   dictionary record")
+                        | FunctionType (a, _) ->
+                            Typecheck.mono_concrete_or_int_default a
+                        | _ ->
+                            unsupported
+                              "dict param recovery: expected function type for \
+                               instance")
+                  in
+                  let r =
+                    dict_record_mono_for_class ~class_name:cls tau static_env type_env
+                  in
+                  mono_to_min r)
+              | None -> m0)
+          | _ -> m0)
       | _ -> (
           match ann with
           | None -> mono_to_min inf_m
@@ -1847,6 +1972,102 @@ let prepend_implicit_dict_args (env : env) (c : callable) (args : c_expr list) :
     in
     loop 0 [] []
 
+(** When the stub and [mono_fun_type_of_binary_app] both use [RawPtr] for a
+    slot, [type_of_c_expr] can still classify a saturated [++] / [mappend] result
+    as a sum type (e.g. [Option]); use the left operand's type for the same
+    semantic class-method result type. *)
+let refine_call_arg_ty_when_stub_rawptr_mismatch (se : static_env)
+    (type_env : Typecheck.type_env) (arg : c_expr) (got : ty) : ty =
+  if ty_equal got RawPtr then
+    match arg with
+    | EApp (EApp (EId op, a), _) when op = "++" || op = "mappend" -> (
+        match Typecheck.type_of_c_expr se type_env a with
+        | Ok ct_a -> mono_to_min (static_mono_for_native ct_a)
+        | Error _ -> got)
+    | EApp (EApp (EFieldAccess (_, fld), a), _) when fld = "++" || fld = "mappend" -> (
+        (* After elaboration, class methods become field access on [__dict_*]. *)
+        match Typecheck.type_of_c_expr se type_env a with
+        | Ok ct_a -> mono_to_min (static_mono_for_native ct_a)
+        | Error _ -> got)
+    | _ -> got
+  else got
+
+(** [type_of_c_expr] with [static_env_for_mono_call] can miss [let]/pattern
+    locals; retry with the full lowering [static_env]. *)
+let type_of_arg_min_ty_or_fallback (se : static_env)
+    (global_static : static_env) (type_env : Typecheck.type_env) (arg : c_expr)
+    (fallback : ty) : ty =
+  match Typecheck.type_of_c_expr se type_env arg with
+  | Ok ct -> mono_to_min (static_mono_for_native ct)
+  | Error _ -> (
+      match Typecheck.type_of_c_expr global_static type_env arg with
+      | Ok ct -> mono_to_min (static_mono_for_native ct)
+      | Error _ -> fallback)
+
+let type_of_arg_min_ty_refine_rawptr_stub (se : static_env)
+    (global_static : static_env) (type_env : Typecheck.type_env) (arg : c_expr)
+    (if_still_rawptr : ty) : ty =
+  let refine_env se' ct =
+    let got = mono_to_min (static_mono_for_native ct) in
+    let got' =
+      refine_call_arg_ty_when_stub_rawptr_mismatch se' type_env arg got
+    in
+    if ty_equal got' RawPtr then if_still_rawptr else got'
+  in
+  match Typecheck.type_of_c_expr se type_env arg with
+  | Ok ct -> refine_env se ct
+  | Error _ -> (
+      match Typecheck.type_of_c_expr global_static type_env arg with
+      | Ok ct -> refine_env global_static ct
+      | Error _ -> if_still_rawptr)
+
+(** Pattern variables are only in the runtime [env] during native lowering; add
+    the same static bindings as {!collect_visit_expr} so [type_of_c_expr] and
+    class-method call typing see [left], [v], etc. *)
+let static_env_for_switch_branch_pat (static_env : static_env)
+    (type_env : Typecheck.type_env) (scrut_mono : mono_type) (pat : c_pat) :
+    static_env =
+  let from_solver =
+    try
+      let pat_ty, pat_env, pat_eqs =
+        Typecheck.type_of_pat static_env type_env pat
+      in
+      let all_eqs = (pat_ty, scrut_mono) :: pat_eqs in
+      let sol = Typecheck.reduce_eq all_eqs type_env in
+      List.fold_right
+        (fun (id, ct) acc ->
+          let m0 = Typecheck.instantiate ct in
+          match Typecheck.get_type m0 sol type_env with
+          | Ok m_res -> (id, Mono m_res) :: acc
+          | Error _ -> acc)
+        pat_env []
+    with Typecheck.TypeFailure -> []
+  in
+  if from_solver <> [] then from_solver
+  else
+    match pat with
+    | CVariantPat (cons_name, Some payload_pat) -> (
+        match payload_mono_for_variant_constructor scrut_mono cons_name with
+        | None -> []
+        | Some payload_mono -> (
+            match bind_static payload_pat (Mono payload_mono) with
+            | Some bindings -> bindings
+            | None -> (
+                (* [bind_static] can fail when the solver path left [payload_mono]
+                   in a shape that does not match [CVectorPat] layout exactly;
+                   tuple constructor payloads are [VectorType] fields in order. *)
+                match (payload_pat, payload_mono) with
+                | CVectorPat subs, VectorType elem_tys
+                  when List.length subs = List.length elem_tys ->
+                    List.fold_left2
+                      (fun acc sub_pat ty ->
+                        match sub_pat with
+                        | CIdPat id -> (id, Mono ty) :: acc
+                        | _ -> acc)
+                      [] subs elem_tys
+                | _ -> [])))
+    | _ -> []
+
 let rec lower_expr_val (e : c_expr) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t) :
     operand * ty =
@@ -1908,11 +2129,18 @@ and lower_expr_val_as_call_arg ?(callee_fn_expr : c_expr option) (arg : c_expr)
       end
   | _ ->
       let o, got = lower_expr_val arg env ctx static_env type_env shadows in
-      if not (ty_equal got expect) then
-        unsupported
-          ("call argument type mismatch (expected " ^ string_of_ty expect
-         ^ ", got " ^ string_of_ty got ^ ")");
-      (o, got)
+      if ty_equal got expect then (o, got)
+      else
+        match (callee_fn_expr, expect, got) with
+        | Some _, RawPtr, List _ ->
+            (* Class-method stubs sometimes leave a [RawPtr] parameter slot
+               where the type-checked spine is a list ([++] / [mappend] on
+               lists, including under [let rec] + [case]). *)
+            (o, got)
+        | _ ->
+            unsupported
+              ("call argument type mismatch (expected " ^ string_of_ty expect
+             ^ ", got " ^ string_of_ty got ^ ")")
 
 and lower_builtin_print name arg env ctx static_env type_env (shadows : S.t) =
   let o2, t2 = lower_expr_val arg env ctx static_env type_env shadows in
@@ -1952,20 +2180,45 @@ and apply_call_args ?(callee_fn_expr : c_expr option) (env : env) (ctx : fn_ctx)
         let from_param = List.nth c.param_tys i in
         let expect =
           match callee_fn_expr with
-          | Some e_fn when i = 0 -> (
+          | Some e_fn -> (
               match
                 min_dom_ret_of_binary_app static_env type_env env e_fn arg
               with
-              | Some (d, _) when ty_equal d from_param -> d
+              | Some (d, _) when ty_equal d from_param -> (
+                  (* Stub and [mono_fun_type_of_binary_app] can both say [RawPtr]
+                     for the first slot while the argument is a list (chained
+                     class ops) or a dictionary tuple; prefer the argument type. *)
+                  match (from_param, d) with
+                  | RawPtr, RawPtr -> (
+                      let se = static_env_for_mono_call static_env env in
+                      type_of_arg_min_ty_refine_rawptr_stub se static_env type_env
+                        arg d)
+                  | _ -> d)
               | Some (d, _)
                 when from_param = I32 && not (ty_equal d I32) ->
+                  d
+              | Some (d, _)
+                when from_param = RawPtr && not (ty_equal d RawPtr) ->
+                  (* Class-method stubs use [RawPtr] for the leading dictionary
+                     slot while [mono_fun_type_of_binary_app] follows the
+                     type-checked spine ([a -> a -> a] without the synthetic
+                     dict), e.g. chained [(++)] on lists. *)
                   d
               | Some _ ->
                   (* [min_dom] can mis-infer (e.g. default flex vars to [i32]) for
                      [EApp] callees such as [(show dict)]; the callable stub's
                      parameter types match the monomorphized definition. *)
                   from_param
-              | None -> from_param)
+              | None -> (
+                  (* [mono_fun_type_of_binary_app] can fail when [e_fn] is [EId]
+                     but the argument is already a saturated app (e.g. left-
+                     associated [(++)]). Use the argument's type-checked type. *)
+                  match from_param with
+                  | RawPtr -> (
+                      let se = static_env_for_mono_call static_env env in
+                      type_of_arg_min_ty_or_fallback se static_env type_env arg
+                        from_param)
+                  | _ -> from_param))
           | _ -> from_param
         in
         let op, _got =
@@ -2071,9 +2324,26 @@ and emit_saturated_call ctx (c : callable) : expr_result =
         emit_instr ctx (VoidCall (c.multi_direct, all_args));
         LVal (ConstUnit, Unit))
       else
+        let ret_ty =
+          match c.param_tys with
+          | [ _; a1; a2 ]
+            when c.ret_ty = RawPtr && ty_equal a1 a2 && not (ty_equal a1 RawPtr)
+            ->
+              (* Class-method stubs map recursive sum types (e.g. [List]) to
+                 [RawPtr] in {!mono_to_min}; [mappend]/[++] is [a -> a -> a] with
+                 a leading dictionary slot. *)
+              a1
+          | [ a1; a2 ]
+            when c.ret_ty = RawPtr && ty_equal a1 a2 && not (ty_equal a1 RawPtr)
+            ->
+              (* Same shape without an explicit dict slot in the stub (e.g.
+                 monomorphized [mappend] on lists). *)
+              a1
+          | _ -> c.ret_ty
+        in
         let t = fresh () in
         emit_instr ctx (Assign (t, Call (c.multi_direct, all_args)));
-        LVal (Local t, c.ret_ty)
+        LVal (Local t, ret_ty)
 
 (** Indirect LLVM calls cannot pass string literals as [i8*] the way
     {!lower_builtin_print} explicitly copies them to a local. *)
@@ -2097,11 +2367,23 @@ and apply_fun1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
             match
               min_dom_ret_of_binary_app static_env type_env env e_fn arg
             with
-            | Some (d, r) when ty_equal d a_ty -> (d, r)
+            | Some (d, r) when ty_equal d a_ty -> (
+                match (a_ty, d) with
+                | RawPtr, RawPtr -> (
+                    let se = static_env_for_mono_call static_env env in
+                    let a_ty =
+                      type_of_arg_min_ty_refine_rawptr_stub se static_env type_env
+                        arg d
+                    in
+                    (a_ty, r))
+                | _ -> (d, r))
             | Some (d, r)
               when a_ty = I32 && not (ty_equal d I32) ->
                 (* Value may carry a flex-var default to [i32]; inference has the
                    real domain (e.g. higher-rank [id] uses). *)
+                (d, r)
+            | Some (d, r)
+              when a_ty = RawPtr && not (ty_equal d RawPtr) ->
                 (d, r)
             | Some _ -> (a_ty, ret_ty)
             | None -> (a_ty, ret_ty))
@@ -2134,13 +2416,20 @@ and apply_clos1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
             match
               min_dom_ret_of_binary_app static_env type_env env e_fn arg
             with
-            | Some (d, _) when ty_equal d p -> d
+            | Some (d, _) when ty_equal d p -> (
+                match (p, d) with
+                | RawPtr, RawPtr -> (
+                    let se = static_env_for_mono_call static_env env in
+                    type_of_arg_min_ty_refine_rawptr_stub se static_env type_env
+                      arg d)
+                | _ -> d)
             | Some (d, _) when p = I32 && not (ty_equal d I32) -> d
+            | Some (d, _) when p = RawPtr && not (ty_equal d RawPtr) -> d
             | Some _ -> p
             | None -> p)
         | None -> p
       in
-      let oa, _ta =
+      let oa, ta =
         lower_expr_val_as_call_arg ?callee_fn_expr arg p' env ctx static_env
           type_env shadows
       in
@@ -2153,7 +2442,17 @@ and apply_clos1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
       let tmp = fresh () in
       emit_instr ctx
         (Assign (tmp, ClosApply { clo = clos_op; arg = oa; result_ty = next_ty }));
-      if prest = [] then LVal (Local tmp, ret_ty) else LVal (Local tmp, next_ty)
+      if prest = [] then
+        let ret_out =
+          match (ret_ty, ta) with
+          | RawPtr, List _ ->
+              (* Stubs can leave [ret_ty] as [RawPtr] for [List] while the last
+                 argument is a concrete list spine ([mappend]/[++]). *)
+              ta
+          | _ -> ret_ty
+        in
+        LVal (Local tmp, ret_out)
+      else LVal (Local tmp, next_ty)
 
 and resolve_callable (name : string) (env : env) : callable option =
   match List.assoc_opt name env with
@@ -2362,9 +2661,12 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
 
 and lower_switch_merge_arm (body : c_expr) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env)
-    (merge_lbl : string) (shadows : S.t) : string * operand * ty =
+    (merge_lbl : string) (shadows : S.t) (scrut_mono : mono_type) (pat : c_pat)
+    : string * operand * ty =
+  let pat_static = static_env_for_switch_branch_pat static_env type_env scrut_mono pat in
+  let static_here = pat_static @ static_env in
   let o, ty =
-    match lower_expr body env ctx static_env type_env shadows with
+    match lower_expr body env ctx static_here type_env shadows with
     | LVal (o, t) -> (o, t)
     | LPartial c -> materialize_clos_lower env ctx c
   in
@@ -2426,7 +2728,7 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
         open_block ctx l_ok;
         let p =
           lower_switch_merge_arm body env' ctx static_env type_env merge_lbl
-            shadows
+            shadows scrut_mono pat
         in
         open_block ctx l_next;
         walk rest (acc @ [ p ])
@@ -2436,7 +2738,7 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
     | ConstI1 true ->
         [
           lower_switch_merge_arm body env' ctx static_env type_env merge_lbl
-            shadows;
+            shadows scrut_mono pat;
         ]
     | _ ->
         let l_ok = fresh_lbl ctx "swm" in
@@ -2445,7 +2747,7 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
         open_block ctx l_ok;
         let p =
           lower_switch_merge_arm body env' ctx static_env type_env merge_lbl
-            shadows
+            shadows scrut_mono pat
         in
         open_block ctx l_fail;
         emit_instr ctx (VoidCall ("abort", []));
@@ -2465,7 +2767,12 @@ and lower_switch_branches (o_s : operand) (t_s : ty) (scrut_mono : mono_type)
   | [ (pat, body) ] -> (
       let env', cond = emit_native_pat_test env ctx o_s t_s scrut_mono pat in
       match cond with
-      | ConstI1 true -> lower_expr body env' ctx static_env type_env shadows
+      | ConstI1 true ->
+          let static_here =
+            static_env_for_switch_branch_pat static_env type_env scrut_mono pat
+            @ static_env
+          in
+          lower_expr body env' ctx static_here type_env shadows
       | _ ->
           let merge_lbl = fresh_lbl ctx "swm" in
           let l_ok = fresh_lbl ctx "sws" in
@@ -2478,7 +2785,7 @@ and lower_switch_branches (o_s : operand) (t_s : ty) (scrut_mono : mono_type)
           let preds =
             [
               lower_switch_merge_arm body env' ctx static_env type_env merge_lbl
-                shadows;
+                shadows scrut_mono pat;
             ]
           in
           open_block ctx merge_lbl;
