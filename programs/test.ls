@@ -154,8 +154,137 @@ let tests: List<Test> = [
     // (1 + 2) * 3 + 5
     tokens: [TLParen, TNum 1, TPlus, TNum 2, TRParen, TTimes, TNum 3, TPlus, TNum 5],
     expected_result : 14
+  },
+  {
+    // 1 + 2 + 3 + 4 + 5
+    tokens: [TNum 1, TPlus, TNum 2, TPlus, TNum 3, TPlus, TNum 4, TPlus, TNum 5],
+    expected_result : 15
+  },
+  {
+    // 1 + 2 + 3 + 4 + 5 + 6
+    tokens: [TNum 1, TPlus, TNum 2, TPlus, TNum 3, TPlus, TNum 4, TPlus, TNum 5, TPlus, TNum 6],
+    expected_result : 21
+  },
+  {
+    // 1 + 2 + 3 + 4 + 5 + 6 + 7
+    tokens: [TNum 1, TPlus, TNum 2, TPlus, TNum 3, TPlus, TNum 4, TPlus, TNum 5, TPlus, TNum 6, TPlus, TNum 7],
+    expected_result : 28
+  },
+  {
+    // 1 + (2 + 3) + 4
+    tokens: [TNum 1, TPlus, TLParen, TNum 2, TPlus, TNum 3, TRParen, TPlus, TNum 4],
+    expected_result : 10
+  },
+  {
+    // 1 + 2 * 5
+    tokens: [TNum 1, TPlus, TNum 2, TTimes, TNum 5],
+    expected_result : 11
+  },
+  {
+    // (1 + 2 + 3 + 4) * 5 + 1
+    tokens: [TLParen, TNum 1, TPlus, TNum 2, TPlus, TNum 3, TPlus, TNum 4, TRParen, TTimes, TNum 5, TPlus, TNum 1],
+    expected_result : 51
+  },
+  {
+    // 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10
+    tokens: [TNum 1, TPlus, TNum 2, TPlus, TNum 3, TPlus, TNum 4, TPlus, TNum 5, TPlus, TNum 6, TPlus, TNum 7, TPlus, TNum 8, TPlus, TNum 9, TPlus, TNum 10],
+    expected_result : 55
+  },
+  {
+    // 5 * 4 * 3 * 2 * 1
+    tokens: [TNum 5, TTimes, TNum 4, TTimes, TNum 3, TTimes, TNum 2, TTimes, TNum 1],
+    expected_result : 120
+  },
+  {
+    // 2 * 3 + 4
+    tokens: [TNum 2, TTimes, TNum 3, TPlus, TNum 4],
+    expected_result : 10
+  },
+  {
+    // (2 + 3) * (4 + 5)
+    tokens: [TLParen, TNum 2, TPlus, TNum 3, TRParen, TTimes, TLParen, TNum 4, TPlus, TNum 5, TRParen],
+    expected_result : 45
+  },
+  {
+    // 10 * (2 + 3)
+    tokens: [TNum 10, TTimes, TLParen, TNum 2, TPlus, TNum 3, TRParen],
+    expected_result : 50
+  },
+  {
+    // (10 + 5) * (3 + 2)
+    tokens: [TLParen, TNum 10, TPlus, TNum 5, TRParen, TTimes, TLParen, TNum 3, TPlus, TNum 2, TRParen],
+    expected_result : 75
+  },
+  {
+    // 1 * 2 * 3 * 4
+    tokens: [TNum 1, TTimes, TNum 2, TTimes, TNum 3, TTimes, TNum 4],
+    expected_result : 24
+  },
+  {
+    // (1 + 1) * (2 + 2) * (3 + 3)
+    tokens: [TLParen, TNum 1, TPlus, TNum 1, TRParen, TTimes, TLParen, TNum 2, TPlus, TNum 2, TRParen, TTimes, TLParen, TNum 3, TPlus, TNum 3, TRParen],
+    expected_result : 48
+  },
+  {
+    // 7 + 3 * 2
+    tokens: [TNum 7, TPlus, TNum 3, TTimes, TNum 2],
+    expected_result : 13
+  },
+  {
+    // (7 + 3) * 2
+    tokens: [TLParen, TNum 7, TPlus, TNum 3, TRParen, TTimes, TNum 2],
+    expected_result : 20
+  },
+  {
+    // 6 * 6 + 6
+    tokens: [TNum 6, TTimes, TNum 6, TPlus, TNum 6],
+    expected_result : 42
+  },
+  {
+    // (4 + 6) * (1 + 2 + 3)
+    tokens: [TLParen, TNum 4, TPlus, TNum 6, TRParen, TTimes, TLParen, TNum 1, TPlus, TNum 2, TPlus, TNum 3, TRParen],
+    expected_result : 60
+  },
+  {
+    // 2 * 3 * 4 + 1
+    tokens: [TNum 2, TTimes, TNum 3, TTimes, TNum 4, TPlus, TNum 1],
+    expected_result : 25
+  },
+  {
+    // 1 + 2 * 3 * 4
+    tokens: [TNum 1, TPlus, TNum 2, TTimes, TNum 3, TTimes, TNum 4],
+    expected_result : 25
+  },
+  {
+    // (2 + 8) * (5 + 5)
+    tokens: [TLParen, TNum 2, TPlus, TNum 8, TRParen, TTimes, TLParen, TNum 5, TPlus, TNum 5, TRParen],
+    expected_result : 100
+  },
+  {
+    // 3 * (4 + 5) + 2 * 6
+    tokens: [TNum 3, TTimes, TLParen, TNum 4, TPlus, TNum 5, TRParen, TPlus, TNum 2, TTimes, TNum 6],
+    expected_result : 39
+  },
+  {
+    // ((2 + 3) * 4) + 1
+    tokens: [TLParen, TLParen, TNum 2, TPlus, TNum 3, TRParen, TTimes, TNum 4, TRParen, TPlus, TNum 1],
+    expected_result : 21
+  },
+  {
+    // 2 * (3 + (4 * 5))
+    tokens: [TNum 2, TTimes, TLParen, TNum 3, TPlus, TLParen, TNum 4, TTimes, TNum 5, TRParen, TRParen],
+    expected_result : 46
+  },
+  {
+    // (1 + 2 * 3) * (4 + 5 * 6)
+    tokens: [TLParen, TNum 1, TPlus, TNum 2, TTimes, TNum 3, TRParen, TTimes, TLParen, TNum 4, TPlus, TNum 5, TTimes, TNum 6, TRParen],
+    expected_result : 238
+  },
+  {
+    // ((3 + 4) * 2 + 1) * ((5 + 1) * 3 + 2)
+    tokens: [TLParen, TLParen, TNum 3, TPlus, TNum 4, TRParen, TTimes, TNum 2, TPlus, TNum 1, TRParen, TTimes, TLParen, TLParen, TNum 5, TPlus, TNum 1, TRParen, TTimes, TNum 3, TPlus, TNum 2, TRParen],
+    expected_result : 300
   }
-
 ]
 
 let run_test: Test -> Unit = fn test ->
