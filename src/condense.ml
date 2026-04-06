@@ -226,6 +226,8 @@ and condense_expr : expr -> c_expr = function
 and condense_cons_expr : cons_expr -> c_expr = function
   | Cons (e1, e2) -> EBop (CCons, condense_disjunction e1, condense_cons_expr e2)
   | DisjunctionUnderCons d -> condense_disjunction d
+  | Pipeline (l, r) ->
+      EApp (condense_cons_expr r, condense_cons_expr l)
 
 and condense_disjunction : disjunction -> c_expr = function
   | Disjunction (conj, disj) ->

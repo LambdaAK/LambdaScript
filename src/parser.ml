@@ -872,19 +872,29 @@ end
 and ConsExprParser : sig
   val cons_expr_parser : cons_expr parser
 end = struct
-  let rec cons_expr_parser () : cons_expr parser =
+  (* [::] only — disjunctions and nested [::], no [|>] *)
+  let rec cons_chain_parser () : cons_expr parser =
     let* disjunction = DisjunctionParser.disjunction_parser in
-    (* check the next token *)
     let* next_cons = check_tokens ConsToken in
-
     match next_cons with
     | false -> return (DisjunctionUnderCons disjunction)
     | true ->
         let* () = expect_token ConsToken in
-        let* cons_expr = cons_expr_parser () in
-        return (Cons (disjunction, cons_expr))
+        let* rest = cons_chain_parser () in
+        return (Cons (disjunction, rest))
 
-  let cons_expr_parser : cons_expr parser = cons_expr_parser ()
+  let rec pipeline_after (acc : cons_expr) : cons_expr parser =
+    let* next_pipe = check_tokens Pipeline in
+    match next_pipe with
+    | false -> return acc
+    | true ->
+        let* () = expect_token Pipeline in
+        let* rhs = cons_chain_parser () in
+        pipeline_after (Pipeline (acc, rhs))
+
+  let cons_expr_parser : cons_expr parser =
+    let* first = cons_chain_parser () in
+    pipeline_after first
 end
 
 and ExprParser : sig

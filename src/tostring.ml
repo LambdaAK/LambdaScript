@@ -269,6 +269,15 @@ and string_of_cons_expr (ce : cons_expr) (level : int) : string =
       ^ indentations_with_newline level
       ^ ")"
   | DisjunctionUnderCons d -> string_of_disjunction d level
+  | Pipeline (l, r) ->
+      "Pipeline ("
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_cons_expr l (level + 1)
+      ^ ","
+      ^ indentations_with_newline (level + 1)
+      ^ string_of_cons_expr r (level + 1)
+      ^ indentations_with_newline level
+      ^ ")"
 
 and string_of_disjunction (d : disjunction) (level : int) : string =
   match d with

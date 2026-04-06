@@ -65,7 +65,7 @@ let rec factor_parser : Parser<Expr> =
         // otherwise, if the first token is a left parenthesis, then aprse the expression inside of it. That is the factor
 
         | TLParen :: rest ->
-          let expr_result = expr_parser tokens in
+          let expr_result = expr_parser rest in
             (
               case expr_result do
                 | Some (expr, TRParen :: tokens_after_r_paren) ->
@@ -76,6 +76,105 @@ let rec factor_parser : Parser<Expr> =
         // otherwise, parsing failed, so return None
         | _ -> None
 
-and term_parser : Parser<Expr> = fn tokens -> None
+and term_parser : Parser<Expr> = fn tokens ->
+  // parse a factor
 
-and expr_parser : Parser<Expr> = fn tokens -> None
+  let factor_result = factor_parser tokens in
+
+  case factor_result do
+    // if it failed, then the entire thing fails, so return None
+    | None -> None
+    // if it succeeded, and the next token is a times, then parse the term after the times
+    | Some (factor, TTimes :: tokens_after_times) ->
+      let term_result = term_parser tokens_after_times in
+        (
+          case term_result do
+            | None -> None
+            | Some (term, remaining_tokens) ->
+              Some (EMul (factor, term), remaining_tokens)
+        )
+
+    // otherwise, we just return the factor and the remaining tokens
+    | Some (factor, remaining_tokens) ->
+        Some (factor, remaining_tokens)
+
+
+and expr_parser : Parser<Expr> = fn tokens ->
+  // parse a term
+
+  let term_result = term_parser tokens in
+
+  case term_result do
+    | None -> None
+    | Some (term, TPlus :: tokens_after_plus) ->
+      let expr_result = expr_parser tokens_after_plus in
+        (
+          case expr_result do
+            | None -> None
+            | Some (expr, remaining_tokens) ->
+              Some (EAdd (term, expr), remaining_tokens)
+        )
+    | Some (term, remaining_tokens) ->
+        Some (term, remaining_tokens)
+
+// evaluator
+
+let rec eval: Expr -> Int = fn expr ->
+
+  case expr do
+    | ENum n -> n
+    | EAdd (e1, e2) -> eval e1 + eval e2
+    | EMul (e1, e2) -> eval e1 * eval e2
+
+// write a bunch of tests and print whether they pass or fail
+
+// tests
+
+type Test =
+  {
+    tokens: List<Token>,
+    expected_result: Int
+  }
+
+let tests: List<Test> = [
+  {
+    tokens : [TNum 1, TPlus, TNum 2],
+    expected_result : 3
+  },
+  {
+    tokens : [TLParen, TNum 1, TPlus, TNum 2, TRParen, TTimes, TNum 3],
+    expected_result : 9
+  },
+  {
+    // (1 + 2) * 3
+    tokens: [TLParen, TNum 1, TPlus, TNum 2, TRParen, TTimes, TNum 3],
+    expected_result : 9
+  },
+  {
+    // (1 + 2) * 3 + 5
+    tokens: [TLParen, TNum 1, TPlus, TNum 2, TRParen, TTimes, TNum 3, TPlus, TNum 5],
+    expected_result : 14
+  }
+
+]
+
+let run_test: Test -> Unit = fn test ->
+  let result = expr_parser test.tokens in
+  case result do
+    | Some (expr, remaining_tokens) ->
+      let eval_result = eval expr in
+      if eval_result == test.expected_result then
+        println "Test passed"
+      else
+        println "Test failed, not equal to expected result."
+    | None ->
+      println "Test failed, not parsed"
+
+let rec run_tests: List<Test> -> Unit = fn tests ->
+  case tests do
+    | [] -> ()
+    | test :: rest ->
+      let () = run_test test in
+      run_tests rest
+
+let () = run_tests tests

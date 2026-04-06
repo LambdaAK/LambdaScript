@@ -95,6 +95,8 @@ and cons_expr =
   (* :: *)
   | Cons of disjunction * cons_expr
   | DisjunctionUnderCons of disjunction
+  (* [|>] left-associative: [a |> b |> c] is [(a |> b) |> c] → [c (b a)] *)
+  | Pipeline of cons_expr * cons_expr
 
 and disjunction =
   (* || *)

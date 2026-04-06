@@ -18,6 +18,7 @@ type token_type =
   | Colon
   | SwitchArrow
   | Pipe
+  | Pipeline
   | Switch
   | Case
   | Do
@@ -137,6 +138,7 @@ let string_of_token_type : token_type -> string = function
   | WildcardPattern -> "<wildcard pattern>"
   | ConsToken -> "<cons token>"
   | Pipe -> "<pipe>"
+  | Pipeline -> "<pipeline |>"
   | Switch -> "<switch>"
   | Case -> "<case>"
   | Do -> "<do>"
@@ -426,6 +428,8 @@ let multi_char_sequences =
     ([ '('; ')' ], Unit);
     ([ '.'; '.'; '.' ], Enum);
     ([ ':'; ':' ], ConsToken);
+    (* [|>] before [|] so [|>] is not split into [|] + [>] *)
+    ([ '|'; '>' ], Pipeline);
     ([ '|'; '|' ], OR);
     ([ '&'; '&' ], AND);
     ([ '~'; '-' ], Opposite);
