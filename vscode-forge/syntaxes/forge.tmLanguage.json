@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Forge",
-  "scopeName": "source.lambdascript",
+  "scopeName": "source.forge",
   "patterns": [
     {
       "include": "#comments"
@@ -44,7 +44,7 @@
     "comments": {
       "patterns": [
         {
-          "name": "comment.block.lambdascript",
+          "name": "comment.block.forge",
           "begin": "\\(\\*",
           "end": "\\*\\)",
           "patterns": [
@@ -54,7 +54,7 @@
           ]
         },
         {
-          "name": "comment.line.double-slash.lambdascript",
+          "name": "comment.line.double-slash.forge",
           "begin": "//",
           "end": "$"
         }
@@ -63,11 +63,11 @@
     "keywords": {
       "patterns": [
         {
-          "name": "keyword.control.lambdascript",
+          "name": "keyword.control.forge",
           "match": "\\b(if|then|else|case|do|of|switch)\\b"
         },
         {
-          "name": "keyword.other.lambdascript",
+          "name": "keyword.other.forge",
           "match": "\\b(let|in|and|fn|for|with|end|where|requires|enum)\\b"
         }
       ]
@@ -75,7 +75,7 @@
     "storage": {
       "patterns": [
         {
-          "name": "storage.type.lambdascript",
+          "name": "storage.type.forge",
           "match": "\\b(type|rec|trait|inter|impl|val)\\b"
         }
       ]
@@ -83,15 +83,15 @@
     "types": {
       "patterns": [
         {
-          "name": "support.type.primitive.lambdascript",
+          "name": "support.type.primitive.forge",
           "match": "\\b(int|float|bool|string|char|unit|Int|Float|Bool|String|Char|Unit)\\b"
         },
         {
-          "name": "support.type.custom.lambdascript",
+          "name": "support.type.custom.forge",
           "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
         },
         {
-          "name": "support.type.variable.lambdascript",
+          "name": "support.type.variable.forge",
           "match": "'[a-z][a-zA-Z0-9_]*\\b"
         }
       ]
@@ -99,15 +99,15 @@
     "constants": {
       "patterns": [
         {
-          "name": "constant.language.boolean.lambdascript",
+          "name": "constant.language.boolean.forge",
           "match": "\\b(true|false)\\b"
         },
         {
-          "name": "constant.language.unit.lambdascript",
+          "name": "constant.language.unit.forge",
           "match": "\\(\\)"
         },
         {
-          "name": "constant.other.wildcard.lambdascript",
+          "name": "constant.other.wildcard.forge",
           "match": "\\b_\\b"
         }
       ]
@@ -115,12 +115,12 @@
     "strings": {
       "patterns": [
         {
-          "name": "string.quoted.double.lambdascript",
+          "name": "string.quoted.double.forge",
           "begin": "\"",
           "end": "\"",
           "patterns": [
             {
-              "name": "constant.character.escape.lambdascript",
+              "name": "constant.character.escape.forge",
               "match": "\\\\(n|t|r|\\\\|\"|')"
             }
           ]
@@ -130,7 +130,7 @@
     "characters": {
       "patterns": [
         {
-          "name": "string.quoted.single.lambdascript",
+          "name": "string.quoted.single.forge",
           "match": "'([^'\\\\]|\\\\(n|t|r|\\\\|\"|'))'"
         }
       ]
@@ -138,11 +138,11 @@
     "numbers": {
       "patterns": [
         {
-          "name": "constant.numeric.float.lambdascript",
+          "name": "constant.numeric.float.forge",
           "match": "\\b-?[0-9]+\\.[0-9]+\\b"
         },
         {
-          "name": "constant.numeric.integer.lambdascript",
+          "name": "constant.numeric.integer.forge",
           "match": "\\b-?[0-9]+\\b"
         }
       ]
@@ -150,51 +150,51 @@
     "operators": {
       "patterns": [
         {
-          "name": "keyword.operator.arrow.lambdascript",
+          "name": "keyword.operator.arrow.forge",
           "match": "->"
         },
         {
-          "name": "keyword.operator.switch.lambdascript",
+          "name": "keyword.operator.switch.forge",
           "match": "=>"
         },
         {
-          "name": "keyword.operator.bind.lambdascript",
+          "name": "keyword.operator.bind.forge",
           "match": "<-"
         },
         {
-          "name": "keyword.operator.pipeline.lambdascript",
+          "name": "keyword.operator.pipeline.forge",
           "match": "\\|>"
         },
         {
-          "name": "keyword.operator.range.lambdascript",
+          "name": "keyword.operator.range.forge",
           "match": "\\.\\.\\."
         },
         {
-          "name": "keyword.operator.cons.lambdascript",
+          "name": "keyword.operator.cons.forge",
           "match": "::"
         },
         {
-          "name": "keyword.operator.comparison.lambdascript",
+          "name": "keyword.operator.comparison.forge",
           "match": "(==|!=|<>|<=|>=|<|>)"
         },
         {
-          "name": "keyword.operator.logical.lambdascript",
+          "name": "keyword.operator.logical.forge",
           "match": "(&&|\\|\\|)"
         },
         {
-          "name": "keyword.operator.arithmetic.lambdascript",
+          "name": "keyword.operator.arithmetic.forge",
           "match": "(\\+|-|\\*|/|%)"
         },
         {
-          "name": "keyword.operator.type-annotation.lambdascript",
+          "name": "keyword.operator.type-annotation.forge",
           "match": ":"
         },
         {
-          "name": "keyword.operator.pipe.lambdascript",
+          "name": "keyword.operator.pipe.forge",
           "match": "\\|"
         },
         {
-          "name": "keyword.operator.assignment.lambdascript",
+          "name": "keyword.operator.assignment.forge",
           "match": "="
         }
       ]
@@ -202,19 +202,19 @@
     "functions": {
       "patterns": [
         {
-          "name": "support.function.builtin.lambdascript",
+          "name": "support.function.builtin.forge",
           "match": "\\b(print|println|int_to_str|int_to_float|float_to_int|string_to_list|map|filter|reduce_left|reduce_right|not)\\b"
         },
         {
-          "name": "entity.name.function.lambdascript",
+          "name": "entity.name.function.forge",
           "match": "\\([^\\)]+\\)(?=\\s*:)"
         },
         {
-          "name": "entity.name.function.lambdascript",
+          "name": "entity.name.function.forge",
           "match": "\\([^\\)]+\\)(?=\\s+[a-z_][a-zA-Z0-9_']*\\s*=)"
         },
         {
-          "name": "entity.name.function.lambdascript",
+          "name": "entity.name.function.forge",
           "match": "\\b[a-z_][a-zA-Z0-9_]*\\b(?=\\s*=)"
         }
       ]
@@ -222,7 +222,7 @@
     "type-constructors": {
       "patterns": [
         {
-          "name": "entity.name.type.constructor.lambdascript",
+          "name": "entity.name.type.constructor.forge",
           "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
         }
       ]
@@ -230,19 +230,19 @@
     "punctuation": {
       "patterns": [
         {
-          "name": "punctuation.section.brackets.lambdascript",
+          "name": "punctuation.section.brackets.forge",
           "match": "[\\[\\]()]"
         },
         {
-          "name": "punctuation.section.braces.lambdascript",
+          "name": "punctuation.section.braces.forge",
           "match": "[{}]"
         },
         {
-          "name": "punctuation.separator.comma.lambdascript",
+          "name": "punctuation.separator.comma.forge",
           "match": ","
         },
         {
-          "name": "punctuation.terminator.semicolon.lambdascript",
+          "name": "punctuation.terminator.semicolon.forge",
           "match": ";"
         }
       ]

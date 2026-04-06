@@ -1,9 +1,9 @@
 {
-  "name": "lambdascript",
+  "name": "forge",
   "displayName": "Forge",
-  "description": "Syntax highlighting for Forge (formerly LambdaScript) programs",
+  "description": "Syntax highlighting for Forge programs",
   "version": "0.1.0",
-  "publisher": "lambdascript",
+  "publisher": "forge",
   "engines": {
     "vscode": "^1.60.0"
   },
@@ -13,11 +13,10 @@
   "contributes": {
     "languages": [
       {
-        "id": "lambdascript",
+        "id": "forge",
         "aliases": [
           "Forge",
           "LambdaScript",
-          "lambdascript",
           "ls"
         ],
         "extensions": [
@@ -29,9 +28,9 @@
     ],
     "grammars": [
       {
-        "language": "lambdascript",
-        "scopeName": "source.lambdascript",
-        "path": "./syntaxes/lambdascript.tmLanguage.json"
+        "language": "forge",
+        "scopeName": "source.forge",
+        "path": "./syntaxes/forge.tmLanguage.json"
       }
     ]
   }
