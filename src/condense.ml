@@ -2,6 +2,118 @@ open Expr
 open Cexpr
 open Forge_class_util
 
+let id_queue : (string * int * int) Queue.t option ref = ref None
+
+(** When [Some n], [pop_id_pos] discards queue heads [(name, a, b)] with
+    [String.equal name expected && a < n]. This skips stale [Id] spans from the
+    prelude when condensing the user program after the same name appeared in
+    the prelude without consuming the corresponding token (duplicate names). *)
+let id_user_byte_min : int option ref = ref None
+
+(** First byte offset of the user program after [Prelude.prepend_to_source].
+    While condensing prelude defns ([id_user_byte_min] is still [None]), we
+    must not discard queue heads in the user region when resolving a name
+    mismatch — that would consume user [Id] tokens out of order. *)
+let user_region_byte_lo : int option ref = ref None
+
+let set_id_queue_from_tokens (tokens : Lex.token list) : unit =
+  id_user_byte_min := None;
+  user_region_byte_lo := None;
+  let q = Queue.create () in
+  List.iter
+    (fun t ->
+      match t.Lex.token_type with
+      | Lex.Id s -> Queue.add (s, t.Lex.byte_start, t.Lex.byte_end) q
+      | _ -> ())
+    tokens;
+  id_queue := Some q
+
+let clear_id_queue () =
+  id_queue := None;
+  id_user_byte_min := None;
+  user_region_byte_lo := None
+
+let set_id_user_byte_min_lo (lo : int option) : unit = id_user_byte_min := lo
+
+let pop_id_pos (expected : string) : (int * int) option =
+  match !id_queue with
+  | None -> None
+  | Some q ->
+      let min_b =
+        match !id_user_byte_min with None -> min_int | Some n -> n
+      in
+      let rec loop () =
+        if Queue.is_empty q then None
+        else
+          let s, a, b = Queue.peek q in
+          if not (String.equal s expected) then (
+            match !user_region_byte_lo with
+            | Some lo
+              when (match !id_user_byte_min with None -> true | Some _ -> false)
+                   && a >= lo ->
+                None
+            | _ ->
+                ignore (Queue.pop q);
+                loop ())
+          else if a < min_b then (
+            ignore (Queue.pop q);
+            loop ())
+          else if
+            match !user_region_byte_lo with
+            | Some lo
+              when (match !id_user_byte_min with None -> true | Some _ -> false)
+                   && a >= lo ->
+                true
+            | _ -> false
+          then None
+          else (
+            ignore (Queue.pop q);
+            Some (a, b))
+      in
+      loop ()
+
+(** After [pop_id_pos] returns [None] (e.g. resync discarded the user-region
+    token), recover [(lo, hi)] for [expected] with [lo >= min_b] if still in
+    the queue. *)
+let take_id_pos_after_byte (expected : string) (min_b : int) :
+    (int * int) option =
+  match !id_queue with
+  | None -> None
+  | Some q ->
+      let buf : (string * int * int) list ref = ref [] in
+      let rec scan () =
+        if Queue.is_empty q then (
+          List.iter (fun item -> Queue.add item q) (List.rev !buf);
+          None)
+        else
+          let s, a, b = Queue.pop q in
+          if String.equal s expected && a >= min_b then (
+            List.iter (fun item -> Queue.add item q) (List.rev !buf);
+            Some (a, b))
+          else (
+            buf := (s, a, b) :: !buf;
+            scan ())
+      in
+      scan ()
+
+let eid_from_source (s : string) : c_expr =
+  match !id_queue with
+  | None -> EId (s, None)
+  | Some _ -> (
+      let pos = pop_id_pos s in
+      let pos =
+        match (pos, !id_user_byte_min) with
+        | Some _ as r, _ -> r
+        | None, Some min_b -> (
+            match take_id_pos_after_byte s min_b with
+            | Some _ as r -> r
+            | None -> None)
+        | None, None -> None
+      in
+      EId (s, pos))
+
+let eid_none (s : string) : c_expr = EId (s, None)
+
 let is_plain_type_var_name (s : string) : bool =
   s <> "" && String.for_all (fun c -> c >= 'a' && c <= 'z') s
 
@@ -15,16 +127,27 @@ and condense_sub_pat : sub_pat -> c_pat = function
   | BoolPat b -> CBoolPat b
   | StringPat s -> CStringPat s
   | UnitPat -> CUnitPat
-  | IdPat s -> CIdPat s
+  | IdPat s ->
+      (match !id_queue with
+      | None -> ()
+      | Some _ -> ignore (pop_id_pos s));
+      CIdPat s
   | NilPat -> CNilPat
   | VectorPat pats -> CVectorPat (List.map condense_pat pats)
   | RecordPat fields ->
       CRecordPat (List.map (fun (name, p) -> (name, condense_pat p)) fields)
   | WildcardPat -> CWildcardPat
   | Pat pat -> condense_pat pat
-  | InfixPat s -> CIdPat s
+  | InfixPat s ->
+      (match !id_queue with
+      | None -> ()
+      | Some _ -> ignore (pop_id_pos s));
+      CIdPat s
   | CharPat c -> CCharPat c
   | VariantPat (name, payload_pat_opt) ->
+      (match !id_queue with
+      | None -> ()
+      | Some _ -> ignore (pop_id_pos name));
       let payload_c_pat_opt =
         match payload_pat_opt with
         | None -> None
@@ -43,7 +166,11 @@ let rec condense_defn : defn -> c_defn = function
       let a : c_pat = condense_pat pattern in
       let constraints : (string * mono_type) list =
         List.map
-          (fun (cls, ct) -> (cls, condense_compound_type ct))
+          (fun (cls, ct) ->
+            (match !id_queue with
+            | None -> ()
+            | Some _ -> ignore (pop_id_pos cls));
+            (cls, condense_compound_type ct))
           class_constraints
       in
       let b : c_type option =
@@ -68,7 +195,11 @@ let rec condense_defn : defn -> c_defn = function
       let a : c_pat = condense_pat pattern in
       let constraints : (string * mono_type) list =
         List.map
-          (fun (cls, ct) -> (cls, condense_compound_type ct))
+          (fun (cls, ct) ->
+            (match !id_queue with
+            | None -> ()
+            | Some _ -> ignore (pop_id_pos cls));
+            (cls, condense_compound_type ct))
           class_constraints
       in
       let b : c_type option =
@@ -94,7 +225,11 @@ let rec condense_defn : defn -> c_defn = function
                  num_explicit_params ) ->
             ( condense_pat pattern,
               List.map
-                (fun (cls, ct) -> (cls, condense_compound_type ct))
+                (fun (cls, ct) ->
+                  (match !id_queue with
+                  | None -> ()
+                  | Some _ -> ignore (pop_id_pos cls));
+                  (cls, condense_compound_type ct))
                 class_constraints,
               (match cto with
               | None -> None
@@ -108,11 +243,32 @@ let rec condense_defn : defn -> c_defn = function
       in
       CDefnMutRec condensed_defns
   | TypeDef (name, type_params, ct) ->
+      (match !id_queue with
+      | None -> ()
+      | Some _ -> ignore (pop_id_pos name));
+      List.iter
+        (fun p ->
+          match !id_queue with
+          | None -> ()
+          | Some _ -> ignore (pop_id_pos p))
+        type_params;
       CTypeAlias (name, type_params, condense_compound_type ct)
   | SumTypeDef (name, type_params, constructors) ->
+      (match !id_queue with
+      | None -> ()
+      | Some _ -> ignore (pop_id_pos name));
+      List.iter
+        (fun p ->
+          match !id_queue with
+          | None -> ()
+          | Some _ -> ignore (pop_id_pos p))
+        type_params;
       let condensed_constructors =
         List.map
           (fun (cons_name, payload_type_opt) ->
+            (match !id_queue with
+            | None -> ()
+            | Some _ -> ignore (pop_id_pos cons_name));
             ( cons_name,
               match payload_type_opt with
               | None -> None
@@ -123,9 +279,21 @@ let rec condense_defn : defn -> c_defn = function
       in
       CSumType (name, type_params, condensed_constructors)
   | SumTypeDefRec (name, type_params, constructors) ->
+      (match !id_queue with
+      | None -> ()
+      | Some _ -> ignore (pop_id_pos name));
+      List.iter
+        (fun p ->
+          match !id_queue with
+          | None -> ()
+          | Some _ -> ignore (pop_id_pos p))
+        type_params;
       let condensed_constructors =
         List.map
           (fun (cons_name, payload_type_opt) ->
+            (match !id_queue with
+            | None -> ()
+            | Some _ -> ignore (pop_id_pos cons_name));
             ( cons_name,
               match payload_type_opt with
               | None -> None
@@ -139,9 +307,21 @@ let rec condense_defn : defn -> c_defn = function
       let condensed_types =
         List.map
           (fun (name, type_params, constructors) ->
+            (match !id_queue with
+            | None -> ()
+            | Some _ -> ignore (pop_id_pos name));
+            List.iter
+              (fun p ->
+                match !id_queue with
+                | None -> ()
+                | Some _ -> ignore (pop_id_pos p))
+              type_params;
             let condensed_constructors =
               List.map
                 (fun (cons_name, payload_type_opt) ->
+                  (match !id_queue with
+                  | None -> ()
+                  | Some _ -> ignore (pop_id_pos cons_name));
                   ( cons_name,
                     match payload_type_opt with
                     | None -> None
@@ -258,7 +438,7 @@ and condense_rel_expr : rel_expr -> c_expr = function
   | ArithmeticUnderRelExpr arith_expr -> condense_arith_expr arith_expr
   | CustomRelExpr (op_string, rel_expr, arith_expr) ->
       EApp
-        ( EApp (EId op_string, condense_rel_expr rel_expr),
+        ( EApp (eid_none op_string, condense_rel_expr rel_expr),
           condense_arith_expr arith_expr )
 
 and condense_arith_expr : arith_expr -> c_expr = function
@@ -270,7 +450,7 @@ and condense_arith_expr : arith_expr -> c_expr = function
   | CustomArithExpr (op_string, ae, t) ->
       if op_string = "^" then
         EBop (CConcat, condense_arith_expr ae, condense_term t)
-      else EApp (EApp (EId op_string, condense_arith_expr ae), condense_term t)
+      else EApp (EApp (eid_none op_string, condense_arith_expr ae), condense_term t)
 
 and condense_term : term -> c_expr = function
   | Mul (t, af) -> EBop (CMul, condense_term t, condense_app_factor af)
@@ -278,7 +458,7 @@ and condense_term : term -> c_expr = function
   | Mod (t, af) -> EBop (CMod, condense_term t, condense_app_factor af)
   | Factor app_factor -> condense_app_factor app_factor
   | CustomTerm (op_string, t, af) ->
-      EApp (EApp (EId op_string, condense_term t), condense_app_factor af)
+      EApp (EApp (eid_none op_string, condense_term t), condense_app_factor af)
 
 and condense_app_factor : app_factor -> c_expr = function
   | Application (app_factor, factor) ->
@@ -292,7 +472,7 @@ and condense_factor : factor -> c_expr = function
   | Integer i -> EInt i
   | Char c -> EChar c
   | FloatFactor f -> EFloat f
-  | Id s -> EId s
+  | Id s -> eid_from_source s
   | ParenFactor expr -> condense_expr expr
   | Opposite factor -> EBop (CMinus, EInt 0, condense_factor factor)
   | Vector expressions -> EVector (List.map condense_expr expressions)
@@ -313,6 +493,9 @@ and condense_factor : factor -> c_expr = function
         ( condense_expr record_expr,
           List.map (fun (name, expr) -> (name, condense_expr expr)) updates )
   | FieldAccess (factor, field_name) ->
+      (match !id_queue with
+      | None -> ()
+      | Some _ -> ignore (pop_id_pos field_name));
       EFieldAccess (condense_factor factor, field_name)
 
 (* Condense types *)
@@ -325,14 +508,24 @@ and condense_factor_type : factor_type -> mono_type = function
   | UnitType -> UnitType
   | FloatType -> FloatType
   | TypeVarWritten i ->
+      (match !id_queue with
+      | None -> ()
+      | Some _ -> ignore (pop_id_pos i));
       (* When converting a type var, we add the prefix `$written$_` so that the
          name will not conflict with any internal type variables that we use. *)
       TypeVar ("$written(" ^ i ^ ")")
-  | TypeName t -> TypeName t
+  | TypeName t ->
+      (match !id_queue with
+      | None -> ()
+      | Some _ -> ignore (pop_id_pos t));
+      TypeName t
   | ParenFactorType expr -> condense_compound_type expr
   | VectorType types -> VectorType (List.map condense_compound_type types)
   | ListType et -> CListType (condense_compound_type et)
   | TypeApp (name, args) -> (
+      (match !id_queue with
+      | None -> ()
+      | Some _ -> ignore (pop_id_pos name));
       (* [t] and list<t> both denote list types; list<t> avoids a CTypeApp that
          would hit "Type not found: list" during simplification. *)
       match (name, args) with
@@ -344,7 +537,13 @@ and condense_factor_type : factor_type -> mono_type = function
       | _ -> CTypeApp (name, List.map condense_compound_type args))
   | RecordTypeWritten fields ->
       RecordType
-        (List.map (fun (name, ct) -> (name, condense_compound_type ct)) fields)
+        (List.map
+           (fun (name, ct) ->
+             (match !id_queue with
+             | None -> ()
+             | Some _ -> ignore (pop_id_pos name));
+             (name, condense_compound_type ct))
+           fields)
 
 and condense_compound_type : compound_type -> mono_type = function
   | BasicType bt -> condense_factor_type bt
@@ -369,7 +568,7 @@ and cons_from_list : c_expr list -> c_expr = function
 let rec subst_c_expr (sub : (string * c_expr) list) (e : c_expr) : c_expr =
   let s = subst_c_expr sub in
   match e with
-  | EId x -> (
+  | EId (x, _) -> (
       match List.assoc_opt x sub with
       | Some e' -> e'
       | None -> e)
@@ -418,14 +617,14 @@ let internal_tc_id (dispatch_cls : string) (meth : string) : string =
 let dict_bindrec_payload ~(meth : string) ~(intid : string) (e : c_expr) :
     (c_type option * c_expr * c_type option) option =
   match e with
-  | EBindRec (CIdPat nm, ta, e1, EId tail, rt)
+  | EBindRec (CIdPat nm, ta, e1, EId (tail, _), rt)
     when String.equal nm meth && String.equal tail intid -> Some (ta, e1, rt)
   | _ -> None
 
 (** Whether [e] mentions [id] as [EId] (trait dict internals are unique). *)
 let rec expr_refs_c_id (id : string) (e : c_expr) : bool =
   match e with
-  | EId s -> String.equal s id
+  | EId (s, _) -> String.equal s id
   | EApp (a, b) -> expr_refs_c_id id a || expr_refs_c_id id b
   | EFunction (_, _, b) -> expr_refs_c_id id b
   | EBind (_, _, e1, e2, _) -> expr_refs_c_id id e1 || expr_refs_c_id id e2
@@ -535,7 +734,20 @@ let merge_inherited_specs
 (** Expand [inter] / [impl] into [CClassDecl] plus dictionary [let]s.
     Definitions must appear in order: each [impl] references an [inter] defined
     earlier in the same file. *)
-let condense_program (defns : defn list) : c_defn list =
+let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
+    (defns : defn list) : c_defn list =
+  user_region_byte_lo :=
+    ( match user_id_byte_min_after_prelude with
+    | Some (_, d) -> Some d
+    | None -> None );
+  let defn_idx = ref 0 in
+  let before_top_level_defn () =
+    match user_id_byte_min_after_prelude with
+    | Some (prelude_n, delta) when !defn_idx = prelude_n ->
+        id_user_byte_min := Some delta
+    | _ -> ()
+  in
+  let after_top_level_defn () = incr defn_idx in
   let record_ctor_arities (seen : (string * int) list) (d : defn) :
       (string * int) list =
     match d with
@@ -553,6 +765,7 @@ let condense_program (defns : defn list) : c_defn list =
       (acc : c_defn list) = function
     | [] -> List.rev acc
     | ClassDef (name, param_specs, requires, items) :: rest ->
+        before_top_level_defn ();
         let params = List.map fst param_specs in
         if params = [] then
           failwith "forge: inter/trait needs a type parameter list <a> (MVP)";
@@ -648,9 +861,12 @@ let condense_program (defns : defn list) : c_defn list =
         in
         let decl = CClassDecl (name, params, declared_triples) in
         let entry = { params; param_arities; declared_triples; impl_spec } in
+        after_top_level_defn ();
         walk ((name, entry) :: classes) seen_ctors seen_instances (decl :: acc)
           rest
-    | InstanceDef (cls, inst_ct, impls) :: rest -> (
+    | InstanceDef (cls, inst_ct, impls) :: rest ->
+        before_top_level_defn ();
+        (
         match List.assoc_opt cls classes with
         | None ->
             failwith
@@ -723,9 +939,9 @@ let condense_program (defns : defn list) : c_defn list =
                     (e : c_expr) : c_expr =
                   match (mt, e) with
                   | ( FunctionType (dom, _),
-                      EFunction (CIdPat x, None, EId y) )
+                      EFunction (CIdPat x, None, EId (y, _)) )
                     when String.equal x y ->
-                      EFunction (CIdPat x, Some (Mono dom), EId y)
+                      EFunction (CIdPat x, Some (Mono dom), EId (y, None))
                   | _, _ -> e
                 in
                 let build_dict_expr (dispatch_d : string)
@@ -735,7 +951,7 @@ let condense_program (defns : defn list) : c_defn list =
                     List.map (fun m -> (m, internal_tc_id dispatch_d m)) names
                   in
                   let sub =
-                    List.map (fun (m, intid) -> (m, EId intid)) internals
+                    List.map (fun (m, intid) -> (m, eid_none intid)) internals
                   in
                   (* Do not rewrite the method name inside its own RHS: e.g.
                      [impl Alternative for Parser] may call [(<|>)] on [Option]
@@ -758,7 +974,7 @@ let condense_program (defns : defn list) : c_defn list =
                   in
                   let record =
                     ERecordLit
-                      (List.map (fun (m, intid) -> (m, EId intid)) internals)
+                      (List.map (fun (m, intid) -> (m, eid_none intid)) internals)
                   in
                   let bind_chain ordered =
                     List.fold_right
@@ -826,17 +1042,27 @@ let condense_program (defns : defn list) : c_defn list =
                       (key :: seen_acc, cdefn :: cdefns_acc))
                     (seen_instances, []) dispatch_classes
                 in
+                after_top_level_defn ();
                 walk classes seen_ctors new_seen
                   (List.rev_append new_cdefns acc)
                   rest
             | _ -> failwith "forge: internal inter arity"))
-    | SumTypeDefRec ("List", _, ctors) :: rest
+    | (SumTypeDefRec ("List", _, ctors) as d) :: rest
       when List.exists (fun (n, _) -> n = "[]") ctors
            && List.exists (fun (n, _) -> n = "(::)") ctors ->
+        (* Still run condensation to keep the lexer id-queue in sync with
+           [condense_*] traversal (we discard the result to avoid duplicate List
+           definitions in the condensed program). *)
+        before_top_level_defn ();
+        ignore (condense_defn d);
+        after_top_level_defn ();
         walk classes seen_ctors seen_instances acc rest
     | d :: rest ->
+        before_top_level_defn ();
         let seen_ctors' = record_ctor_arities seen_ctors d in
-        walk classes seen_ctors' seen_instances (condense_defn d :: acc) rest
+        let c = condense_defn d in
+        after_top_level_defn ();
+        walk classes seen_ctors' seen_instances (c :: acc) rest
   in
   walk [] [] [] [] defns
 

@@ -64,16 +64,27 @@ let rec typecheck_defns static_env type_env ctor_env defns :
 let compile ?(quiet = false) ?(prelude = true) (src_path : string)
     (out_path : string) : (unit, string) result =
   let file_contents = read_program_source ~prelude src_path in
-  let tokens =
-    lex (file_contents |> String.to_seq |> List.of_seq)
-    |> List.map (fun t -> t.token_type)
-  in
+  let user_raw = read_file src_path in
+  let delta = String.length file_contents - String.length user_raw in
+  let full_tokens = lex (file_contents |> String.to_seq |> List.of_seq) in
+  Condense.set_id_queue_from_tokens full_tokens;
+  let tokens = List.map (fun t -> t.token_type) full_tokens in
   match program_parser tokens with
-  | None -> Error "Parsing failed"
+  | None ->
+      Condense.clear_id_queue ();
+      Error "Parsing failed"
   | Some (_, remaining) when remaining <> [] ->
+      Condense.clear_id_queue ();
       Error "Parsing failed: extra tokens after program"
   | Some (program, _) -> (
-      let condensed_program = condense_program program in
+      let condensed_program =
+        condense_program
+          ?user_id_byte_min_after_prelude:
+            (if delta = 0 then None
+             else Some (Prelude.defn_count_when_parsed (), delta))
+          program
+      in
+      Condense.clear_id_queue ();
       let static_env = build_full_static_env () in
       let type_env : type_env = [] in
       let ctor_env : Typecheck.constructor_env = [] in

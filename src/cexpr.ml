@@ -137,7 +137,8 @@ and c_expr =
   | EInt of int
   | EChar of char
   | EFloat of float
-  | EId of string
+  | EId of string * (int * int) option
+      (** optional [(byte_start, byte_end)] in the pre-prelude source buffer *)
   | EApp of c_expr * c_expr
   | EBop of c_bop * c_expr * c_expr
   | EVector of c_expr list

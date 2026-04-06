@@ -50,3 +50,17 @@ let prepend_to_source ?(enabled = true) ~(src_path : string) (source : string) :
   else
     let p = contents () in
     if p = "" then source else p ^ "\n" ^ source
+
+(** Number of top-level definitions when the prelude text is parsed alone (with
+    the same [p ^ "\\n"] separator as [prepend_to_source]). Used to turn on
+    user-region id spans after the prelude block in [condense_program]. *)
+let defn_count_when_parsed () : int =
+  let p = contents () in
+  if p = "" then 0
+  else
+    let open Lex in
+    let open Parser.ProgramParser in
+    let tokens = lex (p ^ "\n" |> String.to_seq |> List.of_seq) in
+    match program_parser (List.map (fun t -> t.token_type) tokens) with
+    | Some (prog, _) -> List.length prog
+    | None -> 0

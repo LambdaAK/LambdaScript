@@ -23,3 +23,4 @@ let my_tree = Node (1, Node (2, Leaf, Leaf), Node (5, Leaf, Leaf))
 
 let flattened = flatten_tree my_tree
 
+let x = 1

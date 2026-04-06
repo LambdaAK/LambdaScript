@@ -333,7 +333,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
   | EBool b -> BooleanValue b |> return
   | ENil -> ListValue [] |> return
   | EUnit -> UnitValue |> return
-  | EId s -> (
+  | EId (s, _) -> (
       (* Check if this is a nullary constructor (VariantValue) *)
       match List.assoc_opt s env with
       | Some (VariantValue (cons_name, None)) ->
@@ -895,7 +895,7 @@ and create_generic_type : c_pat -> c_type = function
 and expr_of_pat : c_pat -> c_expr = function
   | CUnitPat -> EUnit
   | CWildcardPat -> failwith "expr_of_pat: wildcard pattern not allowed"
-  | CIdPat s -> EId s
+  | CIdPat s -> EId (s, None)
   | CIntPat i -> EInt i
   | CCharPat c -> EChar c
   | CStringPat s -> EString s
@@ -909,8 +909,8 @@ and expr_of_pat : c_pat -> c_expr = function
       (* Constructor patterns can't be directly converted to expressions *)
       (* For now, we'll create an identifier expression for the constructor *)
       match payload_pat_opt with
-      | None -> EId cons_name
-      | Some payload_pat -> EApp (EId cons_name, expr_of_pat payload_pat))
+      | None -> EId (cons_name, None)
+      | Some payload_pat -> EApp (EId (cons_name, None), expr_of_pat payload_pat))
 
 (** [eval_defn d env] evaluates a definition [d] in the context of environment
     [env].

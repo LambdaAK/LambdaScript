@@ -745,7 +745,7 @@ let rec pat_bound_vars : c_pat -> string list = function
   | CVariantPat (_, Some p) -> pat_bound_vars p
 
 let rec free_vars_cexpr : c_expr -> S.t = function
-  | EId x -> S.singleton x
+  | EId (x, _) -> S.singleton x
   | EInt _ | EBool _ | EString _ | EUnit | EChar _ | EFloat _ | ENil -> S.empty
   | EFunction (p, _, e) ->
       let b = pat_bound_simple p in
@@ -1100,7 +1100,7 @@ let find_cdefn_value_rhs (name : string) (defs : c_defn list) : c_expr option =
 let rec peel_app_spine e acc =
   match e with
   | EApp (f, a) -> peel_app_spine f (a :: acc)
-  | EId s -> (`Id s, acc)
+  | EId (s, _) -> (`Id s, acc)
   | _ -> (`Other e, acc)
 
 let rec curried_fun_arity_mono (m : mono_type) : int =
@@ -1192,9 +1192,11 @@ let eta_poly_partial_spine (static_env : static_env) (f : string)
         else
           let k = arity - n in
           let ys = List.init k (fun _ -> fresh_eta_param ()) in
-          let base = List.fold_left (fun acc a -> EApp (acc, a)) (EId f) args in
+          let base =
+            List.fold_left (fun acc a -> EApp (acc, a)) (EId (f, None)) args
+          in
           let applied =
-            List.fold_left (fun acc ynm -> EApp (acc, EId ynm)) base ys
+            List.fold_left (fun acc ynm -> EApp (acc, EId (ynm, None))) base ys
           in
           Some
             (List.fold_right
@@ -1292,7 +1294,8 @@ let rec map_expr_eta_at_lets (static_env : static_env) (e : c_expr) : c_expr =
         )
   | EFieldAccess (e0, fld) ->
       EFieldAccess (map_expr_eta_at_lets static_env e0, fld)
-  | EInt _ | EBool _ | EString _ | EUnit | EChar _ | EFloat _ | ENil | EId _ ->
+  | EInt _ | EBool _ | EString _ | EUnit | EChar _ | EFloat _ | ENil | EId (_, _)
+    ->
       e
 
 and map_defn_eta (static_env : static_env) (d : c_defn) : c_defn =
@@ -1342,7 +1345,10 @@ let is_top_poly_identity (name : string) (static_env : static_env) : bool =
   if not (is_poly_static name static_env) then false
   else
     match find_cdefn_function name !lowering_defs with
-    | Some ([ CIdPat p ], _, inner) -> inner = EId p
+    | Some ([ CIdPat p ], _, inner) -> (
+        match inner with
+        | EId (p', _) -> String.equal p p'
+        | _ -> false)
     | Some ([], _, _) | Some ([ _ ], _, _) | Some (_ :: _, _, _) | None -> false
 
 let shadow_add_pat (pat : c_pat) (shadows : S.t) : S.t =
@@ -1364,7 +1370,7 @@ let rec reduce_poly_identity_apps (static_env : static_env)
       let a' = reduce_poly_identity_apps static_env ~shadows a in
       let b' = reduce_poly_identity_apps static_env ~shadows b in
       match a' with
-      | EId name
+      | EId (name, _)
         when (not (S.mem name shadows)) && is_top_poly_identity name static_env
         -> b'
       | _ -> EApp (a', b'))
@@ -1461,7 +1467,8 @@ let rec reduce_poly_identity_apps (static_env : static_env)
             upd )
   | EFieldAccess (e0, fld) ->
       EFieldAccess (reduce_poly_identity_apps static_env ~shadows e0, fld)
-  | EInt _ | EBool _ | EString _ | EUnit | EChar _ | EFloat _ | ENil | EId _ ->
+  | EInt _ | EBool _ | EString _ | EUnit | EChar _ | EFloat _ | ENil | EId (_, _)
+    ->
       e
 
 (** Collect (top-level function name, instantiated function type) pairs needed
@@ -1491,7 +1498,7 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
            context, e.g. [use id] needs [(id, int -> int)] when [use : (int ->
            'b) -> 'b]. *)
         (match e2 with
-        | EId g when is_poly_static g env -> (
+        | EId (g, _) when is_poly_static g env -> (
             match Typecheck.mono_fun_type_of_binary_app env type_env e1 e2 with
             | Ok t_fn -> (
                 match t_fn with
@@ -1608,8 +1615,9 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
         collect_visit_expr env base;
         List.iter (fun (_, e0) -> collect_visit_expr env e0) upd
     | EFieldAccess (e0, _) -> collect_visit_expr env e0
-    | EInt _ | EBool _ | EString _ | EUnit | EChar _ | EFloat _ | ENil | EId _
-      -> ()
+    | EInt _ | EBool _ | EString _ | EUnit | EChar _ | EFloat _ | ENil
+    | EId (_, _) ->
+        ()
   and collect_visit_defn (env : static_env) (defn : c_defn) : unit =
     match defn with
     | CDefn (pat, _, _, body, _, _) -> visit_def_body env pat body
@@ -1950,7 +1958,7 @@ let find_implicit_dict_arg_expr (env : env) (expect : ty) (used : string list) :
       | C _ -> false
   in
   match List.find_opt (fun (nm, b) -> ok_pair nm b) env with
-  | Some (nm, _) -> Some (nm, EId nm)
+  | Some (nm, _) -> Some (nm, EId (nm, None))
   | None -> None
 
 let prepend_implicit_dict_args (env : env) (c : callable) (args : c_expr list) :
@@ -1980,7 +1988,7 @@ let refine_call_arg_ty_when_stub_rawptr_mismatch (se : static_env)
     (type_env : Typecheck.type_env) (arg : c_expr) (got : ty) : ty =
   if ty_equal got RawPtr then
     match arg with
-    | EApp (EApp (EId op, a), _) when op = "++" || op = "mappend" -> (
+    | EApp (EApp (EId (op, _), a), _) when op = "++" || op = "mappend" -> (
         match Typecheck.type_of_c_expr se type_env a with
         | Ok ct_a -> mono_to_min (static_mono_for_native ct_a)
         | Error _ -> got)
@@ -2090,7 +2098,7 @@ and lower_expr_val_as_call_arg ?(callee_fn_expr : c_expr option) (arg : c_expr)
     (expect : ty) (env : env) (ctx : fn_ctx) (static_env : static_env)
     (type_env : Typecheck.type_env) (shadows : S.t) : operand * ty =
   match arg with
-  | EId x when is_poly_static x static_env ->
+  | EId (x, _) when is_poly_static x static_env ->
       let m_expect =
         match callee_fn_expr with
         | Some e_fn -> (
@@ -2834,7 +2842,7 @@ and lower_list_int_enumeration (env : env) (ctx : fn_ctx)
 and lower_expr_app_curried env ctx static_env type_env (shadows : S.t) e1 e2 :
     expr_result =
   match e1 with
-  | EId name -> (
+  | EId (name, _) -> (
       match find_constructor_index !lowering_ctor_env name with
       | Some (tag, _, Some _) -> (
           let static_for_mono = static_env_for_mono_call static_env env in
@@ -2908,8 +2916,9 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
                   let meths = Typecheck.class_method_names ~static_env:static_for_mono ~class_name:cls in
                   List.map (fun arg ->
                     match arg with
-                    | EId id when List.mem id meths && not (S.mem id shadows) ->
-                        EFieldAccess (EId dict, id)
+                    | EId (id, _) when List.mem id meths && not (S.mem id shadows)
+                      ->
+                        EFieldAccess (EId (dict, None), id)
                     | _ -> arg) arg_list
                 in
                 let try_arg_at i =
@@ -2940,7 +2949,7 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
                             let rewritten =
                               List.fold_left
                                 (fun acc arg -> EApp (acc, arg))
-                                (EFieldAccess (EId dict, name))
+                                (EFieldAccess (EId (dict, None), name))
                                 resolved_args
                             in
                             Some
@@ -3036,8 +3045,8 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
             let mangle = mangle_poly_instance name m_fun in
             match resolve_callable mangle env with
             | Some c ->
-                apply_call_args ~callee_fn_expr:(EId name) env ctx static_env
-                  type_env c args shadows
+                apply_call_args ~callee_fn_expr:(EId (name, None)) env ctx
+                  static_env type_env c args shadows
             | None -> (
                 match try_dict_dispatch_fallback () with
                 | Some lowered -> lowered
@@ -3077,13 +3086,16 @@ and desugar_list_comp (body : c_expr) (generators : (c_pat * c_expr) list) :
               ( CIdPat lst,
                 None,
                 ESwitch
-                  ( EId lst,
+                  ( EId (lst, None),
                     [
                       (CNilPat, when_done);
                       ( CConsPat (pat, CIdPat tl),
-                        EBop (CCons, body, EApp (EId comp, EId tl)) );
+                        EBop
+                          ( CCons,
+                            body,
+                            EApp (EId (comp, None), EId (tl, None)) ) );
                     ] ) ),
-            EApp (EId comp, src),
+            EApp (EId (comp, None), src),
             None )
     | (pat, src) :: rest ->
         (* Outer generator: iterate [src] with [pat] bound for each element.
@@ -3094,7 +3106,7 @@ and desugar_list_comp (body : c_expr) (generators : (c_pat * c_expr) list) :
         let outer = fresh "__lc_outer" in
         let lst = fresh "__lc_lst" in
         let tl = fresh "__lc_tl" in
-        let inner_when_done = EApp (EId outer, EId tl) in
+        let inner_when_done = EApp (EId (outer, None), EId (tl, None)) in
         let inner_expr = build rest inner_when_done in
         EBindRec
           ( CIdPat outer,
@@ -3103,12 +3115,12 @@ and desugar_list_comp (body : c_expr) (generators : (c_pat * c_expr) list) :
               ( CIdPat lst,
                 None,
                 ESwitch
-                  ( EId lst,
+                  ( EId (lst, None),
                     [
                       (CNilPat, when_done);
                       (CConsPat (pat, CIdPat tl), inner_expr);
                     ] ) ),
-            EApp (EId outer, src),
+            EApp (EId (outer, None), src),
             None )
   in
   build generators ENil
@@ -3136,7 +3148,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           unsupported ("[]: " ^ Typecheck.string_of_type_check_error err))
   | EListEnumeration (e_lo, e_hi) ->
       lower_list_int_enumeration env ctx static_env type_env shadows e_lo e_hi
-  | EId x -> (
+  | EId (x, _) -> (
       match List.assoc_opt x env with
       | Some (ForgeDict t) ->
           let tmp = fresh () in
@@ -3152,7 +3164,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           match find_constructor_index !lowering_ctor_env x with
           | Some (tag, _, None) -> (
               let se = static_env_for_mono_call static_env env in
-              match Typecheck.type_of_c_expr se type_env (EId x) with
+              match Typecheck.type_of_c_expr se type_env (EId (x, None)) with
               | Ok ct ->
                   let _ = mono_to_min (static_mono_for_native ct) in
                   let vr = fresh () in

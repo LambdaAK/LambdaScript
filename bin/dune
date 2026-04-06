@@ -47,3 +47,10 @@
  (instrumentation
   (backend bisect_ppx)))
 
+(executable
+ (name forge_hover)
+ (modules forge_hover)
+ (libraries Language)
+ (instrumentation
+  (backend bisect_ppx)))
+

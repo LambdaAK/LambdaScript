@@ -158,7 +158,7 @@ let rec string_of_expr : c_expr -> string = function
   | EString s -> "\"" ^ s ^ "\""
   | EChar c -> "'" ^ String.make 1 c ^ "'"
   | EUnit -> "()"
-  | EId id -> id
+  | EId (id, _) -> id
   | ENil -> "[]"
   | EBlock parts ->
       let defns, e =

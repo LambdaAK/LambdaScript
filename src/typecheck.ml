@@ -556,7 +556,7 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
   | EChar _ -> generate_e_char
   | EUnit -> generate_e_unit
   | ENil -> generate_e_nil ()
-  | EId x -> generate_e_id env x
+  | EId (x, _) -> generate_e_id env x
   | EBop (op, e1, e2) -> generate_e_bop env type_env op e1 e2
   | EFunction (pat, cto, body) -> generate_e_function env type_env pat cto body
   | EApp (e1, e2) -> generate_e_app env type_env e1 e2
@@ -806,7 +806,7 @@ and generate_e_app_plain (env : static_env) (type_env : type_env) (e1 : c_expr)
 and generate_e_app (env : static_env) (type_env : type_env) (e1 : c_expr)
     (e2 : c_expr) : (mono_type * type_equations * type_env) type_check_result =
   match e1 with
-  | EId f -> (
+  | EId (f, _) -> (
       match List.assoc_opt f env with
       | Some sch when scheme_has_class_constraint sch ->
           generate_class_method_app env type_env f sch e2
@@ -1821,7 +1821,7 @@ and get_type_vars (t : mono_type) : mono_type list =
 and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :
     c_type type_check_result =
   match e with
-  | EId x -> (
+  | EId (x, _) -> (
       match List.assoc_opt x env with
       | None -> Error (UnboundVariable x)
       | Some sch ->
@@ -2908,8 +2908,8 @@ let subst_methods_with_dict_access ~(dict_param : string)
     ~(method_names : string list) (expr : c_expr) : c_expr =
   let rec go (e : c_expr) : c_expr =
     match e with
-    | EId name when List.mem name method_names ->
-        EFieldAccess (EId dict_param, name)
+    | EId (name, _) when List.mem name method_names ->
+        EFieldAccess (EId (dict_param, None), name)
     | EApp (e1, e2) -> EApp (go e1, go e2)
     | EFunction (p, a, b) -> EFunction (p, a, go b)
     | EBind (p, a, e1, e2, r) -> EBind (p, a, go e1, go e2, r)
@@ -2988,7 +2988,7 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
   let try_dict_dispatch shadowed e1_full e2_last =
     let head, prefix = peel_apps [] e1_full in
     match head with
-    | EId f when not (List.mem f shadowed) -> (
+    | EId (f, _) when not (List.mem f shadowed) -> (
         match List.assoc_opt f static_env with
         | Some sch when scheme_has_class_constraint sch -> (
             match primary_class_constraint sch with
@@ -3002,8 +3002,8 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
                       let meths = class_method_names ~static_env ~class_name:cls in
                       List.map (fun arg ->
                         match arg with
-                        | EId id when List.mem id meths && not (List.mem id shadowed) ->
-                            EFieldAccess (EId dict, id)
+                        | EId (id, _) when List.mem id meths && not (List.mem id shadowed) ->
+                            EFieldAccess (EId (dict, None), id)
                         | _ -> arg) args
                     in
                     let try_arg_at i =
@@ -3023,7 +3023,7 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
                                   Some
                                     (List.fold_left
                                        (fun acc arg -> EApp (acc, arg))
-                                       (EFieldAccess (EId dict, f))
+                                       (EFieldAccess (EId (dict, None), f))
                                        resolved_args)
                               | None ->
                                   (* Constrained defs (e.g. [println]) already
@@ -3108,7 +3108,7 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
         ERecordUpdate
           (aux shadowed e, List.map (fun (n, ee) -> (n, aux shadowed ee)) fs)
     | EFieldAccess (e, fld) -> EFieldAccess (aux shadowed e, fld)
-    | (EInt _ | EFloat _ | EBool _ | EString _ | EChar _ | EUnit | ENil | EId _)
+    | (EInt _ | EFloat _ | EBool _ | EString _ | EChar _ | EUnit | ENil | EId (_, _))
       as lit -> lit
   in
   aux []
