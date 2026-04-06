@@ -1,9 +1,15 @@
 type Token =
-  | TInt of Int
+  | TNum of Int
   | TPlus
   | TTimes
   | TLParen
   | TRParen
+
+// AST
+type rec Expr =
+  | ENum of Int
+  | EAdd of (Expr, Expr)
+  | EMul of (Expr, Expr)
 
 type Parser<a> =
   List<Token> -> Option<(a, List<Token>)>
@@ -42,3 +48,34 @@ impl Alternative for Parser where
 end
 
 // grammar
+// expr ::= term | term + expr
+// term ::= factor | factor * term
+// factor ::= number | ( expr )
+
+
+// parser
+
+let rec factor_parser : Parser<Expr> =
+  fn tokens ->
+    case tokens do
+
+      // if the first token is a number, then parse it. That is the factor
+        | TNum n :: rest -> Some (ENum n, rest)
+
+        // otherwise, if the first token is a left parenthesis, then aprse the expression inside of it. That is the factor
+
+        | TLParen :: rest ->
+          let expr_result = expr_parser tokens in
+            (
+              case expr_result do
+                | Some (expr, TRParen :: tokens_after_r_paren) ->
+                  Some (expr, tokens_after_r_paren)
+                | _ -> None
+            )
+
+        // otherwise, parsing failed, so return None
+        | _ -> None
+
+and term_parser : Parser<Expr> = fn tokens -> None
+
+and expr_parser : Parser<Expr> = fn tokens -> None
