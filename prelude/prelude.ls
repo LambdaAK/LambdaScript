@@ -145,7 +145,7 @@
   // Int
   
   impl Show for Int where
-    let show x = int_to_str x
+    let show = int_to_str
   end
   
   impl Eq for Int where

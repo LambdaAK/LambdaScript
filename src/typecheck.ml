@@ -2867,18 +2867,23 @@ let instantiate_method_type_for_class ~(static_env : static_env)
 
 let dict_expected_record_type ~(static_env : static_env) ~(class_name : string)
     ~(tau : mono_type) ~(type_env : type_env) : mono_type option =
+  let forged_method_names = class_method_names ~static_env ~class_name in
+  let restrict_to_forged_fields = forged_method_names <> [] in
   let method_fields =
     List.filter_map
       (fun (name, sch) ->
-        match primary_class_constraint sch with
-        | Some c when c = class_name && scheme_has_class_constraint sch -> (
-            match
-              instantiate_method_type_for_class ~static_env ~class_name
-                ~method_name:name ~tau ~type_env
-            with
-            | Some t -> Some (name, t)
-            | None -> None)
-        | _ -> None)
+        if restrict_to_forged_fields && not (List.mem name forged_method_names)
+        then None
+        else
+          match primary_class_constraint sch with
+          | Some c when c = class_name && scheme_has_class_constraint sch -> (
+              match
+                instantiate_method_type_for_class ~static_env ~class_name
+                  ~method_name:name ~tau ~type_env
+              with
+              | Some t -> Some (name, t)
+              | None -> None)
+          | _ -> None)
       static_env
   in
   if method_fields = [] then None
@@ -3011,20 +3016,12 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
                                        (EFieldAccess (EId dict, f))
                                        resolved_args)
                               | None ->
-                                  if Hashtbl.mem dict_wrapped_fns f then
-                                    match
-                                      find_dict_for_class ~static_env
-                                        ~class_name:cls ~tau
-                                    with
-                                    | Some dict ->
-                                        let resolved_args = resolve_sibling_methods dict all_args in
-                                        Some
-                                          (List.fold_left
-                                             (fun acc arg -> EApp (acc, arg))
-                                             (EApp (EId f, EId dict))
-                                             resolved_args)
-                                    | None -> None
-                                  else None)
+                                  (* Constrained defs (e.g. [println]) already
+                                     take synthetic [__dict_*]; lowering prepends
+                                     forge dicts. Do not rewrite call sites to
+                                     [(f dict) ...]: that mis-aligns with poly
+                                     peel and drops user args here. *)
+                                  None)
                           | Error _ -> None)
                     in
                     let rec try_args i =
@@ -3106,8 +3103,6 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
   in
   aux []
 
-and dict_wrapped_fns : (string, bool) Hashtbl.t = Hashtbl.create 16
-
 and elaborate_constrained_body (static_env : static_env)
     (type_env : type_env) (name : string) (body : c_expr) : c_expr =
   match List.assoc_opt name static_env with
@@ -3120,10 +3115,8 @@ and elaborate_constrained_body (static_env : static_env)
           let body'' =
             subst_methods_with_dict_access ~dict_param ~method_names body'
           in
-          if body' = body'' then body'
-          else (
-            Hashtbl.replace dict_wrapped_fns name true;
-            EFunction (CIdPat dict_param, None, body''))
+          if body' = body'' then body''
+          else EFunction (CIdPat dict_param, None, body'')
       | None -> elaborate_expr static_env type_env body)
   | _ -> elaborate_expr static_env type_env body
 

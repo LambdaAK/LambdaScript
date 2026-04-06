@@ -64,11 +64,11 @@
       "patterns": [
         {
           "name": "keyword.control.lambdascript",
-          "match": "\\b(if|then|else|case|do|of)\\b"
+          "match": "\\b(if|then|else|case|do|of|switch)\\b"
         },
         {
           "name": "keyword.other.lambdascript",
-          "match": "\\b(let|in|rec|fn|type)\\b"
+          "match": "\\b(let|in|and|fn|for|with|end|where|requires|enum)\\b"
         }
       ]
     },
@@ -76,7 +76,7 @@
       "patterns": [
         {
           "name": "storage.type.lambdascript",
-          "match": "\\b(rec)\\b"
+          "match": "\\b(type|rec|trait|inter|impl|val)\\b"
         }
       ]
     },
@@ -84,7 +84,7 @@
       "patterns": [
         {
           "name": "support.type.primitive.lambdascript",
-          "match": "\\b(int|float|bool|string|char|unit)\\b"
+          "match": "\\b(int|float|bool|string|char|unit|Int|Float|Bool|String|Char|Unit)\\b"
         },
         {
           "name": "support.type.custom.lambdascript",
@@ -105,6 +105,10 @@
         {
           "name": "constant.language.unit.lambdascript",
           "match": "\\(\\)"
+        },
+        {
+          "name": "constant.other.wildcard.lambdascript",
+          "match": "\\b_\\b"
         }
       ]
     },
@@ -150,6 +154,22 @@
           "match": "->"
         },
         {
+          "name": "keyword.operator.switch.lambdascript",
+          "match": "=>"
+        },
+        {
+          "name": "keyword.operator.bind.lambdascript",
+          "match": "<-"
+        },
+        {
+          "name": "keyword.operator.pipeline.lambdascript",
+          "match": "\\|>"
+        },
+        {
+          "name": "keyword.operator.range.lambdascript",
+          "match": "\\.\\.\\."
+        },
+        {
           "name": "keyword.operator.cons.lambdascript",
           "match": "::"
         },
@@ -184,6 +204,14 @@
         {
           "name": "support.function.builtin.lambdascript",
           "match": "\\b(print|println|int_to_str|int_to_float|float_to_int|string_to_list|map|filter|reduce_left|reduce_right|not)\\b"
+        },
+        {
+          "name": "entity.name.function.lambdascript",
+          "match": "\\([^\\)]+\\)(?=\\s*:)"
+        },
+        {
+          "name": "entity.name.function.lambdascript",
+          "match": "\\([^\\)]+\\)(?=\\s+[a-z_][a-zA-Z0-9_']*\\s*=)"
         },
         {
           "name": "entity.name.function.lambdascript",

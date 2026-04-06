@@ -182,13 +182,24 @@ let rec ty_equal (a : ty) (b : ty) : bool =
   | List e1, List e2 -> ty_equal e1 e2
   | _ -> false
 
-(** Instantiate a binding type from the static environment, then force any type
-    variables the constraint solver left in {!Mono} types to concrete types
-    ([int] by default), matching {!Typecheck.mono_concrete_or_int_default} for
-    monomorphization keys. Otherwise {!mono_to_min} can fail on nested
-    {!Typecheck.TypeVar} (e.g. list cases with [[]] branches). *)
+(** Instantiate a binding type from the static environment, expand type aliases
+    (e.g. [Parser<t>] → [List<Token> -> Option<...>]) using the current
+    {!lowering_type_env}, then force any type variables the solver left to
+    concrete types ([int] by default). Without alias expansion, top-level types
+    stay as {!CTypeApp} and {!peel_inferred_param_monos} cannot see a
+    {!FunctionType} chain. When [lowering_type_env] is empty (e.g. ad-hoc expr
+    lowering), only [instantiate] runs. *)
 let static_mono_for_native (ct : c_type) : mono_type =
-  Typecheck.mono_concrete_or_int_default (Typecheck.instantiate ct)
+  let m_inst = Typecheck.instantiate ct in
+  let m_expanded =
+    match !lowering_type_env with
+    | [] -> m_inst
+    | te -> (
+        match Typecheck.simplify_mono_type m_inst te with
+        | Ok m -> m
+        | Error _ -> m_inst)
+  in
+  Typecheck.mono_concrete_or_int_default m_expanded
 
 (** [peel_inferred_param_monos n m] takes the first [n] argument types from a
     curried [FunctionType] chain ([m] must be the typechecker's type for the
@@ -198,34 +209,285 @@ let rec peel_inferred_param_monos (n : int) (m : mono_type) : mono_type list =
   else
     match m with
     | FunctionType (a, rest) -> a :: peel_inferred_param_monos (n - 1) rest
+    | _ -> (
+        (* [Parser<t>] and other aliases may still be [CTypeApp] after
+           [instantiate]; expand once with the program [type_env] so we see a
+           [FunctionType] chain. *)
+        match !lowering_type_env with
+        | [] ->
+            unsupported
+              ("Inferred type is not a function matching the number of parameters \
+                (empty type env; type was "
+              ^ string_of_mono_type m ^ ")")
+        | te -> (
+            match Typecheck.simplify_mono_type m te with
+            | Ok m' when m' <> m -> (
+                match m' with
+                | FunctionType _ -> peel_inferred_param_monos n m'
+                | _ ->
+                    unsupported
+                      ("Inferred type is not a function matching the number of \
+                       parameters (after simplify: "
+                      ^ string_of_mono_type m' ^ ")"))
+            | Ok m' ->
+                unsupported
+                  ("Inferred type is not a function matching the number of \
+                    parameters (simplify unchanged: "
+                  ^ string_of_mono_type m' ^ ")")
+            | Error e ->
+                unsupported
+                  ("Inferred type is not a function matching the number of \
+                    parameters (simplify error: "
+                  ^ Typecheck.string_of_type_check_error e ^ " on "
+                  ^ string_of_mono_type m ^ ")")))
+
+(** [__dict_Show]-style parameters are inserted by {!Typecheck.elaborate_defn}
+    before class-method names become field accesses; the static environment type
+    for the binding does not include those leading dictionary parameters. *)
+let dict_param_class_name (nm : string) : string option =
+  let prefix = "__dict_" in
+  let lp = String.length prefix in
+  if String.length nm > lp && String.sub nm 0 lp = prefix then
+    Some (String.sub nm lp (String.length nm - lp))
+  else None
+
+let split_leading_dict_pats_and_anns (pats : c_pat list)
+    (anns : c_type option list) :
+    (string * string) list * c_pat list * c_type option list =
+  if List.length pats <> List.length anns then
+    unsupported "Internal: parameter pattern / annotation length mismatch";
+  let rec drop_list n xs =
+    if n <= 0 then xs
+    else match xs with _ :: t -> drop_list (n - 1) t | [] -> []
+  in
+  let rec go i acc_dict =
+    if i >= List.length pats then (List.rev acc_dict, [], [])
+    else
+      match (List.nth pats i, List.nth anns i) with
+      | CIdPat nm, _ -> (
+          match dict_param_class_name nm with
+          | Some cls -> go (i + 1) ((nm, cls) :: acc_dict)
+          | None -> (List.rev acc_dict, drop_list i pats, drop_list i anns))
+      | _, _ -> (List.rev acc_dict, drop_list i pats, drop_list i anns)
+  in
+  go 0 []
+
+let rec find_class_predicate_mono (class_name : string) (sch : c_type) :
+    mono_type option =
+  match sch with
+  | Constrained (preds, _) -> (
+      match List.find_opt (fun (c, _) -> c = class_name) preds with
+      | Some (_, tau) -> Some tau
+      | None -> None)
+  | PolyType (_, inner) -> find_class_predicate_mono class_name inner
+  | _ -> None
+
+let dict_mono_for_fn_class (fn_name : string) (class_name : string)
+    (static_env : static_env) (type_env : Typecheck.type_env) : mono_type =
+  match List.assoc_opt fn_name static_env with
+  | None ->
+      unsupported
+        ("Missing type for `" ^ fn_name
+       ^ "` when resolving dictionary parameter (compiler bug)")
+  | Some sch -> (
+      match find_class_predicate_mono class_name sch with
+      | None ->
+          unsupported
+            ("Missing `" ^ class_name ^ "` class predicate on `" ^ fn_name
+           ^ "` for dictionary parameter (compiler bug)")
+      | Some tau ->
+          let tau' = Typecheck.mono_concrete_or_int_default tau in
+          match
+            Typecheck.dict_expected_record_type ~static_env ~class_name
+              ~tau:tau' ~type_env
+          with
+          | Some d -> d
+          | None ->
+              unsupported
+                ("Could not build dictionary record type for class `"
+               ^ class_name ^ "` when lowering `" ^ fn_name ^ "`"))
+
+(** Dictionary record type for [class_name] at concrete instance [tau], e.g. when
+    the static binding is already [Mono (t -> ...)] and class predicates in the
+    poly scheme still carry an unconstrained type variable (which would wrongly
+    default to [int]). *)
+let dict_record_mono_for_class ~(class_name : string) (tau : mono_type)
+    (static_env : static_env) (type_env : Typecheck.type_env) : mono_type =
+  let tau' = Typecheck.mono_concrete_or_int_default tau in
+  match
+    Typecheck.dict_expected_record_type ~static_env ~class_name ~tau:tau'
+      ~type_env
+  with
+  | Some d -> d
+  | None ->
+      unsupported
+        ("Could not build dictionary record type for class `" ^ class_name
+       ^ "` (tau " ^ string_of_mono_type tau' ^ ")")
+
+(** First [n] argument monos from a curried user arrow (for pairing with leading
+    synthetic [__dict_*] parameters). *)
+let rec user_domain_monos (n : int) (m : mono_type) : mono_type list =
+  if n <= 0 then []
+  else
+    match m with
+    | FunctionType (a, rest) ->
+        Typecheck.mono_concrete_or_int_default a :: user_domain_monos (n - 1) rest
     | _ ->
         unsupported
-          "Inferred type is not a function matching the number of parameters"
+          ("Internal: need " ^ string_of_int n
+         ^ " user type argument(s) for synthetic class dictionaries (got "
+          ^ string_of_mono_type m ^ ")")
+
+let rec strip_leading_dict_mono_layers (n : int) (m : mono_type) : mono_type =
+  if n <= 0 then m
+  else
+    match m with
+    | FunctionType (_, rest) -> strip_leading_dict_mono_layers (n - 1) rest
+    | _ ->
+        unsupported
+          ("Internal: instantiated type does not have " ^ string_of_int n
+         ^ " leading dictionary parameter(s) (got "
+          ^ string_of_mono_type m ^ ")")
+
+(** First [n] dictionary domains from a monomorphic signature that already
+    includes [{__dict_* -> ...}] prefixes ([n] = [List.length dict_infos]). *)
+let rec peel_dict_record_domains (n : int) (m : mono_type) : mono_type list =
+  if n <= 0 then []
+  else
+    match m with
+    | FunctionType ((RecordType _ as dr), rest) ->
+        dr :: peel_dict_record_domains (n - 1) rest
+    | _ ->
+        unsupported
+          ("Internal: expected leading class-dictionary record in instantiated \
+            type (got "
+          ^ string_of_mono_type m ^ ")")
+
+let inferred_param_mono_list ~(scheme_key : string) ~(instance_key : string)
+    (param_pats : c_pat list) (param_anns : c_type option list)
+    (static_env : static_env) (type_env : Typecheck.type_env) : mono_type list =
+  let dict_infos, user_pats, user_anns =
+    split_leading_dict_pats_and_anns param_pats param_anns
+  in
+  if
+    List.length user_pats <> List.length user_anns
+    || List.length param_pats <> List.length param_anns
+  then
+    unsupported "Internal: dict split produced inconsistent parameter lists";
+  let inst_ct =
+    match List.assoc_opt instance_key static_env with
+    | None ->
+        unsupported
+          ("Missing type for `" ^ instance_key
+         ^ "` in static environment (compiler bug)")
+    | Some ct -> ct
+  in
+  let user_m_full = static_mono_for_native inst_ct in
+  let n_dict = List.length dict_infos in
+  let dict_part =
+    if n_dict = 0 then []
+    else
+      match inst_ct with
+      | Mono _ -> (
+          match user_m_full with
+          | FunctionType (RecordType _, _) ->
+              peel_dict_record_domains n_dict user_m_full
+          | _ ->
+              let taus = user_domain_monos n_dict user_m_full in
+              List.map2
+                (fun (_, cls) tau ->
+                  dict_record_mono_for_class ~class_name:cls tau static_env
+                    type_env)
+                dict_infos taus)
+      | PolyType _ | Constrained _ ->
+          List.map
+            (fun (_, cls) ->
+              dict_mono_for_fn_class scheme_key cls static_env type_env)
+            dict_infos
+  in
+  let user_m =
+    if n_dict = 0 then user_m_full
+    else
+      match inst_ct with
+      | Mono _ -> (
+          match user_m_full with
+          | FunctionType (RecordType _, _) ->
+              strip_leading_dict_mono_layers n_dict user_m_full
+          | _ -> user_m_full)
+      | PolyType _ | Constrained _ ->
+          strip_leading_dict_mono_layers n_dict user_m_full
+  in
+  let user_part =
+    peel_inferred_param_monos (List.length user_pats) user_m
+  in
+  dict_part @ user_part
+
+let expanded_mono_with_dict_prefixes ~(scheme_key : string)
+    ~(instance_key : string) (param_pats : c_pat list) (static_env : static_env)
+    (type_env : Typecheck.type_env) : mono_type =
+  let dict_infos, _user_pats, _ =
+    split_leading_dict_pats_and_anns param_pats
+      (List.map (fun _ -> None) param_pats)
+  in
+  match List.assoc_opt instance_key static_env with
+  | None ->
+      unsupported
+        ("Missing type for `" ^ instance_key
+       ^ "` in static environment (compiler bug)")
+  | Some (Mono _ as ct) ->
+      let base = static_mono_for_native ct in
+      let n_dict = List.length dict_infos in
+      if n_dict = 0 then base
+      else
+        (match base with
+         | FunctionType (RecordType _, _) ->
+             (* Instantiated scheme already includes leading dictionary domains. *)
+             base
+        | _ ->
+            let taus = user_domain_monos n_dict base in
+            List.fold_left2
+              (fun acc (_, cls) tau ->
+                FunctionType
+                  ( dict_record_mono_for_class ~class_name:cls tau static_env
+                      type_env,
+                    acc ))
+              base dict_infos taus)
+  | Some ct ->
+      let base = static_mono_for_native ct in
+      List.fold_left
+        (fun acc (_, cls) ->
+          FunctionType
+            ( dict_mono_for_fn_class scheme_key cls static_env type_env,
+              acc ))
+        base dict_infos
 
 (** Parameter Mi types: explicit annotations win for lowering shape; unannotated
     parameters use types inferred by typechecking (see [static_env]). *)
-let param_min_ir_tys (name : string) (param_anns : c_type option list)
-    (static_env : static_env) : ty list =
-  let n = List.length param_anns in
+let param_min_ir_tys ~(scheme_key : string) ~(instance_key : string)
+    (param_anns : c_type option list) (param_pats : c_pat list)
+    (static_env : static_env) (type_env : Typecheck.type_env) : ty list =
   let inferred_monos =
-    match List.assoc_opt name static_env with
-    | None ->
-        unsupported
-          ("Missing type for `" ^ name
-         ^ "` in static environment (compiler bug)")
-    | Some ct ->
-        let m = static_mono_for_native ct in
-        peel_inferred_param_monos n m
+    inferred_param_mono_list ~scheme_key ~instance_key param_pats param_anns
+      static_env type_env
   in
   List.map2
-    (fun ann inf_m ->
-      match ann with
-      | None -> mono_to_min inf_m
-      | Some (Mono m) -> mono_to_min (Typecheck.mono_concrete_or_int_default m)
-      | Some (PolyType _) | Some (Constrained _) ->
-          unsupported
-            "Polymorphic parameter annotation not supported for compilation")
-    param_anns inferred_monos
+    (fun pat (ann, inf_m) ->
+      (* Elaboration may attach a method's arrow type (e.g. [show : a -> string])
+         to synthetic [__dict_*] parameters; lowering still needs the dictionary
+         record as a tuple so [prepend_implicit_dict_args] matches call sites. *)
+      match pat with
+      | CIdPat nm when dict_param_class_name nm <> None -> mono_to_min inf_m
+      | _ -> (
+          match ann with
+          | None -> mono_to_min inf_m
+          | Some (Mono m) ->
+              mono_to_min (Typecheck.mono_concrete_or_int_default m)
+          | Some (PolyType _) | Some (Constrained _) ->
+              unsupported
+                "Polymorphic parameter annotation not supported for \
+                 compilation"))
+    param_pats
+    (List.combine param_anns inferred_monos)
 
 (** [peel_efun body] — parameters (patterns + annotations), inner expression. *)
 let rec peel_efun acc_p acc_a :
@@ -535,15 +797,14 @@ let rec mono_after_n_fun_args (n : int) (m : mono_type) : mono_type =
         unsupported
           "Inferred type is not a curried function matching its parameter count"
 
-let ret_min_ty_of_user_fn (name : string) (num_params : int)
-    (static_env : static_env) : ty =
-  match List.assoc_opt name static_env with
-  | None ->
-      unsupported
-        ("Missing type for `" ^ name ^ "` in static environment (compiler bug)")
-  | Some ct ->
-      let m = static_mono_for_native ct in
-      mono_to_min (mono_after_n_fun_args num_params m)
+let ret_min_ty_of_user_fn ~(scheme_key : string) ~(instance_key : string)
+    (param_pats : c_pat list) (num_params : int) (static_env : static_env)
+    (type_env : Typecheck.type_env) : ty =
+  let m =
+    expanded_mono_with_dict_prefixes ~scheme_key ~instance_key param_pats
+      static_env type_env
+  in
+  mono_to_min (mono_after_n_fun_args num_params m)
 
 let is_poly_static (name : string) (static_env : static_env) : bool =
   match List.assoc_opt name static_env with
@@ -612,11 +873,13 @@ let static_env_for_mono_call (global : static_env) (env : env) : static_env =
             in
             Some (name, Mono m)
           with Unsupported _ -> None)
-      | ForgeDict _ ->
-          (* Keep the surface/static binding for this dictionary (record /
-             constrained scheme). A [Mono] from Min_IR [Tuple] would break
-             [type_of_c_expr] on [EFieldAccess]. *)
-          None
+      | ForgeDict _ -> (
+          (* Reattach the program's static scheme for this dict so
+             {!mono_fun_type_of_binary_app} can type [EFieldAccess] and
+             applications when lowering uses [ForgeDict] runtime bindings. *)
+          match List.assoc_opt name global with
+          | Some sch -> Some (name, sch)
+          | None -> None)
       | C _ -> None)
     env
   @ global
@@ -719,6 +982,69 @@ let rec curried_fun_arity_mono (m : mono_type) : int =
   match m with
   | FunctionType (_, r) -> 1 + curried_fun_arity_mono r
   | _ -> 0
+
+let split_leading_dict_pats_only (pats : c_pat list) :
+    (string * string) list * c_pat list =
+  let d, r, _ =
+    split_leading_dict_pats_and_anns pats (List.map (fun _ -> None) pats)
+  in
+  (d, r)
+
+(** {!Typecheck.mono_fun_type_of_curried_app} may yield [dict_record -> Unit]
+    after class constraints are solved, while the elaborated definition still has
+    a synthetic [__dict_*] parameter plus user parameters. Recover missing user
+    arrows using the method types stored in the dictionary record. *)
+let expand_mono_after_dict_for_collect (param_pats : c_pat list) (mono : mono_type)
+    : mono_type =
+  let dict_infos, user_pats = split_leading_dict_pats_only param_pats in
+  if dict_infos = [] then mono
+  else
+    match mono with
+    | FunctionType (RecordType fs as dr, rest) when user_pats <> [] -> (
+        let need = List.length user_pats in
+        let have = curried_fun_arity_mono rest in
+        if have >= need then mono
+        else
+          let missing = need - have in
+          let method_arg_ty (class_name : string) : mono_type option =
+            let field_name =
+              match class_name with
+              | "Semigroup" -> Some "mappend"
+              | "Monoid" -> Some "empty"
+              | "Functor" -> Some "fmap"
+              | "Applicative" -> Some "ap"
+              | "Monad" -> Some "bind"
+              | "Alternative" -> Some "aempty"
+              | "Foldable" -> Some "fold_left"
+              | "Bifunctor" -> Some "bimap"
+              | "Show" -> Some "show"
+              | "Eq" -> Some "(==)"
+              | "Ord" -> Some "compare"
+              | _ -> None
+            in
+            match field_name with
+            | Some meth -> (
+                match List.assoc_opt meth fs with
+                | Some (FunctionType (a, _)) -> Some a
+                | _ -> None)
+            | None ->
+                List.find_map
+                  (fun (_, t) ->
+                    match t with FunctionType (a, _) -> Some a | _ -> None)
+                  fs
+          in
+          match dict_infos with
+          | (_, cls) :: _ -> (
+              match method_arg_ty cls with
+              | Some tau ->
+                  let rec wrap k acc =
+                    if k <= 0 then acc
+                    else wrap (k - 1) (FunctionType (tau, acc))
+                  in
+                  FunctionType (dr, wrap missing rest)
+              | None -> mono)
+          | [] -> mono)
+    | _ -> mono
 
 let fresh_eta_param () =
   incr eta_expand_counter;
@@ -1061,6 +1387,12 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
             with
             | Ok m_fun ->
                 let m_fun = Typecheck.mono_concrete_or_int_default m_fun in
+                let m_fun =
+                  match find_cdefn_function f defs with
+                  | Some (param_pats, _, _) ->
+                      expand_mono_after_dict_for_collect param_pats m_fun
+                  | None -> m_fun
+                in
                 if Typecheck.mono_type_fully_concrete m_fun then add f m_fun
             | Error _ -> ())
         | _ -> ())
@@ -1169,14 +1501,14 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
   and visit_def_body (env : static_env) (pat : c_pat) (body : c_expr) : unit =
     match pat with
     | CIdPat fn_name ->
-        let param_pats, _, inner = peel_efun [] [] body in
+        let param_pats, param_anns, inner = peel_efun [] [] body in
         let env_for_body =
           match List.assoc_opt fn_name env with
-          | Some ct when param_pats <> [] -> (
-              let m = Typecheck.instantiate ct in
+          | Some _ct when param_pats <> [] -> (
               try
                 let param_monos =
-                  peel_inferred_param_monos (List.length param_pats) m
+                  inferred_param_mono_list ~scheme_key:fn_name
+                    ~instance_key:fn_name param_pats param_anns env type_env
                 in
                 List.fold_left2
                   (fun acc p pm ->
@@ -1204,10 +1536,11 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
             bug or pathological polymorphic recursion)");
     let name, mono = Queue.pop q in
     match find_cdefn_function name defs with
-    | Some (param_pats, _, inner) ->
+    | Some (param_pats, param_anns, inner) ->
         let static_inst = replace_static_binding name (Mono mono) static_env in
         let param_monos =
-          peel_inferred_param_monos (List.length param_pats) mono
+          inferred_param_mono_list ~scheme_key:name ~instance_key:name
+            param_pats param_anns static_inst type_env
         in
         let env_inst =
           List.fold_left
@@ -1238,11 +1571,17 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
 (** Callable shape before lowering a body (recursive / mutual fixup).
     [emit_direct] is the LLVM symbol for the multi-arg direct function; [ty_key]
     names the binding for parameter type lookup. *)
-let callable_stub ~(ty_key : string) ~(emit_direct : string)
-    (param_anns : c_type option list) (static_env : static_env) : callable =
-  let param_tys = param_min_ir_tys ty_key param_anns static_env in
+let callable_stub ~(scheme_key : string) ~(instance_key : string)
+    ~(emit_direct : string) (param_pats : c_pat list)
+    (param_anns : c_type option list) (static_env : static_env)
+    (type_env : Typecheck.type_env) : callable =
+  let param_tys =
+    param_min_ir_tys ~scheme_key ~instance_key param_anns param_pats static_env
+      type_env
+  in
   let ret_ty =
-    ret_min_ty_of_user_fn ty_key (List.length param_tys) static_env
+    ret_min_ty_of_user_fn ~scheme_key ~instance_key param_pats
+      (List.length param_tys) static_env type_env
   in
   let n = List.length param_tys in
   let step_codes =
@@ -1261,16 +1600,19 @@ let callable_stub ~(ty_key : string) ~(emit_direct : string)
   }
 
 let build_mono_instance_env (instances : (string * mono_type) list)
-    (defs : c_defn list) (static_env : static_env) : env =
+    (defs : c_defn list) (static_env : static_env)
+    (type_env : Typecheck.type_env) : env =
   List.fold_left
     (fun acc (name, mono) ->
       match find_cdefn_function name defs with
       | None -> acc
-      | Some (_, anns, _) ->
+      | Some (param_pats, anns, _) ->
           let emit = mangle_poly_instance name mono in
           let stub =
-            callable_stub ~ty_key:emit ~emit_direct:emit anns
+            callable_stub ~scheme_key:name ~instance_key:emit ~emit_direct:emit
+              param_pats anns
               ((emit, Mono mono) :: static_env)
+              type_env
           in
           (emit, C stub) :: acc)
     [] instances
@@ -1464,6 +1806,47 @@ let find_constructor_index (ctor_env : Typecheck.constructor_env)
     ctor_env;
   !found
 
+(** Elaboration adds leading [__dict_*] parameters to constrained defs, but the
+    type checker still types calls as if those dictionaries were implicit. When
+    the callee is already a [C] stub in [env], [EApp] lowering skips the poly
+    spine and may pass only user arguments — prepend matching forge / dict
+    bindings from [env] so [param_tys] align. *)
+let find_implicit_dict_arg_expr (env : env) (expect : ty) (used : string list) :
+    (string * c_expr) option =
+  let ok_pair nm b =
+    if List.mem nm used then false
+    else
+      match b with
+      | ForgeDict t -> ty_equal t expect
+      | Val (_, t, _) -> (
+          match dict_param_class_name nm with
+          | Some _ -> ty_equal t expect
+          | None -> is_forge_dict_name nm && ty_equal t expect)
+      | C _ -> false
+  in
+  match List.find_opt (fun (nm, b) -> ok_pair nm b) env with
+  | Some (nm, _) -> Some (nm, EId nm)
+  | None -> None
+
+let prepend_implicit_dict_args (env : env) (c : callable) (args : c_expr list) :
+    c_expr list =
+  let n_p = List.length c.param_tys in
+  let n_fixed = List.length c.fixed in
+  let n_a = List.length args in
+  let remaining_params = n_p - n_fixed in
+  if n_a >= remaining_params then args
+  else
+    let need = remaining_params - n_a in
+    let rec loop k used acc_rev =
+      if k >= need then List.rev acc_rev @ args
+      else
+        let expect = List.nth c.param_tys (n_fixed + k) in
+        match find_implicit_dict_arg_expr env expect used with
+        | Some (nm, e) -> loop (k + 1) (nm :: used) (e :: acc_rev)
+        | None -> args
+    in
+    loop 0 [] []
+
 let rec lower_expr_val (e : c_expr) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t) :
     operand * ty =
@@ -1557,6 +1940,7 @@ and lower_builtin_int_to_str arg env ctx static_env type_env (shadows : S.t) =
 and apply_call_args ?(callee_fn_expr : c_expr option) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) (c : callable)
     (args : c_expr list) (shadows : S.t) : expr_result =
+  let args = prepend_implicit_dict_args env c args in
   let rec go c = function
     | [] ->
         if callable_remaining c = 0 then emit_saturated_call ctx c
@@ -1565,15 +1949,24 @@ and apply_call_args ?(callee_fn_expr : c_expr option) (env : env) (ctx : fn_ctx)
         if callable_remaining c = 0 then
           unsupported "Too many arguments in call";
         let i = List.length c.fixed in
+        let from_param = List.nth c.param_tys i in
         let expect =
           match callee_fn_expr with
           | Some e_fn when i = 0 -> (
               match
                 min_dom_ret_of_binary_app static_env type_env env e_fn arg
               with
-              | Some (d, _) -> d
-              | None -> List.nth c.param_tys i)
-          | _ -> List.nth c.param_tys i
+              | Some (d, _) when ty_equal d from_param -> d
+              | Some (d, _)
+                when from_param = I32 && not (ty_equal d I32) ->
+                  d
+              | Some _ ->
+                  (* [min_dom] can mis-infer (e.g. default flex vars to [i32]) for
+                     [EApp] callees such as [(show dict)]; the callable stub's
+                     parameter types match the monomorphized definition. *)
+                  from_param
+              | None -> from_param)
+          | _ -> from_param
         in
         let op, _got =
           lower_expr_val_as_call_arg ?callee_fn_expr arg expect env ctx
@@ -1704,7 +2097,13 @@ and apply_fun1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
             match
               min_dom_ret_of_binary_app static_env type_env env e_fn arg
             with
-            | Some (d, r) -> (d, r)
+            | Some (d, r) when ty_equal d a_ty -> (d, r)
+            | Some (d, r)
+              when a_ty = I32 && not (ty_equal d I32) ->
+                (* Value may carry a flex-var default to [i32]; inference has the
+                   real domain (e.g. higher-rank [id] uses). *)
+                (d, r)
+            | Some _ -> (a_ty, ret_ty)
             | None -> (a_ty, ret_ty))
         | None -> (a_ty, ret_ty)
       in
@@ -1735,7 +2134,9 @@ and apply_clos1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
             match
               min_dom_ret_of_binary_app static_env type_env env e_fn arg
             with
-            | Some (d, _) -> d
+            | Some (d, _) when ty_equal d p -> d
+            | Some (d, _) when p = I32 && not (ty_equal d I32) -> d
+            | Some _ -> p
             | None -> p)
         | None -> p
       in
@@ -2319,6 +2720,12 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
                  ^ ") for native compilation (try explicit type annotations or \
                     more concrete arguments)")
           else
+            let m_fun =
+              match find_cdefn_function name !lowering_defs with
+              | Some (param_pats, _, _) ->
+                  expand_mono_after_dict_for_collect param_pats m_fun
+              | None -> m_fun
+            in
             let mangle = mangle_poly_instance name m_fun in
             match resolve_callable mangle env with
             | Some c ->
@@ -2766,7 +3173,8 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               in
               let cap_entries = lambda_captures env ctx fv in
               let base_stub =
-                callable_stub ~ty_key:name ~emit_direct:emit anns static_here
+                callable_stub ~scheme_key:name ~instance_key:name ~emit_direct:emit
+                  param_pats anns static_here type_env
               in
               (* If there are captures, the compiled function has them as
                  leading parameters. Bake the capture operands into the call
@@ -2827,9 +3235,13 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               shadows
           in
           ctx.nested_funcs <- ctx.nested_funcs @ nested @ [ fn ];
-          let param_tys = param_min_ir_tys syn_key anns static_here in
+          let param_tys =
+            param_min_ir_tys ~scheme_key:syn_key ~instance_key:syn_key anns
+              param_pats static_here type_env
+          in
           let ret_ty =
-            ret_min_ty_of_user_fn syn_key (List.length param_tys) static_here
+            ret_min_ty_of_user_fn ~scheme_key:syn_key ~instance_key:syn_key
+              param_pats (List.length param_tys) static_here type_env
           in
           let n_fn = List.length param_tys in
           let cap_tys = List.map (fun (_, t, _) -> t) cap_entries in
@@ -2974,11 +3386,12 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       (* Build a stub for a given name with the given cap_ops *)
       let make_stub name cap_ops_use =
         let emit = List.assoc name name_emits in
-        let _, _, anns, _, _ =
+        let _, param_pats, anns, _, _ =
           List.find (fun (n, _, _, _, _) -> n = name) parsed
         in
         let base =
-          callable_stub ~ty_key:name ~emit_direct:emit anns static_here
+          callable_stub ~scheme_key:name ~instance_key:name ~emit_direct:emit
+            param_pats anns static_here type_env
         in
         if cap_entries = [] then base
         else { base with cap_tys = cap_tys_all; cap_ops = cap_ops_use }
@@ -3150,19 +3563,26 @@ and lower_block (parts : c_expr_or_c_defn list) (env : env) (ctx : fn_ctx)
              supported")
 
 and lower_user_function ?(captures : (string * ty * operand) list = [])
-    ?(self_name : string option = None) ~(ty_key : string) ~(emit : string)
-    (param_pats : c_pat list) (param_anns : c_type option list) (inner : c_expr)
-    (outer_env : env) (static_env : static_env) (type_env : Typecheck.type_env)
-    (shadows : S.t) : func_def * func_def list =
+    ?(self_name : string option = None) ?(scheme_key : string option = None)
+    ~(ty_key : string) ~(emit : string) (param_pats : c_pat list)
+    (param_anns : c_type option list) (inner : c_expr) (outer_env : env)
+    (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t) :
+    func_def * func_def list =
+  let sk =
+    match scheme_key with None -> ty_key | Some s -> s
+  in
   let shadows_for_body =
     List.fold_left (fun acc pat -> shadow_add_pat pat acc) shadows param_pats
   in
-  let param_tys = param_min_ir_tys ty_key param_anns static_env in
+  let param_tys =
+    param_min_ir_tys ~scheme_key:sk ~instance_key:ty_key param_anns param_pats
+      static_env type_env
+  in
   if List.length param_pats <> List.length param_tys then
     unsupported "Internal: parameter pattern count mismatch";
   let param_monos =
-    peel_inferred_param_monos (List.length param_pats)
-      (static_mono_for_native (List.assoc ty_key static_env))
+    inferred_param_mono_list ~scheme_key:sk ~instance_key:ty_key param_pats
+      param_anns static_env type_env
   in
   let cap_pairs = List.map (fun (v, t, _) -> (v, t)) captures in
   let cap_tys = List.map snd cap_pairs in
@@ -3178,7 +3598,8 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
     | Some sn ->
         let self_cap_ops = List.map (fun (v, _) -> Local v) cap_pairs in
         let pre_ret_ty =
-          ret_min_ty_of_user_fn ty_key (List.length param_tys) static_env
+          ret_min_ty_of_user_fn ~scheme_key:sk ~instance_key:ty_key param_pats
+            (List.length param_tys) static_env type_env
         in
         let n = List.length param_tys in
         let step_codes_self =
@@ -3286,9 +3707,10 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
   let env_params = List.concat (List.map snd param_names_and_frags) in
   let direct_params = cap_pairs @ List.combine params param_tys in
   let merged0 =
-    rec_self_entry
+    env_params
+    @ rec_self_entry
     @ List.map (fun (v, t) -> (v, Val (Local v, t, None))) cap_pairs
-    @ env_params @ outer_env
+    @ outer_env
   in
   let ctx = create_fn_ctx () in
   let tuple_checks =
@@ -3426,7 +3848,9 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
     lowering_defs := defs;
     let instances = collect_mono_instantiations defs static_env type_env in
     let user_funs = ref [] in
-    let env_mono = build_mono_instance_env instances defs static_env in
+    let env_mono =
+      build_mono_instance_env instances defs static_env type_env
+    in
     let ctx_main = create_fn_ctx () in
     let env_with_dicts =
       List.fold_left
@@ -3483,8 +3907,9 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
             in
             let cap_entries = lambda_captures env_with_dicts ctx_main fv in
             let fn, nested =
-              lower_user_function ~captures:cap_entries ~ty_key:emit ~emit
-                param_pats anns inner env_with_dicts
+              lower_user_function ~captures:cap_entries
+                ~scheme_key:(Some name) ~ty_key:emit ~emit param_pats anns inner
+                env_with_dicts
                 ((emit, Mono mono) :: static_env)
                 type_env S.empty
             in
@@ -3556,7 +3981,8 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
               | _ :: _ when is_poly_static name static_env -> walk env rest
               | _ :: _ ->
                   let stub =
-                    callable_stub ~ty_key:name ~emit_direct:name anns static_env
+                    callable_stub ~scheme_key:name ~instance_key:name
+                      ~emit_direct:name param_pats anns static_env type_env
                   in
                   let fn, nested =
                     lower_user_function ~ty_key:name ~emit:name param_pats anns
@@ -3598,10 +4024,10 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
           else
             let stubs =
               List.map
-                (fun (name, _, anns, _) ->
+                (fun (name, param_pats, anns, _) ->
                   ( name,
-                    callable_stub ~ty_key:name ~emit_direct:name anns static_env
-                  ))
+                    callable_stub ~scheme_key:name ~instance_key:name
+                      ~emit_direct:name param_pats anns static_env type_env ))
                 parsed
             in
             let env_with_stubs =
@@ -3652,7 +4078,8 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
               | _ :: _ when is_poly_static name static_env -> walk env rest
               | _ :: _ ->
                   let stub =
-                    callable_stub ~ty_key:name ~emit_direct:name anns static_env
+                    callable_stub ~scheme_key:name ~instance_key:name
+                      ~emit_direct:name param_pats anns static_env type_env
                   in
                   let fn, nested =
                     lower_user_function ~ty_key:name ~emit:name param_pats anns

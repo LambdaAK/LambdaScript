@@ -716,6 +716,18 @@ let condense_program (defns : defn list) : c_defn list =
                           failwith ("forge: internal: missing body for " ^ meth)
                       )
                 in
+                (* Identity method bodies [fn x -> x] are typed as ['a -> 'a] in
+                   isolation; native lowering then defaults ['] to [int]. For
+                   forged dicts, pin the parameter type to the trait's domain. *)
+                let annotate_identity_efun_from_mono (mt : mono_type)
+                    (e : c_expr) : c_expr =
+                  match (mt, e) with
+                  | ( FunctionType (dom, _),
+                      EFunction (CIdPat x, None, EId y) )
+                    when String.equal x y ->
+                      EFunction (CIdPat x, Some (Mono dom), EId y)
+                  | _, _ -> e
+                in
                 let build_dict_expr (dispatch_d : string)
                     (fields : (string * mono_type) list) : c_expr =
                   let names = List.map fst fields in
@@ -739,7 +751,9 @@ let condense_program (defns : defn list) : c_defn list =
                             (fun (m', _) -> not (String.equal m' m))
                             sub
                         in
-                        (m, subst_c_expr sub_i (expr_for_method m)))
+                        let mt = List.assoc m fields in
+                        let raw = subst_c_expr sub_i (expr_for_method m) in
+                        (m, annotate_identity_efun_from_mono mt raw))
                       names
                   in
                   let record =
@@ -799,7 +813,7 @@ let condense_program (defns : defn list) : c_defn list =
                       let dict_name =
                         dict_for_instance ~class_name:dispatch_d inst_mono
                       in
-                      let body = build_dict_expr dispatch_d fields_here in
+                      let body = build_dict_expr dispatch_d field_types in
                       let cdefn =
                         CDefn
                           ( CIdPat dict_name,

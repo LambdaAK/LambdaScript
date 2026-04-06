@@ -177,4 +177,3 @@ let rec run_tests: List<Test> -> Unit = fn tests ->
       let () = run_test test in
       run_tests rest
 
-let () = run_tests tests
