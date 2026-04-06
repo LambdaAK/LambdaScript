@@ -6,6 +6,15 @@ let is_forge_written_var (v : string) : bool =
   && String.sub v 0 9 = "$written("
   && String.ends_with ~suffix:")" v
 
+(** Heads like [t123] from [fresh_type_var] used as [TCtorApp] heads before
+    pretty-printing — same class as solver metavariables in [Typecheck]. *)
+let is_solver_tctor_head_name (w : string) : bool =
+  String.length w >= 2
+  && w.[0] = 't'
+  &&
+  let rest = String.sub w 1 (String.length w - 1) in
+  rest <> "" && String.for_all (fun c -> c >= '0' && c <= '9') rest
+
 (** Type variables that stand for the class dictionary slot (e.g. [f] in
     [Functor f => ...]) should keep their source name; other [$written(...)]
     vars are still canonicalized to [a], [b], ... *)
@@ -136,7 +145,10 @@ let fix_c_type (ct : c_type) : c_type =
         walk_mono t2
     | VectorType ts -> List.iter walk_mono ts
     | CListType e -> walk_mono e
-    | CTypeApp (_, args) | TCtorApp (_, args) -> List.iter walk_mono args
+    | CTypeApp (_, args) -> List.iter walk_mono args
+    | TCtorApp (w, args) ->
+        if is_solver_tctor_head_name w then add w;
+        List.iter walk_mono args
     | FixedPoint (_, body) -> walk_mono body
     | RecordType fields -> List.iter (fun (_, t) -> walk_mono t) fields
     | IntType
@@ -174,7 +186,11 @@ let fix_c_type (ct : c_type) : c_type =
     | CListType e -> CListType (apply_mono e)
     | TypeName v -> TypeName v
     | CTypeApp (name, args) -> CTypeApp (name, List.map apply_mono args)
-    | TCtorApp (w, args) -> TCtorApp (w, List.map apply_mono args)
+    | TCtorApp (w, args) ->
+        let w' =
+          try List.assoc w subs with Not_found -> w
+        in
+        TCtorApp (w', List.map apply_mono args)
     | FixedPoint (name, body) -> FixedPoint (name, apply_mono body)
     | RecordType fields ->
         RecordType (List.map (fun (name, t) -> (name, apply_mono t)) fields)

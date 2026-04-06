@@ -21,19 +21,10 @@ let rec scheme_has_class_constraint (t : c_type) : bool =
   | PolyType (_, inner) -> scheme_has_class_constraint inner
   | Mono _ -> false
 
-(** Solver metavariable heads [[t123]] from [fresh_type_var] — safe to rename
-    per use site. Rigid heads like [[$written(List)]] must stay. *)
-let is_solver_tctor_head_name (w : string) : bool =
-  String.length w >= 2
-  && w.[0] = 't'
-  &&
-  let rest = String.sub w 1 (String.length w - 1) in
-  rest <> "" && String.for_all (fun c -> c >= '0' && c <= '9') rest
-
 (** Names that appear as [TypeVar] in the method type or preds (before freshen),
-    plus [TCtorApp] heads that are solver metavariables (see
-    {!is_solver_tctor_head_name}). Rigid heads like [$written(List)] stay
-    unchanged. *)
+    plus [TCtorApp] heads that are solver metavariables ([t123]-style heads from
+    [Typefixer.is_solver_tctor_head_name]). Rigid heads like [$written(List)]
+    stay unchanged. *)
 let flex_tyvar_names_in_method (m : mono_type) (preds : class_equations) :
     string list =
   let acc = ref [] in

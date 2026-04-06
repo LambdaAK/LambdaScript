@@ -23,4 +23,21 @@ let my_tree = Node (1, Node (2, Leaf, Leaf), Node (5, Leaf, Leaf))
 
 let flattened = flatten_tree my_tree
 
-let x = 1
+let x = 1 
+
+let f x = x
+
+let g x y = x
+
+let map func l =
+  case l do
+    | [] -> []
+    | h :: t -> func h :: map func t
+
+let rec is_even n =
+  if n == 0 then true
+  else is_odd (n - 1)
+
+and is_odd n =
+  if n == 0 then false
+  else is_even (n - 1)

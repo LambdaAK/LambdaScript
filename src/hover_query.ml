@@ -5,6 +5,15 @@ open Typecheck
 open Build_env
 open Cexpr
 open Ceval
+open Typefixer
+
+(** Pretty-print for IDE hover: rename solver metavariables ([t123], [TCtorApp]
+    heads) to [a], [b], … like the rest of the typechecker UI. *)
+let hover_string_of_c_type (ct : c_type) : string =
+  C_to_string.string_of_c_type (fix_c_type ct)
+
+let hover_string_of_mono (m : mono_type) : string =
+  hover_string_of_c_type (Mono m)
 
 let byte_offset_of_line_char (text : string) (line0 : int) (char0 : int) : int
     =
@@ -19,7 +28,7 @@ let byte_offset_of_line_char (text : string) (line0 : int) (char0 : int) : int
 let type_string_for_id (env : static_env) (type_env : type_env) (name : string)
     : string option =
   match Typecheck.type_of_c_expr env type_env (EId (name, None)) with
-  | Ok ct -> Some (C_to_string.string_of_c_type ct)
+  | Ok ct -> Some (hover_string_of_c_type ct)
   | Error _ -> None
 
 (** Synthetic dictionary dispatch ids from [Condense.internal_tc_id]; not real
@@ -96,7 +105,7 @@ let hover_arrow_dual (env : static_env) (type_env : type_env) (name : string)
       with
       | Ok arg_m, Ok res_m ->
           Some
-            (C_to_string.string_of_c_type (Mono (FunctionType (arg_m, res_m))))
+            (hover_string_of_mono (FunctionType (arg_m, res_m)))
       | _ -> None )
   | _ -> None
 
@@ -156,7 +165,7 @@ let type_string_from_rhs_pat (env : static_env) (type_env : type_env)
       match bind_static pat ct with
       | Some bs -> (
           match List.assoc_opt name bs with
-          | Some t -> Some (C_to_string.string_of_c_type t)
+          | Some t -> Some (hover_string_of_c_type t)
           | None -> None)
       | None -> None)
   | Error _ -> None
@@ -196,7 +205,7 @@ let type_for_switch_pattern_binder (env : static_env) (type_env : type_env)
                   match bind_static subpat (Mono payload_m) with
                   | Some bs -> (
                       match List.assoc_opt name bs with
-                      | Some t -> Some (C_to_string.string_of_c_type t)
+                      | Some t -> Some (hover_string_of_c_type t)
                       | None -> None)
                   | None -> None)
               | _ -> None)
@@ -205,7 +214,7 @@ let type_for_switch_pattern_binder (env : static_env) (type_env : type_env)
           match bind_static pat scrut_ct with
           | Some bs -> (
               match List.assoc_opt name bs with
-              | Some t -> Some (C_to_string.string_of_c_type t)
+              | Some t -> Some (hover_string_of_c_type t)
               | None -> None)
           | None -> None))
 
@@ -219,6 +228,34 @@ let try_switch_pat_hover (env : static_env) (type_env : type_env)
       else if not (cursor_on_lhs_of_rhs offset branch_e) then None
       else type_for_switch_pattern_binder env type_env scr pat name)
 
+(** List comprehension generator [pat <- ge]: element types come from [ge]'s list
+    type after inference. *)
+let type_string_from_list_comp_gen (env : static_env) (type_env : type_env)
+    (pat : c_pat) (ge : c_expr) (name : string) : string option =
+  match Typecheck.type_of_c_expr env type_env ge with
+  | Ok ct -> (
+      let m = Typecheck.instantiate ct in
+      match m with
+      | CListType elem -> (
+          match bind_static pat (Mono elem) with
+          | Some bs -> (
+              match List.assoc_opt name bs with
+              | Some t -> Some (hover_string_of_c_type t)
+              | None -> None)
+          | None -> None)
+      | _ -> None)
+  | Error _ -> None
+
+let try_list_comp_gen_pat_hover (env : static_env) (type_env : type_env)
+    (lex_id : string option) (offset : int) (pat : c_pat) (ge : c_expr) :
+    string option =
+  match lex_id with
+  | None -> None
+  | Some name -> (
+      if not (List.mem name (names_bound_in_pat pat)) then None
+      else if not (cursor_on_lhs_of_rhs offset ge) then None
+      else type_string_from_list_comp_gen env type_env pat ge name)
+
 let try_efunction_param_hover (env : static_env) (type_env : type_env)
     (lex_id : string option) (offset : int) (pat : c_pat) (ann : c_type option)
     (body : c_expr) : string option =
@@ -231,12 +268,12 @@ let try_efunction_param_hover (env : static_env) (type_env : type_env)
         match Typecheck.type_of_c_expr env type_env (EFunction (pat, ann, body)) with
         | Ok ct -> (
             let m = Typecheck.instantiate ct in
-            match (pat, m) with
-            | CIdPat _, FunctionType (dom, _) -> (
+            match m with
+            | FunctionType (dom, _) -> (
                 match bind_static pat (Mono dom) with
                 | Some bs -> (
                     match List.assoc_opt name bs with
-                    | Some t -> Some (C_to_string.string_of_c_type t)
+                    | Some t -> Some (hover_string_of_c_type t)
                     | None -> None)
                 | None -> None)
             | _ -> None)
@@ -386,8 +423,8 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
               match Typecheck.type_of_c_expr env type_env (EFunction (pat, ann, body)) with
               | Ok ct -> (
                   let m = Typecheck.instantiate ct in
-                  match (pat, m) with
-                  | CIdPat _, FunctionType (dom, _) -> (
+                  match m with
+                  | FunctionType (dom, _) -> (
                       match bind_static pat (Mono dom) with
                       | Some bindings ->
                           visit_expr (bindings @ env) type_env user_byte_lo lex_id offset body
@@ -473,12 +510,21 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
           match visit_expr env type_env user_byte_lo lex_id offset e0 with
           | Some _ as r -> r
           | None ->
-              List.fold_left
-                (fun acc (_, ge) ->
-                  match acc with
-                  | Some _ as r -> r
-                  | None -> visit_expr env type_env user_byte_lo lex_id offset ge)
-                None gens)
+              let rec walk_gens (env_acc : static_env) = function
+                | [] -> None
+                | (pat, ge) :: rest -> (
+                    match try_list_comp_gen_pat_hover env_acc type_env lex_id offset pat ge with
+                    | Some _ as r -> r
+                    | None -> (
+                        match visit_expr env_acc type_env user_byte_lo lex_id offset ge with
+                        | Some _ as r -> r
+                        | None ->
+                            let _tp, pat_env, _ =
+                              Typecheck.type_of_pat env_acc type_env pat
+                            in
+                            walk_gens (pat_env @ env_acc) rest))
+              in
+              walk_gens env gens)
       | EInt _ | EFloat _ | EBool _ | EString _ | EChar _ | EUnit | ENil -> None
       | _ -> None ) )
 

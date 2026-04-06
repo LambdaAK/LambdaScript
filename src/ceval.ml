@@ -244,7 +244,21 @@ and bind_static (p : c_pat) (t : c_type) : (string * c_type) list option =
           (* For now, use a fresh type variable for the payload *)
           bind_static payload_pat (Mono (TypeVar "$payload"))
       | _ -> None)
-  | CIntPat _ | CBoolPat _ | CNilPat | CConsPat _ | CStringPat _ -> None
+  | CNilPat -> (
+      match get_mono_type t with
+      | Some (CListType _) -> Some []
+      | _ -> None)
+  | CConsPat (p1, p2) -> (
+      match get_mono_type t with
+      | Some (CListType elem) -> (
+          match bind_static p1 (Mono elem) with
+          | None -> None
+          | Some b1 -> (
+              match bind_static p2 (Mono (CListType elem)) with
+              | None -> None
+              | Some b2 -> Some (b1 @ b2)))
+      | _ -> None)
+  | CIntPat _ | CBoolPat _ | CStringPat _ -> None
 
 (** Best-effort reification of a runtime value into a [mono_type] for typeclass
     dictionary lookup (scalars, lists, vectors, records of supported shapes). *)
