@@ -16,6 +16,27 @@ let id_user_byte_min : int option ref = ref None
     mismatch — that would consume user [Id] tokens out of order. *)
 let user_region_byte_lo : int option ref = ref None
 
+(** Number of top-level defns that belong to the prelude (same as
+    [Prelude.defn_count_when_parsed] when prepended). While condensing defn
+    index [< n], we must never [pop] or recover an [Id] whose span lies in the
+    user region — otherwise synthesized or late prelude condensation can steal
+    the user's tokens (wrong hovers, e.g. [x] typed as [Ordering]). *)
+let prelude_defn_cap_count : int option ref = ref None
+
+(** Index of the top-level definition currently being condensed (set in
+    [before_top_level_defn]). *)
+let current_processing_defn_idx : int ref = ref 0
+
+let in_prelude_id_phase () : bool =
+  match !prelude_defn_cap_count with
+  | None -> false
+  | Some cap -> !current_processing_defn_idx < cap
+
+let id_byte_in_user_region (a : int) : bool =
+  match !user_region_byte_lo with
+  | Some lo -> a >= lo
+  | None -> false
+
 let set_id_queue_from_tokens (tokens : Lex.token list) : unit =
   id_user_byte_min := None;
   user_region_byte_lo := None;
@@ -31,7 +52,8 @@ let set_id_queue_from_tokens (tokens : Lex.token list) : unit =
 let clear_id_queue () =
   id_queue := None;
   id_user_byte_min := None;
-  user_region_byte_lo := None
+  user_region_byte_lo := None;
+  prelude_defn_cap_count := None
 
 let set_id_user_byte_min_lo (lo : int option) : unit = id_user_byte_min := lo
 
@@ -47,14 +69,16 @@ let pop_id_pos (expected : string) : (int * int) option =
         else
           let s, a, b = Queue.peek q in
           if not (String.equal s expected) then (
-            match !user_region_byte_lo with
-            | Some lo
-              when (match !id_user_byte_min with None -> true | Some _ -> false)
-                   && a >= lo ->
-                None
-            | _ ->
-                ignore (Queue.pop q);
-                loop ())
+            if in_prelude_id_phase () && id_byte_in_user_region a then None
+            else
+              match !user_region_byte_lo with
+              | Some lo
+                when (match !id_user_byte_min with None -> true | Some _ -> false)
+                     && a >= lo ->
+                  None
+              | _ ->
+                  ignore (Queue.pop q);
+                  loop ())
           else if a < min_b then (
             ignore (Queue.pop q);
             loop ())
@@ -66,6 +90,7 @@ let pop_id_pos (expected : string) : (int * int) option =
                 true
             | _ -> false
           then None
+          else if in_prelude_id_phase () && id_byte_in_user_region a then None
           else (
             ignore (Queue.pop q);
             Some (a, b))
@@ -87,7 +112,10 @@ let take_id_pos_after_byte (expected : string) (min_b : int) :
           None)
         else
           let s, a, b = Queue.pop q in
-          if String.equal s expected && a >= min_b then (
+          if
+            String.equal s expected && a >= min_b
+            && (not (in_prelude_id_phase ()) || not (id_byte_in_user_region a))
+          then (
             List.iter (fun item -> Queue.add item q) (List.rev !buf);
             Some (a, b))
           else (
@@ -740,8 +768,13 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
     ( match user_id_byte_min_after_prelude with
     | Some (_, d) -> Some d
     | None -> None );
+  prelude_defn_cap_count :=
+    ( match user_id_byte_min_after_prelude with
+    | Some (n, _) -> Some n
+    | None -> None );
   let defn_idx = ref 0 in
   let before_top_level_defn () =
+    current_processing_defn_idx := !defn_idx;
     match user_id_byte_min_after_prelude with
     | Some (prelude_n, delta) when !defn_idx = prelude_n ->
         id_user_byte_min := Some delta

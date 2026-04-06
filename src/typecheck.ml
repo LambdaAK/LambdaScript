@@ -2228,12 +2228,17 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
 
       let all_equations = all_equations @ annotation_equations in
 
-      (* Generalize all the types *)
+      (* Generalize all the types. Use [rec_env] (not outer [env]) so the
+         recursive placeholders and their type variables are not mistaken for
+         free variables to quantify (e.g. [is_odd : Int -> a] instead of
+         [Int -> Bool]). *)
       let- generalized_types =
         let rec generalize_all acc = function
           | [] -> return (List.rev acc)
           | (body_type, _) :: rest ->
-              let- gen_type = generalize all_equations env type_env body_type in
+              let- gen_type =
+                generalize all_equations rec_env type_env body_type
+              in
               generalize_all (gen_type :: acc) rest
         in
         generalize_all [] all_body_results

@@ -11,3 +11,9 @@
  (deps (source_tree compiler_cases))
  (action
   (chdir %{workspace_root} (run %{test}))))
+
+(test
+ (name hover_ident_tests)
+ (modules hover_ident_tests)
+ (libraries Language ounit2)
+ (action (chdir %{workspace_root} (run %{test}))))

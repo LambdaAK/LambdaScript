@@ -92,6 +92,47 @@ let rec min_lo_spanned_id_byte (e : c_expr) : int option =
   | EFieldAccess (e0, _) -> min_lo_spanned_id_byte e0
   | EInt _ | EFloat _ | EBool _ | EString _ | EChar _ | EUnit | ENil -> None
 
+(** Any [EId] subexpression (spanned or not). Used with [min_lo_spanned_id_byte]:
+    if the RHS has identifiers but none carry spans, [cursor_on_lhs_of_rhs] must
+    not assume the cursor is on the lambda parameter for every offset. *)
+let rec expr_contains_eid (e : c_expr) : bool =
+  match e with
+  | EId _ -> true
+  | EApp (a, b) -> expr_contains_eid a || expr_contains_eid b
+  | EBop (_, a, b) -> expr_contains_eid a || expr_contains_eid b
+  | ETernary (a, b, c) ->
+      expr_contains_eid a || expr_contains_eid b || expr_contains_eid c
+  | EFunction (_, _, body) -> expr_contains_eid body
+  | EBind (_, _, e1, e2, _) | EBindRec (_, _, e1, e2, _) ->
+      expr_contains_eid e1 || expr_contains_eid e2
+  | EBindMutRec (bs, body) ->
+      List.exists (fun (_, _, e1, _, _) -> expr_contains_eid e1) bs
+      || expr_contains_eid body
+  | EBlock parts ->
+      List.exists
+        (function Expr ex -> expr_contains_eid ex | Defn _ -> false)
+        parts
+  | ESwitch (scr, brs) ->
+      expr_contains_eid scr
+      || List.exists (fun (_, be) -> expr_contains_eid be) brs
+  | EVector es -> List.exists expr_contains_eid es
+  | EListEnumeration (a, b) -> expr_contains_eid a || expr_contains_eid b
+  | EListComprehension (e0, gens) ->
+      expr_contains_eid e0
+      || List.exists (fun (_, ge) -> expr_contains_eid ge) gens
+  | ERecordLit fs -> List.exists (fun (_, ex) -> expr_contains_eid ex) fs
+  | ERecordUpdate (base, upd) ->
+      expr_contains_eid base || List.exists (fun (_, ex) -> expr_contains_eid ex) upd
+  | EFieldAccess (e0, _) -> expr_contains_eid e0
+  | EInt _ | EFloat _ | EBool _ | EString _ | EChar _ | EUnit | ENil -> false
+
+(** Like [cursor_on_lhs_of_rhs] but conservative when the body has [EId] nodes
+    with no spans (otherwise any cursor position is wrongly "left of RHS"). *)
+let cursor_on_lambda_param_site (offset : int) (rhs : c_expr) : bool =
+  match min_lo_spanned_id_byte rhs with
+  | Some m -> offset < m
+  | None -> not (expr_contains_eid rhs)
+
 let hover_arrow_dual (env : static_env) (type_env : type_env) (name : string)
     (e2 : c_expr) : string option =
   match
@@ -126,14 +167,36 @@ let id_name_at_byte_offset (tokens : Lex.token list) (offset : int) : string opt
       else None)
     tokens
 
-let try_id_hover (env : static_env) (type_env : type_env) (user_byte_lo : int)
-    (lex_id : string option) (offset : int) (e : c_expr) : string option =
+(** Lexer [Id] token that contains [offset], if any. *)
+let lexer_id_covering_offset (tokens : Lex.token list) (offset : int) :
+    (string * int * int) option =
+  List.find_map
+    (fun (t : Lex.token) ->
+      if t.byte_start <= offset && offset < t.byte_end then
+        match t.token_type with Lex.Id s -> Some (s, t.byte_start, t.byte_end) | _ -> None
+      else None)
+    tokens
+
+(** Reject [EId] spans from the condensation id-queue when they disagree with
+    the actual [Id] token at the cursor (prelude/user queue skew would otherwise
+    match a prelude binder at a user position). *)
+let spans_agree_at_cursor (tokens : Lex.token list) (offset : int) (name : string)
+    ((a, b) : int * int) : bool =
+  match lexer_id_covering_offset tokens offset with
+  | Some (n, ta, tb) -> n = name && ta = a && tb = b
+  | None -> false
+
+let try_id_hover (full_tokens : Lex.token list) (env : static_env)
+    (type_env : type_env) (user_byte_lo : int) (lex_id : string option)
+    (offset : int) (e : c_expr) : string option =
   match e with
   | EId (name, Some (a, b)) -> (
       match lex_id with
       | Some s when s = name ->
-          if cursor_in_id_span_ok offset user_byte_lo (a, b) then
-            type_string_for_id env type_env name
+          if
+            cursor_in_id_span_ok offset user_byte_lo (a, b)
+            && spans_agree_at_cursor full_tokens offset name (a, b)
+          then type_string_for_id env type_env name
           else None
       | _ -> None)
   | EId _ -> None
@@ -188,7 +251,10 @@ let try_defn_pat_hover (env : static_env) (type_env : type_env)
   | Some name -> (
       if not (List.mem name (names_bound_in_pat pat)) then None
       else if not (cursor_on_lhs_of_rhs offset body) then None
-      else type_string_for_id env type_env name)
+      else
+        match type_string_from_rhs_pat env type_env pat body name with
+        | Some _ as r -> r
+        | None -> type_string_for_id env type_env name)
 
 let type_for_switch_pattern_binder (env : static_env) (type_env : type_env)
     (scr : c_expr) (pat : c_pat) (name : string) : string option =
@@ -263,7 +329,7 @@ let try_efunction_param_hover (env : static_env) (type_env : type_env)
   | None -> None
   | Some name -> (
       if not (List.mem name (names_bound_in_pat pat)) then None
-      else if not (cursor_on_lhs_of_rhs offset body) then None
+      else if not (cursor_on_lambda_param_site offset body) then None
       else
         match Typecheck.type_of_c_expr env type_env (EFunction (pat, ann, body)) with
         | Ok ct -> (
@@ -280,7 +346,8 @@ let try_efunction_param_hover (env : static_env) (type_env : type_env)
         | Error _ -> None)
 
 let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
-    (lex_id : string option) (offset : int) (e : c_expr) : string option =
+    (lex_id : string option) (offset : int) (full_tokens : Lex.token list)
+    (e : c_expr) : string option =
   (* Handle [EApp (EId _, _)] before [try_id_hover]: otherwise a generic
      [EApp (e1, e2)] visit visits the callee [EId] first and
      [type_string_for_id] reports the unconstrained scheme (e.g. [a -> a] for
@@ -288,7 +355,7 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
   match e with
   | EApp (EId (name, pos_opt), e2) -> (
       if hover_skip_internal_tc_app_name name then
-        visit_expr env type_env user_byte_lo lex_id offset e2
+        visit_expr env type_env user_byte_lo lex_id offset full_tokens e2
       else
         let on_fun =
           match pos_opt with
@@ -296,6 +363,7 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
               lo <= offset && offset < hi
               && cursor_in_id_span_ok offset user_byte_lo (lo, hi)
               && (match lex_id with Some s -> s = name | None -> false)
+              && spans_agree_at_cursor full_tokens offset name (lo, hi)
           | None -> false
         in
         if on_fun then hover_arrow_dual env type_env name e2
@@ -305,7 +373,7 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
               match lex_id with
               | Some s when s = name -> hover_arrow_dual env type_env name e2
               | _ -> (
-                  match visit_expr env type_env user_byte_lo lex_id offset e2 with
+                  match visit_expr env type_env user_byte_lo lex_id offset full_tokens e2 with
                   | Some _ as r -> r
                   | None -> (
                       match pos_opt with
@@ -316,7 +384,7 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
                           | _ -> None)
                       | Some _ -> None ) ) )
           | _ -> (
-              match visit_expr env type_env user_byte_lo lex_id offset e2 with
+              match visit_expr env type_env user_byte_lo lex_id offset full_tokens e2 with
               | Some _ as r -> r
               | None -> (
                   match pos_opt with
@@ -326,28 +394,29 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
                       | _ -> None)
                   | Some _ -> None ) ) )
   | _ -> (
-      match try_id_hover env type_env user_byte_lo lex_id offset e with
+      match try_id_hover full_tokens env type_env user_byte_lo lex_id offset e with
       | Some _ as r -> r
       | None -> (
           match e with
           | EApp (e1, e2) -> (
-              match visit_expr env type_env user_byte_lo lex_id offset e1 with
+              match visit_expr env type_env user_byte_lo lex_id offset full_tokens e1 with
               | Some _ as r -> r
-              | None -> visit_expr env type_env user_byte_lo lex_id offset e2)
+              | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens e2)
       | EBind (pat, _, e1, e2, _) -> (
           match try_rhs_pat_hover env type_env lex_id offset pat e1 with
           | Some _ as r -> r
           | None -> (
-              match visit_expr env type_env user_byte_lo lex_id offset e1 with
+              match visit_expr env type_env user_byte_lo lex_id offset full_tokens e1 with
               | Some _ as r -> r
               | None -> (
                   match Typecheck.type_of_c_expr env type_env e1 with
                   | Ok ct -> (
                       match bind_static pat ct with
                       | Some bindings ->
-                          visit_expr (bindings @ env) type_env user_byte_lo lex_id offset e2
-                      | None -> visit_expr env type_env user_byte_lo lex_id offset e2)
-                  | Error _ -> visit_expr env type_env user_byte_lo lex_id offset e2)))
+                          visit_expr (bindings @ env) type_env user_byte_lo lex_id offset
+                            full_tokens e2
+                      | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens e2)
+                  | Error _ -> visit_expr env type_env user_byte_lo lex_id offset full_tokens e2)))
       | EBindRec (pat, _, e1, e2, _) -> (
           match pat with
           | CIdPat id ->
@@ -356,17 +425,19 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
               ( match try_rhs_pat_hover rec_env type_env lex_id offset pat e1 with
               | Some _ as r -> r
               | None -> (
-                  match visit_expr rec_env type_env user_byte_lo lex_id offset e1 with
+                  match visit_expr rec_env type_env user_byte_lo lex_id offset full_tokens e1
+                  with
                   | Some _ as r -> r
                   | None -> (
                       match Typecheck.type_of_c_expr rec_env type_env e1 with
                       | Ok gen_ct ->
-                          visit_expr ((id, gen_ct) :: env) type_env user_byte_lo lex_id offset e2
-                      | Error _ -> visit_expr env type_env user_byte_lo lex_id offset e2 ) ) )
+                          visit_expr ((id, gen_ct) :: env) type_env user_byte_lo lex_id offset
+                            full_tokens e2
+                      | Error _ -> visit_expr env type_env user_byte_lo lex_id offset full_tokens e2 ) ) )
           | _ -> (
-              match visit_expr env type_env user_byte_lo lex_id offset e1 with
+              match visit_expr env type_env user_byte_lo lex_id offset full_tokens e1 with
               | Some _ as r -> r
-              | None -> visit_expr env type_env user_byte_lo lex_id offset e2))
+              | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens e2))
       | EBindMutRec (bindings, body) -> (
           let ids_opt =
             List.fold_left
@@ -378,7 +449,7 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
               (Some []) bindings
           in
           match ids_opt with
-          | None -> visit_expr env type_env user_byte_lo lex_id offset body
+          | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens body
           | Some function_ids ->
               let function_ids = List.rev function_ids in
               let fresh_types =
@@ -397,7 +468,9 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
                     | None -> (
                         match try_rhs_pat_hover mut_rec_env type_env lex_id offset pat e1 with
                         | Some _ as r -> r
-                        | None -> visit_expr mut_rec_env type_env user_byte_lo lex_id offset e1))
+                        | None ->
+                            visit_expr mut_rec_env type_env user_byte_lo lex_id offset full_tokens
+                              e1))
                   None bindings
               with
               | Some _ as r -> r
@@ -415,7 +488,7 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
                       (fun acc id gt -> (id, gt) :: acc)
                       env function_ids generalized_types
                   in
-                  visit_expr body_env type_env user_byte_lo lex_id offset body))
+                  visit_expr body_env type_env user_byte_lo lex_id offset full_tokens body))
       | EFunction (pat, ann, body) -> (
           match try_efunction_param_hover env type_env lex_id offset pat ann body with
           | Some _ as r -> r
@@ -427,23 +500,24 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
                   | FunctionType (dom, _) -> (
                       match bind_static pat (Mono dom) with
                       | Some bindings ->
-                          visit_expr (bindings @ env) type_env user_byte_lo lex_id offset body
-                      | None -> visit_expr env type_env user_byte_lo lex_id offset body)
-                  | _ -> visit_expr env type_env user_byte_lo lex_id offset body)
-              | Error _ -> visit_expr env type_env user_byte_lo lex_id offset body))
+                          visit_expr (bindings @ env) type_env user_byte_lo lex_id offset
+                            full_tokens body
+                      | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens body)
+                  | _ -> visit_expr env type_env user_byte_lo lex_id offset full_tokens body)
+              | Error _ -> visit_expr env type_env user_byte_lo lex_id offset full_tokens body))
       | ETernary (a, b, c) -> (
-          match visit_expr env type_env user_byte_lo lex_id offset a with
+          match visit_expr env type_env user_byte_lo lex_id offset full_tokens a with
           | Some _ as r -> r
           | None -> (
-              match visit_expr env type_env user_byte_lo lex_id offset b with
+              match visit_expr env type_env user_byte_lo lex_id offset full_tokens b with
               | Some _ as r -> r
-              | None -> visit_expr env type_env user_byte_lo lex_id offset c))
+              | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens c))
       | EBop (_, a, b) -> (
-          match visit_expr env type_env user_byte_lo lex_id offset a with
+          match visit_expr env type_env user_byte_lo lex_id offset full_tokens a with
           | Some _ as r -> r
-          | None -> visit_expr env type_env user_byte_lo lex_id offset b)
+          | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens b)
       | ESwitch (scr, branches) -> (
-          match visit_expr env type_env user_byte_lo lex_id offset scr with
+          match visit_expr env type_env user_byte_lo lex_id offset full_tokens scr with
           | Some _ as r -> r
           | None ->
               List.fold_left
@@ -458,20 +532,21 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
                       match try_switch_pat_hover env type_env lex_id offset scr pat be with
                       | Some _ as r -> r
                       | None ->
-                          visit_expr env_in_branch type_env user_byte_lo lex_id offset be))
+                          visit_expr env_in_branch type_env user_byte_lo lex_id offset full_tokens
+                            be))
                 None branches)
       | EVector es ->
           List.fold_left
             (fun acc e ->
               match acc with
               | Some _ as r -> r
-              | None -> visit_expr env type_env user_byte_lo lex_id offset e)
+              | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens e)
             None es
       | EBlock parts ->
           let rec walk_block (benv : static_env) = function
             | [] -> None
             | Expr ex :: rest -> (
-                match visit_expr benv type_env user_byte_lo lex_id offset ex with
+                match visit_expr benv type_env user_byte_lo lex_id offset full_tokens ex with
                 | Some _ as r -> r
                 | None -> walk_block benv rest)
             | Defn d :: rest -> (
@@ -479,7 +554,9 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
                 | Error _ -> None
                 | Ok (nb, _, _) ->
                     let benv' = nb @ benv in
-                    match hover_in_defn benv' type_env user_byte_lo lex_id offset d with
+                    match
+                      hover_in_defn benv' type_env user_byte_lo lex_id offset full_tokens d
+                    with
                     | Some _ as r -> r
                     | None -> walk_block benv' rest)
           in
@@ -489,25 +566,25 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
             (fun acc (_, ex) ->
               match acc with
               | Some _ as r -> r
-              | None -> visit_expr env type_env user_byte_lo lex_id offset ex)
+              | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens ex)
             None fs
       | ERecordUpdate (base, upd) -> (
-          match visit_expr env type_env user_byte_lo lex_id offset base with
+          match visit_expr env type_env user_byte_lo lex_id offset full_tokens base with
           | Some _ as r -> r
           | None ->
               List.fold_left
                 (fun acc (_, ex) ->
                   match acc with
                   | Some _ as r -> r
-                  | None -> visit_expr env type_env user_byte_lo lex_id offset ex)
+                  | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens ex)
                 None upd)
-      | EFieldAccess (e0, _) -> visit_expr env type_env user_byte_lo lex_id offset e0
+      | EFieldAccess (e0, _) -> visit_expr env type_env user_byte_lo lex_id offset full_tokens e0
       | EListEnumeration (a, b) -> (
-          match visit_expr env type_env user_byte_lo lex_id offset a with
+          match visit_expr env type_env user_byte_lo lex_id offset full_tokens a with
           | Some _ as r -> r
-          | None -> visit_expr env type_env user_byte_lo lex_id offset b)
+          | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens b)
       | EListComprehension (e0, gens) -> (
-          match visit_expr env type_env user_byte_lo lex_id offset e0 with
+          match visit_expr env type_env user_byte_lo lex_id offset full_tokens e0 with
           | Some _ as r -> r
           | None ->
               let rec walk_gens (env_acc : static_env) = function
@@ -516,7 +593,8 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
                     match try_list_comp_gen_pat_hover env_acc type_env lex_id offset pat ge with
                     | Some _ as r -> r
                     | None -> (
-                        match visit_expr env_acc type_env user_byte_lo lex_id offset ge with
+                        match visit_expr env_acc type_env user_byte_lo lex_id offset full_tokens ge
+                        with
                         | Some _ as r -> r
                         | None ->
                             let _tp, pat_env, _ =
@@ -529,12 +607,13 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
       | _ -> None ) )
 
 and hover_in_defn (env : static_env) (type_env : type_env) (user_byte_lo : int)
-    (lex_id : string option) (offset : int) (d : c_defn) : string option =
+    (lex_id : string option) (offset : int) (full_tokens : Lex.token list)
+    (d : c_defn) : string option =
   match d with
   | CDefn (pat, _, _, body, _, _) -> (
       match try_defn_pat_hover env type_env lex_id offset pat body with
       | Some _ as r -> r
-      | None -> visit_expr env type_env user_byte_lo lex_id offset body)
+      | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens body)
   | CDefnRec (pat, _, _, body, _, _) ->
       let pattern_type, pattern_env, _ =
         Typecheck.type_of_pat env type_env pat
@@ -548,33 +627,46 @@ and hover_in_defn (env : static_env) (type_env : type_env) (user_byte_lo : int)
       in
       ( match try_defn_pat_hover env type_env lex_id offset pat body with
       | Some _ as r -> r
-      | None -> visit_expr rec_env type_env user_byte_lo lex_id offset body )
+      | None -> visit_expr rec_env type_env user_byte_lo lex_id offset full_tokens body )
   | CDefnMutRec defs ->
-      let patterns_and_fresh_types =
-        List.map
-          (fun (pat, _, _, _, _, _) ->
-            let _pattern_type, pattern_env, _ =
-              Typecheck.type_of_pat env type_env pat
+      (* Pattern hovers for every binding first. Do not interleave [visit_expr]
+         on earlier bodies with [rec_env] (unresolved schemes): a cursor on
+         [and is_odd] can wrongly match [is_odd] inside [is_even]'s body when
+         id-queue spans align with the definition token, yielding e.g.
+         [Int -> a] instead of [Int -> Bool]. *)
+      ( match
+          List.find_map
+            (fun (pat, _, _, body, _, _) ->
+              try_defn_pat_hover env type_env lex_id offset pat body)
+            defs
+        with
+        | Some _ as r -> r
+        | None -> (
+            let patterns_and_fresh_types =
+              List.map
+                (fun (pat, _, _, _, _, _) ->
+                  let _pattern_type, pattern_env, _ =
+                    Typecheck.type_of_pat env type_env pat
+                  in
+                  let fresh_type = fresh_type_var () in
+                  (pat, pattern_env, fresh_type))
+                defs
             in
-            let fresh_type = fresh_type_var () in
-            (pat, pattern_env, fresh_type))
-          defs
-      in
-      let rec_env =
-        List.fold_left
-          (fun acc_env (_, pattern_env, fresh_type) ->
-            List.map (fun (id, _) -> (id, Mono fresh_type)) pattern_env @ acc_env)
-          env patterns_and_fresh_types
-      in
-      List.fold_left
-        (fun acc (pat, _, _, body, _, _) ->
-          match acc with
-          | Some _ as r -> r
-          | None -> (
-              match try_defn_pat_hover env type_env lex_id offset pat body with
-              | Some _ as r -> r
-              | None -> visit_expr rec_env type_env user_byte_lo lex_id offset body))
-        None defs
+            let rec_env =
+              List.fold_left
+                (fun acc_env (_, pattern_env, fresh_type) ->
+                  List.map (fun (id, _) -> (id, Mono fresh_type)) pattern_env
+                  @ acc_env)
+                env patterns_and_fresh_types
+            in
+            List.fold_left
+              (fun acc (_, _, _, body, _, _) ->
+                match acc with
+                | Some _ as r -> r
+                | None ->
+                    visit_expr rec_env type_env user_byte_lo lex_id offset full_tokens
+                      body)
+              None defs))
   | CClassDecl _ | CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _
     ->
       None
@@ -591,7 +683,8 @@ let rec typecheck_defns_hover static_env type_env ctor_env defns :
       | Error e -> Error e)
 
 let rec walk_defns (acc_env : static_env) (acc_te : type_env) (user_byte_lo : int)
-    (lex_id : string option) (offset : int) (defs : c_defn list) : string option =
+    (lex_id : string option) (offset : int) (full_tokens : Lex.token list)
+    (defs : c_defn list) : string option =
   match defs with
   | [] -> None
   | d :: rest -> (
@@ -599,9 +692,13 @@ let rec walk_defns (acc_env : static_env) (acc_te : type_env) (user_byte_lo : in
       | Error _ -> None
       | Ok (nb, _, _) ->
           let env_for_hover = nb @ acc_env in
-          ( match hover_in_defn env_for_hover acc_te user_byte_lo lex_id offset d with
-          | Some _ as r -> r
-          | None -> walk_defns env_for_hover acc_te user_byte_lo lex_id offset rest ))
+          ( match
+              hover_in_defn env_for_hover acc_te user_byte_lo lex_id offset full_tokens d
+            with
+            | Some _ as r -> r
+            | None ->
+                walk_defns env_for_hover acc_te user_byte_lo lex_id offset full_tokens rest
+            ))
 
 let hover_type_for_identifier ~(prelude : bool) ~(src_path : string)
     ~(source : string) ~(line0 : int) ~(char0 : int) : (string, string) result =
@@ -623,11 +720,17 @@ let hover_type_for_identifier ~(prelude : bool) ~(src_path : string)
       clear_id_queue ();
       Error "parse failed: extra tokens"
   | Some (program, _) -> (
+      let prelude_n =
+        if delta <= 0 then 0
+        else
+          let frag = String.sub full_source 0 delta in
+          let n = Prelude.defn_count_for_source_fragment frag in
+          if n > 0 then n else Prelude.defn_count_when_parsed ()
+      in
       let condensed =
         condense_program
           ?user_id_byte_min_after_prelude:
-            (if delta = 0 then None
-             else Some (Prelude.defn_count_when_parsed (), delta))
+            (if delta = 0 then None else Some (prelude_n, delta))
           program
       in
       clear_id_queue ();
@@ -637,7 +740,9 @@ let hover_type_for_identifier ~(prelude : bool) ~(src_path : string)
       match typecheck_defns_hover static_env type_env ctor_env condensed with
       | Error e -> Error (string_of_type_check_error e)
       | Ok (_env, te, _) -> (
-          match walk_defns static_env te user_byte_lo lex_id_at_offset offset condensed with
+          match
+            walk_defns static_env te user_byte_lo lex_id_at_offset offset full_tokens condensed
+          with
           | Some s -> Ok s
           | None -> Error "no typed identifier at this position"
           ))

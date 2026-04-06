@@ -25,6 +25,8 @@ let flattened = flatten_tree my_tree
 
 let x = 1 
 
+let ss = 2
+
 let f x = x
 
 let g x y = x

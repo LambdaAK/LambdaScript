@@ -77,11 +77,17 @@ let compile ?(quiet = false) ?(prelude = true) (src_path : string)
       Condense.clear_id_queue ();
       Error "Parsing failed: extra tokens after program"
   | Some (program, _) -> (
+      let prelude_n =
+        if delta <= 0 then 0
+        else
+          let frag = String.sub file_contents 0 delta in
+          let n = Prelude.defn_count_for_source_fragment frag in
+          if n > 0 then n else Prelude.defn_count_when_parsed ()
+      in
       let condensed_program =
         condense_program
           ?user_id_byte_min_after_prelude:
-            (if delta = 0 then None
-             else Some (Prelude.defn_count_when_parsed (), delta))
+            (if delta = 0 then None else Some (prelude_n, delta))
           program
       in
       Condense.clear_id_queue ();

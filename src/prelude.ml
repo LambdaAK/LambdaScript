@@ -51,16 +51,23 @@ let prepend_to_source ?(enabled = true) ~(src_path : string) (source : string) :
     let p = contents () in
     if p = "" then source else p ^ "\n" ^ source
 
+(** Number of top-level definitions when [frag] parses as a program (used for
+    the exact [full_source] prefix [String.sub full_source 0 delta] so the
+    prelude boundary matches lexer byte positions in that buffer — avoids a
+    second read of the prelude file disagreeing with [prepend_to_source]. *)
+let defn_count_for_source_fragment (frag : string) : int =
+  if frag = "" then 0
+  else
+    let open Lex in
+    let open Parser.ProgramParser in
+    let tokens = lex (frag |> String.to_seq |> List.of_seq) in
+    match program_parser (List.map (fun t -> t.token_type) tokens) with
+    | Some (prog, _) -> List.length prog
+    | None -> 0
+
 (** Number of top-level definitions when the prelude text is parsed alone (with
     the same [p ^ "\\n"] separator as [prepend_to_source]). Used to turn on
     user-region id spans after the prelude block in [condense_program]. *)
 let defn_count_when_parsed () : int =
   let p = contents () in
-  if p = "" then 0
-  else
-    let open Lex in
-    let open Parser.ProgramParser in
-    let tokens = lex (p ^ "\n" |> String.to_seq |> List.of_seq) in
-    match program_parser (List.map (fun t -> t.token_type) tokens) with
-    | Some (prog, _) -> List.length prog
-    | None -> 0
+  if p = "" then 0 else defn_count_for_source_fragment (p ^ "\n")
