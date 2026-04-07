@@ -6,14 +6,9 @@ let is_forge_written_var (v : string) : bool =
   && String.sub v 0 9 = "$written("
   && String.ends_with ~suffix:")" v
 
-(** Heads like [t123] from [fresh_type_var] used as [TCtorApp] heads before
-    pretty-printing — same class as solver metavariables in [Typecheck]. *)
-let is_solver_tctor_head_name (w : string) : bool =
-  String.length w >= 2
-  && w.[0] = 't'
-  &&
-  let rest = String.sub w 1 (String.length w - 1) in
-  rest <> "" && String.for_all (fun c -> c >= '0' && c <= '9') rest
+(** Heads like [t123] from {!Cexpr.fresh_type_var} — same predicate as
+    {!Cexpr.is_internal_metavar_name}. *)
+let is_solver_tctor_head_name = Cexpr.is_internal_metavar_name
 
 (** Type variables that stand for the class dictionary slot (e.g. [f] in
     [Functor f => ...]) should keep their source name; other [$written(...)]

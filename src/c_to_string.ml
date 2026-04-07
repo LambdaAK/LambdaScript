@@ -33,8 +33,56 @@ let rec string_of_mono_type : mono_type -> string = function
       in
       "{" ^ String.concat ", " field_strs ^ "}"
 
-let rec string_of_c_type (ct : c_type) : string =
-  let pretty_tv (v : string) : string =
+let quoted_tyvar_for_index (idx : int) : string =
+  let n = idx + 1 in
+  let rec aux n acc =
+    if n <= 0 then acc
+    else aux ((n - 1) / 26) (Char.chr (97 + ((n - 1) mod 26)) :: acc)
+  in
+  "'" ^ String.of_seq (List.to_seq (aux n []))
+
+let collect_internal_metavars_c_type (ct : c_type) : string list =
+  let acc = ref [] in
+  let add v =
+    if not (List.mem v !acc) then acc := !acc @ [ v ]
+  in
+  let rec walk_c c =
+    match c with
+    | Mono m -> walk_m m
+    | PolyType (v, body) ->
+        if Cexpr.is_internal_metavar_name v then add v;
+        walk_c body
+    | Constrained (ps, body) ->
+        List.iter (fun (_, m) -> walk_m m) ps;
+        walk_c body
+  and walk_m m =
+    match m with
+    | TypeVar v ->
+        if Cexpr.is_internal_metavar_name v then add v
+    | FunctionType (t1, t2) ->
+        walk_m t1;
+        walk_m t2
+    | VectorType ts -> List.iter walk_m ts
+    | CListType t -> walk_m t
+    | CTypeApp (_, args) -> List.iter walk_m args
+    | TCtorApp (w, args) ->
+        if Cexpr.is_internal_metavar_name w then add w;
+        List.iter walk_m args
+    | FixedPoint (_, body) -> walk_m body
+    | RecordType fields -> List.iter (fun (_, t) -> walk_m t) fields
+    | IntType | FloatType | BoolType | StringType | CharType | UnitType
+    | TypeName _ ->
+        ()
+  in
+  walk_c ct;
+  !acc
+
+let string_of_c_type (ct : c_type) : string =
+  let ordered = collect_internal_metavars_c_type ct in
+  let rename =
+    List.mapi (fun i v -> (v, quoted_tyvar_for_index i)) ordered
+  in
+  let pretty_written (v : string) : string =
     if
       String.length v > 9
       && String.sub v 0 9 = "$written("
@@ -42,8 +90,19 @@ let rec string_of_c_type (ct : c_type) : string =
     then String.sub v 9 (String.length v - 10)
     else v
   in
+  let format_tv (v : string) : string =
+    if Cexpr.is_internal_metavar_name v then
+      try List.assoc v rename with Not_found -> pretty_written v
+    else
+      let w = pretty_written v in
+      if w <> "" && not (String.starts_with ~prefix:"'" w) then
+        match w.[0] with
+        | 'a'..'z' -> "'" ^ w
+        | _ -> w
+      else w
+  in
   let rec string_of_mono_for_display : mono_type -> string = function
-    | TypeVar v -> pretty_tv v
+    | TypeVar v -> format_tv v
     | FunctionType (t1, t2) ->
         let t1_str =
           match t1 with
@@ -61,7 +120,7 @@ let rec string_of_c_type (ct : c_type) : string =
           let args_str = List.map string_of_mono_for_display args in
           name ^ "<" ^ String.concat ", " args_str ^ ">"
     | TCtorApp (w, args) ->
-        let head = pretty_tv w in
+        let head = format_tv w in
         if args = [] then head
         else
           let args_str = List.map string_of_mono_for_display args in
@@ -86,43 +145,46 @@ let rec string_of_c_type (ct : c_type) : string =
     | PolyType (_, rest) -> strip_leading_poly rest
     | t -> t
   in
-  let rest = strip_leading_poly ct in
-  let constr, inner =
-    match rest with
-    | Constrained (ps, inner') ->
-        ( ps,
-          match inner' with
-          | Mono m -> `Mono m
-          | PolyType _ | Constrained _ -> `Nested inner' )
-    | Mono m -> ([], `Mono m)
-    | PolyType _ -> ([], `Nested rest)
+  let rec string_of_c_type_inner c =
+    let rest = strip_leading_poly c in
+    let constr, inner =
+      match rest with
+      | Constrained (ps, inner') ->
+          ( ps,
+            match inner' with
+            | Mono m -> `Mono m
+            | PolyType _ | Constrained _ -> `Nested inner' )
+      | Mono m -> ([], `Mono m)
+      | PolyType _ -> ([], `Nested rest)
+    in
+    let is_atomic_instance_ty : mono_type -> bool = function
+      | IntType | FloatType | BoolType | StringType | CharType | UnitType
+      | TypeVar _ | TypeName _ ->
+          true
+      | CTypeApp (_, []) -> true
+      | _ -> false
+    in
+    let string_of_class_instance_ty (ty : mono_type) : string =
+      let s = string_of_mono_for_display ty in
+      if is_atomic_instance_ty ty then s else "(" ^ s ^ ")"
+    in
+    let constr_str =
+      if constr = [] then ""
+      else
+        String.concat ", "
+          (List.map
+             (fun (cls, ty) -> cls ^ " " ^ string_of_class_instance_ty ty)
+             constr)
+        ^ " => "
+    in
+    let inner_str =
+      match inner with
+      | `Mono m -> string_of_mono_for_display m
+      | `Nested t -> string_of_c_type_inner t
+    in
+    constr_str ^ inner_str
   in
-  let is_atomic_instance_ty : mono_type -> bool = function
-    | IntType | FloatType | BoolType | StringType | CharType | UnitType
-    | TypeVar _ | TypeName _ ->
-        true
-    | CTypeApp (_, []) -> true
-    | _ -> false
-  in
-  let string_of_class_instance_ty (ty : mono_type) : string =
-    let s = string_of_mono_for_display ty in
-    if is_atomic_instance_ty ty then s else "(" ^ s ^ ")"
-  in
-  let constr_str =
-    if constr = [] then ""
-    else
-      String.concat ", "
-        (List.map
-           (fun (cls, ty) -> cls ^ " " ^ string_of_class_instance_ty ty)
-           constr)
-      ^ " => "
-  in
-  let inner_str =
-    match inner with
-    | `Mono m -> string_of_mono_for_display m
-    | `Nested t -> string_of_c_type t
-  in
-  constr_str ^ inner_str
+  string_of_c_type_inner ct
 
 (** Formats an optional type annotation. Returns " : type" if Some type, or
     empty string if None. *)

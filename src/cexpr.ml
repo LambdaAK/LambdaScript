@@ -217,6 +217,14 @@ let fresh_type_var : unit -> mono_type =
   counter := !counter + 1;
   TypeVar ("t" ^ string_of_int !counter)
 
+(** [t123]-style names from {!fresh_type_var}; remapped to ['a], ['b], … for display. *)
+let is_internal_metavar_name (v : string) : bool =
+  String.length v >= 2
+  && v.[0] = 't'
+  &&
+  let rest = String.sub v 1 (String.length v - 1) in
+  rest <> "" && String.for_all (fun c -> c >= '0' && c <= '9') rest
+
 (* Type application: applies a polymorphic type to a monomorphic type *)
 let rec apply_type (func : c_type) (arg : mono_type) : c_type =
   match func with
