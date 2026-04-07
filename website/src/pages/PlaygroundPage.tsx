@@ -1,5 +1,9 @@
+import CodeMirror, { minimalSetup } from '@uiw/react-codemirror'
+import { EditorView } from '@codemirror/view'
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { forgeLanguage } from '../forge/forgeLanguage'
+import { forgeEditorChrome, forgeSyntaxHighlighting } from '../forge/forgeTheme'
 import {
   DEFAULT_PLAYGROUND_EXAMPLE_ID,
   findPlaygroundExample,
@@ -43,6 +47,14 @@ function parseRunJson(text: string, label: string): RunResponse | null {
     throw new Error(`${label}: invalid JSON:\n${t.slice(0, 400)}${t.length > 400 ? '…' : ''}`)
   }
 }
+
+const forgeExtensions = [
+  minimalSetup({ syntaxHighlighting: false }),
+  forgeLanguage,
+  forgeSyntaxHighlighting,
+  forgeEditorChrome,
+  EditorView.lineWrapping,
+]
 
 export default function PlaygroundPage() {
   const initial = findPlaygroundExample(DEFAULT_PLAYGROUND_EXAMPLE_ID) ?? PLAYGROUND_EXAMPLES[0]
@@ -154,8 +166,8 @@ export default function PlaygroundPage() {
       </p>
       <div className="playground-grid" style={{ marginTop: '1rem' }}>
         <div>
-          <label className="playground-examples-label" style={{ display: 'block', marginBottom: '0.35rem' }}>
-            <span style={{ color: '#b8c0cc', marginRight: '0.5rem' }}>Examples</span>
+          <label className="playground-examples-label">
+            <span>Examples</span>
             <select
               className="playground-examples-select"
               aria-label="Load example program"
@@ -172,16 +184,24 @@ export default function PlaygroundPage() {
               ) : null}
             </select>
           </label>
-          <textarea
-            className="playground-editor"
-            value={code}
-            onChange={(e) => {
-              setCode(e.target.value)
-              setExampleId(CUSTOM_EXAMPLE_ID)
-            }}
-            spellCheck={false}
-            aria-label="Forge source"
-          />
+          <div className="playground-editor-host">
+            <CodeMirror
+              theme="none"
+              basicSetup={false}
+              value={code}
+              minHeight="220px"
+              className="playground-editor"
+              extensions={forgeExtensions}
+              onChange={(v) => {
+                setCode(v)
+                setExampleId(CUSTOM_EXAMPLE_ID)
+              }}
+              editable
+              indentWithTab
+              spellCheck={false}
+              aria-label="Forge source"
+            />
+          </div>
           <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <button type="button" className="playground-run" disabled={busy} onClick={() => void run()}>
               Run
