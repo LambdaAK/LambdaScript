@@ -6,6 +6,13 @@
   (backend bisect_ppx)))
 
 (executable
+ (name playground)
+ (modules playground)
+ (libraries Language)
+ (instrumentation
+  (backend bisect_ppx)))
+
+(executable
  (name old_repl)
  (modules old_repl)
  (libraries Language)

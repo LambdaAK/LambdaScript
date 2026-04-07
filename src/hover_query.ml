@@ -218,26 +218,70 @@ let cursor_in_id_span_ok (cursor : int) (user_byte_lo : int) (lo, hi) : bool =
   lo <= cursor && cursor < hi
   && if cursor < user_byte_lo then hi <= user_byte_lo else lo >= user_byte_lo
 
-(** Lexical [Id] token covering [offset] in [full_source], if any. Disambiguates
-    mis-queued AST spans (e.g. prelude id bytes attached to the wrong [EId]). *)
+(** Bound name for [(op)] / [val (op)] — same strings as parser
+    [infix_id_parser] / [paren_infix_pat_parser]. *)
+let lexer_operator_symbol (tt : Lex.token_type) : string option =
+  match tt with
+  | Relop s | Addop s | Mulop s | Logop s -> Some s
+  | AND -> Some "&&"
+  | OR -> Some "||"
+  | ConsToken -> Some "::"
+  | _ -> None
+
+(** [(==)] is [LParen]; [Relop "=="]; [RParen]. Treat the whole group as the
+    operator when the cursor is on [(], [)], or the middle token. *)
+let rec paren_wrapped_operator_covering (offset : int) :
+    Lex.token list -> (string * int * int) option = function
+  | [] | [ _ ] | [ _; _ ] -> None
+  | l :: op :: r :: _ as window -> (
+      match (l.Lex.token_type, r.Lex.token_type) with
+      | LParen, RParen -> (
+          match lexer_operator_symbol op.Lex.token_type with
+          | Some s
+            when l.Lex.byte_start <= offset && offset < r.Lex.byte_end ->
+              Some (s, l.Lex.byte_start, r.Lex.byte_end)
+          | _ -> paren_wrapped_operator_covering offset (List.tl window))
+      | _ -> paren_wrapped_operator_covering offset (List.tl window))
+
+(** Lexical [Id] or parenthesized infix operator token covering [offset] in
+    [full_source], if any. Disambiguates mis-queued AST spans (e.g. prelude id
+    bytes attached to the wrong [EId]). *)
 let id_name_at_byte_offset (tokens : Lex.token list) (offset : int) : string option
     =
-  List.find_map
-    (fun (t : Lex.token) ->
-      if t.byte_start <= offset && offset < t.byte_end then
-        match t.token_type with Lex.Id s -> Some s | _ -> None
-      else None)
-    tokens
+  match
+    List.find_map
+      (fun (t : Lex.token) ->
+        if t.byte_start <= offset && offset < t.byte_end then
+          match t.token_type with
+          | Id s -> Some s
+          | tt -> lexer_operator_symbol tt
+        else None)
+      tokens
+  with
+  | Some _ as r -> r
+  | None -> (
+      match paren_wrapped_operator_covering offset tokens with
+      | Some (s, _, _) -> Some s
+      | None -> None)
 
-(** Lexer [Id] token that contains [offset], if any. *)
+(** Lexer [Id] or [(op)] operator that contains [offset], if any. *)
 let lexer_id_covering_offset (tokens : Lex.token list) (offset : int) :
     (string * int * int) option =
-  List.find_map
-    (fun (t : Lex.token) ->
-      if t.byte_start <= offset && offset < t.byte_end then
-        match t.token_type with Lex.Id s -> Some (s, t.byte_start, t.byte_end) | _ -> None
-      else None)
-    tokens
+  match
+    List.find_map
+      (fun (t : Lex.token) ->
+        if t.byte_start <= offset && offset < t.byte_end then
+          match t.token_type with
+          | Id s -> Some (s, t.byte_start, t.byte_end)
+          | tt -> (
+              match lexer_operator_symbol tt with
+              | Some s -> Some (s, t.byte_start, t.byte_end)
+              | None -> None)
+        else None)
+      tokens
+  with
+  | Some _ as r -> r
+  | None -> paren_wrapped_operator_covering offset tokens
 
 (** Reject [EId] spans from the condensation id-queue when they disagree with
     the actual [Id] token at the cursor (prelude/user queue skew would otherwise
@@ -245,8 +289,12 @@ let lexer_id_covering_offset (tokens : Lex.token list) (offset : int) :
 let spans_agree_at_cursor (tokens : Lex.token list) (offset : int) (name : string)
     ((a, b) : int * int) : bool =
   match lexer_id_covering_offset tokens offset with
-  | Some (n, ta, tb) -> n = name && ta = a && tb = b
-  | None -> false
+  | Some (n, ta, tb) when n = name ->
+      (* Exact bytes, or lexer [(op)] wraps the AST span, or the reverse. *)
+      (ta = a && tb = b)
+      || (ta <= a && b <= tb)
+      || (a <= ta && tb <= b)
+  | _ -> false
 
 let try_id_hover (full_tokens : Lex.token list) (env : static_env)
     (type_env : type_env) (user_byte_lo : int) (lex_id : string option)
@@ -261,7 +309,17 @@ let try_id_hover (full_tokens : Lex.token list) (env : static_env)
           then type_string_for_id env type_env name
           else None
       | _ -> None)
-  | EId _ -> None
+  | EId (name, None) -> (
+      (* [(>>=)] parses as [Id] in the AST but is lexed as [Relop] / …, so it is
+         not enqueued in the id span queue — use the lexer token at the cursor. *)
+      match lex_id with
+      | Some s when s = name -> (
+          match lexer_id_covering_offset full_tokens offset with
+          | Some (n, lo, hi) when n = name
+            && cursor_in_id_span_ok offset user_byte_lo (lo, hi) ->
+              type_string_for_id env type_env name
+          | _ -> None)
+      | _ -> None)
   | _ -> None
 
 let rec names_bound_in_pat (p : c_pat) : string list =
@@ -410,8 +468,9 @@ let try_dict_slot_bind_hover (env : static_env) (type_env : type_env)
   | CIdPat binder, Some meth_name
     when String.starts_with ~prefix:"__forge_tc_" binder -> (
       match parse_internal_tc_id binder with
-      | Some (_, m)
-        when String.equal m meth_name && cursor_on_lhs_of_rhs offset rhs -> (
+      | Some (_, m_internal)
+        when String.equal m_internal (sanitize_method_internal meth_name)
+             && cursor_on_lhs_of_rhs offset rhs -> (
           match Typecheck.type_of_c_expr env type_env rhs with
           | Ok ct -> Some (hover_string_of_c_type ct)
           | Error _ -> None)
@@ -944,13 +1003,32 @@ and hover_in_defn (env : static_env) (type_env : type_env) (user_byte_lo : int)
                     visit_expr rec_env type_env user_byte_lo lex_id offset full_tokens
                       body)
               None defs))
-  | CClassDecl (_trait_name, _params, methods) -> (
+  | CClassDecl (_trait_name, _params, methods, default_lets) -> (
       match lex_id with
       | None -> None
       | Some name -> (
-          match List.find_opt (fun (m, _, _) -> String.equal m name) methods with
-          | Some (_, mt, _) -> Some (hover_string_of_mono mt)
-          | None -> None))
+          let from_declared_val =
+            match List.find_opt (fun (m, _, _) -> String.equal m name) methods with
+            | Some (_, mt, _) ->
+                (* Prelude traits are in bytes [< user_byte_lo]; do not report a
+                   trait [val] type when the cursor is in the user's appended
+                   buffer (e.g. user [let (>) a b = a] would match [Ord]'s [(>)]
+                   otherwise). *)
+                if user_byte_lo > 0 && offset >= user_byte_lo then None
+                else Some (hover_string_of_mono mt)
+            | None -> None
+          in
+          match from_declared_val with
+          | Some _ as r -> r
+          | None ->
+              List.fold_left
+                (fun acc (_, body) ->
+                  match acc with
+                  | Some _ as r -> r
+                  | None ->
+                      visit_expr env type_env user_byte_lo lex_id offset full_tokens
+                        body)
+                None default_lets))
   | CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _ -> None
 
 let rec typecheck_defns_hover static_env type_env ctor_env defns :

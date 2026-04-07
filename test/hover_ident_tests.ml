@@ -44,6 +44,12 @@ and is_odd n =
                (hover ~prelude:true ~source ~line0:0 ~char0:8);
              assert_equal ~printer:Fun.id "List<a>"
                (hover ~prelude:true ~source ~line0:0 ~char0:13) );
+         ( "paren_infix_let_pattern_operator" >:: fun _ ->
+             (* [(>)] is a built-in operator; use [(^^)] so the binding is unambiguous. *)
+             let source = "let (^^) a b = a\n" in
+             (* Cursor on first [^] inside [(^^)]. *)
+             assert_equal ~printer:Fun.id "a -> b -> a"
+               (hover ~prelude:false ~source ~line0:0 ~char0:5) );
        ]
 
 let () = run_test_tt_main suite

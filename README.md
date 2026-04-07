@@ -1,6 +1,6 @@
-# Forge
+# Forge (LambdaScript)
 
-A statically-typed functional programming language with type inference, polymorphism, and powerful pattern matching.
+**Forge** is the language; this git repository is named **LambdaScript**. It is a statically typed functional language with type inference, polymorphism, pattern matching, and (via the standard prelude) traits/typeclasses.
 
 The reference implementation in this repository is written in **OCaml** and includes both:
 
@@ -12,12 +12,17 @@ An experimental TypeScript implementation also exists in a separate repository: 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Language Features](#language-features)
-3. [Examples](#examples)
-4. [Installation](#installation)
-5. [Usage](#usage)
-6. [Native compilation](#native-compilation)
-7. [Testing](#testing)
+2. [Standard prelude](#standard-prelude)
+3. [Language Features](#language-features)
+4. [Examples](#examples)
+5. [Installation](#installation)
+6. [Usage](#usage)
+7. [Native compilation](#native-compilation)
+8. [Editor support: LSP hover](#editor-support-lsp-hover)
+9. [Testing](#testing)
+10. [Language Semantics](#language-semantics)
+11. [Documentation](#documentation)
+12. [Project Structure](#project-structure)
 
 ## Overview
 
@@ -32,6 +37,16 @@ Forge is a **statically-typed functional programming language** inspired by OCam
 - **Type annotations** for clarity and documentation
 - **Comprehensive built-in operators** usable as first-class values
 - **Native compiler** (LLVM IR + Clang) alongside the interpreter
+- **Traits / typeclasses** (`trait` / `inter`, `impl … for …`, dictionary passing in the compiler)
+
+## Standard prelude
+
+By default, user programs are combined with [`prelude/prelude.ls`](prelude/prelude.ls) (some tools, such as `forge_hover`, can opt out of prepending for a raw buffer):
+
+- **Interpreter and `compile_forge`**: the prelude source is **prepended** to your file (skipping self-prepend when you are editing the prelude itself). Resolution searches `prelude/prelude.ls` from the current directory, the executable’s directory, and a few parent layouts—see [`src/prelude.ml`](src/prelude.ml).
+- **REPL**: the prelude is **loaded once** at startup into the environment (not re-prepended per line).
+
+The prelude defines the canonical `List`/`Option` types, standard traits (Functor, Applicative, Monad, Foldable, …), and default `Show` / `Eq` / `Ord` instances for built-in types. You can still define your own traits using either `trait … where` (prelude style) or `inter …` (see [`programs/haskell_style_typeclasses.ls`](programs/haskell_style_typeclasses.ls)).
 
 ## Language Features
 
@@ -47,7 +62,15 @@ Forge is a **statically-typed functional programming language** inspired by OCam
 
 **Basic Types**: `int`, `float`, `bool`, `string`, `char`, `unit`
 
-**Composite Types**: Functions (`'a -> 'b`), Lists (`['a]`), Tuples (`('a, 'b, 'c)`), Records
+**Composite Types**: Functions (`'a -> 'b`), lists (`['a]` or `List<'a>` once the prelude is loaded), tuples (`('a, 'b, 'c)`), records
+
+### Typeclasses (traits)
+
+- **Trait declaration**: `trait C<f<_>> requires … where … end` or the alternative keyword **`inter`** for the same idea, e.g. `inter Show <a> { val show : a -> string }` (see [`programs/haskell_style_typeclasses.ls`](programs/haskell_style_typeclasses.ls)).
+- **Instance**: `impl C for T where … end` with method implementations inside the `where` block.
+- **Prelude**: higher-kinded traits and many instances live in [`prelude/prelude.ls`](prelude/prelude.ls); smaller examples include [`programs/typeclass_show.ls`](programs/typeclass_show.ls) and [`programs/functor_list.ls`](programs/functor_list.ls).
+
+Some combinations are still easier in the interpreter than in the native backend; see comments in [`programs/haskell_style_typeclasses.ls`](programs/haskell_style_typeclasses.ls) and [`programs/typeclass_functor_native_list.ls`](programs/typeclass_functor_native_list.ls).
 
 ### Expressions
 
@@ -60,7 +83,7 @@ Forge is a **statically-typed functional programming language** inspired by OCam
 - **Conditionals**: `if condition then expr1 else expr2`
 - **Pattern Matching**: `case expr do | pattern -> result`
 - **Lists**: `[1, 2, 3]` or `1 :: 2 :: 3 :: []`
-- **List Ranges**: `[1...10]`
+- **List Ranges**: `[1...10]` or `[1 ... 10]` (spaces optional)
 - **List Comprehensions**: `[x * 2 | x => [1...5], x > 2]`
 - **Tuples/Vectors**: `(1, "hello", true)`
 - **Code Blocks**: `{ expr1; expr2; result }`
@@ -70,6 +93,8 @@ Forge is a **statically-typed functional programming language** inspired by OCam
 All operators can be used as first-class values by wrapping in parentheses: `(+)`, `(*)`, `(::)`, etc.
 
 **Arithmetic**: `+`, `-`, `*`, `/`, `%`
+
+**Strings**: `^` (concatenation)
 
 **Comparison**: `==`, `!=`, `<>`, `<`, `>`, `<=`, `>=`
 
@@ -125,7 +150,7 @@ Supports comprehensive pattern matching including:
 
 ## Examples
 
-The snippets below are illustrative; you can also open the `.ls` files under [`programs/`](programs/) for runnable examples (for example `programs/record_update.ls`, `programs/builtins_test.ls`, `programs/minimal.ls`).
+The snippets below are illustrative; runnable examples live under [`programs/`](programs/), e.g. [`programs/minimal.ls`](programs/minimal.ls), [`programs/builtins_test.ls`](programs/builtins_test.ls), [`programs/record_update.ls`](programs/record_update.ls), [`programs/red_black_tree_example.ls`](programs/red_black_tree_example.ls), and the typeclass demos linked in [Typeclasses (traits)](#typeclasses-traits).
 
 ### Basic Types and Expressions
 
@@ -216,7 +241,7 @@ add5 10
 (* Result: 15 *)
 
 (* Pass to higher-order functions *)
-map (*) [1, 2, 3] [4, 5, 6]
+map ((*) 2) [1, 2, 3]
 
 (* Custom operator definitions *)
 let (++) = fn a -> fn b -> a + b in
@@ -518,8 +543,6 @@ git clone https://github.com/LambdaAK/LambdaScript
 cd LambdaScript
 ```
 
-*(The remote repository and default clone folder may still be named **LambdaScript** until you rename them; the language itself is **Forge**.)*
-
 2. Build the project:
 ```bash
 make
@@ -536,18 +559,24 @@ Start an interactive session:
 make repl
 ```
 
+Optionally preload a file after the prelude:
+
+```bash
+make repl FILE=programs/simple_test.ls
+```
+
 In the REPL, you can type expressions and see their types and evaluated results immediately.
 
 ### Running Forge programs
 
-Execute a `.ls` or `.txt` file containing Forge code:
+Execute a `.ls` or `.txt` file containing Forge code (from the repository root, with the prelude available as usual):
 ```bash
 dune exec ./bin/interpreter.exe <filename>
 ```
 
 Example:
 ```bash
-dune exec ./bin/interpreter.exe programs/factorial.txt
+dune exec ./bin/interpreter.exe programs/minimal.ls
 ```
 
 ### File Extension
@@ -588,6 +617,16 @@ make dump-ir FILE=programs/minimal.ls
 
 Additional compiler integration tests and fixtures live in `test/compiler_cases/`.
 
+## Editor support: LSP hover
+
+[`bin/forge_hover.ml`](bin/forge_hover.ml) builds **`forge_hover`**, a small stdin/stdout tool meant to be driven by an LSP server for hover/type-at-point:
+
+```bash
+dune exec ./bin/forge_hover.exe path/to/file.ls 1 10 4 < path/to/file.ls
+```
+
+Arguments: `path`, `prelude` (`1`/`true` to prepend the standard prelude, `0`/`false` for raw buffer only), zero-based `line`, zero-based `character`. On success it prints the type string to stdout; on failure it prints `ERROR: …` and exits with a non-zero status. Query logic lives in [`src/hover_query.ml`](src/hover_query.ml).
+
 ## Testing
 
 ### Running Tests
@@ -609,6 +648,8 @@ To run everything Dune knows about (when the tree builds cleanly):
 dune test
 ```
 
+That includes `compiler_tests` (see `test/compiler_cases/`) and `hover_ident_tests` (hover/type-at-point queries).
+
 ### Test Coverage
 
 To run tests with coverage analysis:
@@ -620,22 +661,15 @@ This will generate a coverage report showing which parts of the codebase are tes
 
 ### Test Organization
 
-Tests are organized in `test/test.ml` and cover:
-- Type checking
-- Type inference
-- Expression evaluation
-- Pattern matching
-- Algebraic data types
-- Higher-order functions
-- Built-in operators
-- Edge cases and error conditions
+- **`test/test.ml`** — large OUnit suite for the interpreter pipeline: type checking, inference, evaluation, pattern matching, ADTs, higher-order functions, builtins, and edge cases.
+- **`test/compiler_tests.ml`** + **`test/compiler_cases/`** — compile with `compile_forge`, run the binary, compare stdout.
+- **`test/hover_ident_tests.ml`** — hover / identifier typing via `Hover_query`.
 
 ## Language Semantics
 
-For a rigorous formal definition of Forge's semantics, see:
-https://github.com/LambdaAK/LambdaScript/blob/main/documentation/LambdaScript.pdf
+The formal semantics live in LaTeX as [`documentation/LambdaScript.tex`](documentation/LambdaScript.tex). Build a PDF locally with `pdflatex` (or your usual LaTeX workflow) if you want a printable copy.
 
-**Note**: The formal semantics document may not reflect all recent language features and syntax changes.
+**Note**: The formal write-up may lag recent surface syntax (traits, prelude, compiler details).
 
 ## Documentation
 
@@ -653,20 +687,38 @@ Open the generated documentation in your browser:
 make opendoc
 ```
 
+Optional PDF paper (unrelated to the main OCaml build): see [`paper/`](paper/) — e.g. `cd paper && make` runs `pdflatex` on `lambdascript.tex` (see that directory’s `Makefile`).
+
+### Forge website (Playground in the browser)
+
+The Vite site under [`website/`](website/) includes a Playground backed by **js_of_ocaml** so visitors can run Forge **without** a server-side evaluator, once the bundle is built:
+
+```bash
+opam install js_of_ocaml-compiler js_of_ocaml
+dune build browser/forge_browser.bc.js
+npm run sync:forge-js --prefix website
+npm run dev --prefix website
+```
+
+See [`website/src/content/docs/install.md`](website/src/content/docs/install.md) for the optional Node + native `playground` API used in local dev when the JS bundle is absent.
+
 ## Project Structure
 
 ```
-Forge/                # clone may still be named LambdaScript/ until the repo is renamed
-├── bin/              # interpreter, REPL, compile_forge, dump_min_ir, ...
-├── src/              # Source code
-│   ├── lex.ml, parser.ml
-│   ├── typecheck.ml, eval.ml, env.ml
-│   ├── compile_pipeline.ml  # native compile driver (IR emit + Clang)
-│   ├── min_ir.ml, lower_min_ir.ml, llvm_emit.ml  # compiler middle/back end
+LambdaScript/         # repository root (language: Forge)
+├── bin/              # interpreter, repl, compile_forge, dump_min_ir, forge_hover, …
+├── src/              # lexer, parser, typecheck, interpreter, compiler pipeline
+│   ├── compile_pipeline.ml  # native driver (prelude, typecheck, IR, Clang)
+│   ├── min_ir.ml, lower_min_ir.ml, llvm_emit.ml
+│   ├── hover_query.ml       # type-at-point for forge_hover / IDE integration
 │   └── ...
+├── prelude/          # prelude.ls (prepended or REPL-loaded)
 ├── runtime/          # ls_runtime.c (linked into native executables)
-├── test/             # OUnit tests + compiler_cases/ integration fixtures
-├── programs/         # Example .ls programs
-└── documentation/    # Formal semantics
+├── test/             # test.ml, compiler_tests, hover_ident_tests, compiler_cases/
+├── programs/         # example .ls programs
+├── browser/          # js_of_ocaml bundle (forge_browser.ml) for static Playground
+├── website/          # Vite + React docs + Playground
+├── documentation/    # LambdaScript.tex (formal semantics)
+└── paper/            # lambdascript.tex (+ local Makefile / PDFs)
 ```
 

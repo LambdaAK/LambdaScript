@@ -2255,7 +2255,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       in
 
       return (all_bindings, [], [])
-  | CClassDecl (_trait_name, params, methods) -> (
+  | CClassDecl (_trait_name, params, methods, _default_lets) -> (
       match params with
       | [ p ] ->
           let w = forge_written_param p in

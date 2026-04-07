@@ -301,7 +301,7 @@ and string_of_defn : c_defn -> string = function
           defns
       in
       "let rec " ^ String.concat "\nand " defn_strs
-  | CClassDecl (name, args, methods) ->
+  | CClassDecl (name, args, methods, _default_lets) ->
       let args_str =
         match args with
         | [] -> ""

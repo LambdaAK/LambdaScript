@@ -94,10 +94,11 @@ and c_defn =
       * int)
       list
     (* mutually recursive definitions *)
-  | CClassDecl of string * string list * (string * mono_type * string) list
-      (** [(method, mono type, dispatch_class)] — [dispatch_class] selects which
-          dictionary receives the method at [impl] time ([Functor], [Monad], …).
-      *)
+  (** Inter/trait: method types + optional default [let] bodies (for hover).
+      Triple is [(method, mono type, dispatch_class)] — [dispatch_class] selects
+      which dictionary receives the method at [impl] time. *)
+  | CClassDecl of
+      string * string list * (string * mono_type * string) list * (string * c_expr) list
   | CTypeAlias of string * string list * mono_type
   | CSumType of string * string list * (string * c_type option) list
   | CSumTypeRec of string * string list * (string * c_type option) list

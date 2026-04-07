@@ -892,7 +892,12 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
               (fun (m, mt) -> (m, mt, name, List.assoc_opt m lets_map))
               methods_mono_own
         in
-        let decl = CClassDecl (name, params, declared_triples) in
+        let default_lets =
+          List.map (fun (m, e) -> (m, condense_expr e)) lets_map
+        in
+        let decl =
+          CClassDecl (name, params, declared_triples, default_lets)
+        in
         let entry = { params; param_arities; declared_triples; impl_spec } in
         after_top_level_defn ();
         walk ((name, entry) :: classes) seen_ctors seen_instances (decl :: acc)

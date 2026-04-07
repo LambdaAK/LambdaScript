@@ -1009,7 +1009,7 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       in
 
       return all_bindings
-  | CClassDecl (_trait_name, params, methods) -> (
+  | CClassDecl (_trait_name, params, methods, _default_lets) -> (
       match params with
       | [ _ ] ->
           let bindings =

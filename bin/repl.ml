@@ -3,7 +3,6 @@ open Language.Parser.ExprOrDefnParser
 open Language.Condense
 open Language.C_to_string
 open Language.Typecheck
-open Language.Ceval
 open Language.Cexpr
 
 (* ANSI color codes *)
@@ -27,51 +26,14 @@ let print_separator () =
 
 let print_error msg = print_colored_line color_red ("Error: " ^ msg)
 
-let print_value_and_type value typ =
-  print_colored color_yellow (string_of_value value);
-  print_colored color_blue " : ";
-  print_colored_line color_cyan (string_of_c_type typ)
-
 let print_name_info name =
   print_colored color_blue "Name : ";
   print_colored_line color_magenta name
 
-(** Hide elaboration-only bindings from REPL listings. *)
-let is_internal_repl_binding name =
-  String.starts_with ~prefix:"__forge_dict_" name
-  || String.starts_with ~prefix:"__dict_" name
-
-let filter_repl_bindings bindings =
-  List.filter (fun (name, _) -> not (is_internal_repl_binding name)) bindings
-
 type repl_result =
   | NoChange
-  | NewBindings of static_env * env * type_env
+  | StepEnv of static_env * env * type_env
   | Quit
-
-(** Typecheck and evaluate a list of condensed top-level definitions in order.
-    Returns merged environments plus binding deltas (for [NewBindings]).
-    [after_step] runs after each successful definition (e.g. REPL printing). *)
-let process_condensed_defns ?after_step (static_env : static_env)
-    (dynamic_env : env) (type_env : type_env)
-    (c_defns : c_defn list) :
-    (static_env * env * type_env * static_env * env * type_env) type_check_result
-    =
-  let module T = Language.Typecheck in
-  let rec go se te de acc_s acc_d acc_te = function
-    | [] -> T.Ok (se, de, te, acc_s, acc_d, acc_te)
-    | cd :: rest ->
-        match T.generate_defn se te cd with
-        | T.Error e -> T.Error e
-        | T.Ok (nb, nte, _) ->
-            let cd = T.elaborate_defn (nb @ se) (nte @ te) cd in
-            let nd = unwrap_eval_result (eval_defn cd de) in
-            let de' = nd @ de in
-            (match after_step with Some f -> f nb de' | None -> ());
-            go (nb @ se) (nte @ te) de' (acc_s @ nb) (acc_d @ nd)
-              (acc_te @ nte) rest
-  in
-  go static_env type_env dynamic_env [] [] [] c_defns
 
 (** [read_multiline ()] reads input from the user until a line containing only
     ";;" is encountered. The ;; can be on the first line or any subsequent line.
@@ -151,7 +113,7 @@ let handle_command cmd static_env _dynamic_env type_env history =
         (fun (name, typ) ->
           print_colored color_magenta ("  " ^ name ^ " : ");
           print_colored_line color_cyan (string_of_c_type typ))
-        (filter_repl_bindings static_env);
+        (Language.Repl_kernel.filter_repl_bindings static_env);
     print_newline ();
     NoChange)
   else if String.starts_with ~prefix:":type " trimmed then (
@@ -222,83 +184,38 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env)
       let hist = input_str :: history in
       if List.length hist > 100 then take 100 hist else hist
     in
-    (* lex tokens *)
-    let tokens = lex input |> List.map (fun t -> t.token_type) in
-
-    let print_new_bindings nb de' =
-      List.iter
-        (fun (name, typ) ->
-          let value = List.assoc name de' in
-          print_separator ();
-          print_name_info name;
-          print_value_and_type value typ;
-          print_separator ())
-        (filter_repl_bindings nb)
+    let outcome, se', de', te' =
+      Language.Repl_kernel.eval_user_input static_env dynamic_env type_env input_str
     in
-
-    (match Language.Parser.ProgramParser.program_parser tokens with
-    | Some (program, []) when program <> [] -> (
-        let c_defns = condense_program program in
-        match
-          process_condensed_defns ~after_step:print_new_bindings static_env
-            dynamic_env type_env c_defns
-        with
-        | Language.Typecheck.Error e ->
-            print_error (string_of_type_check_error e);
-            (NoChange, new_history)
-        | Language.Typecheck.Ok
-            (_, _, _, new_static_bindings, new_dynamic_bindings, new_type_env)
-          ->
-            ( NewBindings
-                (new_static_bindings, new_dynamic_bindings, new_type_env),
-              new_history ))
-    | _ -> (
-        match expr_or_defn_parser tokens with
-        | None ->
-            print_error "Parsing failed";
-            (NoChange, new_history)
-        | Some (Expr expr, _) -> (
-        let c_expr = condense_expr expr in
-        let result = type_of_c_expr static_env type_env c_expr in
-        match result with
-        | Ok t ->
-            let c_expr = elaborate_expr static_env type_env c_expr in
-            (match eval_c_expr c_expr dynamic_env with
-            | Ok value ->
-                print_separator ();
-                print_value_and_type value t;
-                print_separator ()
-            | Error e -> print_error (string_of_eval_error e));
-            (NoChange, new_history)
-        | Error e ->
-            print_error (string_of_type_check_error e);
-            (NoChange, new_history))
-        | Some (Definition defn, _) -> (
-            let c_defns = condense_program [ defn ] in
-            match
-              process_condensed_defns ~after_step:print_new_bindings
-                static_env dynamic_env type_env c_defns
-            with
-            | Language.Typecheck.Error e ->
-                print_error (string_of_type_check_error e);
-                (NoChange, new_history)
-            | Language.Typecheck.Ok
-                (_, _, _, new_static_bindings, new_dynamic_bindings, new_type_env)
-              ->
-                ( NewBindings
-                    (new_static_bindings, new_dynamic_bindings, new_type_env),
-                  new_history ))))
+    match outcome with
+    | Language.Repl_kernel.Ev_error msg ->
+        print_error msg;
+        (NoChange, new_history)
+    | Language.Repl_kernel.Ev_expr { typ; value } ->
+        print_separator ();
+        print_colored color_yellow value;
+        print_colored color_blue " : ";
+        print_colored_line color_cyan typ;
+        print_separator ();
+        (NoChange, new_history)
+    | Language.Repl_kernel.Ev_defs { bindings } ->
+        List.iter
+          (fun (name, value, typ) ->
+            print_separator ();
+            print_name_info name;
+            print_colored color_yellow value;
+            print_colored color_blue " : ";
+            print_colored_line color_cyan typ;
+            print_separator ())
+          bindings;
+        (StepEnv (se', de', te'), new_history)
 
 let rec run_repl_loop static_env dynamic_env type_env history =
   match repl static_env dynamic_env type_env history with
   | NoChange, new_history ->
       run_repl_loop static_env dynamic_env type_env new_history
-  | ( NewBindings (new_static_bindings, new_dynamic_bindings, new_type_env),
-      new_history ) ->
-      run_repl_loop
-        (new_static_bindings @ static_env)
-        (new_dynamic_bindings @ dynamic_env)
-        (new_type_env @ type_env) new_history
+  | StepEnv (se, de, te), new_history ->
+      run_repl_loop se de te new_history
   | Quit, _ ->
       print_colored_line (color_bold ^ color_cyan) "Goodbye! 👋";
       exit 0
@@ -318,8 +235,8 @@ let load_file_into_env filename static_env dynamic_env type_env =
 
         let new_static_env, new_dynamic_env, new_type_env =
           match
-            process_condensed_defns static_env dynamic_env type_env
-              condensed_program
+            Language.Repl_kernel.process_condensed_defns static_env dynamic_env
+              type_env condensed_program
           with
           | Language.Typecheck.Ok (ms, md, mt, _, _, _) -> (ms, md, mt)
           | Language.Typecheck.Error e ->
@@ -345,29 +262,11 @@ let load_file_into_env filename static_env dynamic_env type_env =
       (static_env, dynamic_env, type_env)
 
 let merge_prelude static_env dynamic_env type_env =
-  let pre = Language.Prelude.contents () in
-  if String.trim pre = "" then (static_env, dynamic_env, type_env)
-  else
-    let input = pre |> String.to_seq |> List.of_seq in
-    let tokens = Language.Lex.lex input |> List.map (fun t -> t.token_type) in
-    match Language.Parser.ProgramParser.program_parser tokens with
-    | Some (program, []) ->
-        if program = [] then (static_env, dynamic_env, type_env)
-        else
-          let c_defns = Language.Condense.condense_program program in
-          (match process_condensed_defns static_env dynamic_env type_env c_defns with
-          | Language.Typecheck.Ok (se, de, te, _, _, _) -> (se, de, te)
-          | Language.Typecheck.Error e ->
-              print_error ("Prelude: " ^ string_of_type_check_error e);
-              (static_env, dynamic_env, type_env))
-    | Some (_, rem) ->
-        print_error
-          (Printf.sprintf "Prelude: %d token(s) left after parse"
-             (List.length rem));
-        (static_env, dynamic_env, type_env)
-    | None ->
-        print_error "Prelude: parse failed";
-        (static_env, dynamic_env, type_env)
+  match Language.Repl_kernel.merge_prelude static_env dynamic_env type_env with
+  | Ok (se, de, te) -> (se, de, te)
+  | Error msg ->
+      print_error msg;
+      (static_env, dynamic_env, type_env)
 
 let run_repl ?preload_file () =
   (* Print welcome message *)
