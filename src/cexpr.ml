@@ -217,7 +217,7 @@ let fresh_type_var : unit -> mono_type =
   counter := !counter + 1;
   TypeVar ("t" ^ string_of_int !counter)
 
-(** [t123]-style names from {!fresh_type_var}; remapped to ['a], ['b], … for display. *)
+(** [t123]-style names from {!fresh_type_var}; remapped to [a], [b], … for display. *)
 let is_internal_metavar_name (v : string) : bool =
   String.length v >= 2
   && v.[0] = 't'

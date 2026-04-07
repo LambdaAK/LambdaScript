@@ -909,7 +909,7 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
         | None ->
             failwith
               ("forge: impl for unknown inter '" ^ cls
-             ^ "' — declare [inter] above this [impl]")
+             ^ "' - declare [inter] above this [impl]")
         | Some entry -> (
             match entry.params with
             | [ p ] ->

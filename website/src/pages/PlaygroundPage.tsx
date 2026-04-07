@@ -1,7 +1,12 @@
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
+import {
+  DEFAULT_PLAYGROUND_EXAMPLE_ID,
+  findPlaygroundExample,
+  PLAYGROUND_EXAMPLES,
+} from '../playgroundExamples'
 
-const defaultCode = 'let x = 40 in x + 2'
+const CUSTOM_EXAMPLE_ID = '__custom__'
 
 type RunResponse =
   | { ok: true; kind: 'expr'; value: string; type: string; printed?: string }
@@ -40,7 +45,9 @@ function parseRunJson(text: string, label: string): RunResponse | null {
 }
 
 export default function PlaygroundPage() {
-  const [code, setCode] = useState(defaultCode)
+  const initial = findPlaygroundExample(DEFAULT_PLAYGROUND_EXAMPLE_ID) ?? PLAYGROUND_EXAMPLES[0]
+  const [exampleId, setExampleId] = useState<string>(initial.id)
+  const [code, setCode] = useState(initial.code)
   const [out, setOut] = useState('')
   const [err, setErr] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -53,6 +60,20 @@ export default function PlaygroundPage() {
     setOut('')
     setErr(false)
   }, [])
+
+  const loadExample = useCallback(
+    (id: string) => {
+      if (id === CUSTOM_EXAMPLE_ID) return
+      const ex = findPlaygroundExample(id)
+      if (!ex) return
+      setExampleId(id)
+      setCode(ex.code)
+      setOut('')
+      setErr(false)
+      window.ForgePlayground?.reset?.()
+    },
+    []
+  )
 
   const run = useCallback(async () => {
     setBusy(true)
@@ -133,10 +154,31 @@ export default function PlaygroundPage() {
       </p>
       <div className="playground-grid" style={{ marginTop: '1rem' }}>
         <div>
+          <label className="playground-examples-label" style={{ display: 'block', marginBottom: '0.35rem' }}>
+            <span style={{ color: '#b8c0cc', marginRight: '0.5rem' }}>Examples</span>
+            <select
+              className="playground-examples-select"
+              aria-label="Load example program"
+              value={exampleId}
+              onChange={(e) => loadExample(e.target.value)}
+            >
+              {PLAYGROUND_EXAMPLES.map((ex) => (
+                <option key={ex.id} value={ex.id} title={ex.description}>
+                  {ex.label}
+                </option>
+              ))}
+              {exampleId === CUSTOM_EXAMPLE_ID ? (
+                <option value={CUSTOM_EXAMPLE_ID}>Custom (your edit)</option>
+              ) : null}
+            </select>
+          </label>
           <textarea
             className="playground-editor"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(e) => {
+              setCode(e.target.value)
+              setExampleId(CUSTOM_EXAMPLE_ID)
+            }}
             spellCheck={false}
             aria-label="Forge source"
           />

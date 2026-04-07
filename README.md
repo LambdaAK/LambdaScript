@@ -53,7 +53,7 @@ The prelude defines the canonical `List`/`Option` types, standard traits (Functo
 ### Type System
 
 - **Type Inference**: Automatic type deduction using constraint-based type inference
-- **Polymorphism**: Generic types with type parameters (`'a`, `'b`)
+- **Polymorphism**: Generic types with type parameters (`a`, `b`, … — syntax `<a>` on type constructors)
 - **Type Annotations**: Optional type annotations for clarity
 - **Algebraic Data Types**: Sum types with constructors
 - **Recursive Types**: Self-referential type definitions
@@ -62,7 +62,7 @@ The prelude defines the canonical `List`/`Option` types, standard traits (Functo
 
 **Basic Types**: `int`, `float`, `bool`, `string`, `char`, `unit`
 
-**Composite Types**: Functions (`'a -> 'b`), lists (`['a]` or `List<'a>` once the prelude is loaded), tuples (`('a, 'b, 'c)`), records
+**Composite Types**: Functions (`a -> b`), lists (`[a]` or `List<a>` once the prelude is loaded), tuples (`(a, b, c)`), records
 
 ### Typeclasses (traits)
 
@@ -132,20 +132,20 @@ Supports comprehensive pattern matching including:
 - `str_slice : string -> int -> int -> string` - substring (start, length)
 
 **List Operations**:
-- `list_length : ['a] -> int` - length of list
-- `list_head : ['a] -> 'a` - first element (fails on empty)
-- `list_tail : ['a] -> ['a]` - all but first element
-- `list_nth : ['a] -> int -> 'a` - nth element (0-indexed)
+- `list_length : [a] -> int` - length of list
+- `list_head : [a] -> a` - first element (fails on empty)
+- `list_tail : [a] -> [a]` - all but first element
+- `list_nth : [a] -> int -> a` - nth element (0-indexed)
 
 **Tuple Operations**:
-- `tuple_fst : ('a, 'b) -> 'a` - first element of pair
-- `tuple_snd : ('a, 'b) -> 'b` - second element of pair
+- `tuple_fst : (a, b) -> a` - first element of pair
+- `tuple_snd : (a, b) -> b` - second element of pair
 
 **Higher-Order Functions**:
-- `map : ('a -> 'b) -> ['a] -> ['b]`
-- `filter : ('a -> bool) -> ['a] -> ['a]`
-- `reduce_left : ('a -> 'b -> 'a) -> 'a -> ['b] -> 'a`
-- `reduce_right : ('a -> 'b -> 'b) -> ['a] -> 'b -> 'b`
+- `map : (a -> b) -> [a] -> [b]`
+- `filter : (a -> bool) -> [a] -> [a]`
+- `reduce_left : (a -> b -> a) -> a -> [b] -> a`
+- `reduce_right : (a -> b -> b) -> [a] -> b -> b`
 - `not : bool -> bool`
 
 ## Examples
@@ -443,22 +443,22 @@ let x = int_to_float 42
 type IntPair = (int, int)
 
 (* Sum types *)
-type Option<'a> =
+type Option<a> =
   | None
-  | Some of 'a
+  | Some of a
 
-type Either<'a, 'b> =
-  | Left of 'a
-  | Right of 'b
+type Either<a, b> =
+  | Left of a
+  | Right of b
 
 (* Recursive types *)
-type rec List<'a> =
-  | Nil
-  | Cons of 'a * List<'a>
+type rec List<a> =
+  | []
+  | (::) of (a, List<a>)
 
-type rec Tree<'a> =
+type rec Tree<a> =
   | Leaf
-  | Node of 'a * Tree<'a> * Tree<'a>
+  | Node of (a, Tree<a>, Tree<a>)
 
 (* Using custom types *)
 let rec tree_size = fn t ->
@@ -476,18 +476,18 @@ tree_size (Node (5, Leaf, Node (3, Leaf, Leaf)))
 ```ocaml
 (* Identity function *)
 let id = fn x -> x
-(* Type: 'a -> 'a *)
+(* Type: a -> a *)
 
 (* Composition *)
 let compose = fn f -> fn g -> fn x -> f (g x)
-(* Type: ('b -> 'c) -> ('a -> 'b) -> 'a -> 'c *)
+(* Type: (b -> c) -> (a -> b) -> a -> c *)
 
 (* Map for any type *)
 let rec map = fn f -> fn lst ->
   case lst do
   | [] -> []
   | h :: t -> f h :: map f t
-(* Type: ('a -> 'b) -> ['a] -> ['b] *)
+(* Type: (a -> b) -> [a] -> [b] *)
 ```
 
 ### Code Blocks
@@ -521,9 +521,9 @@ let apply = fn (f: int -> int) -> fn (x: int) : int -> f x in
 apply (fn x -> x * 2) 21
 (* Result: 42 *)
 
-(* Type variable in an annotation: `'a`, `'b`, ... *)
-let poly_id = fn (x: 'a) -> x
-(* Type: 'a -> 'a *)
+(* Type variable in an annotation: a, b, … *)
+let poly_id = fn (x: a) -> x
+(* Type: a -> a *)
 ```
 
 ## Installation

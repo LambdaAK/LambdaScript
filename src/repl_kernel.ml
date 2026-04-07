@@ -10,6 +10,30 @@ module TC = Typecheck
 
 open Ceval
 
+(** Prelude [defn list] and [List.length (condense_program prelude)] after a
+    successful [merge_prelude]. User chunks are condensed as [prelude @ user] so
+    [impl] sees [inter] from the prelude, then we drop the prelude prefix. *)
+let prelude_defns_for_condense : Expr.defn list option ref = ref None
+
+let prelude_condensed_defn_count : int ref = ref 0
+
+let clear_prelude_condense_cache () =
+  prelude_defns_for_condense := None;
+  prelude_condensed_defn_count := 0
+
+let list_drop n xs =
+  let rec go n xs =
+    if n <= 0 then xs else match xs with [] -> [] | _ :: t -> go (n - 1) t
+  in
+  go n xs
+
+let condense_user_defns (user_defns : Expr.defn list) : c_defn list =
+  match !prelude_defns_for_condense with
+  | None -> condense_program user_defns
+  | Some prel ->
+      let all = condense_program (prel @ user_defns) in
+      list_drop !prelude_condensed_defn_count all
+
 let is_internal_repl_binding name =
   String.starts_with ~prefix:"__forge_dict_" name
   || String.starts_with ~prefix:"__dict_" name
@@ -39,22 +63,33 @@ let process_condensed_defns ?after_step (static_env : static_env)
 let merge_prelude (static_env : static_env) (dynamic_env : env) (type_env : TC.type_env) :
     (static_env * env * TC.type_env, string) result =
   let pre = Prelude.contents () in
-  if String.trim pre = "" then Ok (static_env, dynamic_env, type_env)
+  if String.trim pre = "" then (
+    clear_prelude_condense_cache ();
+    Ok (static_env, dynamic_env, type_env))
   else
     let input = pre |> String.to_seq |> List.of_seq in
     let tokens = Lex.lex input |> List.map (fun t -> t.token_type) in
     match program_parser tokens with
     | Some (program, []) ->
-        if program = [] then Ok (static_env, dynamic_env, type_env)
+        if program = [] then (
+          clear_prelude_condense_cache ();
+          Ok (static_env, dynamic_env, type_env))
         else
           let c_defns = condense_program program in
+          prelude_defns_for_condense := Some program;
+          prelude_condensed_defn_count := List.length c_defns;
           (match process_condensed_defns static_env dynamic_env type_env c_defns with
           | TC.Ok (se, de, te, _, _, _) -> Ok (se, de, te)
-          | TC.Error e -> Error ("Prelude: " ^ TC.string_of_type_check_error e))
+          | TC.Error e ->
+              clear_prelude_condense_cache ();
+              Error ("Prelude: " ^ TC.string_of_type_check_error e))
     | Some (_, rem) ->
+        clear_prelude_condense_cache ();
         Error
           (Printf.sprintf "Prelude: %d token(s) left after parse" (List.length rem))
-    | None -> Error "Prelude: parse failed"
+    | None ->
+        clear_prelude_condense_cache ();
+        Error "Prelude: parse failed"
 
 type eval_outcome =
   | Ev_error of string
@@ -76,7 +111,7 @@ let eval_user_input (static_env : static_env) (dynamic_env : env) (type_env : TC
 
   match program_parser tokens with
   | Some (program, []) when program <> [] ->
-      let c_defns = condense_program program in
+      let c_defns = condense_user_defns program in
       (match process_condensed_defns static_env dynamic_env type_env c_defns with
       | TC.Error e -> (Ev_error (TC.string_of_type_check_error e), static_env, dynamic_env, type_env)
       | TC.Ok (se, de, te, new_s, new_d, _new_te) ->
@@ -102,7 +137,7 @@ let eval_user_input (static_env : static_env) (dynamic_env : env) (type_env : TC
                     type_env )
               | Error e -> (Ev_error (string_of_eval_error e), static_env, dynamic_env, type_env)))
       | Some (Definition defn, _) -> (
-          let c_defns = condense_program [ defn ] in
+          let c_defns = condense_user_defns [ defn ] in
           match process_condensed_defns static_env dynamic_env type_env c_defns with
           | TC.Error e -> (Ev_error (TC.string_of_type_check_error e), static_env, dynamic_env, type_env)
           | TC.Ok (se, de, te, new_s, new_d, _new_te) ->

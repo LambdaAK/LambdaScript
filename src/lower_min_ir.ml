@@ -146,7 +146,7 @@ and mono_to_min (m : mono_type) : ty =
       if List.length ps >= 2 then Clos (ps, rt) else Fun (ps, rt)
   | TypeVar _ ->
       unsupported
-        "Polymorphic type in native compile (e.g. 'a -> 'a): add monomorphic \
+        "Polymorphic type in native compile (e.g. a -> a): add monomorphic \
          type annotations on parameters and result, e.g. let f (x : int) : int \
          = x"
   | CTypeApp (name, args) when name = "List" || name = "list" -> (

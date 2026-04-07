@@ -33,13 +33,13 @@ let rec string_of_mono_type : mono_type -> string = function
       in
       "{" ^ String.concat ", " field_strs ^ "}"
 
-let quoted_tyvar_for_index (idx : int) : string =
+let display_tyvar_for_index (idx : int) : string =
   let n = idx + 1 in
   let rec aux n acc =
     if n <= 0 then acc
     else aux ((n - 1) / 26) (Char.chr (97 + ((n - 1) mod 26)) :: acc)
   in
-  "'" ^ String.of_seq (List.to_seq (aux n []))
+  String.of_seq (List.to_seq (aux n []))
 
 let collect_internal_metavars_c_type (ct : c_type) : string list =
   let acc = ref [] in
@@ -80,7 +80,7 @@ let collect_internal_metavars_c_type (ct : c_type) : string list =
 let string_of_c_type (ct : c_type) : string =
   let ordered = collect_internal_metavars_c_type ct in
   let rename =
-    List.mapi (fun i v -> (v, quoted_tyvar_for_index i)) ordered
+    List.mapi (fun i v -> (v, display_tyvar_for_index i)) ordered
   in
   let pretty_written (v : string) : string =
     if
@@ -93,13 +93,7 @@ let string_of_c_type (ct : c_type) : string =
   let format_tv (v : string) : string =
     if Cexpr.is_internal_metavar_name v then
       try List.assoc v rename with Not_found -> pretty_written v
-    else
-      let w = pretty_written v in
-      if w <> "" && not (String.starts_with ~prefix:"'" w) then
-        match w.[0] with
-        | 'a'..'z' -> "'" ^ w
-        | _ -> w
-      else w
+    else pretty_written v
   in
   let rec string_of_mono_for_display : mono_type -> string = function
     | TypeVar v -> format_tv v

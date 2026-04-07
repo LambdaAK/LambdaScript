@@ -1,3 +1,6 @@
-let x = 1
+impl Semigroup for Bool where
+  let mappend x y = x
+  let (++) x y = mappend x y
+end
 
-let () = println "Hello World!"
+let _ = println (true ++ false)

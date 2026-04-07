@@ -13,7 +13,7 @@
 
 ## Functions
 
-Written `a -> b` (or polymorphic `'a -> 'b`). Functions are introduced with `fn x -> …` or `let f x = …`.
+Written `a -> b` for polymorphic functions (type parameters `a`, `b`, …). Functions are introduced with `fn x -> …` or `let f x = …`.
 
 ## Tuples
 
@@ -21,7 +21,7 @@ Fixed-width products: `(int, string)`, `(1, "ok", true)`. Pattern match with `(x
 
 ## Lists
 
-Concrete syntax `[1, 2, 3]` and `1 :: 2 :: []`. With the prelude loaded, lists are the `List<'a>` ADT (`[]` and `::`).
+Concrete syntax `[1, 2, 3]` and `1 :: 2 :: []`. With the prelude loaded, lists are the `List<a>` ADT (`[]` and `::`).
 
 ## Algebraic data types (ADTs)
 
@@ -51,4 +51,4 @@ Name shorthands for existing types.
 
 ## Polymorphism
 
-Type parameters `'a`, `'b` on definitions and data types. Inference fills them in; you can add annotations where useful.
+Type parameters `a`, `b`, … on definitions and data types (syntax `<a>` on type names). Inference fills them in; you can add annotations where useful.
