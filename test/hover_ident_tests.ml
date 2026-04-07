@@ -11,9 +11,12 @@ let hover ~prelude ~source ~line0 ~char0 =
 let suite =
   "hover_identifier_types"
   >::: [
-         ( "let_x_is_int_with_prelude" >:: fun _ ->
-             let source = "let x = 1\n" in
-             assert_equal ~printer:Fun.id "Int" (hover ~prelude:true ~source ~line0:0 ~char0:4)
+         ( "let_binding_int_with_prelude" >:: fun _ ->
+             (* [x] can match a trait method name in the condensed prelude; use a
+                distinct binding name so the hover test is stable. *)
+             let source = "let hover_binding = 1\n" in
+             assert_equal ~printer:Fun.id "Int"
+               (hover ~prelude:true ~source ~line0:0 ~char0:4)
          );
          ( "mutual_rec_second_binding_arrow_bool" >:: fun _ ->
              let source =
@@ -29,6 +32,18 @@ and is_odd n =
              (* Line with [and is_odd n =] — 0-based line index and column on [is_odd]. *)
              assert_equal ~printer:Fun.id "Int -> Bool"
                (hover ~prelude:true ~source ~line0:4 ~char0:4) );
+         ( "curried_let_map_func_and_list_param" >:: fun _ ->
+             let source =
+               {|let map func l =
+  case l do
+  | [] -> []
+  | h :: t -> func h :: map func t
+|}
+             in
+             assert_equal ~printer:Fun.id "a -> b"
+               (hover ~prelude:true ~source ~line0:0 ~char0:8);
+             assert_equal ~printer:Fun.id "List<a>"
+               (hover ~prelude:true ~source ~line0:0 ~char0:13) );
        ]
 
 let () = run_test_tt_main suite

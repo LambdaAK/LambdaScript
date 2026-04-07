@@ -92,6 +92,68 @@ let rec min_lo_spanned_id_byte (e : c_expr) : int option =
   | EFieldAccess (e0, _) -> min_lo_spanned_id_byte e0
   | EInt _ | EFloat _ | EBool _ | EString _ | EChar _ | EUnit | ENil -> None
 
+(** Like [min_lo_spanned_id_byte], but only [EId] spans with [lo >= byte_min]
+    (typically [byte_min = user_byte_lo] after prepending the prelude). Otherwise
+    the minimum can be a prelude identifier's bytes, making [offset < m] false
+    for user-parameter hovers on lines like [let map func l =]. *)
+let rec min_lo_spanned_id_byte_from (byte_min : int) (e : c_expr) : int option =
+  let min2 a b =
+    match (a, b) with
+    | None, x | x, None -> x
+    | Some i, Some j -> Some (min i j)
+  in
+  match e with
+  | EId (_, Some (lo, _)) ->
+      if lo >= byte_min then Some lo else None
+  | EId (_, None) -> None
+  | EApp (a, b) ->
+      min2 (min_lo_spanned_id_byte_from byte_min a) (min_lo_spanned_id_byte_from byte_min b)
+  | EBop (_, a, b) ->
+      min2 (min_lo_spanned_id_byte_from byte_min a) (min_lo_spanned_id_byte_from byte_min b)
+  | ETernary (a, b, c) ->
+      min2 (min_lo_spanned_id_byte_from byte_min a)
+        (min2 (min_lo_spanned_id_byte_from byte_min b) (min_lo_spanned_id_byte_from byte_min c))
+  | EFunction (_, _, body) -> min_lo_spanned_id_byte_from byte_min body
+  | EBind (_, _, e1, e2, _) ->
+      min2 (min_lo_spanned_id_byte_from byte_min e1) (min_lo_spanned_id_byte_from byte_min e2)
+  | EBindRec (_, _, e1, e2, _) ->
+      min2 (min_lo_spanned_id_byte_from byte_min e1) (min_lo_spanned_id_byte_from byte_min e2)
+  | EBindMutRec (bs, body) ->
+      List.fold_left
+        (fun acc (_, _, e1, _, _) -> min2 acc (min_lo_spanned_id_byte_from byte_min e1))
+        (min_lo_spanned_id_byte_from byte_min body) bs
+  | EBlock parts ->
+      List.fold_left
+        (fun acc part ->
+          match part with
+          | Expr ex -> min2 acc (min_lo_spanned_id_byte_from byte_min ex)
+          | Defn _ -> acc)
+        None parts
+  | ESwitch (scr, brs) ->
+      List.fold_left
+        (fun acc (_, be) -> min2 acc (min_lo_spanned_id_byte_from byte_min be))
+        (min_lo_spanned_id_byte_from byte_min scr) brs
+  | EVector es ->
+      List.fold_left
+        (fun acc e -> min2 acc (min_lo_spanned_id_byte_from byte_min e))
+        None es
+  | EListEnumeration (a, b) ->
+      min2 (min_lo_spanned_id_byte_from byte_min a) (min_lo_spanned_id_byte_from byte_min b)
+  | EListComprehension (e0, gens) ->
+      List.fold_left
+        (fun acc (_, gen_e) -> min2 acc (min_lo_spanned_id_byte_from byte_min gen_e))
+        (min_lo_spanned_id_byte_from byte_min e0) gens
+  | ERecordLit fs ->
+      List.fold_left
+        (fun acc (_, ex) -> min2 acc (min_lo_spanned_id_byte_from byte_min ex))
+        None fs
+  | ERecordUpdate (base, upd) ->
+      List.fold_left
+        (fun acc (_, ex) -> min2 acc (min_lo_spanned_id_byte_from byte_min ex))
+        (min_lo_spanned_id_byte_from byte_min base) upd
+  | EFieldAccess (e0, _) -> min_lo_spanned_id_byte_from byte_min e0
+  | EInt _ | EFloat _ | EBool _ | EString _ | EChar _ | EUnit | ENil -> None
+
 (** Any [EId] subexpression (spanned or not). Used with [min_lo_spanned_id_byte]:
     if the RHS has identifiers but none carry spans, [cursor_on_lhs_of_rhs] must
     not assume the cursor is on the lambda parameter for every offset. *)
@@ -322,27 +384,207 @@ let try_list_comp_gen_pat_hover (env : static_env) (type_env : type_env)
       else if not (cursor_on_lhs_of_rhs offset ge) then None
       else type_string_from_list_comp_gen env type_env pat ge name)
 
+(** [__forge_tc_ClassName_method] from [Condense.internal_tc_id]. *)
+let parse_internal_tc_id (id : string) : (string * string) option =
+  let p = "__forge_tc_" in
+  if not (String.starts_with ~prefix:p id) then None
+  else
+    let rest =
+      String.sub id (String.length p) (String.length id - String.length p)
+    in
+    match String.index_opt rest '_' with
+    | None -> None
+    | Some i ->
+        let cls = String.sub rest 0 i in
+        let meth =
+          String.sub rest (i + 1) (String.length rest - i - 1)
+        in
+        Some (cls, meth)
+
+(** [impl] dict slots bind [__forge_tc_Class_meth = rhs]; hover on source [meth]
+    uses the lexer name while the pattern is the internal id. *)
+let try_dict_slot_bind_hover (env : static_env) (type_env : type_env)
+    (lex_id : string option) (offset : int) (pat : c_pat) (rhs : c_expr) :
+    string option =
+  match (pat, lex_id) with
+  | CIdPat binder, Some meth_name
+    when String.starts_with ~prefix:"__forge_tc_" binder -> (
+      match parse_internal_tc_id binder with
+      | Some (_, m)
+        when String.equal m meth_name && cursor_on_lhs_of_rhs offset rhs -> (
+          match Typecheck.type_of_c_expr env type_env rhs with
+          | Ok ct -> Some (hover_string_of_c_type ct)
+          | Error _ -> None)
+      | _ -> None)
+  | _ -> None
+
+let rec peel_efunction_layers acc (e : c_expr) : (c_pat * c_type option * c_expr) list * c_expr
+    =
+  match e with
+  | EFunction (pat, ann, body) -> peel_efunction_layers ((pat, ann, body) :: acc) body
+  | _ -> (List.rev acc, e)
+
+(** Strip top-level [PolyType]/[Constrained] to reach [Mono] (quantifiers kept
+    abstract as [TypeVar] names in the spine — avoids [instantiate] merging
+    independent binders into [a -> a] for hover). *)
+let rec c_type_head_mono (t : c_type) : mono_type option =
+  match t with
+  | Mono m -> Some m
+  | PolyType (_, inner) -> c_type_head_mono inner
+  | Constrained (_, inner) -> c_type_head_mono inner
+
+let rec function_type_dom_spine acc (m : mono_type) : mono_type list * mono_type =
+  match m with
+  | FunctionType (dom, cod) -> function_type_dom_spine (dom :: acc) cod
+  | tail -> (List.rev acc, tail)
+
+(** Cursor is on a curried parameter [name] only if the lexer sees that [Id] and
+    the offset is left of the RHS body in a way consistent with nested lambdas
+    (including [let f x y =] when inner [case x] reuses parameter names). *)
+let cursor_on_curried_param ~(user_byte_lo : int) (full_tokens : Lex.token list)
+    (offset : int) (param_pat : c_pat) (immediate_body : c_expr) : bool =
+  let name_matches_lexer =
+    match (param_pat, lexer_id_covering_offset full_tokens offset) with
+    | CIdPat p, Some (n, lo, hi) ->
+        n = p && cursor_in_id_span_ok offset user_byte_lo (lo, hi)
+    | _ -> false
+  in
+  if not name_matches_lexer then false
+  else
+    match min_lo_spanned_id_byte_from user_byte_lo immediate_body with
+    | Some m -> offset < m
+    | None -> (
+        match (param_pat, immediate_body) with
+        | CIdPat p, ESwitch (EId (scr, _), _) when String.equal p scr -> true
+        (* [let f x y =] peels as [EFunction(x, EFunction(y, rhs))]: when there
+           are no spanned ids yet, [expr_contains_eid] on the inner lambda is
+           still true, which wrongly rejects the outer parameter (e.g. [func] in
+           [let map func l =]). A nested [EFunction] body is always entirely to
+           the right of the outer parameter token. *)
+        | _, EFunction (_, _, _) -> true
+        | _, _ -> not (expr_contains_eid immediate_body))
+
+(** Infer curried parameter types from [type_of_c_expr] without [instantiate]
+    (which can unify distinct quantifiers and show [a -> a] for [map func]). *)
+let try_curried_efunction_param_hover (env : static_env) (type_env : type_env)
+    ~(user_byte_lo : int) (lex_id : string option) (offset : int)
+    (full_tokens : Lex.token list) (e : c_expr) : string option =
+  let layers, _ = peel_efunction_layers [] e in
+  if List.length layers <= 1 then None
+  else
+    match lex_id with
+    | None -> None
+    | Some name -> (
+        match Typecheck.type_of_c_expr env type_env e with
+        | Error _ -> None
+        | Ok ct -> (
+            match Typecheck.simplify_type ct type_env with
+            | Error _ -> None
+            | Ok sch' -> (
+                match c_type_head_mono sch' with
+                | None -> None
+                | Some m0 -> (
+                    let doms, _ = function_type_dom_spine [] m0 in
+                    let rec find_layer i = function
+                      | [] -> None
+                      | (pat, _ann, imm_body) :: rest ->
+                          if List.mem name (names_bound_in_pat pat) then
+                            Some (i, pat, imm_body)
+                          else find_layer (i + 1) rest
+                    in
+                    match find_layer 0 layers with
+                    | None -> None
+                    | Some (idx, pat, imm_body) -> (
+                        if idx >= List.length doms then None
+                        else if
+                          not
+                            (cursor_on_curried_param ~user_byte_lo full_tokens offset pat
+                               imm_body)
+                        then None
+                        else
+                          let dom = List.nth doms idx in
+                          match bind_static pat (Mono dom) with
+                          | Some bs -> (
+                              match List.assoc_opt name bs with
+                              | Some t -> Some (hover_string_of_c_type t)
+                              | None -> None)
+                          | None -> None)))))
+
+(** Like [try_curried_efunction_param_hover] but uses the bound scheme of
+    [let f ... =] from [env] (matches the type shown when hovering [f]). *)
+let try_curried_params_using_defn_scheme (env : static_env) (type_env : type_env)
+    ~(user_byte_lo : int) (lex_id : string option) (offset : int)
+    (full_tokens : Lex.token list) (pat : c_pat) (body : c_expr) : string option
+    =
+  match (pat, lex_id) with
+  | CIdPat fn_name, Some param_name -> (
+      let layers, _ = peel_efunction_layers [] body in
+      if List.length layers < 2 then None
+      else
+        match List.assoc_opt fn_name env with
+        | None -> None
+        | Some sch -> (
+            match Typecheck.simplify_type sch type_env with
+            | Error _ -> None
+            | Ok sch' -> (
+                match c_type_head_mono sch' with
+                | None -> None
+                | Some m0 -> (
+                    let doms, _ = function_type_dom_spine [] m0 in
+                    let rec find_layer i = function
+                      | [] -> None
+                      | (p, _, imm) :: rest ->
+                          if List.mem param_name (names_bound_in_pat p) then
+                            Some (i, p, imm)
+                          else find_layer (i + 1) rest
+                    in
+                    match find_layer 0 layers with
+                    | None -> None
+                    | Some (idx, p, imm) -> (
+                        if idx >= List.length doms then None
+                        else if
+                          not
+                            (cursor_on_curried_param ~user_byte_lo full_tokens offset p imm)
+                        then None
+                        else
+                          let dom = List.nth doms idx in
+                          match bind_static p (Mono dom) with
+                          | Some bs -> (
+                              match List.assoc_opt param_name bs with
+                              | Some t -> Some (hover_string_of_c_type t)
+                              | None -> None)
+                          | None -> None)))))
+  | _ -> None
+
 let try_efunction_param_hover (env : static_env) (type_env : type_env)
-    (lex_id : string option) (offset : int) (pat : c_pat) (ann : c_type option)
+    ~(user_byte_lo : int) (lex_id : string option) (offset : int)
+    (full_tokens : Lex.token list) (pat : c_pat) (ann : c_type option)
     (body : c_expr) : string option =
   match lex_id with
   | None -> None
   | Some name -> (
       if not (List.mem name (names_bound_in_pat pat)) then None
-      else if not (cursor_on_lambda_param_site offset body) then None
+      else if
+        not (cursor_on_curried_param ~user_byte_lo full_tokens offset pat body)
+      then None
       else
         match Typecheck.type_of_c_expr env type_env (EFunction (pat, ann, body)) with
         | Ok ct -> (
-            let m = Typecheck.instantiate ct in
-            match m with
-            | FunctionType (dom, _) -> (
-                match bind_static pat (Mono dom) with
-                | Some bs -> (
-                    match List.assoc_opt name bs with
-                    | Some t -> Some (hover_string_of_c_type t)
-                    | None -> None)
-                | None -> None)
-            | _ -> None)
+            match Typecheck.simplify_type ct type_env with
+            | Error _ -> None
+            | Ok sch' -> (
+                match c_type_head_mono sch' with
+                | None -> None
+                | Some m -> (
+                    match m with
+                    | FunctionType (dom, _) -> (
+                        match bind_static pat (Mono dom) with
+                        | Some bs -> (
+                            match List.assoc_opt name bs with
+                            | Some t -> Some (hover_string_of_c_type t)
+                            | None -> None)
+                        | None -> None)
+                    | _ -> None)))
         | Error _ -> None)
 
 let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
@@ -368,7 +610,7 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
         in
         if on_fun then hover_arrow_dual env type_env name e2
         else
-          match min_lo_spanned_id_byte e2 with
+          match min_lo_spanned_id_byte_from user_byte_lo e2 with
           | Some m when offset < m -> (
               match lex_id with
               | Some s when s = name -> hover_arrow_dual env type_env name e2
@@ -403,21 +645,29 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
               | Some _ as r -> r
               | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens e2)
       | EBind (pat, _, e1, e2, _) -> (
-          match try_rhs_pat_hover env type_env lex_id offset pat e1 with
+          match try_dict_slot_bind_hover env type_env lex_id offset pat e1 with
           | Some _ as r -> r
           | None -> (
-              match visit_expr env type_env user_byte_lo lex_id offset full_tokens e1 with
+              match try_rhs_pat_hover env type_env lex_id offset pat e1 with
               | Some _ as r -> r
               | None -> (
-                  match Typecheck.type_of_c_expr env type_env e1 with
-                  | Ok ct -> (
-                      match bind_static pat ct with
-                      | Some bindings ->
-                          visit_expr (bindings @ env) type_env user_byte_lo lex_id offset
-                            full_tokens e2
-                      | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens e2)
-                  | Error _ -> visit_expr env type_env user_byte_lo lex_id offset full_tokens e2)))
+                  match visit_expr env type_env user_byte_lo lex_id offset full_tokens e1 with
+                  | Some _ as r -> r
+                  | None -> (
+                      match Typecheck.type_of_c_expr env type_env e1 with
+                      | Ok ct -> (
+                          match bind_static pat ct with
+                          | Some bindings ->
+                              visit_expr (bindings @ env) type_env user_byte_lo lex_id offset
+                                full_tokens e2
+                          | None ->
+                              visit_expr env type_env user_byte_lo lex_id offset full_tokens e2)
+                      | Error _ ->
+                          visit_expr env type_env user_byte_lo lex_id offset full_tokens e2))))
       | EBindRec (pat, _, e1, e2, _) -> (
+          match try_dict_slot_bind_hover env type_env lex_id offset pat e1 with
+          | Some _ as r -> r
+          | None -> (
           match pat with
           | CIdPat id ->
               let rec_ty = fresh_type_var () in
@@ -437,7 +687,7 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
           | _ -> (
               match visit_expr env type_env user_byte_lo lex_id offset full_tokens e1 with
               | Some _ as r -> r
-              | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens e2))
+              | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens e2)))
       | EBindMutRec (bindings, body) -> (
           let ids_opt =
             List.fold_left
@@ -489,22 +739,43 @@ let rec visit_expr (env : static_env) (type_env : type_env) (user_byte_lo : int)
                       env function_ids generalized_types
                   in
                   visit_expr body_env type_env user_byte_lo lex_id offset full_tokens body))
-      | EFunction (pat, ann, body) -> (
-          match try_efunction_param_hover env type_env lex_id offset pat ann body with
+      | EFunction (pat, ann, body) as efun -> (
+          match
+            try_curried_efunction_param_hover env type_env ~user_byte_lo lex_id offset
+              full_tokens efun
+          with
           | Some _ as r -> r
           | None -> (
-              match Typecheck.type_of_c_expr env type_env (EFunction (pat, ann, body)) with
-              | Ok ct -> (
-                  let m = Typecheck.instantiate ct in
-                  match m with
-                  | FunctionType (dom, _) -> (
-                      match bind_static pat (Mono dom) with
-                      | Some bindings ->
-                          visit_expr (bindings @ env) type_env user_byte_lo lex_id offset
-                            full_tokens body
-                      | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens body)
-                  | _ -> visit_expr env type_env user_byte_lo lex_id offset full_tokens body)
-              | Error _ -> visit_expr env type_env user_byte_lo lex_id offset full_tokens body))
+              match
+                try_efunction_param_hover env type_env ~user_byte_lo lex_id offset full_tokens pat
+                  ann body
+              with
+              | Some _ as r -> r
+              | None -> (
+                  match Typecheck.type_of_c_expr env type_env (EFunction (pat, ann, body)) with
+                  | Ok ct -> (
+                      match Typecheck.simplify_type ct type_env with
+                      | Error _ ->
+                          visit_expr env type_env user_byte_lo lex_id offset full_tokens body
+                      | Ok sch' -> (
+                          match c_type_head_mono sch' with
+                          | None ->
+                              visit_expr env type_env user_byte_lo lex_id offset full_tokens body
+                          | Some m -> (
+                              match m with
+                              | FunctionType (dom, _) -> (
+                                  match bind_static pat (Mono dom) with
+                                  | Some bindings ->
+                                      visit_expr (bindings @ env) type_env user_byte_lo lex_id offset
+                                        full_tokens body
+                                  | None ->
+                                      visit_expr env type_env user_byte_lo lex_id offset full_tokens
+                                        body)
+                              | _ ->
+                                  visit_expr env type_env user_byte_lo lex_id offset full_tokens body
+                              )))
+                  | Error _ ->
+                      visit_expr env type_env user_byte_lo lex_id offset full_tokens body)))
       | ETernary (a, b, c) -> (
           match visit_expr env type_env user_byte_lo lex_id offset full_tokens a with
           | Some _ as r -> r
@@ -611,9 +882,15 @@ and hover_in_defn (env : static_env) (type_env : type_env) (user_byte_lo : int)
     (d : c_defn) : string option =
   match d with
   | CDefn (pat, _, _, body, _, _) -> (
-      match try_defn_pat_hover env type_env lex_id offset pat body with
+      match
+        try_curried_params_using_defn_scheme env type_env ~user_byte_lo lex_id offset
+          full_tokens pat body
+      with
       | Some _ as r -> r
-      | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens body)
+      | None -> (
+          match try_defn_pat_hover env type_env lex_id offset pat body with
+          | Some _ as r -> r
+          | None -> visit_expr env type_env user_byte_lo lex_id offset full_tokens body))
   | CDefnRec (pat, _, _, body, _, _) ->
       let pattern_type, pattern_env, _ =
         Typecheck.type_of_pat env type_env pat
@@ -667,9 +944,14 @@ and hover_in_defn (env : static_env) (type_env : type_env) (user_byte_lo : int)
                     visit_expr rec_env type_env user_byte_lo lex_id offset full_tokens
                       body)
               None defs))
-  | CClassDecl _ | CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _
-    ->
-      None
+  | CClassDecl (_trait_name, _params, methods) -> (
+      match lex_id with
+      | None -> None
+      | Some name -> (
+          match List.find_opt (fun (m, _, _) -> String.equal m name) methods with
+          | Some (_, mt, _) -> Some (hover_string_of_mono mt)
+          | None -> None))
+  | CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _ -> None
 
 let rec typecheck_defns_hover static_env type_env ctor_env defns :
     (static_env * type_env * constructor_env, type_error) result =
