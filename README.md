@@ -66,11 +66,56 @@ The prelude defines the canonical `List`/`Option` types, standard traits (Functo
 
 ### Typeclasses (traits)
 
-- **Trait declaration**: `trait C<f<_>> requires … where … end` or the alternative keyword **`inter`** for the same idea, e.g. `inter Show <a> { val show : a -> string }` (see [`programs/haskell_style_typeclasses.ls`](programs/haskell_style_typeclasses.ls)).
-- **Instance**: `impl C for T where … end` with method implementations inside the `where` block.
-- **Prelude**: higher-kinded traits and many instances live in [`prelude/prelude.ls`](prelude/prelude.ls); smaller examples include [`programs/typeclass_show.ls`](programs/typeclass_show.ls) and [`programs/functor_list.ls`](programs/functor_list.ls).
+Forge’s traits are the surface syntax for **typeclasses**: named bundles of operations (methods) that types can implement. The compiler passes **dictionaries** at call sites so polymorphic code can use the right implementation for each type. The standard prelude defines the usual hierarchy (`Functor`, `Applicative`, `Monad`, `Show`, `Eq`, `Ord`, `Semigroup`, `Monoid`, …) and instances for built-ins; your own programs can add new traits and instances with **`trait`** (or **`inter`**) and **`impl`**.
 
-Some combinations are still easier in the interpreter than in the native backend; see comments in [`programs/haskell_style_typeclasses.ls`](programs/haskell_style_typeclasses.ls) and [`programs/typeclass_functor_native_list.ls`](programs/typeclass_functor_native_list.ls).
+#### Declaring a trait: `trait` and `inter`
+
+A **trait declaration** introduces a class name, optional type parameters, optional **supertrait** constraints, and a body of method signatures (and optional default definitions):
+
+- **Shape**: `trait Name<…> requires … where … end`
+- **Type parameters** can be simple (`<a>`, `<a, b>`) or **higher-kinded** (`<f<_>>`) for type constructors, as in `trait Functor<f<_>> where …` in the prelude.
+- **`requires`** lists traits that must already be implemented for the same type parameters (e.g. `trait Monoid<a> requires Semigroup<a> where …`). That corresponds to a superclass constraint in Haskell-style typeclasses.
+- Inside **`where … end`**, each method is introduced with **`val`** and its type (`val show : a -> String`). You can add default implementations with **`let`** in the trait body so instances may omit them unless they override.
+
+The keyword **`inter`** is an alternative, brace-oriented spelling for the same concept (see [`programs/haskell_style_typeclasses.ls`](programs/haskell_style_typeclasses.ls) and the small [`programs/typeclass_show.ls`](programs/typeclass_show.ls)). Prefer **`trait … where … end`** in new code if you want to match the prelude style.
+
+**Source order:** every trait must be **declared above** any `impl` that uses it in the same compilation unit. The parser/condenser resolves `impl` against traits seen earlier in the file (and, for the REPL or web playground, against traits from the prelude that were loaded at startup).
+
+#### Implementing a trait: `impl`
+
+An **instance** is written **`impl Trait for Type where … end`**:
+
+- **`Type`** is the implementing type: monomorphic (`Int`, `Bool`, `String`, …), a type constructor applied to parameters (`List<a>`, `Option<a>`), etc., as allowed by the typechecker.
+- Inside **`where … end`**, you supply a **`let`** binding for each **`val`** required by the trait (unless the trait gave a default `let` you are happy to inherit). Operator methods use the same syntax as ordinary functions: `let (++) x y = …`.
+- Instances may be **parameterized**: for example, `impl Semigroup for List<a>` in the prelude implements the trait for all element types `a` at once.
+
+Illustrative fragments (same ideas as [`prelude/prelude.ls`](prelude/prelude.ls)):
+
+```text
+trait Semigroup<a> where
+  val mappend : a -> a -> a
+  val (++) : a -> a -> a
+end
+
+trait Monoid<a> requires Semigroup<a> where
+  val empty : a
+end
+
+impl Semigroup for String where
+  let mappend x y = str_concat x y
+  let (++) x y = mappend x y
+end
+
+impl Monoid for String where
+  let empty = ""
+end
+```
+
+#### Further reading and limitations
+
+- **Prelude**: [`prelude/prelude.ls`](prelude/prelude.ls) is the canonical reference for trait definitions and instances.
+- **Smaller demos**: [`programs/typeclass_show.ls`](programs/typeclass_show.ls), [`programs/functor_list.ls`](programs/functor_list.ls).
+- **Native vs interpreter**: some typeclass-heavy programs are still smoother in the interpreter or REPL than in the native compiler; see comments in [`programs/haskell_style_typeclasses.ls`](programs/haskell_style_typeclasses.ls) and [`programs/typeclass_functor_native_list.ls`](programs/typeclass_functor_native_list.ls).
 
 ### Expressions
 
