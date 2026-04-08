@@ -50,6 +50,35 @@ and is_odd n =
              (* Cursor on first [^] inside [(^^)]. *)
              assert_equal ~printer:Fun.id "a -> b -> a"
                (hover ~prelude:false ~source ~line0:0 ~char0:5) );
+         ( "pattern_binding_common_name_prefers_user_scope" >:: fun _ ->
+             let source =
+               {|let s :: t = [1,2]
+let _ = s
+|}
+             in
+             assert_equal ~printer:Fun.id "Int"
+               (hover ~prelude:true ~source ~line0:0 ~char0:4) );
+         ( "prefix_operator_hover_parenthesized_builtin" >:: fun _ ->
+             let source = "let _ = (+) 1 2\n" in
+             assert_equal ~printer:Fun.id "Int -> Int -> Int"
+               (hover ~prelude:false ~source ~line0:0 ~char0:9) );
+         ( "type_name_hover_shows_type_definition" >:: fun _ ->
+             let source =
+               {|type Box<a> = a
+let id (x : Box<Int>) = x
+|}
+             in
+             assert_equal ~printer:Fun.id "type Box<a> = a"
+               (hover ~prelude:false ~source ~line0:1 ~char0:12) );
+         ( "hover_survives_unrelated_type_error_later" >:: fun _ ->
+             let source =
+               {|let x = 1
+let broken = x + true
+let y = x
+|}
+             in
+             assert_equal ~printer:Fun.id "Int"
+               (hover ~prelude:false ~source ~line0:2 ~char0:4) );
        ]
 
 let () = run_test_tt_main suite
