@@ -605,6 +605,20 @@ and apply_function_value env v_fn v_arg : value eval_result =
 
 and dispatch_typeclass_method_args env cls_name method_name (args : value list)
     : value eval_result =
+  let is_pending_value = function
+    | TypeClassMethodPending _ -> true
+    | _ -> false
+  in
+  let is_acceptable_result (v : value) : bool =
+    if is_pending_value v then false
+    else
+      match (cls_name, method_name) with
+      | "Show", "show" -> (
+          match v with
+          | StringValue _ -> true
+          | _ -> false)
+      | _ -> true
+  in
   let apply_all (method_fn : value) : value eval_result =
     let rec go fn = function
       | [] -> return fn
@@ -622,7 +636,11 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
   let try_from_tau (tau : mono_type) : value eval_result option =
     let dict_name = dict_for_instance ~class_name:cls_name tau in
     match method_for_dict dict_name with
-    | Some method_fn -> Some (apply_all method_fn)
+    | Some method_fn -> (
+        match apply_all method_fn with
+        | Ok v when not (is_acceptable_result v) -> None
+        | Ok _ as r -> Some r
+        | result -> Some result)
     | None -> None
   in
   let try_from_empty_list_shape () : value eval_result option =
@@ -632,7 +650,11 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
       | (k, _) :: rest ->
           if String.starts_with ~prefix k then
             match method_for_dict k with
-            | Some method_fn -> Some (apply_all method_fn)
+            | Some method_fn -> (
+                match apply_all method_fn with
+                | Ok v when not (is_acceptable_result v) -> scan rest
+                | Ok v -> Some (Ok v)
+                | result -> Some result)
             | None -> scan rest
           else scan rest
     in
@@ -644,12 +666,13 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
       | [] -> None
       | (k, _) :: rest ->
           if String.starts_with ~prefix k then
-            match method_for_dict k with
+            (match method_for_dict k with
             | Some method_fn -> (
                 match apply_all method_fn with
+                | Ok v when not (is_acceptable_result v) -> scan rest
                 | Ok v -> Some (Ok v)
                 | Error _ -> scan rest)
-            | None -> scan rest
+            | None -> scan rest)
           else scan rest
     in
     scan env
@@ -932,6 +955,20 @@ and expr_of_pat : c_pat -> c_expr = function
     @param env The environment to evaluate in
     @return The new bindings introduced by the definition *)
 and eval_defn (d : c_defn) (env : env) : env eval_result =
+  let rec backpatch_recursive_closures (new_bindings : env) (v : value) : unit =
+    match v with
+    | RecursiveFunctionClosure (env_ref, _, _, _) ->
+        env_ref := new_bindings @ !env_ref
+    | RecordValue fields ->
+        List.iter
+          (fun (_, field_v) -> backpatch_recursive_closures new_bindings field_v)
+          fields
+    | VectorValue vs | ListValue vs ->
+        List.iter (backpatch_recursive_closures new_bindings) vs
+    | IntegerValue _ | FloatValue _ | StringValue _ | BooleanValue _
+    | CharValue _ | UnitValue | FunctionClosure _ | BuiltInFunction _
+    | TypeClassMethod _ | TypeClassMethodPending _ | VariantValue _ -> ()
+  in
   match d with
   | CDefn (pat, _, _, body, _, _) -> (
       (* Evaluate the body in the current environment *)
@@ -939,7 +976,11 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       (* Try to bind the pattern to the value *)
       match bind_pat pat value with
       | None -> Error (OtherError "eval_defn: pattern match failed")
-      | Some new_bindings -> new_bindings |> return)
+      | Some new_bindings ->
+          List.iter
+            (fun (_, v) -> backpatch_recursive_closures new_bindings v)
+            new_bindings;
+          new_bindings |> return)
   | CDefnRec (pat, _, _, body, _, _) -> (
       (* For recursive definitions, we need to create a recursive closure *)
       let* value = eval_c_expr body env in

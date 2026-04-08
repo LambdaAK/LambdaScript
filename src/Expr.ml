@@ -64,7 +64,8 @@ type defn =
       * (string * int) list
       * (string * compound_type) list
       * trait_item list
-  | InstanceDef of string * compound_type * (string * expr) list
+  | InstanceDef of
+      string * compound_type * (string * compound_type) list * (string * expr) list
   | TypeDef of string * string list * compound_type
   | SumTypeDef of string * string list * (string * compound_type option) list
   | SumTypeDefRec of string * string list * (string * compound_type option) list

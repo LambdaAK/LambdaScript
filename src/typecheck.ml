@@ -2832,6 +2832,17 @@ let rec primary_class_constraint (t : c_type) : string option =
   | PolyType (_, inner) -> primary_class_constraint inner
   | _ -> None
 
+let rec all_class_constraints (t : c_type) : string list =
+  match t with
+  | Constrained (preds, inner) ->
+      let here = List.map fst preds in
+      let rest = all_class_constraints inner in
+      List.fold_left
+        (fun acc c -> if List.mem c acc then acc else acc @ [ c ])
+        here rest
+  | PolyType (_, inner) -> all_class_constraints inner
+  | Mono _ -> []
+
 let rec extract_class_param_and_mono_template (class_name : string) (t : c_type)
     : (string * mono_type) option =
   match t with
@@ -3112,28 +3123,47 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
 and elaborate_constrained_body (static_env : static_env)
     (type_env : type_env) (name : string) (body : c_expr) : c_expr =
   match List.assoc_opt name static_env with
-  | Some sch when scheme_has_class_constraint sch -> (
-      match primary_class_constraint sch with
-      | Some cls ->
+  | Some sch when scheme_has_class_constraint sch ->
+      let constrained_classes = all_class_constraints sch in
+      let body' = elaborate_expr static_env type_env body in
+      List.fold_right
+        (fun cls acc_body ->
           let dict_param = "__dict_" ^ cls in
           let method_names = class_method_names ~static_env ~class_name:cls in
-          let body' = elaborate_expr static_env type_env body in
-          let body'' =
-            subst_methods_with_dict_access ~dict_param ~method_names body'
+          let rewritten =
+            subst_methods_with_dict_access ~dict_param ~method_names acc_body
           in
-          if body' = body'' then body''
-          else EFunction (CIdPat dict_param, None, body'')
-      | None -> elaborate_expr static_env type_env body)
+          if rewritten = acc_body then acc_body
+          else EFunction (CIdPat dict_param, None, rewritten))
+        constrained_classes body'
   | _ -> elaborate_expr static_env type_env body
 
 and elaborate_defn (static_env : static_env) (type_env : type_env) d : c_defn =
   match d with
   | CDefn (CIdPat name as pat, cs, a, body, r, n) ->
-      CDefn (pat, cs, a, elaborate_constrained_body static_env type_env name body, r, n)
+      if String.starts_with ~prefix:"__forge_dict_" name then
+        CDefn (pat, cs, a, elaborate_expr static_env type_env body, r, n)
+      else
+        CDefn
+          ( pat,
+            cs,
+            a,
+            elaborate_constrained_body static_env type_env name body,
+            r,
+            n )
   | CDefn (pat, cs, a, body, r, n) ->
       CDefn (pat, cs, a, elaborate_expr static_env type_env body, r, n)
   | CDefnRec (CIdPat name as pat, cs, a, body, r, n) ->
-      CDefnRec (pat, cs, a, elaborate_constrained_body static_env type_env name body, r, n)
+      if String.starts_with ~prefix:"__forge_dict_" name then
+        CDefnRec (pat, cs, a, elaborate_expr static_env type_env body, r, n)
+      else
+        CDefnRec
+          ( pat,
+            cs,
+            a,
+            elaborate_constrained_body static_env type_env name body,
+            r,
+            n )
   | CDefnRec (pat, cs, a, body, r, n) ->
       CDefnRec (pat, cs, a, elaborate_expr static_env type_env body, r, n)
   | CDefnMutRec defs ->

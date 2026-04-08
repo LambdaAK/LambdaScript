@@ -1615,6 +1615,44 @@ end = struct
         | Id s -> Some s
         | _ -> None)
     in
+    let impl_requires_and_where_parser :
+        ((string * compound_type) list * bool) parser =
+      (let* () = expect_token Requires in
+       let* rs = parse_sep_delim requires_super_parser Comma in
+       return (rs, false))
+      <|>
+      (let* () = expect_token Where in
+       let* starts_let = check_tokens Let in
+       if starts_let then return ([], true)
+       else
+         let* rs = parse_sep_delim requires_super_parser Comma in
+         let* () = expect_token Where in
+         return (rs, true))
+      <|> return ([], false)
+    in
+    let impl_body_where_parser (head_ty : compound_type) : defn parser =
+      let* requires, has_body_where = impl_requires_and_where_parser in
+      let* () = if has_body_where then return () else expect_token Where in
+      let* impls = parse_one_or_more_opt_commas impl_row_parser in
+      let* () = expect_token End in
+      return (InstanceDef (cls, head_ty, requires, impls))
+    in
+    let impl_body_brace_parser (head_ty : compound_type) : defn parser =
+      let* requires =
+        (let* () = expect_token Requires in
+         let* rs = parse_sep_delim requires_super_parser Comma in
+         return rs)
+        <|>
+        (let* () = expect_token Where in
+         let* rs = parse_sep_delim requires_super_parser Comma in
+         return rs)
+        <|> return []
+      in
+      let* () = expect_token LBrace in
+      let* impls = parse_one_or_more_opt_commas impl_row_parser in
+      let* () = expect_token RBrace in
+      return (InstanceDef (cls, head_ty, requires, impls))
+    in
     (let* () =
        expect_token_get_data (function
          | Relop s when s = "<" -> Some ()
@@ -1626,22 +1664,11 @@ end = struct
          | Relop s when s = ">" -> Some ()
          | _ -> None)
      in
-     let* () = expect_token Where in
-     let* impls = parse_one_or_more_opt_commas impl_row_parser in
-     let* () = expect_token End in
-     return (InstanceDef (cls, head_ty, impls)))
+     impl_body_where_parser head_ty)
     <|>
     let* () = expect_token For in
     let* head_ty = CompoundTypeParser.compound_type_parser in
-    (let* () = expect_token LBrace in
-     let* impls = parse_one_or_more_opt_commas impl_row_parser in
-     let* () = expect_token RBrace in
-     return (InstanceDef (cls, head_ty, impls)))
-    <|>
-    let* () = expect_token Where in
-    let* impls = parse_one_or_more_opt_commas impl_row_parser in
-    let* () = expect_token End in
-    return (InstanceDef (cls, head_ty, impls))
+    (impl_body_brace_parser head_ty) <|> impl_body_where_parser head_ty
 
   let constructor_parser : (string * compound_type option) parser =
     let* () = expect_token Pipe in
