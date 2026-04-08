@@ -646,7 +646,9 @@ let dict_bindrec_payload ~(meth : string) ~(intid : string) (e : c_expr) :
     (c_type option * c_expr * c_type option) option =
   match e with
   | EBindRec (CIdPat nm, ta, e1, EId (tail, _), rt)
-    when String.equal nm meth && String.equal tail intid -> Some (ta, e1, rt)
+    when String.equal nm meth
+         && (String.equal tail intid || String.equal tail meth) ->
+      Some (ta, e1, rt)
   | _ -> None
 
 (** Whether [e] mentions [id] as [EId] (trait dict internals are unique). *)
@@ -902,7 +904,7 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
         after_top_level_defn ();
         walk ((name, entry) :: classes) seen_ctors seen_instances (decl :: acc)
           rest
-    | InstanceDef (cls, inst_ct, impls) :: rest ->
+    | InstanceDef (cls, inst_ct, impl_requires, impls) :: rest ->
         before_top_level_defn ();
         (
         match List.assoc_opt cls classes with
@@ -921,6 +923,17 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                 let subst mt =
                   Type_arity.substitute_instance_in_mono ~written_var:w
                     ~inst:inst_mono arity mt
+                in
+                let requires_mono =
+                  List.map
+                    (fun (req_cls, req_ct) ->
+                      match List.assoc_opt req_cls classes with
+                      | None ->
+                          failwith
+                            ("forge: impl requires unknown trait '" ^ req_cls
+                           ^ "'")
+                      | Some _ -> (req_cls, condense_compound_type req_ct))
+                    impl_requires
                 in
                 let slug = mono_type_slug inst_mono in
                 let impl_names = List.map fst impls in
@@ -1024,7 +1037,11 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                         | None ->
                             if expr_refs_c_id intid e then
                               EBindRec (CIdPat intid, None, e, acc, None)
-                            else EBind (CIdPat intid, None, e, acc, None))
+                            else
+                              (match e with
+                              | EFunction _ ->
+                                  EBindRec (CIdPat intid, None, e, acc, None)
+                              | _ -> EBind (CIdPat intid, None, e, acc, None)))
                       ordered record
                   in
                   match topo_dict_methods ~dispatch_d names condensed with
@@ -1071,7 +1088,7 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                       let cdefn =
                         CDefn
                           ( CIdPat dict_name,
-                            [],
+                            requires_mono,
                             Some (Mono expected),
                             body,
                             None,

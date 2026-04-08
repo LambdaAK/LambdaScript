@@ -1562,6 +1562,27 @@ let program_typecheck_tests =
                     "parse incomplete: %d defns, %d rem, first rem=%s"
                     (List.length defs) (List.length rem) first_tok)
            | None -> assert_failure "program_parser returned None" );
+         ( "impl with where constraints tokenizes and parses to EOF" >:: fun _ ->
+           let s =
+             "impl Show for Option<a> where Show<a> where let show o = o end\n"
+           in
+           let tokens =
+             lex (s |> String.to_seq |> List.of_seq)
+             |> List.map (fun t -> t.token_type)
+           in
+           match Language.Parser.ProgramParser.program_parser tokens with
+           | Some ([ Language.Expr.InstanceDef _ ], rem) when rem = [] -> ()
+           | Some (defs, rem) ->
+               let first_tok =
+                 match rem with
+                 | h :: _ -> Language.Lex.string_of_token_type h
+                 | [] -> ""
+               in
+               assert_failure
+                 (Printf.sprintf
+                    "parse incomplete: %d defns, %d rem, first rem=%s"
+                    (List.length defs) (List.length rem) first_tok)
+           | None -> assert_failure "program_parser returned None" );
        ]
 
 let program_expression_type_tests =
@@ -1614,6 +1635,95 @@ let program_expression_type_tests =
              |}
              ~expr:"fmap (fn x -> x + 1) (Some 10)"
              ~expected_type:"Option<Int>" );
+         ( "Show Option with impl where-constraint" >:: fun _ ->
+           assert_expression_has_type
+             ~program:
+               {|
+               inter Show <a> {
+                 val show : a -> String
+               }
+               impl Show for Int where
+                 let show x = int_to_str x
+               end
+               type Option<a> =
+                 | None
+                 | Some of a
+               impl Show for Option<a> where Show<a> where
+                 let show o =
+                   case o do
+                   | None -> "None"
+                   | Some v -> "Some(" ^ show v ^ ")"
+               end
+             |}
+             ~expr:"show (Some 10)" ~expected_type:"String" );
+         ( "Show Option constrained impl evaluates" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               inter Show <a> {
+                 val show : a -> String
+               }
+               impl Show for Int where
+                 let show x = int_to_str x
+               end
+               type Option<a> =
+                 | None
+                 | Some of a
+               impl Show for Option<a> requires Show<a> where
+                 let show o =
+                   case o do
+                   | None -> "None"
+                   | Some v -> "Some(" ^ show v ^ ")"
+               end
+             |}
+             ~expr:"show (Some 10)" ~expected_value:"\"Some(10)\"" );
+         ( "Show Maybe nested constrained impl evaluates" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               inter Show <a> {
+                 val show : a -> String
+               }
+               impl Show for Int where
+                 let show x = int_to_str x
+               end
+               type Maybe<a> =
+                 | Nothing
+                 | Just of a
+               impl Show for Maybe<a> requires Show<a> where
+                 let show o =
+                   case o do
+                   | Nothing -> "Nothing"
+                   | Just v -> "Just(" ^ show v ^ ")"
+               end
+             |}
+             ~expr:"show (Just (Just 10))"
+             ~expected_value:"\"Just(Just(10))\"" );
+         ( "Show Maybe nested constrained impl with Show String present" >:: fun _ ->
+           assert_expression_has_value
+             ~program:
+               {|
+               inter Show <a> {
+                 val show : a -> String
+               }
+               impl Show for Int where
+                 let show x = int_to_str x
+               end
+               impl Show for String where
+                 let show s = s
+               end
+               type Maybe<a> =
+                 | Nothing
+                 | Just of a
+               impl Show for Maybe<a> requires Show<a> where
+                 let show o =
+                   case o do
+                   | Nothing -> "Nothing"
+                   | Just v -> "Just(" ^ show v ^ ")"
+               end
+             |}
+             ~expr:"show (Just (Just 10))"
+             ~expected_value:"\"Just(Just(10))\"" );
          ( "Semigroup Int sappend" >:: fun _ ->
            assert_expression_has_type
              ~program:
