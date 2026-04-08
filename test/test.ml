@@ -265,6 +265,29 @@ let rec strip_outer_poly_for_type_test (t : Language.Cexpr.c_type) :
   | PolyType (_, inner) -> strip_outer_poly_for_type_test inner
   | t -> t
 
+let parse_type_for_test (type_str : string) : Language.Cexpr.c_type =
+  let input = type_str |> String.to_seq |> List.of_seq in
+  let tokens = lex input |> List.map (fun t -> t.token_type) in
+  match Language.Parser.CompoundTypeParser.compound_type_parser tokens with
+  | None -> failwith ("Could not parse expected type: " ^ type_str)
+  | Some (typ, []) -> condense_type typ
+  | Some (_, rem) ->
+      failwith
+        (Printf.sprintf "Expected type parse left %d trailing tokens"
+           (List.length rem))
+
+let canonical_type_string_for_test (t : Language.Cexpr.c_type) : string =
+  let t = strip_outer_poly_for_type_test t in
+  let s =
+    match t with
+    | Mono m ->
+        let canon = canonicalize_mono_type_vars_for_instance_key m in
+        string_of_c_type (Mono canon)
+    | _ -> string_of_c_type t
+  in
+  let re = Str.regexp "\\$written(\\([^)]+\\))" in
+  Str.global_replace re "\\1" s
+
 let type_test (expr : string) (expected_output : string) : test =
   expr ^ " SHOULD BE OF TYPE " ^ expected_output >:: fun _ ->
   let static_env =
@@ -307,10 +330,14 @@ let type_test (expr : string) (expected_output : string) : test =
     | _ -> failwith "type failureeeeeeeeee"
   in
   let type_string =
-    string_of_c_type (strip_outer_poly_for_type_test type_result)
+    canonical_type_string_for_test type_result
   in
 
-  assert_equal type_string expected_output
+  let expected_string =
+    parse_type_for_test expected_output |> canonical_type_string_for_test
+  in
+
+  assert_equal ~printer:Fun.id expected_string type_string
 
 let type_is_bool (program : string) = type_test program "Bool"
 let type_is_int (program : string) = type_test program "Int"
@@ -1452,6 +1479,17 @@ module ProgramTesting = struct
     | PolyType (_, inner) -> strip_outer_poly inner
     | t -> t
 
+  let canonical_type_string (t : c_type) : string =
+    let t = strip_outer_poly t in
+    let rendered =
+      match t with
+      | Mono m ->
+          let canon = canonicalize_mono_type_vars_for_instance_key m in
+          string_of_c_type (Mono canon)
+      | _ -> string_of_c_type t
+    in
+    normalize_type_string rendered
+
   (** Assert that an expression has a specific type after running a program.
       @param program The program source code as a string
       @param expr The expression source code as a string
@@ -1462,13 +1500,8 @@ module ProgramTesting = struct
     let expected_c_type = parse_type expected_type |> condense_type in
 
     (* Compare types by converting to strings and normalizing *)
-    let actual_str =
-      string_of_c_type (strip_outer_poly actual_type) |> normalize_type_string
-    in
-    let expected_str =
-      string_of_c_type (strip_outer_poly expected_c_type)
-      |> normalize_type_string
-    in
+    let actual_str = canonical_type_string actual_type in
+    let expected_str = canonical_type_string expected_c_type in
 
     if actual_str <> expected_str then
       failwith
@@ -2976,7 +3009,7 @@ let red_black_tree_tests =
                      else if x < y then contains x left
                      else contains x right
              |}
-             ~expr:"contains" ~expected_type:"Int -> RBTree<Int> -> Bool" );
+             ~expr:"contains" ~expected_type:"a -> RBTree<a> -> Bool" );
          ( "rb tree contains - empty tree" >:: fun _ ->
            assert_expression_has_value
              ~program:
@@ -3502,7 +3535,7 @@ let red_black_tree_tests =
                        tree
              |}
              ~expr:"insert_aux"
-             ~expected_type:"Int -> RBTree<Int> -> RBTree<Int>" );
+             ~expected_type:"a -> RBTree<a> -> RBTree<a>" );
          ( "rb tree insert function type" >:: fun _ ->
            assert_expression_has_type
              ~program:
@@ -3543,7 +3576,7 @@ let red_black_tree_tests =
                let insert x tree =
                  make_black (insert_aux x tree)
              |}
-             ~expr:"insert" ~expected_type:"Int -> RBTree<Int> -> RBTree<Int>"
+             ~expr:"insert" ~expected_type:"a -> RBTree<a> -> RBTree<a>"
          );
          ( "rb tree insert into empty tree" >:: fun _ ->
            assert_expression_has_value
@@ -4073,7 +4106,7 @@ let sum_type_constructor_inference_tests =
                      else if x < y then contains x left
                      else contains x right
              |}
-             ~expr:"contains" ~expected_type:"Int -> RBTree<Int> -> Bool" );
+             ~expr:"contains" ~expected_type:"a -> RBTree<a> -> Bool" );
          (* Test balance function type *)
          ( "rb tree balance function type" >:: fun _ ->
            assert_expression_has_type

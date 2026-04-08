@@ -233,18 +233,21 @@ let load_file_into_env filename static_env dynamic_env type_env =
         (* Successfully parsed entire file as a program *)
         let condensed_program = condense_program program in
 
-        let new_static_env, new_dynamic_env, new_type_env =
+        let new_static_env, new_dynamic_env, new_type_env, loaded_ok =
           match
             Language.Repl_kernel.process_condensed_defns static_env dynamic_env
               type_env condensed_program
           with
-          | Language.Typecheck.Ok (ms, md, mt, _, _, _) -> (ms, md, mt)
+          | Language.Typecheck.Ok (ms, md, mt, _, _, _) ->
+              Language.Repl_kernel.remember_user_defns_for_condense program
+                condensed_program;
+              (ms, md, mt, true)
           | Language.Typecheck.Error e ->
               print_error (string_of_type_check_error e);
-              (static_env, dynamic_env, type_env)
+              (static_env, dynamic_env, type_env, false)
         in
 
-        print_colored_line color_green ("Loaded " ^ filename);
+        if loaded_ok then print_colored_line color_green ("Loaded " ^ filename);
         (new_static_env, new_dynamic_env, new_type_env)
     | Some (_, remaining) ->
         print_error ("Warning: " ^ string_of_int (List.length remaining) ^

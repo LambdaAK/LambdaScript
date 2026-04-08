@@ -79,6 +79,78 @@ let y = x
              in
              assert_equal ~printer:Fun.id "Int"
                (hover ~prelude:false ~source ~line0:2 ~char0:4) );
+         ( "impl_operator_eq_binder_hover" >:: fun _ ->
+             let source =
+               {|inter EqLike <a> {
+  val (==) : a -> a -> Bool
+  val (!=) : a -> a -> Bool
+}
+impl EqLike for Int where
+  let (==) x y = x == y
+  let (!=) x y = not ((==) x y)
+end
+|}
+             in
+             assert_equal ~printer:Fun.id "a -> a -> Bool"
+               (hover ~prelude:false ~source ~line0:5 ~char0:7) );
+         ( "impl_operator_neq_binder_hover" >:: fun _ ->
+             let source =
+               {|inter EqLike <a> {
+  val (==) : a -> a -> Bool
+  val (!=) : a -> a -> Bool
+}
+impl EqLike for Int where
+  let (==) x y = x == y
+  let (!=) x y = not ((==) x y)
+end
+|}
+             in
+             assert_equal ~printer:Fun.id "a -> a -> Bool"
+               (hover ~prelude:false ~source ~line0:6 ~char0:7) );
+         ( "operator_call_hover_parenthesized_user_trait_method" >:: fun _ ->
+             let source =
+               {|inter EqLike <a> {
+  val (==) : a -> a -> Bool
+  val (!=) : a -> a -> Bool
+}
+impl EqLike for Int where
+  let (==) x y = x == y
+  let (!=) x y = not ((==) x y)
+end
+let _ = (!=) 1 2
+|}
+             in
+             assert_equal ~printer:Fun.id "a -> a -> Bool"
+               (hover ~prelude:false ~source ~line0:8 ~char0:9) );
+         ( "hover_operator_reference_inside_impl_body" >:: fun _ ->
+             let source =
+               {|inter EqLike <a> {
+  val (==) : a -> a -> Bool
+  val (!=) : a -> a -> Bool
+}
+impl EqLike for Int where
+  let (==) x y = x == y
+  let (!=) x y = not ((==) x y)
+end
+|}
+             in
+             assert_equal ~printer:Fun.id "a -> a -> Bool"
+               (hover ~prelude:false ~source ~line0:6 ~char0:23) );
+         ( "hover_after_trait_impl_with_prelude_enabled" >:: fun _ ->
+             let source =
+               {|inter EqLike <a> {
+  val (==) : a -> a -> Bool
+  val (!=) : a -> a -> Bool
+}
+impl EqLike for Int where
+  let (==) x y = x == y
+  let (!=) x y = not ((==) x y)
+end
+let hovered_after_impl = 7
+|}
+             in
+             assert_equal ~printer:Fun.id "Int"
+               (hover ~prelude:true ~source ~line0:8 ~char0:4) );
        ]
 
 let () = run_test_tt_main suite

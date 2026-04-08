@@ -314,24 +314,26 @@ let rec mono_type_of_value (v : value) : mono_type option =
   | TypeClassMethod _
   | TypeClassMethodPending _ -> None
 
-let resolve_tc_method_value (env : env) (v : value) : value =
-  match v with
-  | TypeClassMethod (cls, meth) ->
-      let prefix = "__forge_dict_" ^ cls ^ "_" in
-      let rec scan = function
-        | [] -> v
-        | (k, _) :: rest ->
-            if String.starts_with ~prefix k then
-              match List.assoc_opt k env with
-              | Some (RecordValue fields) -> (
-                  match List.assoc_opt meth fields with
-                  | Some resolved -> resolved
-                  | None -> scan rest)
-              | _ -> scan rest
-            else scan rest
-      in
-      scan env
-  | _ -> v
+let resolve_tc_method_value (_env : env) (v : value) : value =
+  (* Keep overloaded methods symbolic until we see call arguments. Eagerly
+     picking an arbitrary dictionary here breaks higher-order uses (e.g.
+     [map show [1,2]]). *)
+  v
+
+let is_dict_binding_name (name : string) : bool =
+  String.starts_with ~prefix:"__forge_dict_" name
+  || String.starts_with ~prefix:"__dict_" name
+
+let merge_closure_env_with_caller_dicts (closure_env : env) (caller_env : env) :
+    env =
+  let has_name name env = List.exists (fun (n, _) -> n = name) env in
+  let extra_dicts =
+    List.filter
+      (fun (name, _) ->
+        is_dict_binding_name name && not (has_name name closure_env))
+      caller_env
+  in
+  extra_dicts @ closure_env
 
 (** [eval_c_expr ce env] evaluates a condensed expression [ce] in the context of
     environment [env].
@@ -425,6 +427,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       match v1 with
       | BuiltInFunction f -> eval_builtin f v2
       | FunctionClosure (env', p, _, e) -> (
+          let env_for_body = merge_closure_env_with_caller_dicts env' env in
           (* Check if this is a constructor function by checking the pattern *)
           (* Constructor functions have a special pattern name starting with "__constructor_" *)
           match p with
@@ -440,13 +443,14 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
           | _ -> (
               (* Regular function application *)
               match bind_pat p v2 with
-              | Some env'' -> eval_c_expr e (env'' @ env')
+              | Some env'' -> eval_c_expr e (env'' @ env_for_body)
               | None -> Error (OtherError "eval_c_expr: EApp")))
       (* recursive function *)
       | RecursiveFunctionClosure (env'_ref, p, _, e) -> (
           let env' : env = !env'_ref in
+          let env_for_body = merge_closure_env_with_caller_dicts env' env in
           match bind_pat p v2 with
-          | Some env'' -> eval_c_expr e (env'' @ env')
+          | Some env'' -> eval_c_expr e (env'' @ env_for_body)
           | None -> Error (OtherError "eval_c_expr: EApp"))
       | TypeClassMethod (cls_name, method_name) ->
           dispatch_typeclass_method_args env cls_name method_name [ v2 ]
@@ -579,6 +583,7 @@ and apply_function_value env v_fn v_arg : value eval_result =
   match v_fn with
   | BuiltInFunction f -> eval_builtin f v_arg
   | FunctionClosure (env', p, _, e) -> (
+      let env_for_body = merge_closure_env_with_caller_dicts env' env in
       match p with
       | CIdPat pattern_name
         when String.length pattern_name > 14
@@ -589,12 +594,13 @@ and apply_function_value env v_fn v_arg : value eval_result =
           VariantValue (cons_name, Some v_arg) |> return
       | _ -> (
           match bind_pat p v_arg with
-          | Some env'' -> eval_c_expr e (env'' @ env')
+          | Some env'' -> eval_c_expr e (env'' @ env_for_body)
           | None -> Error (OtherError "eval_c_expr: EApp")))
   | RecursiveFunctionClosure (env'_ref, p, _, e) -> (
       let env' : env = !env'_ref in
+      let env_for_body = merge_closure_env_with_caller_dicts env' env in
       match bind_pat p v_arg with
-      | Some env'' -> eval_c_expr e (env'' @ env')
+      | Some env'' -> eval_c_expr e (env'' @ env_for_body)
       | None -> Error (OtherError "eval_c_expr: EApp"))
   | TypeClassMethod (cls_name, method_name) ->
       dispatch_typeclass_method_args env cls_name method_name [ v_arg ]
@@ -633,15 +639,64 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
     | Some (RecordValue fields) -> List.assoc_opt method_name fields
     | _ -> None
   in
+  let forge_dict_slug ~(class_name : string) (dict_name : string) :
+      string option =
+    let p = "__forge_dict_" ^ class_name ^ "_" in
+    if String.starts_with ~prefix:p dict_name then
+      Some
+        (String.sub dict_name (String.length p)
+           (String.length dict_name - String.length p))
+    else None
+  in
+  let dict_candidate_matches_tau ~(dict_name : string) ~(class_name : string)
+      (tau : mono_type) : bool =
+    match forge_dict_slug ~class_name dict_name with
+    | None -> false
+    | Some sfx -> (
+        let sfx_starts (pre : string) = String.starts_with ~prefix:pre sfx in
+        match tau with
+        | TypeVar _ -> true
+        | IntType -> sfx_starts "int" || sfx_starts "Int"
+        | FloatType -> sfx_starts "float" || sfx_starts "Float"
+        | BoolType -> sfx_starts "bool" || sfx_starts "Bool"
+        | StringType -> sfx_starts "string" || sfx_starts "String"
+        | CharType -> sfx_starts "char" || sfx_starts "Char"
+        | UnitType -> sfx_starts "unit" || sfx_starts "Unit"
+        | CListType _ -> sfx_starts "list"
+        | CTypeApp (n, _) -> sfx_starts n || sfx_starts (n ^ "__")
+        | FixedPoint (n, _) -> sfx_starts ("mu_" ^ n) || sfx_starts n
+        | _ -> true)
+  in
   let try_from_tau (tau : mono_type) : value eval_result option =
     let dict_name = dict_for_instance ~class_name:cls_name tau in
+    let try_apply_method (method_fn : value) : value eval_result option =
+      match apply_all method_fn with
+      | Ok v when not (is_acceptable_result v) -> None
+      | result -> Some result
+    in
+    let prefix = "__forge_dict_" ^ cls_name ^ "_" in
+    let rec scan = function
+      | [] -> None
+      | (k, _) :: rest ->
+          if
+            String.starts_with ~prefix k
+            && dict_candidate_matches_tau ~dict_name:k ~class_name:cls_name
+                 tau
+          then
+            match method_for_dict k with
+            | Some method_fn -> (
+                match try_apply_method method_fn with
+                | Some result -> Some result
+                | None -> scan rest)
+            | None -> scan rest
+          else scan rest
+    in
     match method_for_dict dict_name with
     | Some method_fn -> (
-        match apply_all method_fn with
-        | Ok v when not (is_acceptable_result v) -> None
-        | Ok _ as r -> Some r
-        | result -> Some result)
-    | None -> None
+        match try_apply_method method_fn with
+        | Some result -> Some result
+        | None -> scan env)
+    | None -> scan env
   in
   let try_from_empty_list_shape () : value eval_result option =
     let prefix = "__forge_dict_" ^ cls_name ^ "_list__" in
@@ -691,27 +746,23 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
                 | ListValue [] -> (
                     match try_from_empty_list_shape () with
                     | Some (Ok v) -> Some (Ok v)
-                    | Some (Error _) | None -> (
-                        match try_any_dict_for_class () with
-                        | Some (Ok v) -> Some (Ok v)
-                        | Some (Error _) | None -> try_args rest))
-                | _ -> (
+                    | Some (Error _) | None -> try_args rest)
+                | VariantValue _ -> (
                     match try_any_dict_for_class () with
                     | Some (Ok v) -> Some (Ok v)
-                    | Some (Error _) | None -> try_args rest)))
+                    | Some (Error _) | None -> try_args rest)
+                | _ -> try_args rest))
         | None -> (
             match arg with
             | ListValue [] -> (
                 match try_from_empty_list_shape () with
                 | Some (Ok v) -> Some (Ok v)
-                | Some (Error _) | None -> (
-                    match try_any_dict_for_class () with
-                    | Some (Ok v) -> Some (Ok v)
-                    | Some (Error _) | None -> try_args rest))
-            | _ -> (
+                | Some (Error _) | None -> try_args rest)
+            | VariantValue _ -> (
                 match try_any_dict_for_class () with
                 | Some (Ok v) -> Some (Ok v)
-                | Some (Error _) | None -> try_args rest)))
+                | Some (Error _) | None -> try_args rest)
+            | _ -> try_args rest))
   in
   match try_args (List.rev args) with
   | Some result -> result

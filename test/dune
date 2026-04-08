@@ -17,3 +17,33 @@
  (modules hover_ident_tests)
  (libraries Language ounit2)
  (action (chdir %{workspace_root} (run %{test}))))
+
+(test
+ (name repl_trait_impl_tests)
+ (modules repl_trait_impl_tests)
+ (libraries Language ounit2)
+ (action (chdir %{workspace_root} (run %{test}))))
+
+(test
+ (name trait_impl_program_tests)
+ (modules trait_impl_program_tests)
+ (libraries Language ounit2)
+ (action (chdir %{workspace_root} (run %{test}))))
+
+(test
+ (name trait_impl_massive_tests)
+ (modules trait_impl_massive_tests)
+ (libraries Language ounit2)
+ (action (chdir %{workspace_root} (run %{test}))))
+
+(test
+ (name repl_format_constraints_massive_tests)
+ (modules repl_format_constraints_massive_tests)
+ (libraries Language ounit2)
+ (action (chdir %{workspace_root} (run %{test}))))
+
+(test
+ (name repl_kernel_gap_coverage_tests)
+ (modules repl_kernel_gap_coverage_tests)
+ (libraries Language ounit2 str)
+ (action (chdir %{workspace_root} (run %{test}))))

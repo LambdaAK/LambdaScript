@@ -630,25 +630,113 @@ let rec subst_c_expr (sub : (string * c_expr) list) (e : c_expr) : c_expr =
     -> leaf
 
 let sanitize_method_internal (s : string) : string =
-  String.map
-    (function
-      | ('a' .. 'z' | 'A' .. 'Z' | '0' .. '9') as c -> c
-      | _ -> '_')
-    s
+  let buf = Buffer.create (String.length s * 3) in
+  String.iter
+    (fun c ->
+      match c with
+      | ('a' .. 'z' | 'A' .. 'Z' | '0' .. '9') as ch -> Buffer.add_char buf ch
+      | '_' -> Buffer.add_string buf "__"
+      | ch ->
+          Buffer.add_char buf '_';
+          Buffer.add_string buf (Printf.sprintf "%02x" (Char.code ch)))
+    s;
+  Buffer.contents buf
 
 let internal_tc_id (dispatch_cls : string) (meth : string) : string =
   "__forge_tc_" ^ dispatch_cls ^ "_" ^ sanitize_method_internal meth
 
+let rec pat_binds_name (target : string) (p : c_pat) : bool =
+  match p with
+  | CIdPat id -> String.equal id target
+  | CConsPat (a, b) -> pat_binds_name target a || pat_binds_name target b
+  | CVectorPat ps -> List.exists (pat_binds_name target) ps
+  | CRecordPat fs -> List.exists (fun (_, p0) -> pat_binds_name target p0) fs
+  | CVariantPat (_, Some p0) -> pat_binds_name target p0
+  | CVariantPat (_, None) -> false
+  | CWildcardPat | CUnitPat | CNilPat -> false
+  | CIntPat _ | CBoolPat _ | CStringPat _ | CCharPat _ -> false
+
+let rename_id_avoiding_shadow ~(from_id : string) ~(to_id : string)
+    (expr : c_expr) : c_expr =
+  let rec go shadowed e =
+    match e with
+    | EId (s, _) when (not shadowed) && String.equal s from_id ->
+        EId (to_id, None)
+    | EApp (a, b) -> EApp (go shadowed a, go shadowed b)
+    | EFunction (p, t, b) ->
+        let shadowed' = shadowed || pat_binds_name from_id p in
+        EFunction (p, t, go shadowed' b)
+    | EBind (p, t, e1, e2, r) ->
+        let shadowed' = shadowed || pat_binds_name from_id p in
+        EBind (p, t, go shadowed e1, go shadowed' e2, r)
+    | EBindRec (p, t, e1, e2, r) ->
+        let shadowed' = shadowed || pat_binds_name from_id p in
+        EBindRec (p, t, go shadowed' e1, go shadowed' e2, r)
+    | EBindMutRec (bs, body) ->
+        let shadowed' =
+          shadowed
+          || List.exists
+               (fun (p, _, _, _, _) -> pat_binds_name from_id p)
+               bs
+        in
+        EBindMutRec
+          ( List.map
+              (fun (p, t, e1, r, n) -> (p, t, go shadowed' e1, r, n))
+              bs,
+            go shadowed' body )
+    | EBlock parts ->
+        EBlock
+          (List.map
+             (function
+               | Expr ex -> Expr (go shadowed ex)
+               | Defn d -> Defn d)
+             parts)
+    | ETernary (a, b, c) -> ETernary (go shadowed a, go shadowed b, go shadowed c)
+    | ESwitch (scr, brs) ->
+        ESwitch
+          ( go shadowed scr,
+            List.map
+              (fun (p, e') ->
+                let shadowed' = shadowed || pat_binds_name from_id p in
+                (p, go shadowed' e'))
+              brs )
+    | EBop (op, a, b) -> EBop (op, go shadowed a, go shadowed b)
+    | EVector es -> EVector (List.map (go shadowed) es)
+    | EListComprehension (e0, gens) ->
+        EListComprehension
+          ( go shadowed e0,
+            List.map
+              (fun (p, ge) ->
+                (p, go (shadowed || pat_binds_name from_id p) ge))
+              gens )
+    | ERecordLit fs -> ERecordLit (List.map (fun (n, e') -> (n, go shadowed e')) fs)
+    | ERecordUpdate (e0, fs) ->
+        ERecordUpdate
+          ( go shadowed e0,
+            List.map (fun (n, e') -> (n, go shadowed e')) fs )
+    | EFieldAccess (e0, fld) -> EFieldAccess (go shadowed e0, fld)
+    | EListEnumeration (a, b) -> EListEnumeration (go shadowed a, go shadowed b)
+    | (EBool _ | EString _ | EUnit | EInt _ | EChar _ | EFloat _ | ENil | EId (_, _))
+      as leaf -> leaf
+  in
+  go false expr
+
 (** [let rec f … = e in f] parses as [EBindRec (f, e, Id f)]. Dictionary code
     re-binds under [__forge_tc_*]; strip the outer wrapper so native lowering
     sees [EFunction …] for [peel_efun]. *)
-let dict_bindrec_payload ~(meth : string) ~(intid : string) (e : c_expr) :
+let dict_bindrec_payload ~(meth : string) ~(intid : string)
+    ~(rename_self_refs : bool) (e : c_expr) :
     (c_type option * c_expr * c_type option) option =
   match e with
   | EBindRec (CIdPat nm, ta, e1, EId (tail, _), rt)
     when String.equal nm meth
          && (String.equal tail intid || String.equal tail meth) ->
-      Some (ta, e1, rt)
+      if rename_self_refs then
+        Some
+          ( ta,
+            rename_id_avoiding_shadow ~from_id:meth ~to_id:intid e1,
+            rt )
+      else Some (ta, e1, rt)
   | _ -> None
 
 (** Whether [e] mentions [id] as [EId] (trait dict internals are unique). *)
@@ -998,6 +1086,12 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                 let build_dict_expr (dispatch_d : string)
                     (fields : (string * mono_type) list) : c_expr =
                   let names = List.map fst fields in
+                  let rename_self_refs =
+                    not
+                      (List.exists
+                         (fun (req_cls, _) -> String.equal req_cls dispatch_d)
+                         requires_mono)
+                  in
                   let internals =
                     List.map (fun m -> (m, internal_tc_id dispatch_d m)) names
                   in
@@ -1031,7 +1125,9 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                     List.fold_right
                       (fun (m, e) acc ->
                         let intid = internal_tc_id dispatch_d m in
-                        match dict_bindrec_payload ~meth:m ~intid e with
+                        match
+                          dict_bindrec_payload ~meth:m ~intid ~rename_self_refs e
+                        with
                         | Some (ta, e1, rt) ->
                             EBindRec (CIdPat intid, ta, e1, acc, rt)
                         | None ->
@@ -1053,7 +1149,8 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                               let e0 = List.assoc m condensed in
                               let ta, rhs, rt =
                                 match
-                                  dict_bindrec_payload ~meth:m ~intid e0
+                                  dict_bindrec_payload ~meth:m ~intid
+                                    ~rename_self_refs e0
                                 with
                                 | Some (ta, e1, rt) -> (ta, e1, rt)
                                 | None -> (None, e0, None)
