@@ -5,7 +5,7 @@
     [prelude] is [1]/[true] to prepend the prelude (default for IDE), or
     [0]/[false] for raw buffer only.
 
-    On success: prints the type string (no trailing newline) to stdout.
+    On success: prints [TYPE\t...] or [DEF\t...] (no trailing newline) to stdout.
     On failure: prints [ERROR: ...] to stdout and exits 1. *)
 
 let read_all_stdin () =
@@ -42,11 +42,9 @@ let () =
       exit 2
   in
   let source = read_all_stdin () in
-  match
-    Language.Hover_query.hover_type_for_identifier ~prelude ~src_path ~source
-      ~line0 ~char0
-  with
-  | Ok s -> print_string s
+  match Language.Hover_query.hover_for_position ~prelude ~src_path ~source ~line0 ~char0 with
+  | Ok (Language.Hover_query.HoverType, s) -> Printf.printf "TYPE\t%s" s
+  | Ok (Language.Hover_query.HoverDefinition, s) -> Printf.printf "DEF\t%s" s
   | Error msg ->
       Printf.printf "ERROR: %s" msg;
       exit 1

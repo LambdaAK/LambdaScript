@@ -1044,24 +1044,113 @@ let rec typecheck_defns_hover static_env type_env ctor_env defns :
 
 let rec walk_defns (acc_env : static_env) (acc_te : type_env) (user_byte_lo : int)
     (lex_id : string option) (offset : int) (full_tokens : Lex.token list)
-    (defs : c_defn list) : string option =
+    ~(prelude_defn_cap_count : int) ~(idx : int) (defs : c_defn list) :
+    string option =
+  let safe_hover_in_defn env te d0 =
+    try hover_in_defn env te user_byte_lo lex_id offset full_tokens d0
+    with _ -> None
+  in
   match defs with
   | [] -> None
   | d :: rest -> (
-      match generate_defn acc_env acc_te d with
-      | Error _ -> None
-      | Ok (nb, _, _) ->
+      let gen_res =
+        try Some (generate_defn acc_env acc_te d) with _ -> None
+      in
+      match gen_res with
+      | None | Some (Error _) -> (
+          (* Keep hover working even when this definition fails to typecheck.
+             Try hovering within the failing defn using the accumulated prefix
+             environment, then continue scanning later defs. *)
+          match safe_hover_in_defn acc_env acc_te d with
+          | Some _ as r -> r
+          | None ->
+              walk_defns acc_env acc_te user_byte_lo lex_id offset full_tokens
+                ~prelude_defn_cap_count ~idx:(idx + 1) rest)
+      | Some (Ok (nb, _, _)) ->
           let env_for_hover = nb @ acc_env in
+          let skip_hover_in_this_defn =
+            user_byte_lo > 0 && offset >= user_byte_lo && idx < prelude_defn_cap_count
+          in
           ( match
-              hover_in_defn env_for_hover acc_te user_byte_lo lex_id offset full_tokens d
+              if skip_hover_in_this_defn then None
+              else safe_hover_in_defn env_for_hover acc_te d
             with
             | Some _ as r -> r
             | None ->
-                walk_defns env_for_hover acc_te user_byte_lo lex_id offset full_tokens rest
+                walk_defns env_for_hover acc_te user_byte_lo lex_id offset
+                  full_tokens ~prelude_defn_cap_count ~idx:(idx + 1) rest
             ))
 
-let hover_type_for_identifier ~(prelude : bool) ~(src_path : string)
-    ~(source : string) ~(line0 : int) ~(char0 : int) : (string, string) result =
+type hover_kind =
+  | HoverType
+  | HoverDefinition
+
+type hover_result = hover_kind * string
+
+let find_type_definition_by_name (defs : c_defn list) (name : string) :
+    c_defn option =
+  let rec walk = function
+    | [] -> None
+    | d :: rest -> (
+        match d with
+        | CTypeAlias (n, _, _) when String.equal n name -> Some d
+        | CSumType (n, _, _) when String.equal n name -> Some d
+        | CSumTypeRec (n, _, _) when String.equal n name -> Some d
+        | CSumTypeRecMutRec group ->
+            if List.exists (fun (n, _, _) -> String.equal n name) group then
+              Some (CSumTypeRecMutRec group)
+            else walk rest
+        | _ -> walk rest)
+  in
+  walk defs
+
+let hover_string_of_type_params (args : string list) : string =
+  match args with
+  | [] -> ""
+  | _ -> "<" ^ String.concat ", " args ^ ">"
+
+let hover_string_of_sum_ctors (ctors : (string * c_type option) list) : string =
+  String.concat "\n  "
+    (List.map
+       (fun (cons_name, payload_type_opt) ->
+         match payload_type_opt with
+         | None -> "| " ^ cons_name
+         | Some payload_type ->
+             "| " ^ cons_name ^ " of " ^ hover_string_of_c_type payload_type)
+       ctors)
+
+let hover_string_of_type_defn (d : c_defn) : string =
+  match d with
+  | CTypeAlias (name, args, body) ->
+      "type " ^ name ^ hover_string_of_type_params args ^ " = "
+      ^ hover_string_of_mono body
+  | CSumType (name, args, ctors) ->
+      "type " ^ name ^ hover_string_of_type_params args ^ " = "
+      ^ hover_string_of_sum_ctors ctors
+  | CSumTypeRec (name, args, ctors) ->
+      "type rec " ^ name ^ hover_string_of_type_params args ^ " = "
+      ^ hover_string_of_sum_ctors ctors
+  | CSumTypeRecMutRec types ->
+      String.concat "\n"
+        (List.mapi
+           (fun i (name, args, ctors) ->
+             let prefix = if i = 0 then "type rec " else "and " in
+             prefix ^ name ^ hover_string_of_type_params args ^ " = "
+             ^ hover_string_of_sum_ctors ctors)
+           types)
+  | _ -> C_to_string.string_of_defn d
+
+let hover_type_definition_at_offset (defs : c_defn list) (tokens : Lex.token list)
+    (offset : int) : string option =
+  match lexer_id_covering_offset tokens offset with
+  | None -> None
+  | Some (name, _, _) -> (
+      match find_type_definition_by_name defs name with
+      | Some d -> Some (hover_string_of_type_defn d)
+      | None -> None)
+
+let hover_for_position ~(prelude : bool) ~(src_path : string) ~(source : string)
+    ~(line0 : int) ~(char0 : int) : (hover_result, string) result =
   let full_source = Prelude.prepend_to_source ~enabled:prelude ~src_path source in
   let user_off = byte_offset_of_line_char source line0 char0 in
   let delta = String.length full_source - String.length source in
@@ -1096,13 +1185,26 @@ let hover_type_for_identifier ~(prelude : bool) ~(src_path : string)
       clear_id_queue ();
       let static_env = build_full_static_env () in
       let type_env : type_env = [] in
-      let ctor_env : constructor_env = [] in
-      match typecheck_defns_hover static_env type_env ctor_env condensed with
-      | Error e -> Error (string_of_type_check_error e)
-      | Ok (_env, te, _) -> (
-          match
-            walk_defns static_env te user_byte_lo lex_id_at_offset offset full_tokens condensed
-          with
-          | Some s -> Ok s
-          | None -> Error "no typed identifier at this position"
-          ))
+      match
+        walk_defns static_env type_env user_byte_lo lex_id_at_offset offset
+          full_tokens ~prelude_defn_cap_count:prelude_n ~idx:0 condensed
+      with
+      | Some s -> Ok (HoverType, s)
+      | None -> (
+          let op_or_id_type_fallback =
+            match lex_id_at_offset with
+            | Some name -> type_string_for_id static_env type_env name
+            | None -> None
+          in
+          match op_or_id_type_fallback with
+          | Some s -> Ok (HoverType, s)
+          | None -> (
+              match hover_type_definition_at_offset condensed full_tokens offset with
+              | Some s -> Ok (HoverDefinition, s)
+              | None -> Error "no typed identifier at this position" ) ) )
+
+let hover_type_for_identifier ~(prelude : bool) ~(src_path : string)
+    ~(source : string) ~(line0 : int) ~(char0 : int) : (string, string) result =
+  match hover_for_position ~prelude ~src_path ~source ~line0 ~char0 with
+  | Ok (_, s) -> Ok s
+  | Error e -> Error e
