@@ -41,3 +41,9 @@
  (modules repl_format_constraints_massive_tests)
  (libraries Language ounit2)
  (action (chdir %{workspace_root} (run %{test}))))
+
+(test
+ (name repl_kernel_gap_coverage_tests)
+ (modules repl_kernel_gap_coverage_tests)
+ (libraries Language ounit2 str)
+ (action (chdir %{workspace_root} (run %{test}))))
