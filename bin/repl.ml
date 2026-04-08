@@ -238,7 +238,10 @@ let load_file_into_env filename static_env dynamic_env type_env =
             Language.Repl_kernel.process_condensed_defns static_env dynamic_env
               type_env condensed_program
           with
-          | Language.Typecheck.Ok (ms, md, mt, _, _, _) -> (ms, md, mt)
+          | Language.Typecheck.Ok (ms, md, mt, _, _, _) ->
+              Language.Repl_kernel.remember_user_defns_for_condense program
+                condensed_program;
+              (ms, md, mt)
           | Language.Typecheck.Error e ->
               print_error (string_of_type_check_error e);
               (static_env, dynamic_env, type_env)

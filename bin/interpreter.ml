@@ -44,7 +44,10 @@ let interpret (filename : string) =
             match generate_defn static_env type_env defn with
             | Ok (new_bindings, new_type_env, _new_ctor_env) ->
                 (* TODO: propagate the monadic errors *)
-                let defn = elaborate_defn (new_bindings @ static_env) (new_type_env @ type_env) defn in
+                let defn =
+                  elaborate_defn ~rewrite_constrained_calls:true
+                    (new_bindings @ static_env) (new_type_env @ type_env) defn
+                in
                 let new_dynamic_bindings =
                   match eval_defn defn dynamic_env with
                   | Ok v -> v

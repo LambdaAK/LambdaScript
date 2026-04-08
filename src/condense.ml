@@ -630,11 +630,17 @@ let rec subst_c_expr (sub : (string * c_expr) list) (e : c_expr) : c_expr =
     -> leaf
 
 let sanitize_method_internal (s : string) : string =
-  String.map
-    (function
-      | ('a' .. 'z' | 'A' .. 'Z' | '0' .. '9') as c -> c
-      | _ -> '_')
-    s
+  let buf = Buffer.create (String.length s * 3) in
+  String.iter
+    (fun c ->
+      match c with
+      | ('a' .. 'z' | 'A' .. 'Z' | '0' .. '9') as ch -> Buffer.add_char buf ch
+      | '_' -> Buffer.add_string buf "__"
+      | ch ->
+          Buffer.add_char buf '_';
+          Buffer.add_string buf (Printf.sprintf "%02x" (Char.code ch)))
+    s;
+  Buffer.contents buf
 
 let internal_tc_id (dispatch_cls : string) (meth : string) : string =
   "__forge_tc_" ^ dispatch_cls ^ "_" ^ sanitize_method_internal meth

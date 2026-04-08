@@ -418,6 +418,12 @@ let dict_candidate_matches_tau ~(dict_name : string) ~(class_name : string)
       let sfx_starts (pre : string) = String.starts_with ~prefix:pre sfx in
       match tau with
       | TypeVar _ -> true
+      | IntType -> sfx_starts "int" || sfx_starts "Int"
+      | FloatType -> sfx_starts "float" || sfx_starts "Float"
+      | BoolType -> sfx_starts "bool" || sfx_starts "Bool"
+      | StringType -> sfx_starts "string" || sfx_starts "String"
+      | CharType -> sfx_starts "char" || sfx_starts "Char"
+      | UnitType -> sfx_starts "unit" || sfx_starts "Unit"
       | CListType _ -> sfx_starts "list"
       | CTypeApp (n, _) -> sfx_starts n || sfx_starts (n ^ "__")
       | FixedPoint (n, _) -> sfx_starts ("mu_" ^ n) || sfx_starts n
@@ -2944,9 +2950,11 @@ let subst_methods_with_dict_access ~(dict_param : string)
   go expr
 
 (** Rewrite [Class.method e] to record dispatch after whole-program typecheck.
-*)
-let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
-    c_expr -> c_expr =
+    [rewrite_constrained_calls] is enabled by the interpreter/REPL so calls to
+    constrained non-method defs (e.g. [println]) pass an explicit dictionary
+    argument. Native lowering keeps this off and injects dictionaries later. *)
+let rec elaborate_expr ?(rewrite_constrained_calls = false)
+    (static_env : static_env) (type_env : type_env) : c_expr -> c_expr =
   (* When rewriting overloaded identifiers (e.g. [mappend]) into dictionary
      dispatch, we must respect lexical shadowing: if an overloaded name is
      locally bound (e.g. by [let rec mappend = ...] inside an [impl]),
@@ -2994,8 +3002,15 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
                 | None -> None
                 | Some (_var_id, _mty) -> (
                     let all_args = prefix @ [ e2_last ] in
+                    let meths = class_method_names ~static_env ~class_name:cls in
+                    let already_has_leading_dict_arg =
+                      match all_args with
+                      | EId (nm, _) :: _ ->
+                          String.starts_with ~prefix:"__forge_dict_" nm
+                          || String.starts_with ~prefix:"__dict_" nm
+                      | _ -> false
+                    in
                     let resolve_sibling_methods dict args =
-                      let meths = class_method_names ~static_env ~class_name:cls in
                       List.map (fun arg ->
                         match arg with
                         | EId (id, _) when List.mem id meths && not (List.mem id shadowed) ->
@@ -3022,12 +3037,29 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
                                        (EFieldAccess (EId (dict, None), f))
                                        resolved_args)
                               | None ->
-                                  (* Constrained defs (e.g. [println]) already
-                                     take synthetic [__dict_*]; lowering prepends
-                                     forge dicts. Do not rewrite call sites to
-                                     [(f dict) ...]: that mis-aligns with poly
-                                     peel and drops user args here. *)
-                                  None)
+                                  if
+                                    rewrite_constrained_calls
+                                    && not (List.mem f meths)
+                                    && not already_has_leading_dict_arg
+                                  then
+                                    match tau with
+                                    | RecordType _ -> None
+                                    | _ -> (
+                                        match
+                                          find_dict_for_class ~static_env
+                                            ~class_name:cls ~tau
+                                        with
+                                        | Some dict ->
+                                            let resolved_args =
+                                              resolve_sibling_methods dict all_args
+                                            in
+                                            Some
+                                              (List.fold_left
+                                                 (fun acc arg -> EApp (acc, arg))
+                                                 (EApp (EId (f, None), EId (dict, None)))
+                                                 resolved_args)
+                                        | None -> None)
+                                  else None)
                           | Error _ -> None)
                     in
                     let rec try_args i =
@@ -3076,7 +3108,9 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
           (List.map
              (function
                | Expr e -> Expr (aux shadowed e)
-               | Defn d -> Defn (elaborate_defn static_env type_env d))
+               | Defn d ->
+                   Defn
+                     (elaborate_defn ~rewrite_constrained_calls static_env type_env d))
              parts)
     | ETernary (e1, e2, e3) ->
         ETernary (aux shadowed e1, aux shadowed e2, aux shadowed e3)
@@ -3109,7 +3143,8 @@ let rec elaborate_expr (static_env : static_env) (type_env : type_env) :
   in
   aux []
 
-and elaborate_constrained_body (static_env : static_env)
+and elaborate_constrained_body ?(rewrite_constrained_calls = false)
+    (static_env : static_env)
     (type_env : type_env) (name : string) (body : c_expr) : c_expr =
   match List.assoc_opt name static_env with
   | Some sch when scheme_has_class_constraint sch -> (
@@ -3117,29 +3152,65 @@ and elaborate_constrained_body (static_env : static_env)
       | Some cls ->
           let dict_param = "__dict_" ^ cls in
           let method_names = class_method_names ~static_env ~class_name:cls in
-          let body' = elaborate_expr static_env type_env body in
+          let body' =
+            elaborate_expr ~rewrite_constrained_calls static_env type_env body
+          in
           let body'' =
             subst_methods_with_dict_access ~dict_param ~method_names body'
           in
           if body' = body'' then body''
           else EFunction (CIdPat dict_param, None, body'')
-      | None -> elaborate_expr static_env type_env body)
-  | _ -> elaborate_expr static_env type_env body
+      | None ->
+          elaborate_expr ~rewrite_constrained_calls static_env type_env body)
+  | _ -> elaborate_expr ~rewrite_constrained_calls static_env type_env body
 
-and elaborate_defn (static_env : static_env) (type_env : type_env) d : c_defn =
+and elaborate_defn ?(rewrite_constrained_calls = false)
+    (static_env : static_env) (type_env : type_env) d : c_defn =
   match d with
   | CDefn (CIdPat name as pat, cs, a, body, r, n) ->
-      CDefn (pat, cs, a, elaborate_constrained_body static_env type_env name body, r, n)
+      CDefn
+        ( pat,
+          cs,
+          a,
+          elaborate_constrained_body ~rewrite_constrained_calls static_env
+            type_env name body,
+          r,
+          n )
   | CDefn (pat, cs, a, body, r, n) ->
-      CDefn (pat, cs, a, elaborate_expr static_env type_env body, r, n)
+      CDefn
+        ( pat,
+          cs,
+          a,
+          elaborate_expr ~rewrite_constrained_calls static_env type_env body,
+          r,
+          n )
   | CDefnRec (CIdPat name as pat, cs, a, body, r, n) ->
-      CDefnRec (pat, cs, a, elaborate_constrained_body static_env type_env name body, r, n)
+      CDefnRec
+        ( pat,
+          cs,
+          a,
+          elaborate_constrained_body ~rewrite_constrained_calls static_env
+            type_env name body,
+          r,
+          n )
   | CDefnRec (pat, cs, a, body, r, n) ->
-      CDefnRec (pat, cs, a, elaborate_expr static_env type_env body, r, n)
+      CDefnRec
+        ( pat,
+          cs,
+          a,
+          elaborate_expr ~rewrite_constrained_calls static_env type_env body,
+          r,
+          n )
   | CDefnMutRec defs ->
       CDefnMutRec
         (List.map
            (fun (p, cs, a, body, r, n) ->
-             (p, cs, a, elaborate_expr static_env type_env body, r, n))
+             ( p,
+               cs,
+               a,
+               elaborate_expr ~rewrite_constrained_calls static_env type_env
+                 body,
+               r,
+               n ))
            defs)
   | d -> d

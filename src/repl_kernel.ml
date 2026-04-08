@@ -17,9 +17,14 @@ let prelude_defns_for_condense : Expr.defn list option ref = ref None
 
 let prelude_condensed_defn_count : int ref = ref 0
 
+let user_defns_for_condense : Expr.defn list ref = ref []
+let user_condensed_defn_count : int ref = ref 0
+
 let clear_prelude_condense_cache () =
   prelude_defns_for_condense := None;
-  prelude_condensed_defn_count := 0
+  prelude_condensed_defn_count := 0;
+  user_defns_for_condense := [];
+  user_condensed_defn_count := 0
 
 let list_drop n xs =
   let rec go n xs =
@@ -28,11 +33,21 @@ let list_drop n xs =
   go n xs
 
 let condense_user_defns (user_defns : Expr.defn list) : c_defn list =
-  match !prelude_defns_for_condense with
-  | None -> condense_program user_defns
-  | Some prel ->
-      let all = condense_program (prel @ user_defns) in
-      list_drop !prelude_condensed_defn_count all
+  let prelude =
+    match !prelude_defns_for_condense with None -> [] | Some prel -> prel
+  in
+  let all = condense_program (prelude @ !user_defns_for_condense @ user_defns) in
+  let prefix_count =
+    !prelude_condensed_defn_count + !user_condensed_defn_count
+  in
+  list_drop prefix_count all
+
+let remember_user_defns_for_condense (defs : Expr.defn list)
+    (condensed : c_defn list) : unit =
+  if defs <> [] then (
+    user_defns_for_condense := !user_defns_for_condense @ defs;
+    user_condensed_defn_count :=
+      !user_condensed_defn_count + List.length condensed)
 
 let is_internal_repl_binding name =
   String.starts_with ~prefix:"__forge_dict_" name
@@ -47,16 +62,28 @@ let process_condensed_defns ?after_step (static_env : static_env)
     =
   let rec go se te de acc_s acc_d acc_te = function
     | [] -> TC.Ok (se, de, te, acc_s, acc_d, acc_te)
-    | cd :: rest ->
-        match TC.generate_defn se te cd with
-        | TC.Error e -> TC.Error e
-        | TC.Ok (nb, nte, _) ->
-            let cd = TC.elaborate_defn (nb @ se) (nte @ te) cd in
-            let nd = unwrap_eval_result (eval_defn cd de) in
-            let de' = nd @ de in
-            (match after_step with Some f -> f nb de' | None -> ());
-            go (nb @ se) (nte @ te) de' (acc_s @ nb) (acc_d @ nd) (acc_te @ nte)
-            rest
+    | cd :: rest -> (
+        try
+          match TC.generate_defn se te cd with
+          | TC.Error e -> TC.Error e
+          | TC.Ok (nb, nte, _) ->
+              let cd =
+                TC.elaborate_defn ~rewrite_constrained_calls:true (nb @ se)
+                  (nte @ te) cd
+              in
+              (match eval_defn cd de with
+              | Error e ->
+                  TC.Error
+                    (TC.OtherError ("Evaluation failed: " ^ string_of_eval_error e))
+              | Ok nd ->
+                  let de' = nd @ de in
+                  (match after_step with Some f -> f nb de' | None -> ());
+                  go (nb @ se) (nte @ te) de' (acc_s @ nb) (acc_d @ nd)
+                    (acc_te @ nte) rest)
+        with
+        | TC.TypeFailure -> TC.Error (TC.OtherError "Type inference failed")
+        | Failure msg -> TC.Error (TC.OtherError msg)
+        | e -> TC.Error (TC.OtherError (Printexc.to_string e)))
   in
   go static_env type_env dynamic_env [] [] [] c_defns
 
@@ -75,14 +102,25 @@ let merge_prelude (static_env : static_env) (dynamic_env : env) (type_env : TC.t
           clear_prelude_condense_cache ();
           Ok (static_env, dynamic_env, type_env))
         else
-          let c_defns = condense_program program in
-          prelude_defns_for_condense := Some program;
-          prelude_condensed_defn_count := List.length c_defns;
-          (match process_condensed_defns static_env dynamic_env type_env c_defns with
-          | TC.Ok (se, de, te, _, _, _) -> Ok (se, de, te)
-          | TC.Error e ->
+          (try
+             let c_defns = condense_program program in
+             prelude_defns_for_condense := Some program;
+             prelude_condensed_defn_count := List.length c_defns;
+             match process_condensed_defns static_env dynamic_env type_env c_defns with
+             | TC.Ok (se, de, te, _, _, _) -> Ok (se, de, te)
+             | TC.Error e ->
+                 clear_prelude_condense_cache ();
+                 Error ("Prelude: " ^ TC.string_of_type_check_error e)
+           with
+          | Failure msg ->
               clear_prelude_condense_cache ();
-              Error ("Prelude: " ^ TC.string_of_type_check_error e))
+              Error ("Prelude: " ^ msg)
+          | TC.TypeFailure ->
+              clear_prelude_condense_cache ();
+              Error "Prelude: type inference failed"
+          | e ->
+              clear_prelude_condense_cache ();
+              Error ("Prelude: " ^ Printexc.to_string e))
     | Some (_, rem) ->
         clear_prelude_condense_cache ();
         Error
@@ -109,37 +147,46 @@ let eval_user_input (static_env : static_env) (dynamic_env : env) (type_env : TC
            (name, string_of_value value, string_of_c_type typ))
   in
 
-  match program_parser tokens with
-  | Some (program, []) when program <> [] ->
-      let c_defns = condense_user_defns program in
-      (match process_condensed_defns static_env dynamic_env type_env c_defns with
-      | TC.Error e -> (Ev_error (TC.string_of_type_check_error e), static_env, dynamic_env, type_env)
-      | TC.Ok (se, de, te, new_s, new_d, _new_te) ->
-          let bindings = collect_bindings new_s new_d in
-          ( Ev_defs { bindings },
-            se,
-            de,
-            te ))
-  | _ -> (
-      match expr_or_defn_parser tokens with
-      | None -> (Ev_error "Parsing failed", static_env, dynamic_env, type_env)
-      | Some (Expr expr, _) -> (
-          let c_expr = condense_expr expr in
-          match TC.type_of_c_expr static_env type_env c_expr with
-          | TC.Error e -> (Ev_error (TC.string_of_type_check_error e), static_env, dynamic_env, type_env)
-          | TC.Ok t ->
-              let c_expr = TC.elaborate_expr static_env type_env c_expr in
-              (match eval_c_expr c_expr dynamic_env with
-              | Ok value ->
-                  ( Ev_expr { typ = string_of_c_type t; value = string_of_value value },
-                    static_env,
-                    dynamic_env,
-                    type_env )
-              | Error e -> (Ev_error (string_of_eval_error e), static_env, dynamic_env, type_env)))
-      | Some (Definition defn, _) -> (
-          let c_defns = condense_user_defns [ defn ] in
-          match process_condensed_defns static_env dynamic_env type_env c_defns with
-          | TC.Error e -> (Ev_error (TC.string_of_type_check_error e), static_env, dynamic_env, type_env)
-          | TC.Ok (se, de, te, new_s, new_d, _new_te) ->
-              let bindings = collect_bindings new_s new_d in
-              (Ev_defs { bindings }, se, de, te)))
+  let fail msg = (Ev_error msg, static_env, dynamic_env, type_env) in
+  try
+    match program_parser tokens with
+    | Some (program, []) when program <> [] ->
+        let c_defns = condense_user_defns program in
+        (match process_condensed_defns static_env dynamic_env type_env c_defns with
+        | TC.Error e -> fail (TC.string_of_type_check_error e)
+        | TC.Ok (se, de, te, new_s, new_d, _new_te) ->
+            remember_user_defns_for_condense program c_defns;
+            let bindings = collect_bindings new_s new_d in
+            (Ev_defs { bindings }, se, de, te))
+    | _ -> (
+        match expr_or_defn_parser tokens with
+        | None -> fail "Parsing failed"
+        | Some (Expr expr, _) -> (
+            let c_expr = condense_expr expr in
+            match TC.type_of_c_expr static_env type_env c_expr with
+            | TC.Error e -> fail (TC.string_of_type_check_error e)
+            | TC.Ok t ->
+                let c_expr =
+                  TC.elaborate_expr ~rewrite_constrained_calls:true static_env
+                    type_env c_expr
+                in
+                (match eval_c_expr c_expr dynamic_env with
+                | Ok value ->
+                    ( Ev_expr
+                        { typ = string_of_c_type t; value = string_of_value value },
+                      static_env,
+                      dynamic_env,
+                      type_env )
+                | Error e -> fail (string_of_eval_error e)))
+        | Some (Definition defn, _) -> (
+            let c_defns = condense_user_defns [ defn ] in
+            match process_condensed_defns static_env dynamic_env type_env c_defns with
+            | TC.Error e -> fail (TC.string_of_type_check_error e)
+            | TC.Ok (se, de, te, new_s, new_d, _new_te) ->
+                remember_user_defns_for_condense [ defn ] c_defns;
+                let bindings = collect_bindings new_s new_d in
+                (Ev_defs { bindings }, se, de, te)))
+  with
+  | Failure msg -> fail msg
+  | TC.TypeFailure -> fail "Type inference failed"
+  | e -> fail (Printexc.to_string e)
