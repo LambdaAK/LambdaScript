@@ -28,15 +28,7 @@ let execute_definitions env static_env type_env static_type_env =
       (new_env, new_static_env, new_type_env, new_static_type_env))
     (env, static_env, type_env, static_type_env)
 
-let run_run (dir : string) : unit =
-  let contents : string = read dir in
-
-  let tokens = contents |> list_of_string |> lex in
-  let program = parse_program tokens |> condense_program in
-
-  (* print the program *)
-
-  (* get the code mapping *)
+let make_initial_envs () =
   let env =
     List.map
       (fun (id, code) ->
@@ -57,17 +49,50 @@ let run_run (dir : string) : unit =
       code_mapping
     @ built_ins_types
   in
+  (env, static_env)
 
-  (* the type env is initially empty *)
-  let env, static_env, type_env, static_type_env =
-    execute_definitions env static_env [] [] program
-  in
+let run_run (dir : string) : unit =
+  let contents : string = read dir in
 
-  repl_loop env static_env type_env static_type_env
+  let tokens = contents |> list_of_string |> lex in
+  let env, static_env = make_initial_envs () in
+
+  (* Treat files either as prelude definitions (for REPL startup) or as a single
+     expression script. *)
+  match parse_program tokens with
+  | program ->
+      let program = condense_program program in
+      let _ = execute_definitions env static_env [] [] program in
+      ()
+  | exception ParseFailure ->
+      let expr, tokens_after_expr = parse_expr tokens in
+      begin
+        match tokens_after_expr with
+        | [] ->
+            let c_expr = condense_expr expr in
+            let t = type_of_c_expr c_expr static_env [] in
+            let value = eval_c_expr c_expr env in
+            print_endline (string_of_c_type t ^ ": " ^ string_of_value value)
+        | _ -> raise ParseFailure
+      end
+  | exception UnexpectedToken _ ->
+      let expr, tokens_after_expr = parse_expr tokens in
+      begin
+        match tokens_after_expr with
+        | [] ->
+            let c_expr = condense_expr expr in
+            let t = type_of_c_expr c_expr static_env [] in
+            let value = eval_c_expr c_expr env in
+            print_endline (string_of_c_type t ^ ": " ^ string_of_value value)
+        | _ -> raise ParseFailure
+      end
 
 let () =
-  (* try run_run (get_dir ()) with | _ -> print_endline "Error"; exit 1 *)
-  if Array.length Sys.argv = 1 then run_repl () else run_run (get_dir ())
+  try
+    if Array.length Sys.argv = 1 then run_repl () else run_run (get_dir ())
+  with exn ->
+    report_repl_exception exn;
+    exit 1
 
 (* 
 

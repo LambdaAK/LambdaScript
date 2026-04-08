@@ -336,6 +336,63 @@ let defn_expr_test (defns_string : string) (expr_string : string)
   let result_string = string_of_value result in
   assert_equal result_string expected_output
 
+let initial_runtime_envs () =
+  let env =
+    List.map
+      (fun (id, code) ->
+        let v = eval_c_empty_env code in
+        (id, v))
+      code_mapping
+    @ built_ins_values
+  in
+  let static_env =
+    List.map
+      (fun (id, code) ->
+        let tokens : token list = code |> list_of_string |> lex in
+        let e, _ = parse_expr tokens in
+        let c_e = condense_expr e in
+        let t = type_of_c_expr c_e [] [] in
+        (id, t))
+      code_mapping
+    @ built_ins_types
+  in
+  (env, static_env)
+
+let compile_and_run_program_expr (defns_string : string) (expr_string : string) :
+    string =
+  let defns : Language.Cexpr.c_defn list =
+    defns_string |> list_of_string |> lex |> parse_program |> condense_program
+  in
+  let expr : Language.Cexpr.c_expr =
+    expr_string |> list_of_string |> lex |> parse_expr |> fst |> condense_expr
+  in
+
+  let env, static_env = initial_runtime_envs () in
+
+  let env, static_env, type_env, _ =
+    List.fold_left
+      (fun (env, static_env, type_env, static_type_env) defn ->
+        let new_env, new_static_env, new_type_env, new_static_type_env, _, _ =
+          eval_defn defn env static_env type_env static_type_env
+        in
+        (new_env, new_static_env, new_type_env, new_static_type_env))
+      (env, static_env, [], []) defns
+  in
+
+  let _ = type_of_c_expr expr static_env type_env in
+  eval_c_expr expr env |> string_of_value
+
+let compile_exec_test ?(name = "") (defns_string : string) (expr_string : string)
+    (expected_output : string) : test =
+  let description =
+    if name <> "" then name
+    else "\ndefns: \n" ^ defns_string ^ "\nexpr: \n" ^ expr_string
+  in
+
+  description >:: fun _ ->
+  let result = compile_and_run_program_expr defns_string expr_string in
+  assert_equal expected_output result
+
 let eval_test (expr : string) (expected_output : string) : test =
   expr ^ " SHOULD YIELD " ^ expected_output >:: fun _ ->
   let result : string = c_eval expr in
@@ -1255,12 +1312,16 @@ let complex_tests =
     f 100
     |},
       "false" );
+    ("let x <- 1 in x", "1");
+    ("let rec id x <- x in id 42", "42");
   ]
 
 let defn_expr_test_data : (string * string * string) list =
   [
     ("let x = 1", "x", "1");
+    ("let x <- 1", "x", "1");
     ("let x = 2", "x", "2");
+    ("let rec id x <- x", "id 7", "7");
     ({|let x = 1
   let y = 2
   let z = 3
@@ -1274,7 +1335,9 @@ let defn_expr_test_data : (string * string * string) list =
 let defn_type_test_data : (string * string * string) list =
   [
     ("let x = 1", "x", "Int");
+    ("let x <- 1", "x", "Int");
     ("let x = 2", "x", "Int");
+    ("let rec id x <- x", "id", "a -> a");
     ({|
   let f x = [x]
   let y = true
@@ -1684,10 +1747,219 @@ let eval_test_data =
 let eval_tests = List.map (fun (a, b) -> eval_test a b) eval_test_data
 let () = ignore kind_of_type_tests
 
+let compile_program_test_data : (string * string * string) list =
+  [
+    ( {|
+      type Option a =
+        | None
+        | Some (a)
+
+      let unbox d o =
+        switch o =>
+        | None -> d
+        | Some x -> x
+        end
+    |},
+      "unbox 5 (Some 9)",
+      "9" );
+    ( {|
+      type Option a =
+        | None
+        | Some (a)
+
+      let unbox d o =
+        switch o =>
+        | None -> d
+        | Some x -> x
+        end
+    |},
+      "unbox 5 None",
+      "5" );
+    ( {|
+      type Either a b =
+        | Left (a)
+        | Right (b)
+
+      let is_left x =
+        switch x =>
+        | Left _ -> true
+        | Right _ -> false
+        end
+    |},
+      "is_left (Left 12)",
+      "true" );
+    ( {|
+      type Either a b =
+        | Left (a)
+        | Right (b)
+
+      let is_left x =
+        switch x =>
+        | Left _ -> true
+        | Right _ -> false
+        end
+    |},
+      "is_left (Right 12)",
+      "false" );
+    ( {|
+      type BT a =
+        | Leaf
+        | Node (BT a, a, BT a)
+
+      let rec size t =
+        switch t =>
+        | Leaf -> 0
+        | Node (l, _, r) -> 1 + size l + size r
+        end
+    |},
+      "size (Node (Leaf, 5, Node (Leaf, 7, Leaf)))",
+      "2" );
+    ( {|
+      type List a =
+        | Nil
+        | Cons (a, List a)
+
+      let rec length lst =
+        switch lst =>
+        | Nil -> 0
+        | Cons (_, t) -> 1 + length t
+        end
+    |},
+      "length (Cons (1, Cons (2, Cons (3, Nil))))",
+      "3" );
+    ( {|
+      type Id a = a
+      type App a b = a b
+      type T = App Id Int
+      let v [T] = 42
+    |},
+      "v",
+      "42" );
+    ("let inc x <- x + 1\nlet dbl x = x * 2", "dbl (inc 10)", "22");
+    ( "let rec fact n [Int] <- if n == 0 then 1 else n * fact (n - 1)",
+      "fact 7",
+      "5040" );
+    ( "let rec fib n = if n == 0 then 0 else if n == 1 then 1 else fib (n - 1) + fib (n - 2)",
+      "fib 10",
+      "55" );
+    ( "let rec sum xs = switch xs => | [] -> 0 | h :: t -> h + sum t end",
+      "sum [1 ... 100]",
+      "5050" );
+    ("let sum3 (a, b, c) = a + b + c", "sum3 (1, 2, 3)", "6");
+    ("let sum_nested (a, (b, c)) = a + b + c", "sum_nested (1, (2, 3))", "6");
+    ("let f x = let y = x + 1 in let z = y + 1 in z", "f 5", "7");
+    ("", "map (\\ x -> x + 1) [1, 2, 3, 4]", "[2, 3, 4, 5]");
+    ("", "filter (\\ x -> x % 2 == 0) [1, 2, 3, 4, 5, 6]", "[2, 4, 6]");
+    ("", "reduce_left (+) 0 [1, 2, 3, 4, 5]", "15");
+    ("", "reduce_right (+) [1, 2, 3, 4, 5] 0", "15");
+    ("", "reduce_left (\\ acc -> \\ x -> acc * x) 1 [1, 2, 3, 4, 5]", "120");
+    ("", "[x * y | x <- [1, 2, 3], y <- [4, 5]]", "[4, 5, 8, 10, 12, 15]");
+    ( "",
+      "[a * b | (a, b) <- [(1, 2), (3, 4), (5, 6)]]",
+      "[2, 12, 30]" );
+    ("", "switch [] => | [] -> 0 | _ :: _ -> 1 end", "0");
+    ("", "switch [1] => | [] -> 0 | _ :: _ -> 1 end", "1");
+    ("let id x = x", "(id 1, id true, id \"ok\")", "(1, true, \"ok\")");
+    ( {|
+      type Either a b =
+        | Left (a)
+        | Right (b)
+
+      let value e =
+        switch e =>
+        | Left x -> x
+        | Right _ -> 0
+        end
+    |},
+      "value (Left 19)",
+      "19" );
+    ( {|
+      type Either a b =
+        | Left (a)
+        | Right (b)
+
+      let value e =
+        switch e =>
+        | Left x -> x
+        | Right _ -> 0
+        end
+    |},
+      "value (Right 19)",
+      "0" );
+    ( "let rec all_true lst = switch lst => | [] -> true | h :: t -> h && all_true t end",
+      "all_true [true, true, true]",
+      "true" );
+    ( "let rec all_true lst = switch lst => | [] -> true | h :: t -> h && all_true t end",
+      "all_true [true, true, false]",
+      "false" );
+    ("let apply f [Int -> Int] x [Int] = f x", "apply (\\ n -> n + 10) 5", "15");
+    ( {|
+      type Option a =
+        | None
+        | Some (a)
+      type IntOption = Option Int
+
+      let default_zero x [IntOption] =
+        switch x =>
+        | None -> 0
+        | Some n -> n
+        end
+    |},
+      "default_zero (Some 8)",
+      "8" );
+    ( {|
+      type List a =
+        | Nil
+        | Cons (a, List a)
+
+      let rec sum lst =
+        switch lst =>
+        | Nil -> 0
+        | Cons (h, t) -> h + sum t
+        end
+    |},
+      "sum (Cons (1, Cons (2, Cons (3, Nil))))",
+      "6" );
+    ("", "not false", "true");
+    ("", "int_to_str 42", "\"42\"");
+    ("", "float_to_int (int_to_float 7)", "7");
+    ("let add a b = a + b", "add 3 4", "7");
+    ( "",
+      "filter (\\ x -> x % 2 == 0) (map (\\ x -> x * x) [1, 2, 3, 4, 5])",
+      "[4, 16]" );
+  ]
+
+let compile_program_tests : test list =
+  List.mapi
+    (fun i (defns, expr, expected) ->
+      compile_exec_test
+        ~name:("compile program test #" ^ string_of_int i)
+        defns expr expected)
+    compile_program_test_data
+
+let compile_expr_only_tests : test list =
+  List.mapi
+    (fun i (expr, expected) ->
+      compile_exec_test
+        ~name:("compile expr test #" ^ string_of_int i)
+        "" expr expected)
+    eval_test_data
+
+let compile_defn_expr_tests : test list =
+  List.mapi
+    (fun i (defns, expr, expected) ->
+      compile_exec_test
+        ~name:("compile defn+expr test #" ^ string_of_int i)
+        defns expr expected)
+    defn_expr_test_data
+
 let all_tests =
   List.flatten
     [
       eval_tests;
+      compile_expr_only_tests;
+      compile_defn_expr_tests;
+      compile_program_tests;
       int_type_tests;
       bool_type_tests;
       string_type_tests;

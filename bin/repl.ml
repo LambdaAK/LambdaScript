@@ -38,88 +38,118 @@ let get_type_name_from_defn_if_needed = function
   | CUnionDefn (id, _, _) -> id
   | _ -> ""
 
+let print_unexpected_token_error expected got line =
+  match got with
+  | Some got ->
+      "Unexpected Token on line " ^ string_of_int line ^ ": expected "
+      ^ string_of_token { token_type = expected; line }
+      ^ " but got "
+      ^ string_of_token { token_type = got; line }
+      |> print_endline
+  | None ->
+      "Unexpected Token: " ^ string_of_int line ^ ": expected "
+      ^ string_of_token { token_type = expected; line }
+      ^ " but got none"
+      |> print_endline
+
+let report_repl_exception (exn : exn) : unit =
+  match exn with
+  | LexFailure -> print_endline "Lex Failure\n"
+  | ParseFailure -> print_endline "Parse Failure\n"
+  | TypeFailure -> print_endline "Type Failure\n"
+  | UnexpectedToken (expected, got, line) ->
+      print_unexpected_token_error expected got line;
+      print_endline ""
+  | Division_by_zero -> print_endline "Runtime Failure: division by zero\n"
+  | Not_found -> print_endline "Runtime Failure: missing binding\n"
+  | Failure message -> print_endline ("Runtime Failure: " ^ message ^ "\n")
+  | _ -> print_endline ("Runtime Failure: " ^ Printexc.to_string exn ^ "\n")
+
 let rec repl_loop (env : env) (static_env : static_env) (type_env : type_env)
     (static_type_env : static_type_env) : unit =
   print_string "> ";
-  let input_string : string = read_line () in
-  let tokens : token list = attempt_lex input_string in
+  match read_line () with
+  | exception End_of_file ->
+      print_endline "";
+      ()
+  | input_string -> (
+      try
+        let tokens : token list = attempt_lex input_string in
 
-  let action =
-    match tokens with
-    | { token_type = Type; _ } :: _ | { token_type = Union; _ } :: _ -> EvalDefn
-    | { token_type = Let; line = _ } :: _ -> (
-        (* This is one of a few things 1. Let definition 2. Let rec definition
-           3. Expression *)
-        let _, tokens_after_defn = parse_defn tokens in
-        (* check the tokens after the definition if the token is In, then it's
-           an expression else, it's a definition *)
-        match tokens_after_defn with
-        | { token_type = In; line = _ } :: _ ->
-            (* we are evaluating an expression *)
+        let action =
+          match tokens with
+          | { token_type = Type; _ } :: _ | { token_type = Union; _ } :: _ ->
+              EvalDefn
+          | { token_type = Let; _ } :: _ -> (
+              (* Let expressions include an explicit "in". Treat malformed lets
+                 as expressions so they surface as parse/type errors, not REPL
+                 crashes. *)
+              match parse_defn tokens with
+              | _, { token_type = In; _ } :: _ -> EvalExpr
+              | _, _ -> EvalDefn
+              | exception ParseFailure -> EvalExpr
+              | exception UnexpectedToken _ -> EvalExpr)
+          | _ -> EvalExpr
+        in
+
+        match action with
+        | EvalExpr ->
             repl_expr env static_env type_env input_string;
-            repl_loop env static_env type_env static_type_env;
-            EvalExpr
-        | _ -> EvalDefn)
-    | _ ->
-        (* we are evaluating an expression *)
-        EvalExpr
-  in
-
-  match action with
-  | EvalExpr ->
-      repl_expr env static_env type_env input_string;
-      repl_loop env static_env type_env static_type_env
-  | EvalDefn ->
-      (* we are evaluating a definition *)
-      let d : c_defn = attempt_parse_defn tokens in
-      let ( new_env,
-            new_static_env,
-            new_type_env,
-            new_static_type_env,
-            new_value_bindings,
-            new_type_bindings ) =
-        eval_defn d env static_env type_env static_type_env
-      in
-
-      (* for each new binding, make a string id : type = value *)
-      let new_value_bindings_string =
-        List.map
-          (fun id ->
-            let value = List.assoc id new_env in
-            let value_string = string_of_value value in
-            let t : c_type =
-              List.assoc id new_static_env |> instantiate |> fix
+            repl_loop env static_env type_env static_type_env
+        | EvalDefn ->
+            (* we are evaluating a definition *)
+            let d : c_defn = attempt_parse_defn tokens in
+            let ( new_env,
+                  new_static_env,
+                  new_type_env,
+                  new_static_type_env,
+                  new_value_bindings,
+                  new_type_bindings ) =
+              eval_defn d env static_env type_env static_type_env
             in
-            let t_string = string_of_c_type t in
-            id ^ " : " ^ t_string ^ " = " ^ value_string)
-          new_value_bindings
-        |> String.concat "\n"
-      in
 
-      (* for each new binding, make a string id : type = value *)
-      let new_type_bindings_string =
-        List.map
-          (fun id ->
-            let k = List.assoc (TypeName id) new_static_type_env in
+            (* for each new binding, make a string id : type = value *)
+            let new_value_bindings_string =
+              List.map
+                (fun id ->
+                  let value = List.assoc id new_env in
+                  let value_string = string_of_value value in
+                  let t : c_type =
+                    List.assoc id new_static_env |> instantiate |> fix
+                  in
+                  let t_string = string_of_c_type t in
+                  id ^ " : " ^ t_string ^ " = " ^ value_string)
+                new_value_bindings
+              |> String.concat "\n"
+            in
 
-            let k_string = string_of_c_kind k in
+            (* for each new binding, make a string id : type = value *)
+            let new_type_bindings_string =
+              List.map
+                (fun id ->
+                  let k = List.assoc (TypeName id) new_static_type_env in
 
-            "type " ^ id ^ " : " ^ k_string)
-          new_type_bindings
-        |> String.concat "\n"
-      in
+                  let k_string = string_of_c_kind k in
 
-      (* print the new bindings *)
-      if new_value_bindings_string <> "" then
-        print_endline new_value_bindings_string
-      else ();
+                  "type " ^ id ^ " : " ^ k_string)
+                new_type_bindings
+              |> String.concat "\n"
+            in
 
-      if new_type_bindings_string <> "" then
-        print_endline new_type_bindings_string
-      else ();
+            (* print the new bindings *)
+            if new_value_bindings_string <> "" then
+              print_endline new_value_bindings_string
+            else ();
 
-      (* print the new static type env *)
-      repl_loop new_env new_static_env new_type_env new_static_type_env
+            if new_type_bindings_string <> "" then
+              print_endline new_type_bindings_string
+            else ();
+
+            (* print the new static type env *)
+            repl_loop new_env new_static_env new_type_env new_static_type_env
+      with exn ->
+        report_repl_exception exn;
+        repl_loop env static_env type_env static_type_env)
 
 and repl_expr (env : env) (static_env : static_env)
     (type_env : (string * c_type) list) (e : string) =
@@ -145,22 +175,7 @@ and repl_expr (env : env) (static_env : static_env)
     print_string (t_string ^ ": ");
     print_endline (result ^ "\n")
   with
-  | LexFailure -> print_endline "Lex Failure\n"
-  | ParseFailure -> print_endline "Parse Failure\n"
-  | TypeFailure -> print_endline "Type Failure\n"
-  | UnexpectedToken (expected, Some got, line) ->
-      (* print the error *)
-      "Unexpected Token on line " ^ string_of_int line ^ ": expected "
-      ^ string_of_token { token_type = expected; line }
-      ^ " but got "
-      ^ string_of_token { token_type = got; line }
-      |> print_endline
-  | UnexpectedToken (expected, None, line) ->
-      (* print the error *)
-      "Unexpected Token: " ^ string_of_int line ^ ": expected "
-      ^ string_of_token { token_type = expected; line }
-      ^ " but got none"
-      |> print_endline
+  | exn -> report_repl_exception exn
 
 let run_repl () : unit =
   print_endline "[LambdaScript REPL]\n";
