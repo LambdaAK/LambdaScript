@@ -2910,17 +2910,50 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
     | Some sch when Typecheck.scheme_has_class_constraint sch -> (
         match Typecheck.primary_class_constraint sch with
         | Some cls -> (
+            let resolve_sibling_methods dict arg_list =
+              let meths =
+                Typecheck.class_method_names ~static_env:static_for_mono
+                  ~class_name:cls
+              in
+              List.map
+                (fun arg ->
+                  match arg with
+                  | EId (id, _)
+                    when List.mem id meths && not (S.mem id shadows) ->
+                      EFieldAccess (EId (dict, None), id)
+                  | _ -> arg)
+                arg_list
+            in
+            let try_env_dicts () : expr_result option =
+              let prefix = "__forge_dict_" ^ cls ^ "_" in
+              let rec scan = function
+                | [] -> None
+                | (dict_name, b) :: rest ->
+                    if
+                      String.starts_with ~prefix dict_name
+                      &&
+                      match b with
+                      | ForgeDict _ -> true
+                      | _ -> false
+                    then
+                      let resolved_args = resolve_sibling_methods dict_name args in
+                      let rewritten =
+                        List.fold_left
+                          (fun acc arg -> EApp (acc, arg))
+                          (EFieldAccess (EId (dict_name, None), name))
+                          resolved_args
+                      in
+                      (try
+                         Some
+                           (lower_expr rewritten env ctx static_env type_env
+                              shadows)
+                       with Unsupported _ -> scan rest)
+                    else scan rest
+              in
+              scan env
+            in
             match Typecheck.extract_class_param_and_mono_template cls sch with
             | Some (var_id, mty) -> (
-                let resolve_sibling_methods dict arg_list =
-                  let meths = Typecheck.class_method_names ~static_env:static_for_mono ~class_name:cls in
-                  List.map (fun arg ->
-                    match arg with
-                    | EId (id, _) when List.mem id meths && not (S.mem id shadows)
-                      ->
-                        EFieldAccess (EId (dict, None), id)
-                    | _ -> arg) arg_list
-                in
                 let try_arg_at i =
                   if i < 0 || i >= List.length args then None
                   else
@@ -2968,8 +3001,10 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
                         | Some _ as result -> result
                         | None -> try_all (i + 1)
                     in
-                    try_all 0)
-            | None -> None)
+                    (match try_all 0 with
+                    | Some _ as result -> result
+                    | None -> try_env_dicts ()))
+            | None -> try_env_dicts ())
         | None -> None)
     | _ -> None
   in

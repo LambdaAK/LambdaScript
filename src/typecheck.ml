@@ -3158,21 +3158,21 @@ and elaborate_constrained_body ?(rewrite_constrained_calls = false)
     (static_env : static_env)
     (type_env : type_env) (name : string) (body : c_expr) : c_expr =
   match List.assoc_opt name static_env with
-  | Some sch when scheme_has_class_constraint sch ->
-      let constrained_classes = all_class_constraints sch in
-      let body' =
-        elaborate_expr ~rewrite_constrained_calls static_env type_env body
-      in
-      List.fold_right
-        (fun cls acc_body ->
+  | Some sch when scheme_has_class_constraint sch -> (
+      match primary_class_constraint sch with
+      | Some cls ->
           let dict_param = "__dict_" ^ cls in
           let method_names = class_method_names ~static_env ~class_name:cls in
-          let rewritten =
-            subst_methods_with_dict_access ~dict_param ~method_names acc_body
+          let body' =
+            elaborate_expr ~rewrite_constrained_calls static_env type_env body
           in
-          if rewritten = acc_body then acc_body
-          else EFunction (CIdPat dict_param, None, rewritten))
-        constrained_classes body'
+          let body'' =
+            subst_methods_with_dict_access ~dict_param ~method_names body'
+          in
+          if body' = body'' then body''
+          else EFunction (CIdPat dict_param, None, body'')
+      | None ->
+          elaborate_expr ~rewrite_constrained_calls static_env type_env body)
   | _ -> elaborate_expr ~rewrite_constrained_calls static_env type_env body
 
 and elaborate_defn ?(rewrite_constrained_calls = false)

@@ -645,6 +645,82 @@ let sanitize_method_internal (s : string) : string =
 let internal_tc_id (dispatch_cls : string) (meth : string) : string =
   "__forge_tc_" ^ dispatch_cls ^ "_" ^ sanitize_method_internal meth
 
+let rec pat_binds_name (target : string) (p : c_pat) : bool =
+  match p with
+  | CIdPat id -> String.equal id target
+  | CConsPat (a, b) -> pat_binds_name target a || pat_binds_name target b
+  | CVectorPat ps -> List.exists (pat_binds_name target) ps
+  | CRecordPat fs -> List.exists (fun (_, p0) -> pat_binds_name target p0) fs
+  | CVariantPat (_, Some p0) -> pat_binds_name target p0
+  | CVariantPat (_, None) -> false
+  | CWildcardPat | CUnitPat | CNilPat -> false
+  | CIntPat _ | CBoolPat _ | CStringPat _ | CCharPat _ -> false
+
+let rename_id_avoiding_shadow ~(from_id : string) ~(to_id : string)
+    (expr : c_expr) : c_expr =
+  let rec go shadowed e =
+    match e with
+    | EId (s, _) when (not shadowed) && String.equal s from_id ->
+        EId (to_id, None)
+    | EApp (a, b) -> EApp (go shadowed a, go shadowed b)
+    | EFunction (p, t, b) ->
+        let shadowed' = shadowed || pat_binds_name from_id p in
+        EFunction (p, t, go shadowed' b)
+    | EBind (p, t, e1, e2, r) ->
+        let shadowed' = shadowed || pat_binds_name from_id p in
+        EBind (p, t, go shadowed e1, go shadowed' e2, r)
+    | EBindRec (p, t, e1, e2, r) ->
+        let shadowed' = shadowed || pat_binds_name from_id p in
+        EBindRec (p, t, go shadowed' e1, go shadowed' e2, r)
+    | EBindMutRec (bs, body) ->
+        let shadowed' =
+          shadowed
+          || List.exists
+               (fun (p, _, _, _, _) -> pat_binds_name from_id p)
+               bs
+        in
+        EBindMutRec
+          ( List.map
+              (fun (p, t, e1, r, n) -> (p, t, go shadowed' e1, r, n))
+              bs,
+            go shadowed' body )
+    | EBlock parts ->
+        EBlock
+          (List.map
+             (function
+               | Expr ex -> Expr (go shadowed ex)
+               | Defn d -> Defn d)
+             parts)
+    | ETernary (a, b, c) -> ETernary (go shadowed a, go shadowed b, go shadowed c)
+    | ESwitch (scr, brs) ->
+        ESwitch
+          ( go shadowed scr,
+            List.map
+              (fun (p, e') ->
+                let shadowed' = shadowed || pat_binds_name from_id p in
+                (p, go shadowed' e'))
+              brs )
+    | EBop (op, a, b) -> EBop (op, go shadowed a, go shadowed b)
+    | EVector es -> EVector (List.map (go shadowed) es)
+    | EListComprehension (e0, gens) ->
+        EListComprehension
+          ( go shadowed e0,
+            List.map
+              (fun (p, ge) ->
+                (p, go (shadowed || pat_binds_name from_id p) ge))
+              gens )
+    | ERecordLit fs -> ERecordLit (List.map (fun (n, e') -> (n, go shadowed e')) fs)
+    | ERecordUpdate (e0, fs) ->
+        ERecordUpdate
+          ( go shadowed e0,
+            List.map (fun (n, e') -> (n, go shadowed e')) fs )
+    | EFieldAccess (e0, fld) -> EFieldAccess (go shadowed e0, fld)
+    | EListEnumeration (a, b) -> EListEnumeration (go shadowed a, go shadowed b)
+    | (EBool _ | EString _ | EUnit | EInt _ | EChar _ | EFloat _ | ENil | EId (_, _))
+      as leaf -> leaf
+  in
+  go false expr
+
 (** [let rec f … = e in f] parses as [EBindRec (f, e, Id f)]. Dictionary code
     re-binds under [__forge_tc_*]; strip the outer wrapper so native lowering
     sees [EFunction …] for [peel_efun]. *)
@@ -654,7 +730,10 @@ let dict_bindrec_payload ~(meth : string) ~(intid : string) (e : c_expr) :
   | EBindRec (CIdPat nm, ta, e1, EId (tail, _), rt)
     when String.equal nm meth
          && (String.equal tail intid || String.equal tail meth) ->
-      Some (ta, e1, rt)
+      Some
+        ( ta,
+          rename_id_avoiding_shadow ~from_id:meth ~to_id:intid e1,
+          rt )
   | _ -> None
 
 (** Whether [e] mentions [id] as [EId] (trait dict internals are unique). *)

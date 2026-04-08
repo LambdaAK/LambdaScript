@@ -1154,6 +1154,26 @@ let hover_for_position ~(prelude : bool) ~(src_path : string) ~(source : string)
   let full_source = Prelude.prepend_to_source ~enabled:prelude ~src_path source in
   let user_off = byte_offset_of_line_char source line0 char0 in
   let delta = String.length full_source - String.length source in
+  let prelude_n_for_ids, prelude_n_condensed =
+    if delta <= 0 then (0, 0)
+    else
+      let frag = String.sub full_source 0 delta in
+      let parsed_n =
+        let n = Prelude.defn_count_for_source_fragment frag in
+        if n > 0 then n else Prelude.defn_count_when_parsed ()
+      in
+      let condensed_n =
+        let frag_tokens =
+          lex (frag |> String.to_seq |> List.of_seq)
+          |> List.map (fun t -> t.token_type)
+        in
+        match program_parser frag_tokens with
+        | Some (pre_prog, []) -> (
+            try List.length (condense_program pre_prog) with _ -> parsed_n)
+        | _ -> parsed_n
+      in
+      (parsed_n, condensed_n)
+  in
   (* First byte of user [source] inside [full_source] after optional prelude. *)
   let user_byte_lo = delta in
   let offset = user_off + delta in
@@ -1169,17 +1189,10 @@ let hover_for_position ~(prelude : bool) ~(src_path : string) ~(source : string)
       clear_id_queue ();
       Error "parse failed: extra tokens"
   | Some (program, _) -> (
-      let prelude_n =
-        if delta <= 0 then 0
-        else
-          let frag = String.sub full_source 0 delta in
-          let n = Prelude.defn_count_for_source_fragment frag in
-          if n > 0 then n else Prelude.defn_count_when_parsed ()
-      in
       let condensed =
         condense_program
           ?user_id_byte_min_after_prelude:
-            (if delta = 0 then None else Some (prelude_n, delta))
+            (if delta = 0 then None else Some (prelude_n_for_ids, delta))
           program
       in
       clear_id_queue ();
@@ -1187,7 +1200,8 @@ let hover_for_position ~(prelude : bool) ~(src_path : string) ~(source : string)
       let type_env : type_env = [] in
       match
         walk_defns static_env type_env user_byte_lo lex_id_at_offset offset
-          full_tokens ~prelude_defn_cap_count:prelude_n ~idx:0 condensed
+          full_tokens ~prelude_defn_cap_count:prelude_n_condensed ~idx:0
+          condensed
       with
       | Some s -> Ok (HoverType, s)
       | None -> (
