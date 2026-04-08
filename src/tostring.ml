@@ -616,11 +616,18 @@ and string_of_defn (d : defn) (level : int) =
       ^ String.concat ", "
           (List.map (fun it -> string_of_trait_item it (level + 1)) items)
       ^ "])"
-  | InstanceDef (cls, head_ty, impls) ->
+  | InstanceDef (cls, head_ty, requires, impls) ->
       "InstanceDef ("
       ^ cls
       ^ ", "
       ^ string_of_compound_type head_ty (level + 1)
+      ^ ", requires ["
+      ^ String.concat ", "
+          (List.map
+             (fun (c, ct) ->
+               c ^ " " ^ string_of_compound_type ct (level + 1))
+             requires)
+      ^ "]"
       ^ ", ["
       ^ String.concat ", "
           (List.map
