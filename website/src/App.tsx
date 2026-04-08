@@ -11,7 +11,8 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
-          <Route path="playground" element={<PlaygroundPage />} />
+          <Route path="ide" element={<PlaygroundPage />} />
+          <Route path="playground" element={<Navigate to="/ide" replace />} />
           <Route path="docs" element={<DocsLayout />}>
             <Route index element={<Navigate to="overview" replace />} />
             <Route path="overview" element={<DocsMarkdownPage slug="overview" />} />

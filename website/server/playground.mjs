@@ -17,6 +17,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
 const PORT = Number(process.env.FORGE_PLAYGROUND_PORT ?? 8787);
 const HOST = process.env.FORGE_PLAYGROUND_HOST ?? '127.0.0.1';
+const intentionalShutdown = new WeakSet();
 
 function playgroundBinaryPath() {
   const dir = path.join(repoRoot, '_build', 'default', 'bin');
@@ -47,13 +48,30 @@ function spawnRunner() {
   const rl = readline.createInterface({ input: proc.stderr });
 
   proc.on('exit', (code, signal) => {
+    if (intentionalShutdown.has(proc)) {
+      intentionalShutdown.delete(proc);
+      return;
+    }
     console.error(`playground process exited code=${code} signal=${signal}`);
   });
 
   return { proc, rl, getStdout: () => stdoutAcc, clearStdout: () => { stdoutAcc = ''; } };
 }
 
-const runner = spawnRunner();
+let runner = spawnRunner();
+
+function shutdownRunner(currentRunner) {
+  intentionalShutdown.add(currentRunner.proc);
+  try {
+    currentRunner.rl.close();
+  } catch {}
+  if (!currentRunner.proc.killed) currentRunner.proc.kill();
+}
+
+function restartRunner() {
+  shutdownRunner(runner);
+  runner = spawnRunner();
+}
 
 /** Serialize requests — one in-flight eval at a time (shared OCaml session). */
 let queueTail = Promise.resolve();
@@ -69,7 +87,8 @@ function withQueue(fn) {
 
 function runSnippet(code) {
   return new Promise((resolve, reject) => {
-    runner.clearStdout();
+    const currentRunner = runner;
+    currentRunner.clearStdout();
     const buf = Buffer.from(code, 'utf8');
     if (buf.length > 4 * 1024 * 1024) {
       reject(new Error('Code exceeds 4 MiB'));
@@ -82,17 +101,17 @@ function runSnippet(code) {
     const onLine = (line) => {
       try {
         const json = JSON.parse(line);
-        json.printed = runner.getStdout();
+        json.printed = currentRunner.getStdout();
         resolve(json);
       } catch (e) {
         reject(e);
       }
     };
-    runner.rl.once('line', onLine);
+    currentRunner.rl.once('line', onLine);
 
-    runner.proc.stdin.write(payload, (err) => {
+    currentRunner.proc.stdin.write(payload, (err) => {
       if (err) {
-        runner.rl.off('line', onLine);
+        currentRunner.rl.off('line', onLine);
         reject(err);
       }
     });
@@ -120,7 +139,19 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.url === '/health' && req.method === 'GET') {
-    json(res, 200, { ok: true });
+    json(res, 200, { ok: true, pid: runner.proc.pid });
+    return;
+  }
+
+  if (req.url === '/reset' && req.method === 'POST') {
+    try {
+      await withQueue(async () => {
+        restartRunner();
+      });
+      json(res, 200, { ok: true });
+    } catch (e) {
+      json(res, 500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
     return;
   }
 

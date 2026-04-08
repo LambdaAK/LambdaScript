@@ -1,65 +1,61 @@
-/**
- * Colors aligned with VS Code Dark+ defaults for TextMate scopes used in
- * vscode-forge/syntaxes/forge.tmLanguage.json
- */
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { EditorView } from '@codemirror/view'
 import { tags } from '@lezer/highlight'
 
-/** Dark+–style token colors (same roles as VS Code for Forge scopes). */
 const forgeHighlightStyle = HighlightStyle.define([
-  { tag: tags.comment, color: '#6a9955' },
-  { tag: tags.controlKeyword, color: '#c586c0' },
-  { tag: tags.keyword, color: '#569cd6' },
-  { tag: tags.definitionKeyword, color: '#569cd6' },
-  { tag: tags.typeName, color: '#4ec9b0' },
-  { tag: tags.string, color: '#ce9178' },
-  { tag: tags.number, color: '#b5cea8' },
-  { tag: tags.bool, color: '#569cd6' },
-  { tag: tags.variableName, color: '#9cdcfe' },
-  { tag: tags.definition(tags.variableName), color: '#dcdcaa' },
-  { tag: tags.standard(tags.variableName), color: '#dcdcaa' },
-  { tag: tags.operator, color: '#d4d4d4' },
-  { tag: tags.punctuation, color: '#d4d4d4' },
-  { tag: tags.bracket, color: '#d4d4d4' },
+  { tag: tags.comment, color: '#5d7f6f' },
+  { tag: tags.controlKeyword, color: '#f4b16a' },
+  { tag: tags.keyword, color: '#81c8ff' },
+  { tag: tags.definitionKeyword, color: '#8fd0ff' },
+  { tag: tags.typeName, color: '#7ee0c2' },
+  { tag: tags.string, color: '#f3a57d' },
+  { tag: tags.number, color: '#c8f29e' },
+  { tag: tags.bool, color: '#f7d774' },
+  { tag: tags.variableName, color: '#c9dcff' },
+  { tag: tags.definition(tags.variableName), color: '#fff0a8' },
+  { tag: tags.standard(tags.variableName), color: '#ffe08f' },
+  { tag: tags.operator, color: '#d6e0ef' },
+  { tag: tags.punctuation, color: '#d6e0ef' },
+  { tag: tags.bracket, color: '#d6e0ef' },
 ])
 
 export const forgeSyntaxHighlighting = syntaxHighlighting(forgeHighlightStyle, { fallback: true })
 
-/** Chrome to match .playground-editor (index.css) + selection/cursor. */
 export const forgeEditorChrome = EditorView.theme(
   {
     '&': {
-      fontSize: '0.88rem',
-      lineHeight: '1.45',
-      backgroundColor: '#121a24',
-      color: '#d4d4d4',
-      borderRadius: '8px',
-      border: '1px solid #263244',
+      fontSize: '0.9rem',
+      lineHeight: '1.5',
+      backgroundColor: '#0f1728',
+      color: '#e5edf8',
+      borderRadius: '12px',
+      border: '1px solid #253a56',
     },
     '&.cm-editor.cm-focused': {
       outline: 'none',
+      borderColor: '#3f7fc2',
+      boxShadow: '0 0 0 2px rgba(63, 127, 194, 0.25)',
     },
     '.cm-scroller': {
-      fontFamily: 'ui-monospace, Menlo, monospace',
-      minHeight: '220px',
+      fontFamily: "'IBM Plex Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+      minHeight: '320px',
       overflow: 'auto',
     },
     '.cm-content': {
-      padding: '0.75rem',
-      caretColor: '#e8eaed',
+      padding: '0.9rem',
+      caretColor: '#f8fbff',
     },
     '.cm-line': {
       padding: 0,
     },
     '.cm-selectionBackground, ::selection': {
-      backgroundColor: '#264f78 !important',
+      backgroundColor: '#21496f !important',
     },
     '&.cm-focused .cm-cursor': {
-      borderLeftColor: '#e8eaed',
+      borderLeftColor: '#f8fbff',
     },
     '.cm-activeLine': {
-      backgroundColor: 'transparent',
+      backgroundColor: 'rgba(47, 82, 120, 0.2)',
     },
   },
   { dark: true }
