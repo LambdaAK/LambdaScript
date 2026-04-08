@@ -197,6 +197,47 @@ end
            ignore (expect_defs out1 : (string * string * string) list);
            let out2, _st2 = run_input st1 "mappend [1,2] [3]" in
            expect_expr ~typ:"List<Int>" ~value:"[1, 2, 3]" out2 );
+         ( "repl_recursive_constrained_impl_handles_mixed_dispatch_calls"
+           >:: fun _ ->
+           let st0 = fresh_repl_state () in
+           let setup =
+             {|
+inter Render <a> {
+  val render : a -> String
+}
+impl Render for Int where
+  let render x = int_to_str x
+end
+
+type Maybe<a> =
+  | Nothing
+  | Just of a
+
+impl Render for Maybe<a> requires Render<a> where
+  let render o =
+    case o do
+    | Nothing -> "Nothing"
+    | Just v -> "Just(" ^ (render v) ^ ")"
+end
+
+type rec LinkedList<a> =
+  | Nil
+  | Cons of (a, LinkedList<a>)
+
+impl Render for LinkedList<a> requires Render<a> where
+  let rec render l =
+    case l do
+    | Nil -> "Nil"
+    | Cons (h, t) -> "Cons " ^ (render h) ^ " " ^ (render t)
+end
+|}
+           in
+           let out1, st1 = run_input st0 setup in
+           ignore (expect_defs out1 : (string * string * string) list);
+           let out2, st2 = run_input st1 "render (Cons (1, Cons (2, Nil)))" in
+           expect_expr ~typ:"String" ~value:{|"Cons 1 Cons 2 Nil"|} out2;
+           let out3, _st3 = run_input st2 "render (Just 5)" in
+           expect_expr ~typ:"String" ~value:{|"Just(5)"|} out3 );
          ( "operator_methods_do_not_collide_in_repl_dispatch" >:: fun _ ->
            let st0 = fresh_repl_state () in
            let setup =

@@ -2049,11 +2049,19 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
         @ [ pattern_body_constraint ]
       in
 
+      let env_for_generalize =
+        match (pat, type_annotation) with
+        | CIdPat id, Some ann
+          when String.starts_with ~prefix:"__forge_dict_" id ->
+            (id, ann) :: env
+        | _ -> env
+      in
+
       (* Generalize the body type *)
       let- generalized_type =
         generalize
           ~class_preds:(p_body @ explicit_class_constraints)
-          all_equations env type_env body_type
+          all_equations env_for_generalize type_env body_type
       in
 
       (* Create new environment with pattern bindings using bind_static *)

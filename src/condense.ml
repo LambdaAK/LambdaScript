@@ -724,16 +724,19 @@ let rename_id_avoiding_shadow ~(from_id : string) ~(to_id : string)
 (** [let rec f … = e in f] parses as [EBindRec (f, e, Id f)]. Dictionary code
     re-binds under [__forge_tc_*]; strip the outer wrapper so native lowering
     sees [EFunction …] for [peel_efun]. *)
-let dict_bindrec_payload ~(meth : string) ~(intid : string) (e : c_expr) :
+let dict_bindrec_payload ~(meth : string) ~(intid : string)
+    ~(rename_self_refs : bool) (e : c_expr) :
     (c_type option * c_expr * c_type option) option =
   match e with
   | EBindRec (CIdPat nm, ta, e1, EId (tail, _), rt)
     when String.equal nm meth
          && (String.equal tail intid || String.equal tail meth) ->
-      Some
-        ( ta,
-          rename_id_avoiding_shadow ~from_id:meth ~to_id:intid e1,
-          rt )
+      if rename_self_refs then
+        Some
+          ( ta,
+            rename_id_avoiding_shadow ~from_id:meth ~to_id:intid e1,
+            rt )
+      else Some (ta, e1, rt)
   | _ -> None
 
 (** Whether [e] mentions [id] as [EId] (trait dict internals are unique). *)
@@ -1083,6 +1086,12 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                 let build_dict_expr (dispatch_d : string)
                     (fields : (string * mono_type) list) : c_expr =
                   let names = List.map fst fields in
+                  let rename_self_refs =
+                    not
+                      (List.exists
+                         (fun (req_cls, _) -> String.equal req_cls dispatch_d)
+                         requires_mono)
+                  in
                   let internals =
                     List.map (fun m -> (m, internal_tc_id dispatch_d m)) names
                   in
@@ -1116,7 +1125,9 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                     List.fold_right
                       (fun (m, e) acc ->
                         let intid = internal_tc_id dispatch_d m in
-                        match dict_bindrec_payload ~meth:m ~intid e with
+                        match
+                          dict_bindrec_payload ~meth:m ~intid ~rename_self_refs e
+                        with
                         | Some (ta, e1, rt) ->
                             EBindRec (CIdPat intid, ta, e1, acc, rt)
                         | None ->
@@ -1138,7 +1149,8 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                               let e0 = List.assoc m condensed in
                               let ta, rhs, rt =
                                 match
-                                  dict_bindrec_payload ~meth:m ~intid e0
+                                  dict_bindrec_payload ~meth:m ~intid
+                                    ~rename_self_refs e0
                                 with
                                 | Some (ta, e1, rt) -> (ta, e1, rt)
                                 | None -> (None, e0, None)

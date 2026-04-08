@@ -162,6 +162,48 @@ end
              ~expected_type:"List<Int>";
            assert_expr_value ~program ~expr:"mappend [1,2] [3]"
              ~expected_value:"[1, 2, 3]" );
+         ( "interpreter_recursive_constrained_impl_supports_cross_type_calls"
+           >:: fun _ ->
+           let program =
+             {|
+inter Render <a> {
+  val render : a -> String
+}
+impl Render for Int where
+  let render x = int_to_str x
+end
+
+type Maybe<a> =
+  | Nothing
+  | Just of a
+
+impl Render for Maybe<a> requires Render<a> where
+  let render o =
+    case o do
+    | Nothing -> "Nothing"
+    | Just v -> "Just(" ^ (render v) ^ ")"
+end
+
+type rec LinkedList<a> =
+  | Nil
+  | Cons of (a, LinkedList<a>)
+
+impl Render for LinkedList<a> requires Render<a> where
+  let rec render l =
+    case l do
+    | Nil -> "Nil"
+    | Cons (h, t) -> "Cons " ^ (render h) ^ " " ^ (render t)
+end
+|}
+           in
+           assert_expr_type ~program
+             ~expr:"render (Cons (1, Cons (2, Nil)))"
+             ~expected_type:"String";
+           assert_expr_value ~program
+             ~expr:"render (Cons (1, Cons (2, Nil)))"
+             ~expected_value:{|"Cons 1 Cons 2 Nil"|};
+           assert_expr_value ~program ~expr:"render (Just 7)"
+             ~expected_value:{|"Just(7)"|} );
          ( "interpreter_first_class_trait_method_argument" >:: fun _ ->
            let program =
              {|
