@@ -919,13 +919,25 @@ and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
              ("Invalid pattern in recursive let binding: expected an \
                identifier, got: " ^ string_of_pat pat))
   in
+  let has_outer_constrained_binding =
+    match List.assoc_opt function_id env with
+    | Some sch -> scheme_has_class_constraint sch
+    | None -> false
+  in
   let function_type = fresh_type_var () in
   let new_env = (function_id, Mono function_type) :: env in
-  let- t1, c1, _ = generate new_env type_env e1 in
+  let- t1, c1, _ =
+    if has_outer_constrained_binding then generate env type_env e1
+    else generate new_env type_env e1
+  in
   let p1 = !pending_expression_class_preds in
   pending_expression_class_preds := [];
-  (* Add constraint that function_type must equal t1 *)
-  let new_constraint = (function_type, t1) in
+  (* Add constraint that function_type must equal t1 for ordinary recursive
+     bindings; in constrained method bodies we intentionally keep references
+     dispatching through the class method from the outer environment. *)
+  let new_constraint_opt =
+    if has_outer_constrained_binding then None else Some (function_type, t1)
+  in
   let- return_type_constraints =
     match return_type with
     | Some t ->
@@ -940,17 +952,20 @@ and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
         return [ (actual_return_type, simplified_t) ]
     | None -> return []
   in
+  let constraints_for_generalize =
+    match new_constraint_opt with
+    | Some eq -> return_type_constraints @ (eq :: c1)
+    | None -> return_type_constraints @ c1
+  in
   (* Generalize the function type to make it polymorphic *)
   (* Use env (not new_env) so that the function's type variable can be generalized *)
   let- generalized_type =
-    generalize ~class_preds:p1
-      (return_type_constraints @ (new_constraint :: c1))
-      env type_env t1
+    generalize ~class_preds:p1 constraints_for_generalize env type_env t1
   in
   let- t2, c2, _ =
     generate ((function_id, generalized_type) :: env) type_env e2
   in
-  return (t2, return_type_constraints @ (new_constraint :: c1) @ c2, [])
+  return (t2, constraints_for_generalize @ c2, [])
 
 (** [generate_e_bind_mut_rec env type_env bindings body] generates type
     constraints for mutually recursive let bindings.
@@ -1817,44 +1832,55 @@ and get_type_vars (t : mono_type) : mono_type list =
 
 and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :
     c_type type_check_result =
-  match e with
-  | EId (x, _) -> (
-      match List.assoc_opt x env with
-      | None -> Error (UnboundVariable x)
-      | Some sch ->
-          let- sch' = simplify_type sch type_env in
-          return (fix_c_type sch'))
-  | _ ->
-      pending_expression_class_preds := [];
-      let- t, constraints, _ = generate env type_env e in
-      let extra_preds = !pending_expression_class_preds in
-      pending_expression_class_preds := [];
+  try
+    match e with
+    | EId (x, _) -> (
+        match List.assoc_opt x env with
+        | None -> Error (UnboundVariable x)
+        | Some sch ->
+            let- sch' = simplify_type sch type_env in
+            return (fix_c_type sch'))
+    | _ ->
+        pending_expression_class_preds := [];
+        let- t, constraints, _ = generate env type_env e in
+        let extra_preds = !pending_expression_class_preds in
+        pending_expression_class_preds := [];
 
-      let- t = simplify_mono_type t type_env in
-      (* simplify constraints *)
-      let- simplified_constraints =
-        let rec simplify_constraint_list acc = function
-          | [] -> return (List.rev acc)
-          | (t1, t2) :: rest ->
-              let- t1_simplified = simplify_mono_type t1 type_env in
-              let- t2_simplified = simplify_mono_type t2 type_env in
-              simplify_constraint_list
-                ((t1_simplified, t2_simplified) :: acc)
-                rest
+        let- t = simplify_mono_type t type_env in
+        (* simplify constraints *)
+        let- simplified_constraints =
+          let rec simplify_constraint_list acc = function
+            | [] -> return (List.rev acc)
+            | (t1, t2) :: rest ->
+                let- t1_simplified = simplify_mono_type t1 type_env in
+                let- t2_simplified = simplify_mono_type t2 type_env in
+                simplify_constraint_list
+                  ((t1_simplified, t2_simplified) :: acc)
+                  rest
+          in
+          simplify_constraint_list [] constraints
         in
-        simplify_constraint_list [] constraints
-      in
 
-      let solution = reduce_eq simplified_constraints type_env in
-      let- the_mono_type = get_type t solution type_env in
-      (* Do not [fix_type] before [generalize]: the solver's substitution still
-         uses internal names (e.g. [t214]); renaming here breaks [get_type]
-         inside [generalize]. *)
-      let- the_c_type =
-        generalize ~class_preds:extra_preds simplified_constraints env type_env
-          the_mono_type
-      in
-      return (fix_c_type the_c_type)
+        let- solution =
+          try Ok (reduce_eq simplified_constraints type_env)
+          with TypeFailure ->
+            Error
+              (OtherError
+                 ("Type inference failed for expression `"
+                 ^ C_to_string.string_of_expr e
+                 ^ "` with constraints:\n"
+                 ^ string_of_type_equations simplified_constraints))
+        in
+        let- the_mono_type = get_type t solution type_env in
+        (* Do not [fix_type] before [generalize]: the solver's substitution still
+           uses internal names (e.g. [t214]); renaming here breaks [get_type]
+           inside [generalize]. *)
+        let- the_c_type =
+          generalize ~class_preds:extra_preds simplified_constraints env type_env
+            the_mono_type
+        in
+        return (fix_c_type the_c_type)
+  with TypeFailure -> Error (OtherError "Type inference failed")
 
 (** Solved monomorphic type of [e1] (the function position) in the binary
     application [EApp (e1, e2)], after constraint solving. Used for
@@ -1977,18 +2003,59 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
     (static_env * type_env * constructor_env) type_check_result =
   let class_constraint_link_equations (inferred : class_equations)
       (explicit : class_equations) : type_equations =
-    List.filter_map
-      (fun (cls_explicit, ty_explicit) ->
-        match
-          List.find_opt
-            (fun (cls_inferred, _) -> cls_inferred = cls_explicit)
-            inferred
-        with
-        | Some (_, ty_inferred) -> Some (ty_inferred, ty_explicit)
-        | None -> None)
-      explicit
+    let shape_key (t : mono_type) : string =
+      canonicalize_mono_type_vars_for_instance_key t |> string_of_mono_type
+    in
+    let take_first
+        (pred : (string * mono_type) -> bool)
+        (xs : class_equations) :
+        ((string * mono_type) * class_equations) option =
+      let rec go rev_prefix = function
+        | [] -> None
+        | x :: rest ->
+            if pred x then Some (x, List.rev_append rev_prefix rest)
+            else go (x :: rev_prefix) rest
+      in
+      go [] xs
+    in
+    let class_count (cls : string) (xs : class_equations) : int =
+      List.fold_left
+        (fun acc (c, _) -> if String.equal c cls then acc + 1 else acc)
+        0 xs
+    in
+    let rec link acc inferred_pool explicit_rest =
+      match explicit_rest with
+      | [] -> List.rev acc
+      | (cls_explicit, ty_explicit) :: rest ->
+          let expected_shape = shape_key ty_explicit in
+          let exact_pred (cls_inferred, ty_inferred) =
+            String.equal cls_inferred cls_explicit
+            && String.equal (shape_key ty_inferred) expected_shape
+          in
+          let fallback_pred (cls_inferred, _) =
+            String.equal cls_inferred cls_explicit
+          in
+          let next_link, next_pool =
+            match take_first exact_pred inferred_pool with
+            | Some ((_, ty_inferred), pool_after_pick) ->
+                (Some (ty_inferred, ty_explicit), pool_after_pick)
+            | None ->
+                if class_count cls_explicit inferred_pool = 1 then
+                  match take_first fallback_pred inferred_pool with
+                  | Some ((_, ty_inferred), pool_after_pick) ->
+                      (Some (ty_inferred, ty_explicit), pool_after_pick)
+                  | None -> (None, inferred_pool)
+                else (None, inferred_pool)
+          in
+          let acc' =
+            match next_link with Some eq -> eq :: acc | None -> acc
+          in
+          link acc' next_pool rest
+    in
+    link [] inferred explicit
   in
-  match defn with
+  try
+    match defn with
   | CDefn
       ( pat,
         explicit_class_constraints,
@@ -2485,7 +2552,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
         ( constructor_bindings,
           type_env_entry,
           [ (type_name, type_params, constructors) ] )
-  | CSumTypeRecMutRec types ->
+    | CSumTypeRecMutRec types ->
       (* Mutually recursive sum types - similar to CSumTypeRec but for multiple types *)
       (* For type rec Even = | Zero | SuccE of Odd and Odd = | SuccO of Even *)
       (* We represent each type as: μTypeName. CTypeApp(TypeName, params) *)
@@ -2603,7 +2670,12 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
               constructors)
           types
       in
-      return (all_constructor_bindings, type_env_entries, types)
+        return (all_constructor_bindings, type_env_entries, types)
+  with TypeFailure ->
+    Error
+      (OtherError
+         ("Type inference failed while checking definition:\n"
+        ^ C_to_string.string_of_defn defn))
 
 (* Given a type with type names, simplify it by replacing the type names with
    the actual types

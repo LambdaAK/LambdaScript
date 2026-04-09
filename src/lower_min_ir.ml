@@ -266,7 +266,7 @@ let dict_param_class_name (nm : string) : string option =
 
 let split_leading_dict_pats_and_anns (pats : c_pat list)
     (anns : c_type option list) :
-    (string * string) list * c_pat list * c_type option list =
+    (string * string * c_type option) list * c_pat list * c_type option list =
   if List.length pats <> List.length anns then
     unsupported "Internal: parameter pattern / annotation length mismatch";
   let rec drop_list n xs =
@@ -279,7 +279,7 @@ let split_leading_dict_pats_and_anns (pats : c_pat list)
       match (List.nth pats i, List.nth anns i) with
       | CIdPat nm, _ -> (
           match dict_param_class_name nm with
-          | Some cls -> go (i + 1) ((nm, cls) :: acc_dict)
+          | Some cls -> go (i + 1) ((nm, cls, List.nth anns i) :: acc_dict)
           | None -> (List.rev acc_dict, drop_list i pats, drop_list i anns))
       | _, _ -> (List.rev acc_dict, drop_list i pats, drop_list i anns)
   in
@@ -295,30 +295,39 @@ let rec find_class_predicate_mono (class_name : string) (sch : c_type) :
   | PolyType (_, inner) -> find_class_predicate_mono class_name inner
   | _ -> None
 
+let find_class_predicate_mono_in_env ~(name : string) ~(class_name : string)
+    (static_env : static_env) : mono_type option =
+  let rec go = function
+    | [] -> None
+    | (nm, sch) :: rest ->
+        if String.equal nm name then
+          match find_class_predicate_mono class_name sch with
+          | Some _ as hit -> hit
+          | None -> go rest
+        else go rest
+  in
+  go static_env
+
 let dict_mono_for_fn_class (fn_name : string) (class_name : string)
     (static_env : static_env) (type_env : Typecheck.type_env) : mono_type =
-  match List.assoc_opt fn_name static_env with
+  match
+    find_class_predicate_mono_in_env ~name:fn_name ~class_name static_env
+  with
   | None ->
       unsupported
-        ("Missing type for `" ^ fn_name
-       ^ "` when resolving dictionary parameter (compiler bug)")
-  | Some sch -> (
-      match find_class_predicate_mono class_name sch with
+        ("Missing `" ^ class_name ^ "` class predicate on `" ^ fn_name
+       ^ "` for dictionary parameter (compiler bug)")
+  | Some tau ->
+      let tau' = Typecheck.mono_concrete_or_int_default tau in
+      match
+        Typecheck.dict_expected_record_type ~static_env ~class_name ~tau:tau'
+          ~type_env
+      with
+      | Some d -> d
       | None ->
           unsupported
-            ("Missing `" ^ class_name ^ "` class predicate on `" ^ fn_name
-           ^ "` for dictionary parameter (compiler bug)")
-      | Some tau ->
-          let tau' = Typecheck.mono_concrete_or_int_default tau in
-          match
-            Typecheck.dict_expected_record_type ~static_env ~class_name
-              ~tau:tau' ~type_env
-          with
-          | Some d -> d
-          | None ->
-              unsupported
-                ("Could not build dictionary record type for class `"
-               ^ class_name ^ "` when lowering `" ^ fn_name ^ "`"))
+            ("Could not build dictionary record type for class `" ^ class_name
+           ^ "` when lowering `" ^ fn_name ^ "`")
 
 (** Dictionary record type for [class_name] at concrete instance [tau], e.g. when
     the static binding is already [Mono (t -> ...)] and class predicates in the
@@ -380,6 +389,36 @@ let rec strip_leading_dict_mono_layers (n : int) (m : mono_type) : mono_type =
           ("Internal: instantiated type does not have " ^ string_of_int n
          ^ " leading dictionary parameter(s) (got "
           ^ string_of_mono_type m ^ ")")
+
+let dict_tau_from_ann (ann : c_type option) : mono_type option =
+  match ann with
+  | Some (Mono (RecordType fields)) ->
+      List.find_map
+        (fun (_name, t) ->
+          match t with
+          | FunctionType _ -> None
+          | _ -> Some (Typecheck.mono_concrete_or_int_default t))
+        fields
+  | Some (Mono t) -> Some (Typecheck.mono_concrete_or_int_default t)
+  | Some (PolyType _) | Some (Constrained _) | None -> None
+
+let class_has_non_function_dict_field ~(static_env : static_env)
+    ~(class_name : string) : bool =
+  let prefix = "__forge_dict_" ^ class_name ^ "_" in
+  List.exists
+    (fun (name, sch) ->
+      String.starts_with ~prefix name
+      &&
+      match sch with
+      | Mono (RecordType fields) ->
+          List.exists
+            (fun (_fname, t) ->
+              match t with
+              | FunctionType _ -> false
+              | _ -> true)
+            fields
+      | _ -> false)
+    static_env
 
 (** First [n] dictionary domains from a monomorphic signature that already
     includes [{__dict_* -> ...}] prefixes ([n] = [List.length dict_infos]). *)
@@ -454,12 +493,33 @@ let inferred_param_mono_list ~(scheme_key : string) ~(instance_key : string)
                   | None -> assert false
                 in
                 List.map
-                  (fun (_, cls) ->
+                  (fun (_, cls, ann) ->
                     let tau =
-                      match List.assoc_opt scheme_key static_env with
+                      match
+                        find_class_predicate_mono_in_env ~name:scheme_key
+                          ~class_name:cls static_env
+                      with
+                      | Some t ->
+                          let use_return_shape =
+                            n_dict = 1
+                            && class_has_non_function_dict_field ~static_env
+                                 ~class_name:cls
+                            && Typecheck.get_type_vars t <> []
+                          in
+                          if use_return_shape then
+                            Some
+                              (Typecheck.mono_concrete_or_int_default
+                                 (return_ty_of_mono user_after))
+                          else Some (Typecheck.mono_concrete_or_int_default t)
                       | None -> None
-                      | Some sch -> (
-                          match find_class_predicate_mono cls sch with
+                    in
+                    let tau =
+                      match tau with
+                      | Some t -> Some t
+                      | None -> (
+                          match
+                            try_recover_dict_instance_tau ~class_name:cls user_after
+                          with
                           | Some t ->
                               Some (Typecheck.mono_concrete_or_int_default t)
                           | None -> None)
@@ -468,10 +528,14 @@ let inferred_param_mono_list ~(scheme_key : string) ~(instance_key : string)
                       match tau with
                       | Some t -> t
                       | None -> (
-                          match
-                            try_recover_dict_instance_tau ~class_name:cls user_after
-                          with
+                          match dict_tau_from_ann ann with
                           | Some t -> t
+                          | None
+                            when n_dict = 1
+                                 && class_has_non_function_dict_field
+                                      ~static_env ~class_name:cls ->
+                              Typecheck.mono_concrete_or_int_default
+                                (return_ty_of_mono user_after)
                           | None ->
                               unsupported
                                 ("Could not recover dictionary instance type for "
@@ -484,13 +548,30 @@ let inferred_param_mono_list ~(scheme_key : string) ~(instance_key : string)
               else
                 let taus = user_domain_monos n_dict user_m_full in
                 List.map2
-                  (fun (_, cls) tau ->
+                  (fun (_, cls, ann) tau ->
+                    let tau =
+                      match dict_tau_from_ann ann with
+                      | Some t -> t
+                      | None -> (
+                          match (n_dict, tau) with
+                          | 1, CListType inner
+                            when class_has_non_function_dict_field ~static_env
+                                   ~class_name:cls
+                                 && String.equal
+                                      (Cexpr.string_of_mono_type inner)
+                                      (Cexpr.string_of_mono_type
+                                         (return_ty_of_mono user_m_full))
+                            ->
+                              Typecheck.mono_concrete_or_int_default
+                                (return_ty_of_mono user_m_full)
+                          | _ -> tau)
+                    in
                     dict_record_mono_for_class ~class_name:cls tau static_env
                       type_env)
                   dict_infos taus)
       | PolyType _ | Constrained _ ->
           List.map
-            (fun (_, cls) ->
+            (fun (_, cls, _) ->
               dict_mono_for_fn_class scheme_key cls static_env type_env)
             dict_infos
   in
@@ -535,7 +616,7 @@ let expanded_mono_with_dict_prefixes ~(scheme_key : string)
         | _ ->
             let taus = user_domain_monos n_dict base in
             List.fold_left2
-              (fun acc (_, cls) tau ->
+              (fun acc (_, cls, _) tau ->
                 FunctionType
                   ( dict_record_mono_for_class ~class_name:cls tau static_env
                       type_env,
@@ -544,7 +625,7 @@ let expanded_mono_with_dict_prefixes ~(scheme_key : string)
   | Some ct ->
       let base = static_mono_for_native ct in
       List.fold_left
-        (fun acc (_, cls) ->
+        (fun acc (_, cls, _) ->
           FunctionType
             ( dict_mono_for_fn_class scheme_key cls static_env type_env,
               acc ))
@@ -574,10 +655,13 @@ let param_min_ir_tys ~(scheme_key : string) ~(instance_key : string)
           let m0 = mono_to_min inf_m in
           match m0 with
           | RawPtr -> (
-              match List.assoc_opt instance_key static_env with
-              | Some ct -> (
-                  let tau =
-                    match find_class_predicate_mono cls ct with
+                match List.assoc_opt instance_key static_env with
+                | Some ct -> (
+                    let tau =
+                    match
+                      find_class_predicate_mono_in_env ~name:instance_key
+                        ~class_name:cls static_env
+                    with
                     | Some t -> Typecheck.mono_concrete_or_int_default t
                     | None -> (
                         match static_mono_for_native ct with
@@ -987,25 +1071,47 @@ let static_env_for_mono_call (global : static_env) (env : env) : static_env =
      [mono_fun_type_of_curried_app] / constructor monomorphization. *)
   List.filter_map
     (fun (name, b) ->
-      match b with
-      | Val (_, _, Some m) -> Some (name, Mono m)
-      | Val (_, t, None) -> (
-          try
-            let m =
-              match min_ty_to_mono_opt t with
-              | Some m -> m
-              | None -> min_ty_to_mono t
-            in
-            Some (name, Mono m)
-          with Unsupported _ -> None)
-      | ForgeDict _ -> (
-          (* Reattach the program's static scheme for this dict so
-             {!mono_fun_type_of_binary_app} can type [EFieldAccess] and
-             applications when lowering uses [ForgeDict] runtime bindings. *)
-          match List.assoc_opt name global with
-          | Some sch -> Some (name, sch)
-          | None -> None)
-      | C _ -> None)
+      let prefer_global_dict_scheme =
+        String.starts_with ~prefix:"__forge_dict_" name
+        || String.starts_with ~prefix:"__dict_" name
+      in
+      if prefer_global_dict_scheme then
+        match List.assoc_opt name global with
+        | Some sch -> Some (name, sch)
+        | None -> (
+            match b with
+            | Val (_, _, Some m) -> Some (name, Mono m)
+            | Val (_, t, None) -> (
+                try
+                  let m =
+                    match min_ty_to_mono_opt t with
+                    | Some m -> m
+                    | None -> min_ty_to_mono t
+                  in
+                  Some (name, Mono m)
+                with Unsupported _ -> None)
+            | ForgeDict _ -> None
+            | C _ -> None)
+      else
+        match b with
+        | Val (_, _, Some m) -> Some (name, Mono m)
+        | Val (_, t, None) -> (
+            try
+              let m =
+                match min_ty_to_mono_opt t with
+                | Some m -> m
+                | None -> min_ty_to_mono t
+              in
+              Some (name, Mono m)
+            with Unsupported _ -> None)
+        | ForgeDict _ -> (
+            (* Reattach the program's static scheme for this dict so
+               {!mono_fun_type_of_binary_app} can type [EFieldAccess] and
+               applications when lowering uses [ForgeDict] runtime bindings. *)
+            match List.assoc_opt name global with
+            | Some sch -> Some (name, sch)
+            | None -> None)
+        | C _ -> None)
     env
   @ global
 
@@ -1113,7 +1219,7 @@ let split_leading_dict_pats_only (pats : c_pat list) :
   let d, r, _ =
     split_leading_dict_pats_and_anns pats (List.map (fun _ -> None) pats)
   in
-  (d, r)
+  (List.map (fun (nm, cls, _) -> (nm, cls)) d, r)
 
 (** {!Typecheck.mono_fun_type_of_curried_app} may yield [dict_record -> Unit]
     after class constraints are solved, while the elaborated definition still has
@@ -1670,7 +1776,7 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
     let name, mono = Queue.pop q in
     match find_cdefn_function name defs with
     | Some (param_pats, param_anns, inner) ->
-        let static_inst = replace_static_binding name (Mono mono) static_env in
+        let static_inst = (name, Mono mono) :: static_env in
         let param_monos =
           inferred_param_mono_list ~scheme_key:name ~instance_key:name
             param_pats param_anns static_inst type_env
@@ -1688,9 +1794,7 @@ let collect_mono_instantiations (defs : c_defn list) (static_env : static_env)
     | None -> (
         match find_cdefn_value_rhs name defs with
         | Some inner ->
-            let static_inst =
-              replace_static_binding name (Mono mono) static_env
-            in
+            let static_inst = (name, Mono mono) :: static_env in
             collect_visit_expr static_inst inner
         | None -> ())
   done;
@@ -2667,16 +2771,28 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
       unsupported
         "internal: record pattern should have been desugared to a tuple"
 
+and lower_switch_body_with_hint (body : c_expr) (env : env) (ctx : fn_ctx)
+    (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t)
+    (switch_result_ty_hint : ty option) : operand * ty =
+  match (body, switch_result_ty_hint) with
+  | ENil, Some (List elem_ty) ->
+      let t = fresh () in
+      emit_instr ctx (Assign (t, ListNil elem_ty));
+      (Local t, List elem_ty)
+  | _ -> (
+      match lower_expr body env ctx static_env type_env shadows with
+      | LVal (o, t) -> (o, t)
+      | LPartial c -> materialize_clos_lower env ctx c)
+
 and lower_switch_merge_arm (body : c_expr) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env)
-    (merge_lbl : string) (shadows : S.t) (scrut_mono : mono_type) (pat : c_pat)
-    : string * operand * ty =
+    (merge_lbl : string) (shadows : S.t) (scrut_mono : mono_type)
+    (switch_result_ty_hint : ty option) (pat : c_pat) : string * operand * ty =
   let pat_static = static_env_for_switch_branch_pat static_env type_env scrut_mono pat in
   let static_here = pat_static @ static_env in
   let o, ty =
-    match lower_expr body env ctx static_here type_env shadows with
-    | LVal (o, t) -> (o, t)
-    | LPartial c -> materialize_clos_lower env ctx c
+    lower_switch_body_with_hint body env ctx static_here type_env shadows
+      switch_result_ty_hint
   in
   let o' =
     if ty = String then
@@ -2719,9 +2835,10 @@ and merge_switch_predecessors (preds : (string * operand * ty) list)
           LVal (Local res, t0))
 
 and lower_switch_branches_multi (o_s : operand) (t_s : ty)
-    (scrut_mono : mono_type) (branches : (c_pat * c_expr) list) (env : env)
-    (ctx : fn_ctx) (static_env : static_env) (type_env : Typecheck.type_env)
-    (shadows : S.t) : expr_result =
+    (scrut_mono : mono_type) (switch_result_ty_hint : ty option)
+    (branches : (c_pat * c_expr) list) (env : env) (ctx : fn_ctx)
+    (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t)
+    : expr_result =
   let merge_lbl = fresh_lbl ctx "swm" in
   let rec walk (brs : (c_pat * c_expr) list)
       (acc : (string * operand * ty) list) : (string * operand * ty) list =
@@ -2736,7 +2853,7 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
         open_block ctx l_ok;
         let p =
           lower_switch_merge_arm body env' ctx static_env type_env merge_lbl
-            shadows scrut_mono pat
+            shadows scrut_mono switch_result_ty_hint pat
         in
         open_block ctx l_next;
         walk rest (acc @ [ p ])
@@ -2746,7 +2863,7 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
     | ConstI1 true ->
         [
           lower_switch_merge_arm body env' ctx static_env type_env merge_lbl
-            shadows scrut_mono pat;
+            shadows scrut_mono switch_result_ty_hint pat;
         ]
     | _ ->
         let l_ok = fresh_lbl ctx "swm" in
@@ -2755,7 +2872,7 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
         open_block ctx l_ok;
         let p =
           lower_switch_merge_arm body env' ctx static_env type_env merge_lbl
-            shadows scrut_mono pat
+            shadows scrut_mono switch_result_ty_hint pat
         in
         open_block ctx l_fail;
         emit_instr ctx (VoidCall ("abort", []));
@@ -2767,9 +2884,9 @@ and lower_switch_branches_multi (o_s : operand) (t_s : ty)
   merge_switch_predecessors preds ctx
 
 and lower_switch_branches (o_s : operand) (t_s : ty) (scrut_mono : mono_type)
-    (branches : (c_pat * c_expr) list) (env : env) (ctx : fn_ctx)
-    (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t) :
-    expr_result =
+    (switch_result_ty_hint : ty option) (branches : (c_pat * c_expr) list)
+    (env : env) (ctx : fn_ctx) (static_env : static_env)
+    (type_env : Typecheck.type_env) (shadows : S.t) : expr_result =
   match branches with
   | [] -> unsupported "empty case/switch"
   | [ (pat, body) ] -> (
@@ -2780,7 +2897,11 @@ and lower_switch_branches (o_s : operand) (t_s : ty) (scrut_mono : mono_type)
             static_env_for_switch_branch_pat static_env type_env scrut_mono pat
             @ static_env
           in
-          lower_expr body env' ctx static_here type_env shadows
+          let o, t =
+            lower_switch_body_with_hint body env' ctx static_here type_env
+              shadows switch_result_ty_hint
+          in
+          LVal (o, t)
       | _ ->
           let merge_lbl = fresh_lbl ctx "swm" in
           let l_ok = fresh_lbl ctx "sws" in
@@ -2793,14 +2914,14 @@ and lower_switch_branches (o_s : operand) (t_s : ty) (scrut_mono : mono_type)
           let preds =
             [
               lower_switch_merge_arm body env' ctx static_env type_env merge_lbl
-                shadows scrut_mono pat;
+                shadows scrut_mono switch_result_ty_hint pat;
             ]
           in
           open_block ctx merge_lbl;
           merge_switch_predecessors preds ctx)
   | _ :: _ :: _ as multi ->
-      lower_switch_branches_multi o_s t_s scrut_mono multi env ctx static_env
-        type_env shadows
+      lower_switch_branches_multi o_s t_s scrut_mono switch_result_ty_hint
+        multi env ctx static_env type_env shadows
 
 and lower_list_int_enumeration (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t)
@@ -2909,7 +3030,7 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
     match List.assoc_opt name static_for_mono with
     | Some sch when Typecheck.scheme_has_class_constraint sch -> (
         match Typecheck.primary_class_constraint sch with
-        | Some cls -> (
+        | Some cls ->
             let resolve_sibling_methods dict arg_list =
               let meths =
                 Typecheck.class_method_names ~static_env:static_for_mono
@@ -2923,6 +3044,32 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
                       EFieldAccess (EId (dict, None), id)
                   | _ -> arg)
                 arg_list
+            in
+            let sanitize_method_internal_name (s : string) : string =
+              let buf = Buffer.create (String.length s * 3) in
+              String.iter
+                (fun c ->
+                  match c with
+                  | ('a' .. 'z' | 'A' .. 'Z' | '0' .. '9') as ch ->
+                      Buffer.add_char buf ch
+                  | '_' -> Buffer.add_string buf "__"
+                  | ch ->
+                      Buffer.add_char buf '_';
+                      Buffer.add_string buf
+                        (Printf.sprintf "%02x" (Char.code ch)))
+                s;
+              Buffer.contents buf
+            in
+            let try_local_internal_method () : expr_result option =
+              let intid =
+                "__forge_tc_" ^ cls ^ "_" ^ sanitize_method_internal_name name
+              in
+              match resolve_callable intid env with
+              | Some c ->
+                  Some
+                    (apply_call_args ~callee_fn_expr:(EId (intid, None)) env ctx
+                       static_env type_env c args shadows)
+              | None -> None
             in
             let try_env_dicts () : expr_result option =
               let prefix = "__forge_dict_" ^ cls ^ "_" in
@@ -2952,8 +3099,12 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
               in
               scan env
             in
-            match Typecheck.extract_class_param_and_mono_template cls sch with
-            | Some (var_id, mty) -> (
+            (match Typecheck.extract_class_param_and_mono_template cls sch with
+            | None -> (
+                match try_local_internal_method () with
+                | Some _ as result -> result
+                | None -> try_env_dicts ())
+            | Some (var_id, mty) ->
                 let try_arg_at i =
                   if i < 0 || i >= List.length args then None
                   else
@@ -2997,14 +3148,17 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
                 | None ->
                     let rec try_all i =
                       if i >= List.length args then None
-                      else match try_arg_at i with
+                      else
+                        match try_arg_at i with
                         | Some _ as result -> result
                         | None -> try_all (i + 1)
                     in
                     (match try_all 0 with
                     | Some _ as result -> result
-                    | None -> try_env_dicts ()))
-            | None -> try_env_dicts ())
+                    | None -> (
+                        match try_local_internal_method () with
+                        | Some _ as result -> result
+                        | None -> try_env_dicts ())))
         | None -> None)
     | _ -> None
   in
@@ -3628,9 +3782,18 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
             unsupported
               ("case/switch: " ^ Typecheck.string_of_type_check_error err)
       in
+      let switch_result_ty_hint =
+        try
+          match Typecheck.type_of_c_expr se type_env e with
+          | Ok ct -> Some (mono_to_min (static_mono_for_native ct))
+          | Error _ -> None
+        with
+        | Typecheck.TypeFailure -> None
+        | Failure _ -> None
+      in
       let o_s, t_s = lower_expr_val scrut env ctx static_env type_env shadows in
-      lower_switch_branches o_s t_s scrut_mono branches env ctx static_env
-        type_env shadows
+      lower_switch_branches o_s t_s scrut_mono switch_result_ty_hint branches
+        env ctx static_env type_env shadows
   | EVector es -> (
       let se = static_env_for_mono_call static_env env in
       match Typecheck.type_of_c_expr se type_env (EVector es) with
@@ -3867,7 +4030,8 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       match Typecheck.type_of_c_expr se type_env (EFieldAccess (e0, fld)) with
       | Error err ->
           unsupported
-            ("field access: " ^ Typecheck.string_of_type_check_error err)
+            ("field access `" ^ C_to_string.string_of_expr (EFieldAccess (e0, fld))
+           ^ "`: " ^ Typecheck.string_of_type_check_error err)
       | Ok ct -> (
           let m = static_mono_for_native ct in
           let o_rec, t_rec =
@@ -3876,7 +4040,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           match Typecheck.type_of_c_expr se type_env e0 with
           | Error err2 ->
               unsupported
-                ("field access base: "
+                ("field access base `" ^ C_to_string.string_of_expr e0 ^ "`: "
                 ^ Typecheck.string_of_type_check_error err2)
           | Ok ct0 -> (
               let m0 = static_mono_for_native ct0 in

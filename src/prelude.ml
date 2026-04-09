@@ -12,16 +12,43 @@ let browser_embedded_prelude : string option ref = ref None
 
 let set_browser_embedded_prelude (s : string) : unit = browser_embedded_prelude := Some s
 
+let normalize_abs_path (path : string) : string =
+  if Filename.is_relative path then Filename.concat (Sys.getcwd ()) path else path
+
+let ancestor_dirs_from (start : string) : string list =
+  let rec go acc dir =
+    let dir = normalize_abs_path dir in
+    let parent = Filename.dirname dir in
+    if List.mem dir acc then List.rev acc
+    else if String.equal parent dir then List.rev (dir :: acc)
+    else go (dir :: acc) parent
+  in
+  go [] start
+
+let dedupe_preserve_order (paths : string list) : string list =
+  let rec go seen acc = function
+    | [] -> List.rev acc
+    | p :: rest ->
+        if List.mem p seen then go seen acc rest
+        else go (p :: seen) (p :: acc) rest
+  in
+  go [] [] paths
+
 let path_candidates () : string list =
-  let cwd = Sys.getcwd () in
-  let exe_dir = Filename.dirname Sys.executable_name in
-  [
-    Filename.concat cwd ("prelude/" ^ prelude_basename);
-    Filename.concat cwd prelude_basename;
-    Filename.concat (Filename.concat cwd "..") ("prelude/" ^ prelude_basename);
-    Filename.concat exe_dir ("../prelude/" ^ prelude_basename);
-    Filename.concat exe_dir ("prelude/" ^ prelude_basename);
-  ]
+  let roots =
+    [
+      Sys.getcwd ();
+      Filename.dirname (normalize_abs_path Sys.executable_name);
+    ]
+  in
+  let dirs =
+    roots |> List.map ancestor_dirs_from |> List.flatten |> dedupe_preserve_order
+  in
+  List.fold_right
+    (fun dir acc ->
+      Filename.concat dir ("prelude/" ^ prelude_basename)
+      :: Filename.concat dir prelude_basename :: acc)
+    dirs []
 
 let first_existing (paths : string list) : string option =
   List.find_opt Sys.file_exists paths
@@ -41,7 +68,7 @@ let contents () : string =
             (fun () -> really_input_string ic (in_channel_length ic)))
 
 let normalize_for_compare (path : string) : string =
-  if Filename.is_relative path then Filename.concat (Sys.getcwd ()) path else path
+  normalize_abs_path path
 
 (** [true] if [path] is the resolved prelude file — avoid self-prepend when
     compiling the prelude. *)

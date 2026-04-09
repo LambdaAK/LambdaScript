@@ -13,6 +13,14 @@
   (chdir %{workspace_root} (run %{test}))))
 
 (test
+ (name compiler_interpreter_parity_tests)
+ (modules compiler_interpreter_parity_tests)
+ (libraries Language ounit2 unix)
+ (deps (source_tree compiler_cases))
+ (action
+  (chdir %{workspace_root} (run %{test}))))
+
+(test
  (name hover_ident_tests)
  (modules hover_ident_tests)
  (libraries Language ounit2)
@@ -46,4 +54,17 @@
  (name repl_kernel_gap_coverage_tests)
  (modules repl_kernel_gap_coverage_tests)
  (libraries Language ounit2 str)
+ (action (chdir %{workspace_root} (run %{test}))))
+
+(test
+ (name real_programs_combo_tests)
+ (modules real_programs_combo_tests)
+ (libraries Language ounit2)
+ (action (chdir %{workspace_root} (run %{test}))))
+
+(test
+ (name compile_no_crash_tests)
+ (modules compile_no_crash_tests)
+ (libraries Language ounit2 unix)
+ (deps ../bin/interpreter.exe)
  (action (chdir %{workspace_root} (run %{test}))))
