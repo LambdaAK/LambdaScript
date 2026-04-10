@@ -631,8 +631,14 @@ and string_of_defn (d : defn) (level : int) =
       ^ ", ["
       ^ String.concat ", "
           (List.map
-             (fun (m, e) -> m ^ " = " ^ string_of_expr e (level + 1))
+          (fun (m, e) -> m ^ " = " ^ string_of_expr e (level + 1))
              impls)
       ^ "])"
+  | ModDef (name, defs) ->
+      "ModDef (" ^ name ^ ", ["
+      ^ String.concat ", " (List.map (fun d -> string_of_defn d (level + 1)) defs)
+      ^ "])"
+  | UseDef path ->
+      "UseDef (" ^ String.concat "." path ^ ")"
 
 let string_of_expr (e : expr) = string_of_expr e 0

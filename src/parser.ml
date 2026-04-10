@@ -289,6 +289,25 @@ module ParserUtils = struct
   let is_plain_type_var_name (s : string) : bool =
     s <> "" && String.for_all (fun c -> c >= 'a' && c <= 'z') s
 
+  let qualified_id_segments_parser : string list parser =
+    let* first =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* rest =
+      parse_several
+        (let* () = expect_token Dot in
+         expect_token_get_data (function
+           | Id s -> Some s
+           | _ -> None))
+    in
+    return (first :: rest)
+
+  let qualified_id_parser : string parser =
+    let* segments = qualified_id_segments_parser in
+    return (String.concat "." segments)
+
   let int_to_expr (i : int) : expr =
     ConsExpr
       (DisjunctionUnderCons
@@ -1096,11 +1115,7 @@ end = struct
     return (TypeVarWritten s)
 
   let type_name_parser : factor_type parser =
-    let* s =
-      expect_token_get_data (function
-        | Id s -> Some s
-        | _ -> None)
-    in
+    let* s = qualified_id_parser in
     if is_plain_type_var_name s then fail else return (TypeName s)
 
   let paren_factor_type_parser : factor_type parser =
@@ -1129,11 +1144,7 @@ end = struct
 
     (* New type declaration syntax: type triple<a, b, c> = (a, b, c) type
        option<a> = Some a | None type either<a, b> = Left a | Right b *)
-    let* name : string =
-      expect_token_get_data (function
-        | Id s -> Some s
-        | _ -> None)
-    in
+    let* name : string = qualified_id_parser in
     let* () =
       expect_token_get_data (function
         | Relop "<" -> Some ()
@@ -1193,11 +1204,7 @@ and DefnParser : sig
   val defn_parser : defn parser
 end = struct
   let class_constraint_parser : (string * compound_type) parser =
-    let* cls =
-      expect_token_get_data (function
-        | Id s -> Some s
-        | _ -> None)
-    in
+    let* cls = qualified_id_parser in
     let* ty = CompoundTypeParser.compound_type_parser in
     return (cls, ty)
 
@@ -1385,11 +1392,7 @@ end = struct
 
   (** [Super<f>] or [Super f] after [requires]. *)
   let requires_super_parser : (string * compound_type) parser =
-    let* cls =
-      expect_token_get_data (function
-        | Id s -> Some s
-        | _ -> None)
-    in
+    let* cls = qualified_id_parser in
     (let* () =
        expect_token_get_data (function
          | Relop s when s = "<" -> Some ()
@@ -1522,11 +1525,7 @@ end = struct
 
   let class_defn_parser () : defn parser =
     let* () = expect_token Inter <|> expect_token Trait in
-    let* class_name =
-      expect_token_get_data (function
-        | Id s -> Some s
-        | _ -> None)
-    in
+    let* class_name = qualified_id_parser in
     let* params = trait_param_list_parser in
     let* requires =
       (let* () = expect_token Requires in
@@ -1599,11 +1598,7 @@ end = struct
       return (name, body_expr)
     in
     let* () = expect_token Impl in
-    let* cls =
-      expect_token_get_data (function
-        | Id s -> Some s
-        | _ -> None)
-    in
+    let* cls = qualified_id_parser in
     let impl_requires_and_where_parser :
         ((string * compound_type) list * bool) parser =
       (let* () = expect_token Requires in
@@ -1851,15 +1846,35 @@ end = struct
       let* ct = CompoundTypeParser.compound_type_parser in
       return (TypeDef (name, args, ct))
 
-  let defn_parser : defn parser =
-    class_defn_parser () <|> instance_defn_parser ()
+  let rec defn_parser : defn parser =
+   fun tokens ->
+    (use_defn_parser () <|> mod_defn_parser () <|> class_defn_parser ()
+    <|> instance_defn_parser ()
     <|> type_alias_defn_parser_with_args ()
     <|> type_alias_defn_parser_no_args ()
     <|> rec_sum_type_defn_parser_with_args ()
     <|> rec_sum_type_defn_parser_no_args ()
     <|> sum_type_defn_parser_with_args ()
     <|> sum_type_defn_parser_no_args ()
-    <|> let_rec_defn_parser () <|> let_defn_parser ()
+    <|> let_rec_defn_parser () <|> let_defn_parser ())
+      tokens
+
+  and use_defn_parser () : defn parser =
+    let* () = expect_token Use in
+    let* path = qualified_id_segments_parser in
+    return (UseDef path)
+
+  and mod_defn_parser () : defn parser =
+    let* () = expect_token ModKw in
+    let* mod_name =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* () = expect_token Where in
+    let* inner_defns = parse_several defn_parser in
+    let* () = expect_token End in
+    return (ModDef (mod_name, inner_defns))
 end
 
 and ExprOrDefnParser : sig

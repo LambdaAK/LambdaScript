@@ -32,7 +32,7 @@
   },
   "wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
   "indentationRules": {
-    "increaseIndentPattern": "^.*\\b(let|if|then|else|case|do|type|fn|trait|inter|impl|switch|where)\\b.*$",
+    "increaseIndentPattern": "^.*\\b(let|if|then|else|case|do|type|fn|trait|inter|impl|switch|where|mod)\\b.*$",
     "decreaseIndentPattern": "^\\s*(\\||in|else|end)\\b.*$"
   }
 }

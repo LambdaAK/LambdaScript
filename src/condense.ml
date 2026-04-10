@@ -1,6 +1,7 @@
 open Expr
 open Cexpr
 open Forge_class_util
+open Module_expand
 
 let id_queue : (string * int * int) Queue.t option ref = ref None
 
@@ -57,10 +58,16 @@ let clear_id_queue () =
 
 let set_id_user_byte_min_lo (lo : int option) : unit = id_user_byte_min := lo
 
+let id_token_name_for_lookup (s : string) : string =
+  match String.rindex_opt s '.' with
+  | None -> s
+  | Some i -> String.sub s (i + 1) (String.length s - i - 1)
+
 let pop_id_pos (expected : string) : (int * int) option =
   match !id_queue with
   | None -> None
   | Some q ->
+      let expected_token = id_token_name_for_lookup expected in
       let min_b =
         match !id_user_byte_min with None -> min_int | Some n -> n
       in
@@ -68,7 +75,7 @@ let pop_id_pos (expected : string) : (int * int) option =
         if Queue.is_empty q then None
         else
           let s, a, b = Queue.peek q in
-          if not (String.equal s expected) then (
+          if not (String.equal s expected_token) then (
             if in_prelude_id_phase () && id_byte_in_user_region a then None
             else
               match !user_region_byte_lo with
@@ -105,6 +112,7 @@ let take_id_pos_after_byte (expected : string) (min_b : int) :
   match !id_queue with
   | None -> None
   | Some q ->
+      let expected_token = id_token_name_for_lookup expected in
       let buf : (string * int * int) list ref = ref [] in
       let rec scan () =
         if Queue.is_empty q then (
@@ -113,7 +121,7 @@ let take_id_pos_after_byte (expected : string) (min_b : int) :
         else
           let s, a, b = Queue.pop q in
           if
-            String.equal s expected && a >= min_b
+            String.equal s expected_token && a >= min_b
             && (not (in_prelude_id_phase ()) || not (id_byte_in_user_region a))
           then (
             List.iter (fun item -> Queue.add item q) (List.rev !buf);
@@ -362,10 +370,16 @@ let rec condense_defn : defn -> c_defn = function
           types
       in
       CSumTypeRecMutRec condensed_types
-  | ClassDef _ | InstanceDef _ ->
+  | ClassDef _ ->
       failwith
-        "internal: inter/impl definitions must be condensed with \
-         Condense.condense_program"
+        "internal: ClassDef must be condensed via Condense.condense_program"
+  | InstanceDef _ ->
+      failwith
+        "internal: InstanceDef must be condensed via Condense.condense_program"
+  | ModDef _ ->
+      failwith "internal: ModDef must be expanded before condense_defn"
+  | UseDef _ ->
+      failwith "internal: UseDef must be expanded before condense_defn"
 
 and condense_expr : expr -> c_expr = function
   | Function (pat, ct_opt, expr) ->
@@ -760,6 +774,7 @@ let merge_inherited_specs
     earlier in the same file. *)
 let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
     (defns : defn list) : c_defn list =
+  let defns = expand_program defns in
   user_region_byte_lo :=
     ( match user_id_byte_min_after_prelude with
     | Some (_, d) -> Some d

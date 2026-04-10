@@ -301,6 +301,33 @@ end
            ignore (expect_defs out2 : (string * string * string) list);
            let out3, _st3 = run_input st2 "if neq 2 2 then 1 else 0" in
            expect_expr ~typ:"Int" ~value:"0" out3 );
+         ( "repl_expression_allows_module_qualified_value_lookup" >:: fun _ ->
+           let st0 = fresh_repl_state () in
+           let setup =
+             {|
+mod Test where
+  let x = 1
+end
+|}
+           in
+           let out1, st1 = run_input st0 setup in
+           ignore (expect_defs out1 : (string * string * string) list);
+           let out2, _st2 = run_input st1 "Test.x" in
+           expect_expr ~typ:"Int" ~value:"1" out2 );
+         ( "repl_expression_respects_prior_use_directive" >:: fun _ ->
+           let st0 = fresh_repl_state () in
+           let setup =
+             {|
+mod M where
+  let x = 3
+end
+use M
+|}
+           in
+           let out1, st1 = run_input st0 setup in
+           ignore (expect_defs out1 : (string * string * string) list);
+           let out2, _st2 = run_input st1 "x" in
+           expect_expr ~typ:"Int" ~value:"3" out2 );
        ]
 
 let () = run_test_tt_main suite

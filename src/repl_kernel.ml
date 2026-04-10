@@ -6,6 +6,7 @@ open Parser.ProgramParser
 open Condense
 open C_to_string
 open Cexpr
+open Module_expand
 module TC = Typecheck
 
 open Ceval
@@ -162,6 +163,13 @@ let eval_user_input (static_env : static_env) (dynamic_env : env) (type_env : TC
         match expr_or_defn_parser tokens with
         | None -> fail "Parsing failed"
         | Some (Expr expr, _) -> (
+            let prelude =
+              match !prelude_defns_for_condense with
+              | None -> []
+              | Some prel -> prel
+            in
+            let context_defns = prelude @ !user_defns_for_condense in
+            let expr = expand_expr_in_context context_defns expr in
             let c_expr = condense_expr expr in
             match TC.type_of_c_expr static_env type_env c_expr with
             | TC.Error e -> fail (TC.string_of_type_check_error e)

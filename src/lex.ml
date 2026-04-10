@@ -74,6 +74,8 @@ type token_type =
   | Where
   | End
   | Requires
+  | ModKw
+  | Use
 
 type token = {
   token_type : token_type;
@@ -164,6 +166,8 @@ let string_of_token_type : token_type -> string = function
   | Where -> "<where>"
   | End -> "<end>"
   | Requires -> "<requires>"
+  | ModKw -> "<mod>"
+  | Use -> "<use>"
 [@@coverage off]
 
 let string_of_token : token -> string =
@@ -337,6 +341,8 @@ let keywords =
     ("where", Where);
     ("end", End);
     ("requires", Requires);
+    ("mod", ModKw);
+    ("use", Use);
   ]
   |> List.map (fun (s, t) -> (list_of_string s, t))
 
