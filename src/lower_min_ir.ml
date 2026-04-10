@@ -2248,7 +2248,24 @@ and lower_expr_val_as_call_arg ?(callee_fn_expr : c_expr option) (arg : c_expr)
             unsupported
               "Internal: forge dict binding where monomorphized value expected"
         | None ->
-            unsupported ("Missing monomorphized specialization `" ^ mangle ^ "`")
+            (* Nullary constructors are representation-invariant across type
+               instantiations (tag + null payload). If monomorph collection did
+               not materialize a specialization for this exact key, synthesize
+               the value at the use-site. *)
+            (match find_constructor_index !lowering_ctor_env x with
+            | Some (tag, _, None) ->
+                if not (ty_equal expect RawPtr) then
+                  unsupported
+                    ("Missing monomorphized specialization `" ^ mangle
+                   ^ "` with non-variant expected type "
+                   ^ string_of_ty expect)
+                else
+                  let v = fresh () in
+                  emit_instr ctx (Assign (v, VariantMk (tag, RawNull)));
+                  (Local v, RawPtr)
+            | _ ->
+                unsupported
+                  ("Missing monomorphized specialization `" ^ mangle ^ "`"))
       end
   | _ ->
       let o, got = lower_expr_val arg env ctx static_env type_env shadows in

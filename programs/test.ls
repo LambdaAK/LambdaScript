@@ -4,6 +4,13 @@ mod ListModule where
     | Nil
     | Cons of (a, LinkedList<a>)
 
+  impl Functor for LinkedList where
+    fmap f xs =
+      case xs do
+      | Nil -> Nil
+      | Cons (x, xs) -> Cons (f x, fmap f xs)
+  end
+
   let empty = Nil
 
   let cons x xs = Cons (x, xs)
@@ -25,6 +32,8 @@ mod ListModule where
 
 end
 
-let my_list = ListModule.cons 1 (ListModule.cons 2 (ListModule.cons 3 ListModule.empty))
+use ListModule
 
-let reversed_list = ListModule.reverse my_list
+let my_list = cons 1 (cons 2 (cons 3 empty))
+
+let reversed_list = reverse my_list
