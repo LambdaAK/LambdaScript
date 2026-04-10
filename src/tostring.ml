@@ -640,5 +640,7 @@ and string_of_defn (d : defn) (level : int) =
       ^ "])"
   | UseDef path ->
       "UseDef (" ^ String.concat "." path ^ ")"
+  | ImportDef path ->
+      "ImportDef (" ^ path ^ ")"
 
 let string_of_expr (e : expr) = string_of_expr e 0

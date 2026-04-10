@@ -231,6 +231,17 @@ let load_file_into_env filename static_env dynamic_env type_env =
     match Language.Parser.ProgramParser.program_parser tokens with
     | Some (program, []) ->
         (* Successfully parsed entire file as a program *)
+        let program =
+          try
+            Language.Import_resolve.resolve_program ~root_file:filename
+              ~base_dir:(Filename.dirname filename)
+              program
+          with Failure msg ->
+            print_error msg;
+            []
+        in
+        if program = [] then (static_env, dynamic_env, type_env)
+        else
         let condensed_program = condense_program program in
 
         let new_static_env, new_dynamic_env, new_type_env, loaded_ok =

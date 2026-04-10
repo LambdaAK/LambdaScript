@@ -380,6 +380,8 @@ let rec condense_defn : defn -> c_defn = function
       failwith "internal: ModDef must be expanded before condense_defn"
   | UseDef _ ->
       failwith "internal: UseDef must be expanded before condense_defn"
+  | ImportDef _ ->
+      failwith "internal: ImportDef must be resolved before condense_defn"
 
 and condense_expr : expr -> c_expr = function
   | Function (pat, ct_opt, expr) ->

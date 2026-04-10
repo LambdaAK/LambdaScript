@@ -132,7 +132,13 @@ let run_interpreter_capture_stdout ?(prelude = true) (src_path : string) : strin
                   (Printf.sprintf
                      "interpreter parse left %d trailing tokens"
                      (List.length remaining))
-            | Some (program, _) -> Language.Condense.condense_program program)
+            | Some (program, _) ->
+                let program =
+                  Language.Import_resolve.resolve_program ~root_file:src_path
+                    ~base_dir:(Filename.dirname src_path)
+                    program
+                in
+                Language.Condense.condense_program program)
       in
       let static_env = Language.Build_env.build_full_static_env () in
       let dynamic_env =

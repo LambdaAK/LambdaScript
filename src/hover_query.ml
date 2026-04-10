@@ -1,6 +1,7 @@
 open Lex
 open Parser.ProgramParser
 open Condense
+open Import_resolve
 open Typecheck
 open Build_env
 open Cexpr
@@ -1189,33 +1190,48 @@ let hover_for_position ~(prelude : bool) ~(src_path : string) ~(source : string)
       clear_id_queue ();
       Error "parse failed: extra tokens"
   | Some (program, _) -> (
-      let condensed =
-        condense_program
-          ?user_id_byte_min_after_prelude:
-            (if delta = 0 then None else Some (prelude_n_for_ids, delta))
-          program
+      let program_or_err : (Expr.defn list, string) Stdlib.result =
+        try
+          Stdlib.Ok
+            (resolve_program ~root_file:src_path
+               ~base_dir:(Filename.dirname src_path)
+               program)
+        with Failure msg ->
+          clear_id_queue ();
+          Stdlib.Error msg
       in
-      clear_id_queue ();
-      let static_env = build_full_static_env () in
-      let type_env : type_env = [] in
-      match
-        walk_defns static_env type_env user_byte_lo lex_id_at_offset offset
-          full_tokens ~prelude_defn_cap_count:prelude_n_condensed ~idx:0
-          condensed
-      with
-      | Some s -> Ok (HoverType, s)
-      | None -> (
-          let op_or_id_type_fallback =
-            match lex_id_at_offset with
-            | Some name -> type_string_for_id static_env type_env name
-            | None -> None
+      match program_or_err with
+      | Stdlib.Error _ as e -> e
+      | Stdlib.Ok program ->
+          let condensed =
+            condense_program
+              ?user_id_byte_min_after_prelude:
+                (if delta = 0 then None else Some (prelude_n_for_ids, delta))
+              program
           in
-          match op_or_id_type_fallback with
+          clear_id_queue ();
+          let static_env = build_full_static_env () in
+          let type_env : type_env = [] in
+          match
+            walk_defns static_env type_env user_byte_lo lex_id_at_offset offset
+              full_tokens ~prelude_defn_cap_count:prelude_n_condensed ~idx:0
+              condensed
+          with
           | Some s -> Ok (HoverType, s)
           | None -> (
-              match hover_type_definition_at_offset condensed full_tokens offset with
-              | Some s -> Ok (HoverDefinition, s)
-              | None -> Error "no typed identifier at this position" ) ) )
+              let op_or_id_type_fallback =
+                match lex_id_at_offset with
+                | Some name -> type_string_for_id static_env type_env name
+                | None -> None
+              in
+              match op_or_id_type_fallback with
+              | Some s -> Ok (HoverType, s)
+              | None -> (
+                  match
+                    hover_type_definition_at_offset condensed full_tokens offset
+                  with
+                  | Some s -> Ok (HoverDefinition, s)
+                  | None -> Error "no typed identifier at this position" ) ) )
 
 let hover_type_for_identifier ~(prelude : bool) ~(src_path : string)
     ~(source : string) ~(line0 : int) ~(char0 : int) : (string, string) result =

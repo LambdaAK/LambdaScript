@@ -76,6 +76,7 @@ type token_type =
   | Requires
   | ModKw
   | Use
+  | Import
 
 type token = {
   token_type : token_type;
@@ -168,6 +169,7 @@ let string_of_token_type : token_type -> string = function
   | Requires -> "<requires>"
   | ModKw -> "<mod>"
   | Use -> "<use>"
+  | Import -> "<import>"
 [@@coverage off]
 
 let string_of_token : token -> string =
@@ -343,6 +345,7 @@ let keywords =
     ("requires", Requires);
     ("mod", ModKw);
     ("use", Use);
+    ("import", Import);
   ]
   |> List.map (fun (s, t) -> (list_of_string s, t))
 

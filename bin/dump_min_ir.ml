@@ -27,11 +27,20 @@ let dump_ir (filename : string) =
       | [] -> ()
       | _ ->
           print_endline
-            ( "Warning: "
+          ( "Warning: "
             ^ string_of_int (List.length remaining)
             ^ " tokens remaining after parsing" );
           exit 1);
-            let condensed_program = condense_program program in
+      let program =
+        try
+          Language.Import_resolve.resolve_program ~root_file:filename
+            ~base_dir:(Filename.dirname filename)
+            program
+        with Failure msg ->
+          print_endline msg;
+          exit 1
+      in
+      let condensed_program = condense_program program in
       let static_env = build_full_static_env () in
       let type_env : type_env = [] in
       let ctor_env : Language.Typecheck.constructor_env = [] in

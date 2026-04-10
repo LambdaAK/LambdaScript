@@ -1,6 +1,7 @@
 open Lex
 open Parser.ProgramParser
 open Condense
+open Import_resolve
 open Typecheck
 open Build_env
 open Min_ir
@@ -77,6 +78,19 @@ let compile ?(quiet = false) ?(prelude = true) (src_path : string)
       Condense.clear_id_queue ();
       Error "Parsing failed: extra tokens after program"
   | Some (program, _) -> (
+      let program_or_err : (Expr.defn list, string) Stdlib.result =
+        try
+          Stdlib.Ok
+            (resolve_program ~root_file:src_path
+               ~base_dir:(Filename.dirname src_path)
+               program)
+        with Failure msg ->
+          Condense.clear_id_queue ();
+          Stdlib.Error msg
+      in
+      match program_or_err with
+      | Stdlib.Error _ as e -> e
+      | Stdlib.Ok program ->
       let prelude_n =
         if delta <= 0 then 0
         else

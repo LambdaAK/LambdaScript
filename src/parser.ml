@@ -1848,7 +1848,8 @@ end = struct
 
   let rec defn_parser : defn parser =
    fun tokens ->
-    (use_defn_parser () <|> mod_defn_parser () <|> class_defn_parser ()
+    (import_defn_parser () <|> use_defn_parser () <|> mod_defn_parser ()
+    <|> class_defn_parser ()
     <|> instance_defn_parser ()
     <|> type_alias_defn_parser_with_args ()
     <|> type_alias_defn_parser_no_args ()
@@ -1858,6 +1859,15 @@ end = struct
     <|> sum_type_defn_parser_no_args ()
     <|> let_rec_defn_parser () <|> let_defn_parser ())
       tokens
+
+  and import_defn_parser () : defn parser =
+    let* () = expect_token Import in
+    let* path =
+      expect_token_get_data (function
+        | StringToken s -> Some s
+        | _ -> None)
+    in
+    return (ImportDef path)
 
   and use_defn_parser () : defn parser =
     let* () = expect_token Use in

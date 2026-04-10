@@ -239,6 +239,7 @@ let rec collect_declared_symbols (path : string list) (sym : symbols)
           Hashtbl.replace sym.traits (scoped_key path name) (qualify path name)
       | InstanceDef _ -> ()
       | UseDef _ -> ()
+      | ImportDef _ -> ()
       | ModDef (name, nested) ->
           let mod_path = path @ [ name ] in
           Hashtbl.replace sym.modules (path_to_key mod_path) ();
@@ -623,8 +624,8 @@ and rewrite_local_defn (sym : symbols) (path : string list)
            (fun (p, cs, ann, body, rt, n) ->
              (p, cs, ann, rewrite_expr sym path uses bound' body, rt, n))
            pats)
-  | UseDef _ | ModDef _ ->
-      failwith "forge: use/mod are not supported inside expression blocks"
+  | UseDef _ | ModDef _ | ImportDef _ ->
+      failwith "forge: use/mod/import are not supported inside expression blocks"
   | _ -> d
 
 and local_defn_bound_ids (d : defn) : string list =
@@ -758,12 +759,18 @@ let rewrite_top_defn_non_mod (sym : symbols) (path : string list)
             rewrite_constraints sym path uses requires,
             impls' );
       ]
-  | ModDef _ | UseDef _ -> []
+  | ModDef _ | UseDef _ ->
+      []
+  | ImportDef _ ->
+      failwith "forge: import statements must be resolved before module expansion"
 
 let rec rewrite_top_defns (sym : symbols) (path : string list)
     (uses : string list list) (defns : defn list) : defn list =
   let rec go active_uses acc = function
     | [] -> List.rev acc
+    | ImportDef _ :: _ ->
+        failwith
+          "forge: import statements must be resolved before module expansion"
     | UseDef raw_path :: rest ->
         let resolved = resolve_use_path_exn sym path raw_path in
         go (resolved :: active_uses) acc rest
@@ -780,6 +787,7 @@ let rec has_expandables_defn (d : defn) : bool =
   match d with
   | ModDef (_, nested) -> true || has_expandables nested
   | UseDef _ -> true
+  | ImportDef _ -> true
   | _ -> false
 
 and has_expandables (defns : defn list) : bool =

@@ -31,6 +31,15 @@ let interpret (filename : string) =
           print_endline ("Warning: " ^ string_of_int (List.length remaining) ^ " tokens remaining after parsing");
           print_endline "The entire file was not parsed successfully.";
           exit 1);
+      let program =
+        try
+          Language.Import_resolve.resolve_program ~root_file:filename
+            ~base_dir:(Filename.dirname filename)
+            program
+        with Failure msg ->
+          print_endline msg;
+          exit 1
+      in
       let condensed_program = condense_program program in
 
       let static_env : static_env = build_full_static_env () in

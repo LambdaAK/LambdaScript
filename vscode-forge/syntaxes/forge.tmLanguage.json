@@ -68,7 +68,7 @@
         },
         {
           "name": "keyword.other.forge",
-          "match": "\\b(let|in|and|fn|for|with|end|where|requires|enum|mod|use)\\b"
+          "match": "\\b(let|in|and|fn|for|with|end|where|requires|enum|mod|use|import)\\b"
         }
       ]
     },

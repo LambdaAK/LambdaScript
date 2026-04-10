@@ -7,6 +7,7 @@ open Condense
 open C_to_string
 open Cexpr
 open Module_expand
+open Import_resolve
 module TC = Typecheck
 
 open Ceval
@@ -152,6 +153,10 @@ let eval_user_input (static_env : static_env) (dynamic_env : env) (type_env : TC
   try
     match program_parser tokens with
     | Some (program, []) when program <> [] ->
+        let program =
+          try resolve_program ~base_dir:(Sys.getcwd ()) program
+          with Failure msg -> failwith msg
+        in
         let c_defns = condense_user_defns program in
         (match process_condensed_defns static_env dynamic_env type_env c_defns with
         | TC.Error e -> fail (TC.string_of_type_check_error e)
@@ -187,11 +192,15 @@ let eval_user_input (static_env : static_env) (dynamic_env : env) (type_env : TC
                       type_env )
                 | Error e -> fail (string_of_eval_error e)))
         | Some (Definition defn, _) -> (
-            let c_defns = condense_user_defns [ defn ] in
+            let defs =
+              try resolve_program ~base_dir:(Sys.getcwd ()) [ defn ]
+              with Failure msg -> failwith msg
+            in
+            let c_defns = condense_user_defns defs in
             match process_condensed_defns static_env dynamic_env type_env c_defns with
             | TC.Error e -> fail (TC.string_of_type_check_error e)
             | TC.Ok (se, de, te, new_s, new_d, _new_te) ->
-                remember_user_defns_for_condense [ defn ] c_defns;
+                remember_user_defns_for_condense defs c_defns;
                 let bindings = collect_bindings new_s new_d in
                 (Ev_defs { bindings }, se, de, te)))
   with

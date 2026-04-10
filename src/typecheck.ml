@@ -2063,8 +2063,17 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
         body,
         return_type,
         num_explicit_params ) ->
+      let env_with_self_dict =
+        match (pat, type_annotation) with
+        | CIdPat id, Some ann
+          when String.starts_with ~prefix:"__forge_dict_" id ->
+            (id, ann) :: env
+        | _ -> env
+      in
       (* Generate type and equations for the body *)
-      let- body_type, body_equations, _ = generate env type_env body in
+      let- body_type, body_equations, _ =
+        generate env_with_self_dict type_env body
+      in
       let p_body = !pending_expression_class_preds in
       pending_expression_class_preds := [];
       let class_link_equations =
@@ -2116,19 +2125,11 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
         @ [ pattern_body_constraint ]
       in
 
-      let env_for_generalize =
-        match (pat, type_annotation) with
-        | CIdPat id, Some ann
-          when String.starts_with ~prefix:"__forge_dict_" id ->
-            (id, ann) :: env
-        | _ -> env
-      in
-
       (* Generalize the body type *)
       let- generalized_type =
         generalize
           ~class_preds:(p_body @ explicit_class_constraints)
-          all_equations env_for_generalize type_env body_type
+          all_equations env_with_self_dict type_env body_type
       in
 
       (* Create new environment with pattern bindings using bind_static *)

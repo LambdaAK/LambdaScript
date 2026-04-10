@@ -69,6 +69,12 @@
  (action (chdir %{workspace_root} (run %{test}))))
 
 (test
+ (name import_system_tests)
+ (modules import_system_tests)
+ (libraries Language ounit2 unix)
+ (action (chdir %{workspace_root} (run %{test}))))
+
+(test
  (name compile_no_crash_tests)
  (modules compile_no_crash_tests)
  (libraries Language ounit2 unix)

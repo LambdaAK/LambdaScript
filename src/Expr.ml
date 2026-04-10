@@ -72,6 +72,7 @@ type defn =
   | SumTypeDefMutRec of (string * string list * (string * compound_type option) list) list (* mutually recursive sum types *)
   | ModDef of string * defn list
   | UseDef of string list
+  | ImportDef of string
 
 and switch_branch = pat * expr
 
