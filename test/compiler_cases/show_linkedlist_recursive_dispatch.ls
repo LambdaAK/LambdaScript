@@ -7,7 +7,7 @@ trait Show<a> where
 end
 
 impl Show for Int where
-  let show x = int_to_str x
+  show x = int_to_str x
 end
 
 type Maybe<a> =
@@ -15,7 +15,7 @@ type Maybe<a> =
   | Just of a
 
 impl Show for Maybe<a> requires Show<a> where
-  let show o =
+  show o =
     case o do
     | Nothing -> "Nothing"
     | Just v -> "Just(" ^ (show v) ^ ")"
@@ -26,7 +26,7 @@ type rec LinkedList<a> =
   | Cons of (a, LinkedList<a>)
 
 impl Show for LinkedList<a> requires Show<a> where
-  let show l =
+  show l =
     case l do
     | Nil -> "Nil"
     | Cons (h, t) -> "Cons " ^ (show h) ^ " " ^ (show t)

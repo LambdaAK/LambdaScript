@@ -3,7 +3,7 @@ inter Functor<f> {
 }
 
 impl Functor for [u] where
-  let rec fmap g xs =
+  fmap g xs =
     case xs do
     | [] -> []
     | h :: t -> g h :: fmap g t

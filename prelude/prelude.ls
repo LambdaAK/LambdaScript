@@ -126,7 +126,7 @@
   // Ordering
   
   impl Eq for Ordering where
-    let (==) x y =
+    (==) x y =
       case (x, y) do
       | (LT, LT) -> true
       | (EQ, EQ) -> true
@@ -135,7 +135,7 @@
   end
   
   impl Show for Ordering where
-    let show x =
+    show x =
       case x do
       | LT -> "LT"
       | EQ -> "EQ"
@@ -145,145 +145,157 @@
   // Int
   
   impl Show for Int where
-    let show = int_to_str
+    show = int_to_str
   end
   
   impl Eq for Int where
-    let (==) x y = int_eq x y
+    (==) x y = int_eq x y
   end
   
   impl Ord for Int where
-    let compare x y = int_compare x y
+    compare x y = int_compare x y
   end
   
   // Bool
   
   impl Show for Bool where
-    let show x = if x then "true" else "false"
+    show x = if x then "true" else "false"
   end
   
   impl Eq for Bool where
-    let (==) x y = bool_eq x y
+    (==) x y = bool_eq x y
   end
   
   impl Ord for Bool where
-    let compare x y = bool_compare x y
+    compare x y = bool_compare x y
   end
   
   // Unit
   
   impl Show for Unit where
-    let show () = "()"
+    show () = "()"
   end
   
   impl Eq for Unit where
-    let (==) x y = unit_eq x y
+    (==) x y = unit_eq x y
   end
   
   impl Ord for Unit where
-    let compare x y = unit_compare x y
+    compare x y = unit_compare x y
   end
   
   // String
   
   impl Show for String where
-    let show s = s
+    show s = s
   end
   
   impl Eq for String where
-    let (==) x y = str_eq x y
+    (==) x y = str_eq x y
   end
   
   impl Ord for String where
-    let compare x y = str_compare x y
+    compare x y = str_compare x y
   end
   
   impl Semigroup for String where
-    let mappend x y = str_concat x y
-    let (++) x y = mappend x y
+    mappend x y = str_concat x y
+    ,
+    (++) x y = mappend x y
   end
   
   impl Monoid for String where
-    let empty = ""
+    empty = ""
   end
   
   // Float
   
   impl Eq for Float where
-    let (==) x y = float_eq x y
+    (==) x y = float_eq x y
   end
   
   impl Ord for Float where
-    let compare x y = float_compare x y
+    compare x y = float_compare x y
   end
   
   // Char
   
   impl Eq for Char where
-    let (==) x y = char_eq x y
+    (==) x y = char_eq x y
   end
   
   impl Ord for Char where
-    let compare x y = char_compare x y
+    compare x y = char_compare x y
   end
   
   // List
   
   impl Semigroup for List<a> where
-    let rec mappend x y =
+    mappend x y =
       case x do
       | [] -> y
       | h :: t -> h :: mappend t y
   
-    let (++) x y = mappend x y
+    ,
+    (++) x y = mappend x y
   end
   
   impl Monoid for List<a> where
-    let empty = []
+    empty = []
+  end
+
+  impl Show for List<a> requires Show<a> where
+    show x =
+      case x do
+      | [] -> "[]"
+      | h :: t -> "[" ^ (show h) ^ ", " ^ (show t) ^ "]"
   end
   
   // Option
   
   impl Functor for Option where
-    let fmap f x =
+    fmap f x =
       case x do
       | None -> None
       | Some v -> Some (f v)
   end
   
   impl Applicative for Option where
-    let pure x = Some x
-    let ap f x =
+    pure x = Some x
+    ,
+    ap f x =
       case f do
       | None -> None
       | Some g -> fmap g x
   end
   
   impl Monad for Option where
-    let bind x f =
+    bind x f =
       case x do
       | None -> None
       | Some v -> f v
   end
   
   impl Alternative for Option where
-    let aempty = None
-    let (<|>) x y =
+    aempty = None
+    ,
+    (<|>) x y =
       case x do
       | Some v -> Some v
       | None -> y
   end
   
   impl Semigroup for Option<a> where
-    let mappend x y = 
+    mappend x y = 
       case x do
         | None -> y
         | Some v -> Some v
-    let (++) x y = mappend x y
+    ,
+    (++) x y = mappend x y
   end
   
   impl Monoid for Option<a> where
-    let empty = None
+    empty = None
   end
   
   let println x = print_string (show x)

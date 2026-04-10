@@ -9,7 +9,7 @@ inter Functor<f> {
 }
 
 impl Functor for Option where
-  let fmap g x =
+  fmap g x =
     case x do
     | None -> None
     | Some v -> Some(g v)

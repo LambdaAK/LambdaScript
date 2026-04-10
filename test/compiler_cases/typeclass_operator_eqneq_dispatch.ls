@@ -9,8 +9,9 @@ inter EqLike <a> {
 }
 
 impl EqLike for Int where
-  let (==) x y = x == y
-  let (!=) x y = if x == y then false else true
+  (==) x y = x == y
+  ,
+  (!=) x y = if x == y then false else true
 end
 
 let () = print_string (int_to_str (if (==) 5 5 then 1 else 0))

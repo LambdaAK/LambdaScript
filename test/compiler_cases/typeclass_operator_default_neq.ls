@@ -10,7 +10,7 @@ inter EqLike <a> {
 }
 
 impl EqLike for Int where
-  let (==) x y = x == y
+  (==) x y = x == y
 end
 
 let () = print_string (int_to_str (if (!=) 2 3 then 1 else 0))

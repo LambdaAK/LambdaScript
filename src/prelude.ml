@@ -34,15 +34,32 @@ let dedupe_preserve_order (paths : string list) : string list =
   in
   go [] [] paths
 
+let path_has_component ~(component : string) (path : string) : bool =
+  normalize_abs_path path |> String.split_on_char '/'
+  |> List.exists (fun p -> String.equal p component)
+
 let path_candidates () : string list =
   let roots =
     [
+      (match Sys.getenv_opt "DUNE_SOURCEROOT" with
+      | Some p -> normalize_abs_path p
+      | None -> normalize_abs_path (Sys.getcwd ()));
       Sys.getcwd ();
       Filename.dirname (normalize_abs_path Sys.executable_name);
     ]
   in
-  let dirs =
+  let dirs_raw =
     roots |> List.map ancestor_dirs_from |> List.flatten |> dedupe_preserve_order
+  in
+  (* When running under Dune, cwd may be inside [_build/default]. Prefer
+     workspace/source directories over build-tree mirrors of [prelude.ls]. *)
+  let dirs =
+    let src_dirs, build_dirs =
+      List.partition
+        (fun d -> not (path_has_component ~component:"_build" d))
+        dirs_raw
+    in
+    src_dirs @ build_dirs
   in
   List.fold_right
     (fun dir acc ->

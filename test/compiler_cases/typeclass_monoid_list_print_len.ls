@@ -8,12 +8,13 @@ inter Monoid <a> {
 }
 
 impl Monoid for [a] where
-  let rec mappend x y =
+  mappend x y =
     case x do
     | [] -> y
     | h :: t -> h :: mappend t y
 
-  let mempty = []
+  ,
+  mempty = []
 end
 
 let rec len xs =

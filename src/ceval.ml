@@ -698,7 +698,7 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
         | None -> scan env)
     | None -> scan env
   in
-  let try_from_empty_list_shape () : value eval_result option =
+  let try_from_list_shape () : value eval_result option =
     let prefix = "__forge_dict_" ^ cls_name ^ "_list__" in
     let rec scan = function
       | [] -> None
@@ -743,8 +743,8 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
             | Some (Ok v) -> Some (Ok v)
             | Some (Error _) | None -> (
                 match arg with
-                | ListValue [] -> (
-                    match try_from_empty_list_shape () with
+                | ListValue _ -> (
+                    match try_from_list_shape () with
                     | Some (Ok v) -> Some (Ok v)
                     | Some (Error _) | None -> try_args rest)
                 | VariantValue _ -> (
@@ -754,8 +754,8 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
                 | _ -> try_args rest))
         | None -> (
             match arg with
-            | ListValue [] -> (
-                match try_from_empty_list_shape () with
+            | ListValue _ -> (
+                match try_from_list_shape () with
                 | Some (Ok v) -> Some (Ok v)
                 | Some (Error _) | None -> try_args rest)
             | VariantValue _ -> (

@@ -3,13 +3,13 @@ inter Show<a> {
 }
 
 impl Show for Int where
-  let show = int_to_str
+  show = int_to_str
 end
 
 impl Show for Bool where
-  let show = fn b -> if b then "true" else "false"
+  show = fn b -> if b then "true" else "false"
 end
 
 impl Show for [a] where
-  let show = fn lst -> ""
+  show = fn lst -> ""
 end

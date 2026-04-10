@@ -8,7 +8,7 @@ inter Semigroup <a> {
 }
 
 impl Semigroup for Int where
-  let sappend x y = x + y
+  sappend x y = x + y
 end
 
 let add7 x = sappend 7 x

@@ -9,7 +9,7 @@ inter Monad<m> {
 type Option<a> = | None | Some of a
 
 impl Monad for Option where
-  let return x = Some x
+  return x = Some x
 end
 
 let lift<Monad m> (x : m<a>) = x

@@ -1571,7 +1571,7 @@ let program_typecheck_tests =
          ( "type annotation mismatch detected" >:: fun _ ->
            assert_program_fails_typecheck "let (x : Bool) = 42" );
          ( "impl declaration tokenizes and parses to EOF" >:: fun _ ->
-           let s = "impl Show for Int where let rec show x = int_to_str x end\n" in
+           let s = "impl Show for Int where show x = int_to_str x end\n" in
            let tokens =
              lex (s |> String.to_seq |> List.of_seq)
              |> List.map (fun t -> t.token_type)
@@ -1597,7 +1597,7 @@ let program_typecheck_tests =
            | None -> assert_failure "program_parser returned None" );
          ( "impl with where constraints tokenizes and parses to EOF" >:: fun _ ->
            let s =
-             "impl Show for Option<a> where Show<a> where let show o = o end\n"
+             "impl Show for Option<a> where Show<a> where show o = o end\n"
            in
            let tokens =
              lex (s |> String.to_seq |> List.of_seq)
@@ -1643,11 +1643,12 @@ let program_expression_type_tests =
                  val mempty : a
                }
                impl Monoid for [a] where
-                 let rec mappend x y =
+                 mappend x y =
                    case x do
                    | [] -> y
                    | h :: t -> h :: mappend t y
-                 let mempty = []
+                 ,
+                 mempty = []
                end
              |}
              ~expr:"mappend [1] [2]" ~expected_type:"List<Int>" );
@@ -1660,7 +1661,7 @@ let program_expression_type_tests =
                  val fmap : (a -> b) -> f<a> -> f<b>
                }
                impl Functor for Option where
-                 let fmap g x =
+                 fmap g x =
                    case x do
                    | None -> None
                    | Some v -> Some (g v)
@@ -1676,13 +1677,13 @@ let program_expression_type_tests =
                  val show : a -> String
                }
                impl Show for Int where
-                 let show x = int_to_str x
+                 show x = int_to_str x
                end
                type Option<a> =
                  | None
                  | Some of a
                impl Show for Option<a> where Show<a> where
-                 let show o =
+                 show o =
                    case o do
                    | None -> "None"
                    | Some v -> "Some(" ^ show v ^ ")"
@@ -1697,13 +1698,13 @@ let program_expression_type_tests =
                  val show : a -> String
                }
                impl Show for Int where
-                 let show x = int_to_str x
+                 show x = int_to_str x
                end
                type Option<a> =
                  | None
                  | Some of a
                impl Show for Option<a> requires Show<a> where
-                 let show o =
+                 show o =
                    case o do
                    | None -> "None"
                    | Some v -> "Some(" ^ show v ^ ")"
@@ -1718,13 +1719,13 @@ let program_expression_type_tests =
                  val show : a -> String
                }
                impl Show for Int where
-                 let show x = int_to_str x
+                 show x = int_to_str x
                end
                type Maybe<a> =
                  | Nothing
                  | Just of a
                impl Show for Maybe<a> requires Show<a> where
-                 let show o =
+                 show o =
                    case o do
                    | Nothing -> "Nothing"
                    | Just v -> "Just(" ^ show v ^ ")"
@@ -1740,16 +1741,16 @@ let program_expression_type_tests =
                  val show : a -> String
                }
                impl Show for Int where
-                 let show x = int_to_str x
+                 show x = int_to_str x
                end
                impl Show for String where
-                 let show s = s
+                 show s = s
                end
                type Maybe<a> =
                  | Nothing
                  | Just of a
                impl Show for Maybe<a> requires Show<a> where
-                 let show o =
+                 show o =
                    case o do
                    | Nothing -> "Nothing"
                    | Just v -> "Just(" ^ show v ^ ")"
@@ -1765,7 +1766,7 @@ let program_expression_type_tests =
                  val sappend : a -> a -> a
                }
                impl Semigroup for Int where
-                 let sappend x y = x + y
+                 sappend x y = x + y
                end
              |}
              ~expr:"sappend 3 4" ~expected_type:"Int" );
@@ -1777,7 +1778,7 @@ let program_expression_type_tests =
                  val eq : a -> a -> bool
                }
                impl Eq for Int where
-                 let eq x y = x == y
+                 eq x y = x == y
                end
              |}
              ~expr:"if eq 2 2 then 1 else 0"

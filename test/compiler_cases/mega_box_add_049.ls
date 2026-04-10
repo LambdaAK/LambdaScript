@@ -7,14 +7,14 @@ inter Additive <a> {
 }
 
 impl Additive for Int where
-  let add x y = x + y
+  add x y = x + y
 end
 
 type Box<a> =
   | Box of a
 
 impl Additive for Box<a> requires Additive<a> where
-  let add l r =
+  add l r =
     case (l, r) do
     | (Box x, Box y) -> Box (add x y)
 end

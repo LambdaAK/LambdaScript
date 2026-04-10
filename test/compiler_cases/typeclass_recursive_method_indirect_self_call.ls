@@ -8,7 +8,7 @@ inter Monoid <a> {
 }
 
 impl Monoid for [Int] where
-  let rec mappend xs ys =
+  mappend xs ys =
     let rec step zs =
       case zs do
       | [] -> ys
@@ -16,7 +16,8 @@ impl Monoid for [Int] where
     in
     step xs
 
-  let mempty = []
+  ,
+  mempty = []
 end
 
 let rec len xs =

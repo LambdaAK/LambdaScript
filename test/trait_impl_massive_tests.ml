@@ -178,7 +178,7 @@ inter EqLike <a> {
 }
 
 impl EqLike for Int where
-  let (==) x y = x == y
+  (==) x y = x == y
 end
 |}
 
@@ -189,7 +189,7 @@ inter Semigroup <a> {
 }
 
 impl Semigroup for Int where
-  let sappend x y = x + y
+  sappend x y = x + y
 end
 |}
 
@@ -201,11 +201,12 @@ inter Monoid <a> {
 }
 
 impl Monoid for [Int] where
-  let rec mappend xs ys =
+  mappend xs ys =
     case xs do
     | [] -> ys
     | h :: t -> h :: mappend t ys
-  let mempty = []
+  ,
+  mempty = []
 end
 
 let rec len xs =

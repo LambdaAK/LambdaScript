@@ -7,7 +7,7 @@ inter Accumulate <a> {
 }
 
 impl Accumulate for Int where
-  let combine x y = x + y
+  combine x y = x + y
 end
 
 let rec fold_range n =

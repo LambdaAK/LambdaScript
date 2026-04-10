@@ -631,8 +631,7 @@ and string_of_defn (d : defn) (level : int) =
       ^ ", ["
       ^ String.concat ", "
           (List.map
-             (fun (m, e) ->
-               "let " ^ m ^ " = " ^ string_of_expr e (level + 1))
+             (fun (m, e) -> m ^ " = " ^ string_of_expr e (level + 1))
              impls)
       ^ "])"
 

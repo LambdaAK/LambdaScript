@@ -14,15 +14,15 @@ inter Show <a> {
 }
 
 impl Show for Int where
-  let show = int_to_str
+  show = int_to_str
 end
 
 impl Show for Bool where
-  let show = fn b -> if b then "true" else "false"
+  show = fn b -> if b then "true" else "false"
 end
 
 impl Show for [a] where
-  let show xs =
+  show xs =
     case xs do
     | [] -> "[]"
     | _ :: _ -> "[?]"
@@ -33,11 +33,11 @@ inter Eq <a> {
 }
 
 impl Eq for Int where
-  let eq x y = x == y
+  eq x y = x == y
 end
 
 impl Eq for Bool where
-  let eq x y = if x then y else if y then false else true
+  eq x y = if x then y else if y then false else true
 end
 
 inter Semigroup <a> {
@@ -45,11 +45,11 @@ inter Semigroup <a> {
 }
 
 impl Semigroup for Int where
-  let sappend x y = x + y
+  sappend x y = x + y
 end
 
 impl Semigroup for [a] where
-  let rec sappend xs ys =
+  sappend xs ys =
     case xs do
     | [] -> ys
     | h :: t -> h :: sappend t ys
@@ -61,12 +61,13 @@ inter Monoid <a> {
 }
 
 impl Monoid for [a] where
-  let rec mappend x y =
+  mappend x y =
     case x do
     | [] -> y
     | h :: t -> h :: mappend t y
 
-  let mempty = []
+  ,
+  mempty = []
 end
 
 type Option<a> =
@@ -78,7 +79,7 @@ inter Functor <f> {
 }
 
 impl Functor for Option where
-  let fmap g x =
+  fmap g x =
     case x do
     | None -> None
     | Some v -> Some (g v)

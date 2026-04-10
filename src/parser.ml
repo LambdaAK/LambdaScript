@@ -1548,65 +1548,54 @@ end = struct
     return (ClassDef (class_name, params, requires, items))
 
   let instance_defn_parser () : defn parser =
-    let impl_row_parser =
-      let* () = expect_token Let in
-      let* name, body_expr =
-        (* Desugar: let rec f x y = rhs into: let rec f x y = rhs in f so the
-           method position can still be represented as an [expr]. *)
-        (let* () = expect_token Rec in
-         let* ( pat,
-                class_constraints,
-                final_cto,
-                body,
-                return_type_option,
-                _num_explicit_params ) =
-           parse_single_defn_component ()
-         in
-         let () =
-           match (class_constraints, final_cto, return_type_option) with
-           | [], None, None -> ()
-           | _ ->
-               failwith
-                 "parser: constraints/type annotations are not allowed on impl \
-                  let bindings (types come from the inter/trait)"
-         in
-         let name =
-           match pat with
-           | SubPat (IdPat s) | SubPat (InfixPat s) -> s
-           | _ ->
-               failwith
-                 "parser: impl methods must use a simple name (e.g. let show = \
-                  … or let (++) x y = …)"
-         in
-         let e2 = id_to_expr name in
-         return (name, BindRec (pat, final_cto, body, e2, return_type_option)))
-        <|>
-        let* ( pat,
-               class_constraints,
-               final_cto,
-               body,
-               return_type_option,
-               _num_explicit_params ) =
-          parse_single_defn_component ()
-        in
-        let () =
-          match (class_constraints, final_cto, return_type_option) with
-          | [], None, None -> ()
-          | _ ->
-              failwith
-                "parser: constraints/type annotations are not allowed on impl \
-                 let bindings (types come from the inter/trait)"
-        in
-        let name =
-          match pat with
-          | SubPat (IdPat s) | SubPat (InfixPat s) -> s
-          | _ ->
-              failwith
-                "parser: impl methods must use a simple name (e.g. let show = \
-                 … or let (++) x y = …)"
-        in
-        return (name, body)
+    let impl_method_name_parser : string parser =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+      <|>
+      (* [(++)] / [(>>=)] style method equations *)
+      let* () = expect_token LParen in
+      let* s =
+        expect_token_get_data (function
+          | Relop s | Addop s | Mulop s | Logop s -> Some s
+          | AND -> Some "&&"
+          | OR -> Some "||"
+          | ConsToken -> Some "::"
+          | _ -> None)
       in
+      let* () = expect_token RParen in
+      return s
+    in
+    let impl_row_parser : (string * expr) parser =
+      let* starts_let = check_tokens Let in
+      let* () =
+        if starts_let then
+          failwith
+            "parser: impl methods use equations (e.g. show x = ...) and must \
+             not start with [let] or [let rec]"
+        else return ()
+      in
+      let* name = impl_method_name_parser in
+      let* arg_pats_and_type_annotations : (pat * compound_type option) list =
+        parse_several ExprParser.pat_and_type_annotation_parser
+      in
+      let* return_type_option : compound_type option =
+        (let* () = expect_token Colon in
+         let* ct = CompoundTypeParser.compound_type_parser in
+         return (Some ct))
+        <|> return None
+      in
+      let () =
+        match return_type_option with
+        | None -> ()
+        | Some _ ->
+            failwith
+              "parser: return type annotations are not allowed on impl method \
+               equations (types come from the inter/trait)"
+      in
+      let* () = expect_token Equals in
+      let* rhs = ExprParser.expr_parser in
+      let body_expr = wrap_e1_in_functions rhs arg_pats_and_type_annotations in
       return (name, body_expr)
     in
     let* () = expect_token Impl in

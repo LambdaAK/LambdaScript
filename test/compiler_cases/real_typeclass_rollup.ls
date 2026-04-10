@@ -10,16 +10,18 @@ inter Accumulate <a> {
 }
 
 impl Accumulate for Int where
-  let combine x y = x + y
-  let zero = 0
+  combine x y = x + y
+  ,
+  zero = 0
 end
 
 impl Accumulate for [Int] where
-  let rec combine xs ys =
+  combine xs ys =
     case xs do
     | [] -> ys
     | h :: t -> h :: combine t ys
-  let zero = []
+  ,
+  zero = []
 end
 
 let rec fold_values<Accumulate a> xs =

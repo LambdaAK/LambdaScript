@@ -3048,9 +3048,8 @@ let rec elaborate_expr ?(rewrite_constrained_calls = false)
     (static_env : static_env) (type_env : type_env) : c_expr -> c_expr =
   (* When rewriting overloaded identifiers (e.g. [mappend]) into dictionary
      dispatch, we must respect lexical shadowing: if an overloaded name is
-     locally bound (e.g. by [let rec mappend = ...] inside an [impl]),
-     occurrences of that name should refer to the local binding, not to the
-     class method. *)
+     locally bound, occurrences of that name should refer to the local binding,
+     not to the class method. *)
   let rec pat_bound_simple (p : c_pat) : string list =
     match p with
     | CIdPat id -> [ id ]

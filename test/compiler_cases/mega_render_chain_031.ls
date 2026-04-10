@@ -7,7 +7,7 @@ trait Render<a> where
 end
 
 impl Render for Int where
-  let render x = int_to_str x
+  render x = int_to_str x
 end
 
 type rec Chain<a> =
@@ -15,7 +15,7 @@ type rec Chain<a> =
   | Link of (a, Chain<a>)
 
 impl Render for Chain<a> requires Render<a> where
-  let render l =
+  render l =
     case l do
     | End -> "End"
     | Link (h, t) -> "Link " ^ (render h) ^ " " ^ (render t)

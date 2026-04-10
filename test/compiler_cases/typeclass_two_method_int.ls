@@ -8,8 +8,9 @@ inter Numish <a> {
 }
 
 impl Numish for Int where
-  let add1 x = x + 1
-  let double x = x * 2
+  add1 x = x + 1
+  ,
+  double x = x * 2
 end
 
 let () = print_string (int_to_str (double (add1 10)))

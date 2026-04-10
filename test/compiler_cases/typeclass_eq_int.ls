@@ -8,7 +8,7 @@ inter Eq <a> {
 }
 
 impl Eq for Int where
-  let eq x y = x == y
+  eq x y = x == y
 end
 
 let () = print_string (int_to_str (if eq 7 7 then 1 else 0))

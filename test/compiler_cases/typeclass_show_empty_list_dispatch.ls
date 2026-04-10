@@ -8,7 +8,7 @@ inter Show <a> {
 }
 
 impl Show for [a] where
-  let show xs =
+  show xs =
     case xs do
     | [] -> "empty"
     | _ :: _ -> "nonempty"

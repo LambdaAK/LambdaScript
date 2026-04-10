@@ -65,7 +65,7 @@ inter Show <a> {
   val show : a -> String
 }
 impl Show for Int where
-  let show x = int_to_str x
+  show x = int_to_str x
 end
 let render<Show a> x = show x
 |}
@@ -83,7 +83,7 @@ inter Show <a> {
   val show : a -> String
 }
 impl Show for Int where
-  let show x = int_to_str x
+  show x = int_to_str x
 end
 let render<Show a> x = show x
 |}
@@ -103,11 +103,12 @@ inter Monoid <a> {
   val mempty : a
 }
 impl Monoid for [Int] where
-  let rec mappend xs ys =
+  mappend xs ys =
     case xs do
     | [] -> ys
     | h :: t -> h :: mappend t ys
-  let mempty = []
+  ,
+  mempty = []
 end
 |}
            in
@@ -125,7 +126,7 @@ inter Semigroup <a> {
   val sappend : a -> a -> a
 }
 impl Semigroup for Int where
-  let sappend x y = x + y
+  sappend x y = x + y
 end
 |}
            in
@@ -143,7 +144,7 @@ inter Show <a> {
   val show : a -> String
 }
 impl Show for [a] where
-  let show xs =
+  show xs =
     case xs do
     | [] -> "empty"
     | _ :: _ -> "nonempty"
@@ -163,7 +164,7 @@ inter EqLike <a> {
   val (==) : a -> a -> Bool
 }
 impl EqLike for Int where
-  let (==) x y = x == y
+  (==) x y = x == y
 end
 let x = 1
 |}
@@ -184,12 +185,13 @@ inter Monoid <a> {
   val mempty : a
 }
 impl Monoid for [Int] where
-  let rec mappend xs ys =
+  mappend xs ys =
     let use_local mappend rest = mappend rest ys in
     case xs do
     | [] -> ys
     | h :: t -> h :: use_local mappend t
-  let mempty = []
+  ,
+  mempty = []
 end
 |}
            in
@@ -206,7 +208,7 @@ inter Render <a> {
   val render : a -> String
 }
 impl Render for Int where
-  let render x = int_to_str x
+  render x = int_to_str x
 end
 
 type Maybe<a> =
@@ -214,7 +216,7 @@ type Maybe<a> =
   | Just of a
 
 impl Render for Maybe<a> requires Render<a> where
-  let render o =
+  render o =
     case o do
     | Nothing -> "Nothing"
     | Just v -> "Just(" ^ (render v) ^ ")"
@@ -225,7 +227,7 @@ type rec LinkedList<a> =
   | Cons of (a, LinkedList<a>)
 
 impl Render for LinkedList<a> requires Render<a> where
-  let rec render l =
+  render l =
     case l do
     | Nil -> "Nil"
     | Cons (h, t) -> "Cons " ^ (render h) ^ " " ^ (render t)
@@ -247,8 +249,9 @@ inter EqLike <a> {
   val (!=) : a -> a -> Bool
 }
 impl EqLike for Int where
-  let (==) x y = x == y
-  let (!=) x y = not (x == y)
+  (==) x y = x == y
+  ,
+  (!=) x y = not (x == y)
 end
 |}
            in
@@ -269,7 +272,7 @@ inter EqLike <a> {
   let (!=) x y = if (==) x y then false else true
 }
 impl EqLike for Int where
-  let (==) x y = x == y
+  (==) x y = x == y
 end
 |}
            in
@@ -286,8 +289,9 @@ inter EqLike <a> {
   val (!=) : a -> a -> Bool
 }
 impl EqLike for Int where
-  let (==) x y = x == y
-  let (!=) x y = not (x == y)
+  (==) x y = x == y
+  ,
+  (!=) x y = not (x == y)
 end
 |}
            in

@@ -216,11 +216,11 @@ inter Tag <a> {
 }
 
 impl Tag for Int where
-  let tag x = int_to_str x
+  tag x = int_to_str x
 end
 
 impl Tag for Bool where
-  let tag x = if x then "true" else "false"
+  tag x = if x then "true" else "false"
 end
 
 let describe<Tag a> x = tag x

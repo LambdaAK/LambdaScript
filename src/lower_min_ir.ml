@@ -195,6 +195,9 @@ let rec ty_equal (a : ty) (b : ty) : bool =
   | List e1, List e2 -> ty_equal e1 e2
   | _ -> false
 
+let is_list_ty (t : ty) : bool =
+  match t with List _ -> true | _ -> false
+
 (** Instantiate a binding type from the static environment, expand type aliases
     (e.g. [Parser<t>] → [List<Token> -> Option<...>]) using the current
     {!lowering_type_env}, then force any type variables the solver left to
@@ -2065,6 +2068,14 @@ let find_implicit_dict_arg_expr (env : env) (expect : ty) (used : string list) :
   | Some (nm, _) -> Some (nm, EId (nm, None))
   | None -> None
 
+let rec is_likely_dict_expr (e : c_expr) : bool =
+  match e with
+  | EId (nm, _) ->
+      is_forge_dict_name nm || dict_param_class_name nm <> None
+      || String.starts_with ~prefix:"__dict_" nm
+  | EFieldAccess (base, _) -> is_likely_dict_expr base
+  | _ -> false
+
 let prepend_implicit_dict_args (env : env) (c : callable) (args : c_expr list) :
     c_expr list =
   let n_p = List.length c.param_tys in
@@ -2244,15 +2255,21 @@ and lower_expr_val_as_call_arg ?(callee_fn_expr : c_expr option) (arg : c_expr)
       if ty_equal got expect then (o, got)
       else
         match (callee_fn_expr, expect, got) with
-        | Some _, RawPtr, List _ ->
+        | Some _, RawPtr, List _ when is_likely_dict_expr arg ->
             (* Class-method stubs sometimes leave a [RawPtr] parameter slot
                where the type-checked spine is a list ([++] / [mappend] on
                lists, including under [let rec] + [case]). *)
             (o, got)
         | _ ->
+            let callee_s =
+              match callee_fn_expr with
+              | Some e -> C_to_string.string_of_expr e
+              | None -> "<none>"
+            in
             unsupported
               ("call argument type mismatch (expected " ^ string_of_ty expect
-             ^ ", got " ^ string_of_ty got ^ ")")
+             ^ ", got " ^ string_of_ty got ^ ") for arg "
+             ^ C_to_string.string_of_expr arg ^ " at callee " ^ callee_s)
 
 and lower_builtin_print name arg env ctx static_env type_env (shadows : S.t) =
   let o2, t2 = lower_expr_val arg env ctx static_env type_env shadows in
@@ -2301,7 +2318,7 @@ and apply_call_args ?(callee_fn_expr : c_expr option) (env : env) (ctx : fn_ctx)
                      for the first slot while the argument is a list (chained
                      class ops) or a dictionary tuple; prefer the argument type. *)
                   match (from_param, d) with
-                  | RawPtr, RawPtr -> (
+                  | RawPtr, RawPtr when is_likely_dict_expr arg -> (
                       let se = static_env_for_mono_call static_env env in
                       type_of_arg_min_ty_refine_rawptr_stub se static_env type_env
                         arg d)
@@ -2310,11 +2327,21 @@ and apply_call_args ?(callee_fn_expr : c_expr option) (env : env) (ctx : fn_ctx)
                 when from_param = I32 && not (ty_equal d I32) ->
                   d
               | Some (d, _)
-                when from_param = RawPtr && not (ty_equal d RawPtr) ->
+                when from_param = RawPtr && not (ty_equal d RawPtr)
+                     && is_likely_dict_expr arg ->
                   (* Class-method stubs use [RawPtr] for the leading dictionary
                      slot while [mono_fun_type_of_binary_app] follows the
                      type-checked spine ([a -> a -> a] without the synthetic
                      dict), e.g. chained [(++)] on lists. *)
+                  d
+              | Some (d, _)
+                when is_list_ty from_param && is_list_ty d
+                     && not (ty_equal d from_param) ->
+                  d
+              | Some (d, _) when is_likely_dict_expr e_fn && not (ty_equal d from_param) ->
+                  (* Dictionary field access can carry defaulted type variables
+                     in stub signatures; when the application domain is more
+                     precise, prefer it. *)
                   d
               | Some _ ->
                   (* [min_dom] can mis-infer (e.g. default flex vars to [i32]) for
@@ -2326,7 +2353,7 @@ and apply_call_args ?(callee_fn_expr : c_expr option) (env : env) (ctx : fn_ctx)
                      but the argument is already a saturated app (e.g. left-
                      associated [(++)]). Use the argument's type-checked type. *)
                   match from_param with
-                  | RawPtr -> (
+                  | RawPtr when is_likely_dict_expr arg -> (
                       let se = static_env_for_mono_call static_env env in
                       type_of_arg_min_ty_or_fallback se static_env type_env arg
                         from_param)
@@ -2497,6 +2524,14 @@ and apply_fun1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
             | Some (d, r)
               when a_ty = RawPtr && not (ty_equal d RawPtr) ->
                 (d, r)
+            | Some (d, r)
+              when is_list_ty a_ty && is_list_ty d && not (ty_equal d a_ty) ->
+                (d, r)
+            | Some (d, r)
+              when is_likely_dict_expr e_fn && not (ty_equal d a_ty) ->
+                (* Dictionary field access can carry a defaulted param type in
+                   the callee value; trust the typechecker's application domain. *)
+                (d, r)
             | Some _ -> (a_ty, ret_ty)
             | None -> (a_ty, ret_ty))
         | None -> (a_ty, ret_ty)
@@ -2537,6 +2572,10 @@ and apply_clos1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
                 | _ -> d)
             | Some (d, _) when p = I32 && not (ty_equal d I32) -> d
             | Some (d, _) when p = RawPtr && not (ty_equal d RawPtr) -> d
+            | Some (d, _) when is_list_ty p && is_list_ty d && not (ty_equal d p) ->
+                d
+            | Some (d, _) when is_likely_dict_expr e_fn && not (ty_equal d p) ->
+                d
             | Some _ -> p
             | None -> p)
         | None -> p
@@ -3026,12 +3065,260 @@ and lower_expr_app_curried env ctx static_env type_env (shadows : S.t) e1 e2 :
 and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
     args : expr_result =
   let static_for_mono = static_env_for_mono_call static_env env in
+  let rec collect_poly_vars (ct : c_type) : string list =
+    match ct with
+    | PolyType (v, inner) -> v :: collect_poly_vars inner
+    | Constrained (_, inner) -> collect_poly_vars inner
+    | Mono _ -> []
+  in
+  let rec strip_to_mono (ct : c_type) : mono_type option =
+    match ct with
+    | Mono m -> Some m
+    | PolyType (_, inner) | Constrained (_, inner) -> strip_to_mono inner
+  in
+  let rec unify_poly_vars (poly_vars : string list)
+      (subst : (string * mono_type) list) (tmpl : mono_type) (actual : mono_type)
+      : (string * mono_type) list option =
+    let unify_pair s a b = unify_poly_vars poly_vars s a b in
+    match (tmpl, actual) with
+    | TypeVar v, ty when List.mem v poly_vars -> (
+        match List.assoc_opt v subst with
+        | Some t0 -> if t0 = ty then Some subst else None
+        | None -> Some ((v, ty) :: subst))
+    | TypeVar a, TypeVar b when String.equal a b -> Some subst
+    | IntType, IntType
+    | FloatType, FloatType
+    | BoolType, BoolType
+    | StringType, StringType
+    | CharType, CharType
+    | UnitType, UnitType -> Some subst
+    | TypeName a, TypeName b when String.equal a b -> Some subst
+    | FunctionType (a1, r1), FunctionType (a2, r2) -> (
+        match unify_pair subst a1 a2 with
+        | None -> None
+        | Some s1 -> unify_pair s1 r1 r2)
+    | VectorType ts1, VectorType ts2
+      when List.length ts1 = List.length ts2 ->
+        List.fold_left2
+          (fun acc t1 t2 ->
+            match acc with
+            | None -> None
+            | Some s -> unify_pair s t1 t2)
+          (Some subst) ts1 ts2
+    | CListType e1, CListType e2 -> unify_pair subst e1 e2
+    | CTypeApp (n1, as1), CTypeApp (n2, as2)
+      when String.equal n1 n2 && List.length as1 = List.length as2 ->
+        List.fold_left2
+          (fun acc t1 t2 ->
+            match acc with
+            | None -> None
+            | Some s -> unify_pair s t1 t2)
+          (Some subst) as1 as2
+    | TCtorApp (w1, as1), TCtorApp (w2, as2)
+      when String.equal w1 w2 && List.length as1 = List.length as2 ->
+        List.fold_left2
+          (fun acc t1 t2 ->
+            match acc with
+            | None -> None
+            | Some s -> unify_pair s t1 t2)
+          (Some subst) as1 as2
+    | FixedPoint (n1, b1), FixedPoint (n2, b2) when String.equal n1 n2 ->
+        unify_pair subst b1 b2
+    | RecordType fs1, RecordType fs2
+      when Cexpr.record_field_sets_equal (List.map fst fs1) (List.map fst fs2) ->
+        let fs1 = Cexpr.record_fields_sorted fs1 in
+        let fs2 = Cexpr.record_fields_sorted fs2 in
+        List.fold_left2
+          (fun acc (_, t1) (_, t2) ->
+            match acc with
+            | None -> None
+            | Some s -> unify_pair s t1 t2)
+          (Some subst) fs1 fs2
+    | _ -> None
+  in
+  let rec collect_type_vars_mono (m : mono_type) : string list =
+    let uniq xs = List.sort_uniq String.compare xs in
+    match m with
+    | TypeVar v -> [ v ]
+    | FunctionType (a, b) ->
+        uniq (collect_type_vars_mono a @ collect_type_vars_mono b)
+    | VectorType ts ->
+        uniq (List.concat_map collect_type_vars_mono ts)
+    | CListType e -> collect_type_vars_mono e
+    | CTypeApp (_, args) ->
+        uniq (List.concat_map collect_type_vars_mono args)
+    | TCtorApp (_, args) ->
+        uniq (List.concat_map collect_type_vars_mono args)
+    | FixedPoint (_, body) -> collect_type_vars_mono body
+    | RecordType fields ->
+        uniq
+          (List.concat_map (fun (_, t) -> collect_type_vars_mono t) fields)
+    | IntType | FloatType | BoolType | StringType | CharType | UnitType
+    | TypeName _ ->
+        []
+  in
+  let specialize_dict_record_for_call (sch : c_type) (method_name : string)
+      (tau : mono_type) : mono_type option =
+    match strip_to_mono sch with
+    | Some (RecordType fields as rec_mono) -> (
+        let poly_vars =
+          match collect_poly_vars sch with
+          | [] -> collect_type_vars_mono rec_mono
+          | vs -> vs
+        in
+        match List.assoc_opt method_name fields with
+        | Some (FunctionType (dom_tmpl, _)) -> (
+            match unify_poly_vars poly_vars [] dom_tmpl tau with
+            | Some subst when subst <> [] ->
+                let out =
+                  List.fold_left
+                    (fun acc (v, ty) ->
+                      Typecheck.replace_typevar_in_mono ~var_id:v ~with_ty:ty
+                        acc)
+                    rec_mono subst
+                in
+                Some out
+            | _ ->
+                Typecheck.instantiate_dict_scheme_to_record ~sch ~tau)
+        | _ -> Typecheck.instantiate_dict_scheme_to_record ~sch ~tau)
+    | Some _ | None -> None
+  in
+  let annotate_expr_with_method_types (dict_rhs : c_expr)
+      (rec_mono : mono_type) : c_expr =
+    let method_types =
+      match rec_mono with
+      | RecordType fs -> fs
+      | _ -> []
+    in
+    let rec extract_method_internal_map (e : c_expr) :
+        (string * string) list option =
+      match e with
+      | EBind (_, _, _, e2, _) | EBindRec (_, _, _, e2, _) ->
+          extract_method_internal_map e2
+      | EBindMutRec (_, e2) -> extract_method_internal_map e2
+      | ERecordLit fields ->
+          Some
+            (List.filter_map
+               (fun (m, rhs) ->
+                 match rhs with
+                 | EId (intid, _) -> Some (intid, m)
+                 | _ -> None)
+               fields)
+      | _ -> None
+    in
+    let rec annotate_lambda_from_mono (mt : mono_type) (e : c_expr) : c_expr =
+      match (mt, e) with
+      | FunctionType (dom, ret), EFunction (p, ann, body) ->
+          let ann' = match ann with Some _ -> ann | None -> Some (Mono dom) in
+          EFunction (p, ann', annotate_lambda_from_mono ret body)
+      | _ -> e
+    in
+    match extract_method_internal_map dict_rhs with
+    | None -> dict_rhs
+    | Some intid_to_method ->
+        let method_type_for_intid (intid : string) : mono_type option =
+          match List.assoc_opt intid intid_to_method with
+          | None -> None
+          | Some method_name -> List.assoc_opt method_name method_types
+        in
+        let rec go (e : c_expr) : c_expr =
+          match e with
+          | EBindRec (CIdPat intid, ta, e1, e2, rt) -> (
+              match method_type_for_intid intid with
+              | Some mt ->
+                  EBindRec
+                    ( CIdPat intid,
+                      ta,
+                      annotate_lambda_from_mono mt (go e1),
+                      go e2,
+                      rt )
+              | None -> EBindRec (CIdPat intid, ta, go e1, go e2, rt))
+          | EBindRec (p, ta, e1, e2, rt) -> EBindRec (p, ta, go e1, go e2, rt)
+          | EBind (CIdPat intid, ta, e1, e2, rt) -> (
+              match method_type_for_intid intid with
+              | Some mt ->
+                  EBind
+                    ( CIdPat intid,
+                      ta,
+                      annotate_lambda_from_mono mt (go e1),
+                      go e2,
+                      rt )
+              | None -> EBind (CIdPat intid, ta, go e1, go e2, rt))
+          | EBind (p, ta, e1, e2, rt) -> EBind (p, ta, go e1, go e2, rt)
+          | EBindMutRec (bindings, body) ->
+              let bindings' =
+                List.map
+                  (fun (p, ta, e1, rt, n) ->
+                    match p with
+                    | CIdPat intid -> (
+                        match method_type_for_intid intid with
+                        | Some mt ->
+                            (p, ta, annotate_lambda_from_mono mt (go e1), rt, n)
+                        | None -> (p, ta, go e1, rt, n))
+                    | _ -> (p, ta, go e1, rt, n))
+                  bindings
+              in
+              EBindMutRec (bindings', go body)
+          | EFunction (p, a, b) -> EFunction (p, a, go b)
+          | EApp (a, b) -> EApp (go a, go b)
+          | EBop (op, a, b) -> EBop (op, go a, go b)
+          | ETernary (a, b, c) -> ETernary (go a, go b, go c)
+          | ESwitch (e0, br) ->
+              ESwitch (go e0, List.map (fun (p, be) -> (p, go be)) br)
+          | EVector es -> EVector (List.map go es)
+          | EListEnumeration (a, b) -> EListEnumeration (go a, go b)
+          | EListComprehension (e0, gens) ->
+              EListComprehension (go e0, List.map (fun (p, ge) -> (p, go ge)) gens)
+          | ERecordLit fields ->
+              ERecordLit (List.map (fun (n, ee) -> (n, go ee)) fields)
+          | ERecordUpdate (base, ups) ->
+              ERecordUpdate (go base, List.map (fun (n, ee) -> (n, go ee)) ups)
+          | EFieldAccess (base, fld) -> EFieldAccess (go base, fld)
+          | EBlock parts ->
+              EBlock
+                (List.map
+                   (function Expr ex -> Expr (go ex) | Defn d -> Defn d)
+                   parts)
+          | (EInt _ | EFloat _ | EBool _ | EString _ | EChar _ | EUnit | ENil
+            | EId (_, _)) as leaf ->
+              leaf
+        in
+        go dict_rhs
+  in
+  let dict_expr_and_static_for_tau (dict_name : string) (tau : mono_type) :
+      c_expr * static_env =
+    let rec_mono_opt =
+      match List.assoc_opt dict_name static_for_mono with
+      | Some sch -> (
+          match specialize_dict_record_for_call sch name tau with
+          | Some rec_mono -> Some rec_mono
+          | None -> None)
+      | None -> None
+    in
+    let base_expr =
+      if is_forge_dict_name dict_name then
+        match find_cdefn_value_rhs dict_name !lowering_defs with
+        | Some rhs -> (
+            match rec_mono_opt with
+            | Some rec_mono -> annotate_expr_with_method_types rhs rec_mono
+            | None -> rhs)
+        | None -> EId (dict_name, None)
+      else EId (dict_name, None)
+    in
+    let static_for_rewrite =
+      match rec_mono_opt with
+      | Some rec_mono ->
+          replace_static_binding dict_name (Mono rec_mono) static_env
+      | None -> static_env
+    in
+    (base_expr, static_for_rewrite)
+  in
   let try_dict_dispatch_fallback () : expr_result option =
     match List.assoc_opt name static_for_mono with
     | Some sch when Typecheck.scheme_has_class_constraint sch -> (
         match Typecheck.primary_class_constraint sch with
         | Some cls ->
-            let resolve_sibling_methods dict arg_list =
+            let resolve_sibling_methods (dict_expr : c_expr) arg_list =
               let meths =
                 Typecheck.class_method_names ~static_env:static_for_mono
                   ~class_name:cls
@@ -3041,7 +3328,7 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
                   match arg with
                   | EId (id, _)
                     when List.mem id meths && not (S.mem id shadows) ->
-                      EFieldAccess (EId (dict, None), id)
+                      EFieldAccess (dict_expr, id)
                   | _ -> arg)
                 arg_list
             in
@@ -3071,6 +3358,9 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
                        static_env type_env c args shadows)
               | None -> None
             in
+            let try_local_internal_method_safe () : expr_result option =
+              try try_local_internal_method () with Unsupported _ -> None
+            in
             let try_env_dicts () : expr_result option =
               let prefix = "__forge_dict_" ^ cls ^ "_" in
               let rec scan = function
@@ -3083,11 +3373,14 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
                       | ForgeDict _ -> true
                       | _ -> false
                     then
-                      let resolved_args = resolve_sibling_methods dict_name args in
+                      let dict_expr = EId (dict_name, None) in
+                      let resolved_args =
+                        resolve_sibling_methods dict_expr args
+                      in
                       let rewritten =
                         List.fold_left
                           (fun acc arg -> EApp (acc, arg))
-                          (EFieldAccess (EId (dict_name, None), name))
+                          (EFieldAccess (dict_expr, name))
                           resolved_args
                       in
                       (try
@@ -3101,10 +3394,13 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
             in
             (match Typecheck.extract_class_param_and_mono_template cls sch with
             | None -> (
-                match try_local_internal_method () with
+                match try_local_internal_method_safe () with
                 | Some _ as result -> result
                 | None -> try_env_dicts ())
             | Some (var_id, mty) ->
+                (match try_local_internal_method_safe () with
+                | Some _ as result -> result
+                | None ->
                 let try_arg_at i =
                   if i < 0 || i >= List.length args then None
                   else
@@ -3117,27 +3413,37 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
                           Typecheck.instantiate arg_ct
                           |> Typecheck.mono_concrete_or_int_default
                         in
-                        match
-                          Typecheck.find_compatible_dict_name
-                            ~filter_dict:
-                              (Some
-                                 (fun d ->
-                                    if is_forge_dict_name d then
-                                      List.mem_assoc d env
-                                    else true))
-                            ~static_env:static_for_mono ~class_name:cls
-                            ~method_name:name ~tau
-                        with
+                        let dict_opt =
+                          match tau with
+                          | TypeVar _ -> None
+                          | _ ->
+                              Typecheck.find_compatible_dict_name
+                                ~filter_dict:
+                                  (Some
+                                     (fun d ->
+                                        if is_forge_dict_name d then
+                                          List.mem_assoc d env
+                                        else true))
+                                ~static_env:static_for_mono ~class_name:cls
+                                ~method_name:name ~tau
+                        in
+                        match dict_opt with
                         | Some dict ->
-                            let resolved_args = resolve_sibling_methods dict args in
+                            let dict_expr, static_rewrite =
+                              dict_expr_and_static_for_tau dict tau
+                            in
+                            let resolved_args =
+                              resolve_sibling_methods dict_expr args
+                            in
                             let rewritten =
                               List.fold_left
                                 (fun acc arg -> EApp (acc, arg))
-                                (EFieldAccess (EId (dict, None), name))
+                                (EFieldAccess (dict_expr, name))
                                 resolved_args
                             in
                             Some
-                              (lower_expr rewritten env ctx static_env type_env
+                              (lower_expr rewritten env ctx static_rewrite
+                                 type_env
                                  shadows)
                         | None -> None)
                     | Error _ -> None
@@ -3156,9 +3462,10 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
                     (match try_all 0 with
                     | Some _ as result -> result
                     | None -> (
-                        match try_local_internal_method () with
+                        match try_local_internal_method_safe () with
                         | Some _ as result -> result
                         | None -> try_env_dicts ())))
+                )
         | None -> None)
     | _ -> None
   in
