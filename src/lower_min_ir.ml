@@ -3296,7 +3296,7 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
       | None -> None
     in
     let base_expr =
-      if is_forge_dict_name dict_name then
+      if is_forge_dict_name dict_name && List.mem_assoc dict_name env then
         match find_cdefn_value_rhs dict_name !lowering_defs with
         | Some rhs -> (
             match rec_mono_opt with
@@ -3423,6 +3423,8 @@ and lower_expr_poly_id_call env ctx static_env type_env (shadows : S.t) name
                                      (fun d ->
                                         if is_forge_dict_name d then
                                           List.mem_assoc d env
+                                          || find_cdefn_value_rhs d !lowering_defs
+                                             <> None
                                         else true))
                                 ~static_env:static_for_mono ~class_name:cls
                                 ~method_name:name ~tau
@@ -3657,6 +3659,20 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           else
             unsupported ("`" ^ x ^ "` is already fully applied (compiler bug)")
       | None -> (
+          if is_forge_dict_name x then
+            let se = static_env_for_mono_call static_env env in
+            match List.assoc_opt x se with
+            | Some ct ->
+                let t = mono_to_min (static_mono_for_native ct) in
+                let tmp = fresh () in
+                emit_instr ctx
+                  (Assign (tmp, Call (forge_dict_getter_symbol x, [])));
+                LVal (Local tmp, t)
+            | None ->
+                unsupported
+                  ("Unbound dictionary `" ^ x
+                 ^ "` (not available for native lowering)")
+          else
           match find_constructor_index !lowering_ctor_env x with
           | Some (tag, _, None) -> (
               let se = static_env_for_mono_call static_env env in
