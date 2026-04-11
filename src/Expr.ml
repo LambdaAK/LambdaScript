@@ -59,7 +59,7 @@ type defn =
   | Defn of pat * (string * compound_type) list * compound_type option * expr * compound_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)
   | DefnRec of pat * (string * compound_type) list * compound_type option * expr * compound_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)
   | DefnMutRec of (pat * (string * compound_type) list * compound_type option * expr * compound_type option * int) list (* mutually recursive definitions *)
-  | MacroDef of string * string list * expr
+  | MacroDef of string * macro_arm list
   | ClassDef of
       string
       * (string * int) list
@@ -76,6 +76,22 @@ type defn =
   | ImportDef of string
 
 and switch_branch = pat * expr
+
+and macro_fragment_kind =
+  | MacroExpr
+  | MacroPat
+  | MacroType
+  | MacroIdent
+  | MacroItem
+  | MacroTT
+
+and macro_param = string * macro_fragment_kind
+
+and macro_matcher =
+  | MacroMatcherParams of macro_param list
+  | MacroMatcherRepeat of macro_param * bool (* bool=true means +, false means * *)
+
+and macro_arm = macro_matcher * expr
 
 and expr_or_defn =
   | Expr of expr

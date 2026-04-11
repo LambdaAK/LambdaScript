@@ -79,6 +79,7 @@ type token_type =
   | Import
   | MacroRules
   | Bang
+  | Dollar
 
 type token = {
   token_type : token_type;
@@ -174,6 +175,7 @@ let string_of_token_type : token_type -> string = function
   | Import -> "<import>"
   | MacroRules -> "<macro_rules>"
   | Bang -> "<bang>"
+  | Dollar -> "<dollar>"
 [@@coverage off]
 
 let string_of_token : token -> string =
@@ -496,6 +498,7 @@ let single_char_tokens =
     ('}', RBrace);
     (')', RParen);
     ('_', WildcardPattern);
+    ('$', Dollar);
     ('.', Dot);
   ]
 

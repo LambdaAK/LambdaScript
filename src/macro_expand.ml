@@ -2,7 +2,7 @@ open Expr
 
 module StringSet = Set.Make (String)
 
-type macro_def = { params : string list; body : expr }
+type macro_def = { arms : macro_arm list }
 
 let path_to_key (path : string list) : string = String.concat "." path
 let scoped_key (path : string list) (name : string) : string = path_to_key path ^ "|" ^ name
@@ -34,6 +34,49 @@ let local_defn_bound_ids (d : defn) : string list =
   | DefnMutRec defs ->
       List.concat (List.map (fun (p, _, _, _, _, _) -> bound_ids_in_pat p) defs)
   | _ -> []
+
+let expr_from_factor (f : factor) : expr =
+  ConsExpr
+    (DisjunctionUnderCons
+       (ConjunctionUnderDisjunction
+          (RelationUnderConjunction
+             (ArithmeticUnderRelExpr
+                (Term (Factor (FactorUnderApplication f)))))))
+
+let int_expr (i : int) : expr = expr_from_factor (Integer i)
+let string_expr (s : string) : expr = expr_from_factor (String s)
+
+let list_expr (xs : expr list) : expr = expr_from_factor (ListSugar xs)
+
+let expr_as_atomic_factor (e : expr) : factor option =
+  match e with
+  | ConsExpr
+      (DisjunctionUnderCons
+         (ConjunctionUnderDisjunction
+            (RelationUnderConjunction
+               (ArithmeticUnderRelExpr (Term (Factor (FactorUnderApplication f))))))) ->
+      Some f
+  | _ -> None
+
+let rec factor_as_path (f : factor) : string list option =
+  match f with
+  | Id s -> Some [ s ]
+  | FieldAccess (base, fld) -> (
+      match factor_as_path base with
+      | Some segs -> Some (segs @ [ fld ])
+      | None -> None)
+  | _ -> None
+
+let expr_as_id (e : expr) : string option =
+  match expr_as_atomic_factor e with Some (Id s) -> Some s | _ -> None
+
+let expr_as_path (e : expr) : string list option =
+  match expr_as_atomic_factor e with Some f -> factor_as_path f | None -> None
+
+let expr_as_string_literal (e : expr) : string option =
+  match expr_as_atomic_factor e with
+  | Some (String s) -> Some s
+  | _ -> None
 
 let rec substitute_expr (env : (string * expr) list) (bound : StringSet.t)
     (e : expr) : expr =
@@ -252,31 +295,88 @@ and substitute_local_defn (env : (string * expr) list) (bound : StringSet.t)
     | UseDef _ | ImportDef _ | MacroDef _) as d ->
       d
 
-let validate_macro_params (name : string) (params : string list) : unit =
+let matcher_params (m : macro_matcher) : macro_param list =
+  match m with
+  | MacroMatcherParams ps -> ps
+  | MacroMatcherRepeat (p, _) -> [ p ]
+
+let validate_macro_arm_params (name : string) ((m, _) : macro_arm) : unit =
+  let params = List.map fst (matcher_params m) in
   let uniq = List.sort_uniq String.compare params in
   if List.length uniq <> List.length params then
     failwith ("forge: duplicate macro parameter in macro_rules! " ^ name)
+
+let match_kind (kind : macro_fragment_kind) (arg : expr) : bool =
+  match kind with
+  | MacroExpr | MacroTT | MacroPat | MacroItem -> true
+  | MacroIdent -> expr_as_id arg <> None
+  | MacroType -> expr_as_path arg <> None
 
 let collect_declared_macros (defns : defn list) : (string, macro_def) Hashtbl.t =
   let tbl = Hashtbl.create 128 in
   let rec go (path : string list) (defs : defn list) : unit =
     List.iter
       (function
-        | MacroDef (name, params, body) ->
-            validate_macro_params name params;
+        | MacroDef (name, arms) ->
+            List.iter (validate_macro_arm_params name) arms;
             let key = scoped_key path name in
             if Hashtbl.mem tbl key then
               failwith
                 ("forge: duplicate macro definition '"
                 ^ (if path = [] then name else String.concat "." (path @ [ name ]))
                 ^ "'")
-            else Hashtbl.replace tbl key { params; body }
+            else Hashtbl.replace tbl key { arms }
         | ModDef (name, nested) -> go (path @ [ name ]) nested
         | _ -> ())
       defs
   in
   go [] defns;
   tbl
+
+let select_macro_arm (_name : string) (arms : macro_arm list) (args : expr list) :
+    (expr * (string * expr) list) option =
+  let rec try_arms = function
+    | [] -> None
+    | (matcher, body) :: rest -> (
+        match matcher with
+        | MacroMatcherParams params ->
+            if List.length params <> List.length args then try_arms rest
+            else
+              let all_match =
+                List.for_all2 (fun (_, kind) arg -> match_kind kind arg) params args
+              in
+              if not all_match then try_arms rest
+              else
+                Some
+                  ( body,
+                    List.map2 (fun (pname, _) arg -> (pname, arg)) params args )
+        | MacroMatcherRepeat ((pname, kind), one_or_more) ->
+            if (one_or_more && args = [])
+               || not (List.for_all (fun arg -> match_kind kind arg) args)
+            then try_arms rest
+            else
+              (* Rust repetition is token-tree level; in this AST MVP we bind
+                 repetition captures as a list expression. *)
+              Some (body, [ (pname, list_expr args) ]))
+  in
+  try_arms arms
+
+let expand_proc_macro (name : string) (args : expr list) : expr option =
+  match name with
+  | "count_args" -> Some (int_expr (List.length args))
+  | "vec" -> Some (list_expr args)
+  | "stringify" ->
+      Some
+        (string_expr (String.concat ", " (List.map Tostring.string_of_expr args)))
+  | "concat_str" | "concat" ->
+      let parts = List.map expr_as_string_literal args in
+      if List.for_all (function Some _ -> true | None -> false) parts then
+        Some
+          (string_expr
+             (parts |> List.filter_map (fun x -> x) |> String.concat ""))
+      else
+        failwith "forge: concat_str! expects only string literal arguments"
+  | _ -> None
 
 let rec resolve_macro_from_scope (tbl : (string, macro_def) Hashtbl.t)
     (path : string list) (name : string) : macro_def option =
@@ -429,18 +529,20 @@ and expand_macro_call (tbl : (string, macro_def) Hashtbl.t) (path : string list)
          max_macro_expansion_depth name)
   else
     match resolve_macro_from_scope tbl path name with
-    | None -> failwith ("forge: unknown macro " ^ name ^ "!")
-    | Some { params; body } ->
-        let expected = List.length params in
-        let got = List.length args in
-        if expected <> got then
-          failwith
-            (Printf.sprintf "forge: macro %s! expected %d argument(s), got %d"
-               name expected got)
-        else
-          let env = List.combine params args in
-          let substituted = substitute_expr env StringSet.empty body in
-          expand_expr tbl path (depth + 1) substituted
+    | None -> (
+        match expand_proc_macro name args with
+        | Some e -> expand_expr tbl path (depth + 1) e
+        | None -> failwith ("forge: unknown macro " ^ name ^ "!"))
+    | Some { arms } -> (
+        match select_macro_arm name arms args with
+        | None ->
+            failwith
+              (Printf.sprintf
+                 "forge: no matching arm for macro %s! with %d argument(s)" name
+                 (List.length args))
+        | Some (body, env) ->
+            let substituted = substitute_expr env StringSet.empty body in
+            expand_expr tbl path (depth + 1) substituted)
 
 and expand_local_defn (tbl : (string, macro_def) Hashtbl.t) (path : string list)
     (depth : int) (d : defn) : defn =

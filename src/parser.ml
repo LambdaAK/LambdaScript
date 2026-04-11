@@ -569,10 +569,31 @@ end = struct
         | _ -> None)
     in
     let* () = expect_token Bang in
-    let* () = expect_token LParen in
-    let* args = parse_sep_delim expr_parser Comma in
-    let* () = expect_token RParen in
+    let parse_delimited_args (open_tok : token_type) (close_tok : token_type) :
+        expr list parser =
+      let* () = expect_token open_tok in
+      let* args = parse_sep_delim expr_parser Comma in
+      let* () = expect_token close_tok in
+      return args
+    in
+    let* args =
+      (let* () = expect_token Unit in
+       return [])
+      <|>
+      parse_delimited_args LParen RParen
+      <|> parse_delimited_args LBracket RBracket
+      <|> parse_delimited_args LBrace RBrace
+    in
     return (MacroInvoke (name, args))
+
+  and macro_var_id_parser : factor parser =
+    let* () = expect_token Dollar in
+    let* id =
+      expect_token_get_data (function
+        | Id id -> Some id
+        | _ -> None)
+    in
+    return (Id id)
 
   and type_as_id_parser : factor parser =
     (* Handle type tokens (BooleanType, IntegerType, etc.) as identifiers in
@@ -740,6 +761,7 @@ end = struct
         integer_parser ();
         float_factor_parser;
         macro_invoke_parser;
+        macro_var_id_parser;
         id_parser;
         type_as_id_parser;
         paren_factor_parser;
@@ -1875,10 +1897,74 @@ end = struct
       tokens
 
   and macro_defn_parser () : defn parser =
-    let macro_param_parser : string parser =
+    let macro_fragment_kind_parser : macro_fragment_kind parser =
       expect_token_get_data (function
-        | Id s -> Some s
+        | Id "expr" -> Some MacroExpr
+        | Id "pat" -> Some MacroPat
+        | Id "ty" | Id "type" -> Some MacroType
+        | Id "ident" -> Some MacroIdent
+        | Id "item" -> Some MacroItem
+        | Id "tt" -> Some MacroTT
         | _ -> None)
+    in
+    let macro_param_parser : macro_param parser =
+      (let* () = expect_token Dollar in
+       let* name =
+         expect_token_get_data (function
+           | Id s -> Some s
+           | _ -> None)
+       in
+       let* kind =
+         (let* () = expect_token Colon in
+          macro_fragment_kind_parser)
+         <|> return MacroExpr
+       in
+       return (name, kind))
+      <|>
+      (* Legacy MVP syntax: [(x, y) => ...] without [$] or kinds. *)
+      let* name =
+        expect_token_get_data (function
+          | Id s -> Some s
+          | _ -> None)
+      in
+      return (name, MacroExpr)
+    in
+    let macro_repeat_matcher_parser : macro_matcher parser =
+      let* () = expect_token Dollar in
+      let* () = expect_token LParen in
+      let* param = macro_param_parser in
+      let* () = expect_token RParen in
+      let* () = (expect_token Comma <|> return ()) in
+      let* one_or_more =
+        expect_token_get_data (function
+          | Mulop "*" -> Some false
+          | Addop "+" -> Some true
+          | _ -> None)
+      in
+      return (MacroMatcherRepeat (param, one_or_more))
+    in
+    let macro_params_matcher_parser : macro_matcher parser =
+      let* params = parse_sep_delim macro_param_parser Comma in
+      return (MacroMatcherParams params)
+    in
+    let macro_arm_parser : macro_arm parser =
+      let* matcher =
+        (let* () = expect_token Unit in
+         return (MacroMatcherParams []))
+        <|>
+        let* () = expect_token LParen in
+        let* m = macro_repeat_matcher_parser <|> macro_params_matcher_parser in
+        let* () = expect_token RParen in
+        return m
+      in
+      let* () = expect_token SwitchArrow in
+      let* body = ExprParser.expr_parser in
+      let* () = (expect_token Semicolon <|> expect_token Comma <|> return ()) in
+      return (matcher, body)
+    in
+    let matcher_params = function
+      | MacroMatcherParams ps -> ps
+      | MacroMatcherRepeat (p, _) -> [ p ]
     in
     let* () = expect_token MacroRules in
     let* () = expect_token Bang in
@@ -1888,17 +1974,22 @@ end = struct
         | _ -> None)
     in
     let* () = expect_token LBrace in
-    let* () = expect_token LParen in
-    let* params = parse_sep_delim macro_param_parser Comma in
-    let* () = expect_token RParen in
-    let* () = expect_token SwitchArrow in
-    let* body = ExprParser.expr_parser in
-    let* () = (expect_token Semicolon <|> return ()) in
+    let* arms = parse_several macro_arm_parser in
     let* () = expect_token RBrace in
-    let params_uniq = List.sort_uniq String.compare params in
-    if List.length params_uniq <> List.length params then
-      failwith ("parser: duplicate macro parameter in macro_rules! " ^ name)
-    else return (MacroDef (name, params, body))
+    let () =
+      if arms = [] then
+        failwith ("parser: macro_rules! " ^ name ^ " must define at least one arm")
+      else
+        List.iter
+          (fun (matcher, _) ->
+            let params = List.map fst (matcher_params matcher) in
+            let params_uniq = List.sort_uniq String.compare params in
+            if List.length params_uniq <> List.length params then
+              failwith
+                ("parser: duplicate macro parameter in macro_rules! " ^ name))
+          arms
+    in
+    return (MacroDef (name, arms))
 
   and import_defn_parser () : defn parser =
     let* () = expect_token Import in

@@ -512,6 +512,27 @@ and string_of_trait_item (item : trait_item) (level : int) : string =
   | TraitLet (m, e) ->
       "TraitLet (" ^ m ^ ", " ^ string_of_expr e (level + 1) ^ ")"
 
+and string_of_macro_fragment_kind : macro_fragment_kind -> string = function
+  | MacroExpr -> "expr"
+  | MacroPat -> "pat"
+  | MacroType -> "ty"
+  | MacroIdent -> "ident"
+  | MacroItem -> "item"
+  | MacroTT -> "tt"
+
+and string_of_macro_matcher : macro_matcher -> string = function
+  | MacroMatcherParams ps ->
+      "("
+      ^ String.concat ", "
+          (List.map
+             (fun (n, k) -> "$" ^ n ^ ":" ^ string_of_macro_fragment_kind k)
+             ps)
+      ^ ")"
+  | MacroMatcherRepeat ((n, k), one_or_more) ->
+      "($($" ^ n ^ ":" ^ string_of_macro_fragment_kind k ^ "),"
+      ^ (if one_or_more then "+" else "*")
+      ^ ")"
+
 and string_of_defn (d : defn) (level : int) =
   let cto_string cto =
     match cto with
@@ -642,10 +663,14 @@ and string_of_defn (d : defn) (level : int) =
       "ModDef (" ^ name ^ ", ["
       ^ String.concat ", " (List.map (fun d -> string_of_defn d (level + 1)) defs)
       ^ "])"
-  | MacroDef (name, params, body) ->
+  | MacroDef (name, arms) ->
       "MacroDef (" ^ name ^ ", ["
-      ^ String.concat ", " params
-      ^ "], " ^ string_of_expr body (level + 1) ^ ")"
+      ^ String.concat "; "
+          (List.map
+             (fun (m, b) ->
+               string_of_macro_matcher m ^ " => " ^ string_of_expr b (level + 1))
+             arms)
+      ^ "])"
   | UseDef path ->
       "UseDef (" ^ String.concat "." path ^ ")"
   | ImportDef path ->
