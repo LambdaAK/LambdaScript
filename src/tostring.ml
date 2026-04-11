@@ -500,6 +500,10 @@ and string_of_factor (factor : factor) (level : int) =
       "FieldAccess ("
       ^ string_of_factor f (level + 1)
       ^ ", " ^ field_name ^ ")"
+  | MacroInvoke (name, args) ->
+      "MacroInvoke (" ^ name ^ ", ["
+      ^ String.concat ", " (List.map (fun e -> string_of_expr e (level + 1)) args)
+      ^ "])"
 
 and string_of_trait_item (item : trait_item) (level : int) : string =
   match item with
@@ -638,6 +642,10 @@ and string_of_defn (d : defn) (level : int) =
       "ModDef (" ^ name ^ ", ["
       ^ String.concat ", " (List.map (fun d -> string_of_defn d (level + 1)) defs)
       ^ "])"
+  | MacroDef (name, params, body) ->
+      "MacroDef (" ^ name ^ ", ["
+      ^ String.concat ", " params
+      ^ "], " ^ string_of_expr body (level + 1) ^ ")"
   | UseDef path ->
       "UseDef (" ^ String.concat "." path ^ ")"
   | ImportDef path ->

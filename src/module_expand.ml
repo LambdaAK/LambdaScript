@@ -224,6 +224,7 @@ let rec collect_declared_symbols (path : string list) (sym : symbols)
           List.iter
             (fun (p, _, _, _, _, _) -> collect_value_bindings path p sym)
             defs
+      | MacroDef _ -> ()
       | TypeDef (name, _, _) ->
           Hashtbl.replace sym.types (scoped_key path name) (qualify path name)
       | SumTypeDef (name, _, ctors) | SumTypeDefRec (name, _, ctors) ->
@@ -578,6 +579,8 @@ and rewrite_factor (sym : symbols) (path : string list) (uses : string list list
           | Some fq -> Id fq
           | _ -> FieldAccess (rewrite_factor sym path uses bound base, fld))
       | _ -> FieldAccess (rewrite_factor sym path uses bound base, fld))
+  | MacroInvoke (name, args) ->
+      MacroInvoke (name, List.map (rewrite_expr sym path uses bound) args)
   | (Boolean _ | String _ | Unit | Integer _ | Char _ | FloatFactor _ | Nil) as x ->
       x
 
@@ -626,6 +629,8 @@ and rewrite_local_defn (sym : symbols) (path : string list)
            pats)
   | UseDef _ | ModDef _ | ImportDef _ ->
       failwith "forge: use/mod/import are not supported inside expression blocks"
+  | MacroDef _ ->
+      failwith "forge: macro_rules! is not supported inside expression blocks"
   | _ -> d
 
 and local_defn_bound_ids (d : defn) : string list =
@@ -633,6 +638,7 @@ and local_defn_bound_ids (d : defn) : string list =
   | Defn (p, _, _, _, _, _) | DefnRec (p, _, _, _, _, _) -> bound_ids_in_pat p
   | DefnMutRec defs ->
       List.concat (List.map (fun (p, _, _, _, _, _) -> bound_ids_in_pat p) defs)
+  | MacroDef _ -> []
   | _ -> []
 
 let method_names_of_trait_items (items : trait_item list) : StringSet.t =
@@ -763,6 +769,8 @@ let rewrite_top_defn_non_mod (sym : symbols) (path : string list)
       []
   | ImportDef _ ->
       failwith "forge: import statements must be resolved before module expansion"
+  | MacroDef _ ->
+      []
 
 let rec rewrite_top_defns (sym : symbols) (path : string list)
     (uses : string list list) (defns : defn list) : defn list =
@@ -794,6 +802,7 @@ and has_expandables (defns : defn list) : bool =
   List.exists has_expandables_defn defns
 
 let expand_program (defns : defn list) : defn list =
+  let defns = Macro_expand.expand_program defns in
   if not (has_expandables defns) then defns
   else
     let sym = make_symbols () in
@@ -812,6 +821,7 @@ let collect_active_toplevel_uses (sym : symbols) (defns : defn list) :
   go [] defns
 
 let expand_expr_in_context (context_defns : defn list) (e : expr) : expr =
+  let e = Macro_expand.expand_expr_in_context context_defns e in
   let sym = make_symbols () in
   collect_declared_symbols [] sym context_defns;
   let uses = collect_active_toplevel_uses sym context_defns in

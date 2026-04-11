@@ -59,6 +59,7 @@ type defn =
   | Defn of pat * (string * compound_type) list * compound_type option * expr * compound_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)
   | DefnRec of pat * (string * compound_type) list * compound_type option * expr * compound_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)
   | DefnMutRec of (pat * (string * compound_type) list * compound_type option * expr * compound_type option * int) list (* mutually recursive definitions *)
+  | MacroDef of string * string list * expr
   | ClassDef of
       string
       * (string * int) list
@@ -155,6 +156,7 @@ and factor =
   | RecordLit of (string * expr) list
   | RecordUpdate of expr * (string * expr) list (* { expr with field = value, ... } *)
   | FieldAccess of factor * string
+  | MacroInvoke of string * expr list
 
 and generator = pat * expr
 

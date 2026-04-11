@@ -376,6 +376,8 @@ let rec condense_defn : defn -> c_defn = function
   | InstanceDef _ ->
       failwith
         "internal: InstanceDef must be condensed via Condense.condense_program"
+  | MacroDef _ ->
+      failwith "internal: MacroDef must be expanded before condense_defn"
   | ModDef _ ->
       failwith "internal: ModDef must be expanded before condense_defn"
   | UseDef _ ->
@@ -541,6 +543,8 @@ and condense_factor : factor -> c_expr = function
       | None -> ()
       | Some _ -> ignore (pop_id_pos field_name));
       EFieldAccess (condense_factor factor, field_name)
+  | MacroInvoke _ ->
+      failwith "internal: macro invocation must be expanded before condense_factor"
 
 (* Condense types *)
 

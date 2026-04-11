@@ -77,6 +77,8 @@ type token_type =
   | ModKw
   | Use
   | Import
+  | MacroRules
+  | Bang
 
 type token = {
   token_type : token_type;
@@ -170,6 +172,8 @@ let string_of_token_type : token_type -> string = function
   | ModKw -> "<mod>"
   | Use -> "<use>"
   | Import -> "<import>"
+  | MacroRules -> "<macro_rules>"
+  | Bang -> "<bang>"
 [@@coverage off]
 
 let string_of_token : token -> string =
@@ -266,6 +270,7 @@ let bop_from_char_list (lst : char list) =
   else if s = "<-" then BindArrow
   else if s = "=>" then SwitchArrow
   else if s = "=" then Equals
+  else if s = "!" then Bang
   else if s = "|" then Pipe  (* Single | should be Pipe, not an operator *)
   else
     match lst with
@@ -346,6 +351,7 @@ let keywords =
     ("mod", ModKw);
     ("use", Use);
     ("import", Import);
+    ("macro_rules", MacroRules);
   ]
   |> List.map (fun (s, t) -> (list_of_string s, t))
 

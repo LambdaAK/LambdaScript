@@ -562,6 +562,18 @@ end = struct
     in
     return (Id id)
 
+  and macro_invoke_parser : factor parser =
+    let* name =
+      expect_token_get_data (function
+        | Id id -> Some id
+        | _ -> None)
+    in
+    let* () = expect_token Bang in
+    let* () = expect_token LParen in
+    let* args = parse_sep_delim expr_parser Comma in
+    let* () = expect_token RParen in
+    return (MacroInvoke (name, args))
+
   and type_as_id_parser : factor parser =
     (* Handle type tokens (BooleanType, IntegerType, etc.) as identifiers in
        expressions *)
@@ -727,6 +739,7 @@ end = struct
         unit_parser;
         integer_parser ();
         float_factor_parser;
+        macro_invoke_parser;
         id_parser;
         type_as_id_parser;
         paren_factor_parser;
@@ -1849,6 +1862,7 @@ end = struct
   let rec defn_parser : defn parser =
    fun tokens ->
     (import_defn_parser () <|> use_defn_parser () <|> mod_defn_parser ()
+    <|> macro_defn_parser ()
     <|> class_defn_parser ()
     <|> instance_defn_parser ()
     <|> type_alias_defn_parser_with_args ()
@@ -1859,6 +1873,32 @@ end = struct
     <|> sum_type_defn_parser_no_args ()
     <|> let_rec_defn_parser () <|> let_defn_parser ())
       tokens
+
+  and macro_defn_parser () : defn parser =
+    let macro_param_parser : string parser =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* () = expect_token MacroRules in
+    let* () = expect_token Bang in
+    let* name =
+      expect_token_get_data (function
+        | Id s -> Some s
+        | _ -> None)
+    in
+    let* () = expect_token LBrace in
+    let* () = expect_token LParen in
+    let* params = parse_sep_delim macro_param_parser Comma in
+    let* () = expect_token RParen in
+    let* () = expect_token SwitchArrow in
+    let* body = ExprParser.expr_parser in
+    let* () = (expect_token Semicolon <|> return ()) in
+    let* () = expect_token RBrace in
+    let params_uniq = List.sort_uniq String.compare params in
+    if List.length params_uniq <> List.length params then
+      failwith ("parser: duplicate macro parameter in macro_rules! " ^ name)
+    else return (MacroDef (name, params, body))
 
   and import_defn_parser () : defn parser =
     let* () = expect_token Import in

@@ -75,6 +75,12 @@
  (action (chdir %{workspace_root} (run %{test}))))
 
 (test
+ (name macro_system_tests)
+ (modules macro_system_tests)
+ (libraries Language ounit2)
+ (action (chdir %{workspace_root} (run %{test}))))
+
+(test
  (name compile_no_crash_tests)
  (modules compile_no_crash_tests)
  (libraries Language ounit2 unix)
