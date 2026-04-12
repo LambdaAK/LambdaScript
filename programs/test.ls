@@ -1,5 +1,6 @@
-let s1 = concat!("ab", "cd", "ef")      // "abcdef"
-let s2 = concat_str!("x", "y", "z")     // "xyz"
+macro_rules! collect_and_count {
+  ($($x:expr),*) => count_args!($($x),*);
+}
 
-let () = println s1
-let () = println s2
+let n0 = collect_and_count!()
+let n4 = collect_and_count!(1, 2, 3, 4)

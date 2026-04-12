@@ -141,7 +141,7 @@ filter|}
     ("&&", {|fn a -> fn b -> a && b|});
     ("||", {|fn a -> fn b -> a || b|});
     ( "list_length",
-      {|let rec length lst = case lst do | [] -> 0 | _ :: t -> 1 + length t in length|}
+      {|let rec list_length lst = case lst do | [] -> 0 | _ :: t -> 1 + list_length t in list_length|}
     );
     ("list_head", {|let head = fn lst -> case lst do | h :: _ -> h in head|});
     ("list_tail", {|let tail = fn lst -> case lst do | _ :: t -> t in tail|});

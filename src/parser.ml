@@ -586,6 +586,29 @@ end = struct
     in
     return (MacroInvoke (name, args))
 
+  and macro_repeat_splice_parser : factor parser =
+    let internal_repeat_splice_macro = "__forge_repeat_splice__" in
+    let* () = expect_token Dollar in
+    let* () = expect_token LParen in
+    let* () = expect_token Dollar in
+    let* name =
+      expect_token_get_data (function
+        | Id id -> Some id
+        | _ -> None)
+    in
+    let* () = expect_token RParen in
+    let* () = (expect_token Comma <|> expect_token Semicolon <|> return ()) in
+    let* one_or_more =
+      expect_token_get_data (function
+        | Addop "+" -> Some true
+        | Mulop "*" -> Some false
+        | _ -> None)
+    in
+    let flag = if one_or_more then 1 else 0 in
+    return
+      (MacroInvoke
+         (internal_repeat_splice_macro, [ id_to_expr name; int_to_expr flag ]))
+
   and macro_var_id_parser : factor parser =
     let* () = expect_token Dollar in
     let* id =
@@ -761,6 +784,7 @@ end = struct
         integer_parser ();
         float_factor_parser;
         macro_invoke_parser;
+        macro_repeat_splice_parser;
         macro_var_id_parser;
         id_parser;
         type_as_id_parser;
@@ -1905,6 +1929,9 @@ end = struct
         | Id "ident" -> Some MacroIdent
         | Id "item" -> Some MacroItem
         | Id "tt" -> Some MacroTT
+        | Id "literal" | Id "lit" -> Some MacroLiteral
+        | Id "path" -> Some MacroPath
+        | Id "block" -> Some MacroBlock
         | _ -> None)
     in
     let macro_param_parser : macro_param parser =
@@ -1934,7 +1961,7 @@ end = struct
       let* () = expect_token LParen in
       let* param = macro_param_parser in
       let* () = expect_token RParen in
-      let* () = (expect_token Comma <|> return ()) in
+      let* () = (expect_token Comma <|> expect_token Semicolon <|> return ()) in
       let* one_or_more =
         expect_token_get_data (function
           | Mulop "*" -> Some false

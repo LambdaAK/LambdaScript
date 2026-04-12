@@ -519,6 +519,9 @@ and string_of_macro_fragment_kind : macro_fragment_kind -> string = function
   | MacroIdent -> "ident"
   | MacroItem -> "item"
   | MacroTT -> "tt"
+  | MacroLiteral -> "literal"
+  | MacroPath -> "path"
+  | MacroBlock -> "block"
 
 and string_of_macro_matcher : macro_matcher -> string = function
   | MacroMatcherParams ps ->

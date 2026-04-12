@@ -48,15 +48,20 @@ let string_expr (s : string) : expr = expr_from_factor (String s)
 
 let list_expr (xs : expr list) : expr = expr_from_factor (ListSugar xs)
 
-let expr_as_atomic_factor (e : expr) : factor option =
+let rec expr_as_atomic_factor (e : expr) : factor option =
   match e with
   | ConsExpr
       (DisjunctionUnderCons
          (ConjunctionUnderDisjunction
             (RelationUnderConjunction
                (ArithmeticUnderRelExpr (Term (Factor (FactorUnderApplication f))))))) ->
-      Some f
+      factor_as_atomic_factor f
   | _ -> None
+
+and factor_as_atomic_factor (f : factor) : factor option =
+  match f with
+  | ParenFactor e -> expr_as_atomic_factor e
+  | _ -> Some f
 
 let rec factor_as_path (f : factor) : string list option =
   match f with
@@ -77,6 +82,59 @@ let expr_as_string_literal (e : expr) : string option =
   match expr_as_atomic_factor e with
   | Some (String s) -> Some s
   | _ -> None
+
+let expr_as_int_literal (e : expr) : int option =
+  match expr_as_atomic_factor e with
+  | Some (Integer i) -> Some i
+  | _ -> None
+
+let expr_as_list_literal (e : expr) : expr list option =
+  match expr_as_atomic_factor e with
+  | Some (ListSugar xs) -> Some xs
+  | _ -> None
+
+let expr_is_literal (e : expr) : bool =
+  match expr_as_atomic_factor e with
+  | Some (Boolean _ | String _ | Unit | Integer _ | Char _ | FloatFactor _) ->
+      true
+  | _ -> false
+
+let internal_repeat_splice_macro_name = "__forge_repeat_splice__"
+
+let decode_repeat_splice_args (args : expr list) : (string * bool) option =
+  match args with
+  | [ name_expr; one_or_more_expr ] -> (
+      match (expr_as_id name_expr, expr_as_int_literal one_or_more_expr) with
+      | Some pname, Some flag -> Some (pname, flag <> 0)
+      | _ -> None)
+  | _ -> None
+
+let expr_as_repeat_splice (e : expr) : (string * bool) option =
+  match expr_as_atomic_factor e with
+  | Some (MacroInvoke (name, args)) when name = internal_repeat_splice_macro_name
+    ->
+      decode_repeat_splice_args args
+  | _ -> None
+
+let repeat_capture_values (env : (string * expr) list) (pname : string)
+    (one_or_more : bool) : expr list =
+  match List.assoc_opt pname env with
+  | None ->
+      failwith
+        ("forge: unknown repetition capture $" ^ pname ^ " in macro transcriber")
+  | Some captured -> (
+      match expr_as_list_literal captured with
+      | None ->
+          failwith
+            ("forge: $" ^ pname
+           ^ " is not bound as a repetition capture in macro transcriber")
+      | Some xs ->
+          if one_or_more && xs = [] then
+            failwith
+              ("forge: repetition $"
+              ^ pname
+              ^ " requires one or more captured expressions")
+          else xs)
 
 let rec substitute_expr (env : (string * expr) list) (bound : StringSet.t)
     (e : expr) : expr =
@@ -144,6 +202,21 @@ let rec substitute_expr (env : (string * expr) list) (bound : StringSet.t)
                 rewrite_parts bound_acc' (Definition d' :: acc) rest)
       in
       Block (rewrite_parts bound [] parts)
+
+and substitute_expr_list (env : (string * expr) list) (bound : StringSet.t)
+    (es : expr list) : expr list =
+  let rec go acc = function
+    | [] -> List.rev acc
+    | e :: rest -> (
+        match expr_as_repeat_splice e with
+        | Some (pname, one_or_more) ->
+            let captures = repeat_capture_values env pname one_or_more in
+            go (List.rev_append captures acc) rest
+        | None ->
+            let e' = substitute_expr env bound e in
+            go (e' :: acc) rest)
+  in
+  go [] es
 
 and substitute_cons_expr (env : (string * expr) list) (bound : StringSet.t)
     (ce : cons_expr) : cons_expr =
@@ -229,8 +302,8 @@ and substitute_factor (env : (string * expr) list) (bound : StringSet.t)
         | None -> Id name)
   | ParenFactor e -> ParenFactor (substitute_expr env bound e)
   | Opposite f0 -> Opposite (substitute_factor env bound f0)
-  | Vector es -> Vector (List.map (substitute_expr env bound) es)
-  | ListSugar es -> ListSugar (List.map (substitute_expr env bound) es)
+  | Vector es -> Vector (substitute_expr_list env bound es)
+  | ListSugar es -> ListSugar (substitute_expr_list env bound es)
   | ListEnumeration (a, b) ->
       ListEnumeration (substitute_expr env bound a, substitute_expr env bound b)
   | ListComprehension (body, generators) ->
@@ -252,7 +325,13 @@ and substitute_factor (env : (string * expr) list) (bound : StringSet.t)
           List.map (fun (n, e0) -> (n, substitute_expr env bound e0)) fields )
   | FieldAccess (base, fld) -> FieldAccess (substitute_factor env bound base, fld)
   | MacroInvoke (name, args) ->
-      MacroInvoke (name, List.map (substitute_expr env bound) args)
+      if name = internal_repeat_splice_macro_name then
+        match decode_repeat_splice_args args with
+        | Some (pname, one_or_more) ->
+            ParenFactor (list_expr (repeat_capture_values env pname one_or_more))
+        | None ->
+            failwith "forge: malformed internal macro repetition splice"
+      else MacroInvoke (name, substitute_expr_list env bound args)
   | (Boolean _ | String _ | Unit | Integer _ | Char _ | FloatFactor _ | Nil) as x ->
       x
 
@@ -310,7 +389,12 @@ let match_kind (kind : macro_fragment_kind) (arg : expr) : bool =
   match kind with
   | MacroExpr | MacroTT | MacroPat | MacroItem -> true
   | MacroIdent -> expr_as_id arg <> None
-  | MacroType -> expr_as_path arg <> None
+  | MacroType | MacroPath -> expr_as_path arg <> None
+  | MacroLiteral -> expr_is_literal arg
+  | MacroBlock -> (
+      match arg with
+      | Block _ -> true
+      | _ -> false)
 
 let collect_declared_macros (defns : defn list) : (string, macro_def) Hashtbl.t =
   let tbl = Hashtbl.create 128 in
@@ -375,7 +459,7 @@ let expand_proc_macro (name : string) (args : expr list) : expr option =
           (string_expr
              (parts |> List.filter_map (fun x -> x) |> String.concat ""))
       else
-        failwith "forge: concat_str! expects only string literal arguments"
+        failwith "forge: concat!/concat_str! expects only string literal arguments"
   | _ -> None
 
 let rec resolve_macro_from_scope (tbl : (string, macro_def) Hashtbl.t)

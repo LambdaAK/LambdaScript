@@ -84,6 +84,9 @@ and macro_fragment_kind =
   | MacroIdent
   | MacroItem
   | MacroTT
+  | MacroLiteral
+  | MacroPath
+  | MacroBlock
 
 and macro_param = string * macro_fragment_kind
 

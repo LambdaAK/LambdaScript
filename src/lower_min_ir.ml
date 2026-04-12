@@ -1162,6 +1162,32 @@ let mangle_poly_instance (name : string) (mono : mono_type) : string =
 
 let find_cdefn_function (name : string) (defs : c_defn list) :
     (c_pat list * c_type option list * c_expr) option =
+  let function_from_value_expr (body : c_expr) :
+      (c_pat list * c_type option list * c_expr) option =
+    let param_pats, anns, inner = peel_efun [] [] body in
+    if param_pats <> [] then Some (param_pats, anns, inner)
+    else
+      match body with
+      | EBindRec (CIdPat f, _, rhs, EId (g, _), _)
+      | EBind (CIdPat f, _, rhs, EId (g, _), _)
+        when String.equal f g ->
+          let ps, as_, inn = peel_efun [] [] rhs in
+          if ps = [] then None else Some (ps, as_, inn)
+      | EBindMutRec (bindings, EId (g, _)) -> (
+          match
+            List.find_opt
+              (fun (p, _, _, _, _) ->
+                match p with
+                | CIdPat n -> String.equal n g
+                | _ -> false)
+              bindings
+          with
+          | Some (_, _, rhs, _, _) ->
+              let ps, as_, inn = peel_efun [] [] rhs in
+              if ps = [] then None else Some (ps, as_, inn)
+          | None -> None)
+      | _ -> None
+  in
   let rec find = function
     | [] -> None
     | CDefn (pat, _, _, body, _, _) :: rest -> (
@@ -1185,8 +1211,9 @@ let find_cdefn_function (name : string) (defs : c_defn list) :
         | None -> find rest)
     | _ :: rest -> find rest
   and from_body body rest =
-    let param_pats, anns, inner = peel_efun [] [] body in
-    if param_pats = [] then find rest else Some (param_pats, anns, inner)
+    match function_from_value_expr body with
+    | Some fn -> Some fn
+    | None -> find rest
   in
   find defs
 
@@ -4408,17 +4435,44 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
 and lower_block (parts : c_expr_or_c_defn list) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t) :
     expr_result =
-  match parts with
-  | [] -> LVal (ConstUnit, Unit)
-  | [ Expr e ] -> lower_expr e env ctx static_env type_env shadows
-  | Defn _ :: _ -> unsupported "Definitions inside blocks are not supported yet"
-  | Expr e :: rest -> (
-      match lower_expr e env ctx static_env type_env shadows with
-      | LVal _ -> lower_block rest env ctx static_env type_env shadows
-      | LPartial _ ->
+  let defn_to_bind_expr (d : c_defn) (body : c_expr) : c_expr =
+    match d with
+    | CDefn (p, cs, t_opt, e1, return_type_opt, _) ->
+        if cs <> [] then
           unsupported
-            "Sequencing discard of a partially applied function is not \
-             supported")
+            "Constrained let definitions inside blocks are not supported yet";
+        EBind (p, t_opt, e1, body, return_type_opt)
+    | CDefnRec (p, cs, t_opt, e1, return_type_opt, _) ->
+        if cs <> [] then
+          unsupported
+            "Constrained let rec definitions inside blocks are not supported yet";
+        EBindRec (p, t_opt, e1, body, return_type_opt)
+    | CDefnMutRec defs ->
+        let binds =
+          List.map
+            (fun (p, cs, t_opt, e1, return_type_opt, n) ->
+              if cs <> [] then
+                unsupported
+                  "Constrained mutually recursive lets inside blocks are not \
+                   supported yet";
+              (p, t_opt, e1, return_type_opt, n))
+            defs
+        in
+        EBindMutRec (binds, body)
+    | (CClassDecl _ | CTypeAlias _ | CSumType _ | CSumTypeRec _ | CSumTypeRecMutRec _)
+      ->
+        unsupported
+          "Type/class definitions inside expression blocks are not supported yet"
+  in
+  let rec parts_to_expr (parts : c_expr_or_c_defn list) : c_expr =
+    match parts with
+    | [] -> EUnit
+    | [ Expr e ] -> e
+    | [ Defn d ] -> defn_to_bind_expr d EUnit
+    | Expr e :: rest -> EBind (CWildcardPat, None, e, parts_to_expr rest, None)
+    | Defn d :: rest -> defn_to_bind_expr d (parts_to_expr rest)
+  in
+  lower_expr (parts_to_expr parts) env ctx static_env type_env shadows
 
 and lower_user_function ?(captures : (string * ty * operand) list = [])
     ?(self_name : string option = None) ?(scheme_key : string option = None)
@@ -4676,7 +4730,7 @@ let lower_c_expr_to_prog (e : c_expr) : (prog, string) result =
     recursive bodies on every program. *)
 let code_mapping_poly_defns (static_env : static_env) : c_defn list =
   let allow_native_mono = function
-    | "tuple_fst" | "tuple_snd" -> true
+    | "tuple_fst" | "tuple_snd" | "list_length" -> true
     | _ -> false
   in
   List.fold_left
@@ -4791,10 +4845,15 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                       lower_expr inner env_acc ctx_main static_inst type_env
                         S.empty
                     with
-                    | LPartial _ ->
-                        unsupported
-                          "Monomorphized top-level value specialization is a \
-                           partial application (compiler bug)"
+                    | LPartial c ->
+                        let o, t = materialize_clos_lower env_acc ctx_main c in
+                        let t_expect = mono_to_min mono in
+                        if not (ty_equal t t_expect) then
+                          unsupported
+                            "Internal: monomorphized value type does not match \
+                             key";
+                        emit_instr ctx_main (Assign (emit, Copy o));
+                        (emit, Val (Local emit, t, Some mono)) :: env_acc
                     | LVal (o, t) ->
                         let t_expect = mono_to_min mono in
                         if not (ty_equal t t_expect) then

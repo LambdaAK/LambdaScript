@@ -160,6 +160,17 @@ let out = list_length (collect!(1, 2, 3, 4))
            in
            let _, dynamic_env, _ = run_program_interpreter_style program in
            assert_runtime_value ~env:dynamic_env ~name:"out" ~expected:"4" );
+         ( "macro_rules_transcriber_repetition_splices_into_args" >:: fun _ ->
+           let program =
+             {|
+macro_rules! passthrough {
+  ($($x:expr),*) => vec!($($x),*);
+}
+let out = list_length (passthrough!(1, 2, 3, 4))
+|}
+           in
+           let _, dynamic_env, _ = run_program_interpreter_style program in
+           assert_runtime_value ~env:dynamic_env ~name:"out" ~expected:"4" );
          ( "macro_rules_repeat_plus_requires_one_or_more" >:: fun _ ->
            let program =
              {|
@@ -181,6 +192,17 @@ let out = id1!(n)
            in
            let _, dynamic_env, _ = run_program_interpreter_style program in
            assert_runtime_value ~env:dynamic_env ~name:"out" ~expected:"42" );
+         ( "macro_rules_literal_fragment" >:: fun _ ->
+           let program =
+             {|
+macro_rules! lit_id { ($x:literal) => $x }
+let a = lit_id!(42)
+let b = lit_id!("ok")
+|}
+           in
+           let _, dynamic_env, _ = run_program_interpreter_style program in
+           assert_runtime_value ~env:dynamic_env ~name:"a" ~expected:"42";
+           assert_runtime_value ~env:dynamic_env ~name:"b" ~expected:"\"ok\"" );
          ( "macro_rules_type_fragment_accepts_type_path_like_expression"
          >:: fun _ ->
            let program =
@@ -191,6 +213,18 @@ let out = show_ty!(Int)
            in
            let _, dynamic_env, _ = run_program_interpreter_style program in
            assert_runtime_value ~env:dynamic_env ~name:"out" ~expected:"\"ok\"" );
+         ( "macro_rules_path_fragment" >:: fun _ ->
+           let program =
+             {|
+mod M where
+  let v = 42
+end
+macro_rules! use_path { ($p:path) => $p }
+let out = use_path!(M.v)
+|}
+           in
+           let _, dynamic_env, _ = run_program_interpreter_style program in
+           assert_runtime_value ~env:dynamic_env ~name:"out" ~expected:"42" );
          ( "proc_macro_count_args_builtin" >:: fun _ ->
            let program =
              {|
@@ -209,6 +243,21 @@ let s = concat!("ab", "cd", "ef")
            let _, dynamic_env, _ = run_program_interpreter_style program in
            assert_runtime_value ~env:dynamic_env ~name:"vlen" ~expected:"3";
            assert_runtime_value ~env:dynamic_env ~name:"s" ~expected:"\"abcdef\"" );
+         ( "proc_macro_concat_accepts_nested_stringify_result" >:: fun _ ->
+           let program =
+             {|
+macro_rules! debug_expr {
+  ($e:expr) => concat!("DBG(", stringify!($e), ")");
+}
+let label = debug_expr!(1 + 2 * 3)
+|}
+           in
+           let _, dynamic_env, _ = run_program_interpreter_style program in
+           let got = lookup_value_exn dynamic_env "label" in
+           assert_bool "stringify/concat should produce a debug label prefix"
+             (string_contains_substring got "\"DBG(");
+           assert_bool "stringify should include expression structure"
+             (string_contains_substring got "Plus (") );
          ( "macro_rules_unknown_macro_reports_error" >:: fun _ ->
            let program =
              {|
