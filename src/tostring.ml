@@ -502,7 +502,7 @@ and string_of_factor (factor : factor) (level : int) =
       ^ ", " ^ field_name ^ ")"
   | MacroInvoke (name, args) ->
       "MacroInvoke (" ^ name ^ ", ["
-      ^ String.concat ", " (List.map (fun e -> string_of_expr e (level + 1)) args)
+      ^ String.concat ", " (List.map string_of_macro_tt args)
       ^ "])"
 
 and string_of_trait_item (item : trait_item) (level : int) : string =
@@ -512,29 +512,19 @@ and string_of_trait_item (item : trait_item) (level : int) : string =
   | TraitLet (m, e) ->
       "TraitLet (" ^ m ^ ", " ^ string_of_expr e (level + 1) ^ ")"
 
-and string_of_macro_fragment_kind : macro_fragment_kind -> string = function
-  | MacroExpr -> "expr"
-  | MacroPat -> "pat"
-  | MacroType -> "ty"
-  | MacroIdent -> "ident"
-  | MacroItem -> "item"
-  | MacroTT -> "tt"
-  | MacroLiteral -> "literal"
-  | MacroPath -> "path"
-  | MacroBlock -> "block"
+and string_of_macro_delim : macro_delim -> string = function
+  | MacroParen -> "()"
+  | MacroBracket -> "[]"
+  | MacroBrace -> "{}"
 
-and string_of_macro_matcher : macro_matcher -> string = function
-  | MacroMatcherParams ps ->
-      "("
-      ^ String.concat ", "
-          (List.map
-             (fun (n, k) -> "$" ^ n ^ ":" ^ string_of_macro_fragment_kind k)
-             ps)
-      ^ ")"
-  | MacroMatcherRepeat ((n, k), one_or_more) ->
-      "($($" ^ n ^ ":" ^ string_of_macro_fragment_kind k ^ "),"
-      ^ (if one_or_more then "+" else "*")
-      ^ ")"
+and string_of_macro_tt : macro_tt -> string = function
+  | MacroTTToken tok -> Lex.string_of_token_type tok
+  | MacroTTGroup (delim, inner) ->
+      "Group"
+      ^ string_of_macro_delim delim
+      ^ "(["
+      ^ String.concat ", " (List.map string_of_macro_tt inner)
+      ^ "])"
 
 and string_of_defn (d : defn) (level : int) =
   let cto_string cto =
@@ -670,8 +660,12 @@ and string_of_defn (d : defn) (level : int) =
       "MacroDef (" ^ name ^ ", ["
       ^ String.concat "; "
           (List.map
-             (fun (m, b) ->
-               string_of_macro_matcher m ^ " => " ^ string_of_expr b (level + 1))
+             (fun (matcher, transcriber) ->
+               "["
+               ^ String.concat ", " (List.map string_of_macro_tt matcher)
+               ^ "] => ["
+               ^ String.concat ", " (List.map string_of_macro_tt transcriber)
+               ^ "]")
              arms)
       ^ "])"
   | UseDef path ->

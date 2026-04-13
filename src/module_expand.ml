@@ -580,7 +580,7 @@ and rewrite_factor (sym : symbols) (path : string list) (uses : string list list
           | _ -> FieldAccess (rewrite_factor sym path uses bound base, fld))
       | _ -> FieldAccess (rewrite_factor sym path uses bound base, fld))
   | MacroInvoke (name, args) ->
-      MacroInvoke (name, List.map (rewrite_expr sym path uses bound) args)
+      MacroInvoke (name, args)
   | (Boolean _ | String _ | Unit | Integer _ | Char _ | FloatFactor _ | Nil) as x ->
       x
 

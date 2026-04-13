@@ -182,6 +182,44 @@ let out = collect1!()
            in
            assert_failure_contains ~expected_substring:"no matching arm"
              ~f:(fun () -> ignore (run_program_interpreter_style program)) );
+         ( "macro_rules_literal_token_dispatch" >:: fun _ ->
+           let program =
+             {|
+macro_rules! yes_no {
+  (yes) => 1;
+  (no) => 0;
+}
+let a = yes_no!(yes)
+let b = yes_no!(no)
+|}
+           in
+           let _, dynamic_env, _ = run_program_interpreter_style program in
+           assert_runtime_value ~env:dynamic_env ~name:"a" ~expected:"1";
+           assert_runtime_value ~env:dynamic_env ~name:"b" ~expected:"0" );
+         ( "macro_rules_tt_fragment_single_tree" >:: fun _ ->
+           let program =
+             {|
+macro_rules! one_tt {
+  ($x:tt) => vec!($x);
+}
+let out = list_length (one_tt!((1 + 2)))
+|}
+           in
+           let _, dynamic_env, _ = run_program_interpreter_style program in
+           assert_runtime_value ~env:dynamic_env ~name:"out" ~expected:"1" );
+         ( "macro_rules_zero_repeat_can_drive_transcriber_repeat" >:: fun _ ->
+           let program =
+             {|
+macro_rules! collect_and_count {
+  ($($x:expr),*) => count_args!($($x),*);
+}
+let n0 = collect_and_count!()
+let n3 = collect_and_count!(1, 2, 3)
+|}
+           in
+           let _, dynamic_env, _ = run_program_interpreter_style program in
+           assert_runtime_value ~env:dynamic_env ~name:"n0" ~expected:"0";
+           assert_runtime_value ~env:dynamic_env ~name:"n3" ~expected:"3" );
          ( "macro_rules_ident_fragment" >:: fun _ ->
            let program =
              {|

@@ -94,7 +94,7 @@ and macro_matcher =
   | MacroMatcherParams of macro_param list
   | MacroMatcherRepeat of macro_param * bool (* bool=true means +, false means * *)
 
-and macro_arm = macro_matcher * expr
+and macro_arm = macro_tt list * macro_tt list
 
 and expr_or_defn =
   | Expr of expr
@@ -175,8 +175,17 @@ and factor =
   | RecordLit of (string * expr) list
   | RecordUpdate of expr * (string * expr) list (* { expr with field = value, ... } *)
   | FieldAccess of factor * string
-  | MacroInvoke of string * expr list
+  | MacroInvoke of string * macro_tt list
 
 and generator = pat * expr
+
+and macro_delim =
+  | MacroParen
+  | MacroBracket
+  | MacroBrace
+
+and macro_tt =
+  | MacroTTToken of Lex.token_type
+  | MacroTTGroup of macro_delim * macro_tt list
 
 type program = defn list
