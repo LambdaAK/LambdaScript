@@ -38,6 +38,7 @@ Forge is a **statically-typed functional programming language** inspired by OCam
 - **Comprehensive built-in operators** usable as first-class values
 - **Native compiler** (LLVM IR + Clang) alongside the interpreter
 - **Traits / typeclasses** (`trait` / `inter`, `impl … for …`, dictionary passing in the compiler)
+- **`macro_rules!` token-tree macros** with fragment matching and repetition (`*`, `+`)
 
 ## Standard prelude
 
@@ -117,6 +118,92 @@ end
 - **Smaller demos**: [`programs/typeclass_show.ls`](programs/typeclass_show.ls), [`programs/functor_list.ls`](programs/functor_list.ls).
 - **Native vs interpreter**: some typeclass-heavy programs are still smoother in the interpreter or REPL than in the native compiler; see comments in [`programs/haskell_style_typeclasses.ls`](programs/haskell_style_typeclasses.ls) and [`programs/typeclass_functor_native_list.ls`](programs/typeclass_functor_native_list.ls).
 
+### Macros (`macro_rules!`)
+
+Forge supports Rust-style declarative macros that expand before typechecking and evaluation/compilation.
+
+#### Defining and invoking macros
+
+```text
+macro_rules! add {
+  ($a:expr, $b:expr) => $a + $b;
+}
+
+let x = add!(1, 2)
+let y = add![3, 4]
+let z = add!{5, 6}
+```
+
+- Macros are declared with `macro_rules! name { ... }`.
+- A macro can have multiple arms; expansion uses the first arm whose matcher fits.
+- Invocation delimiters `()`, `[]`, and `{}` are all supported.
+
+#### Fragment kinds
+
+Matcher metavariables can be typed with:
+
+- `expr`
+- `pat`
+- `ty` / `type`
+- `ident`
+- `item`
+- `tt`
+- `literal` / `lit`
+- `path`
+- `block`
+
+Example:
+
+```text
+macro_rules! id1 { ($x:ident) => $x }
+macro_rules! use_path { ($p:path) => $p }
+macro_rules! show_ty { ($t:ty) => "ok" }
+```
+
+#### Repetition
+
+Repetitions follow Rust-like syntax:
+
+- `$( ... )*` for zero or more
+- `$( ... )+` for one or more
+- optional separator: `$( ... ),*`, `$( ... );+`, etc.
+
+Example passthrough:
+
+```text
+macro_rules! passthrough {
+  ($($x:expr),*) => vec!($($x),*);
+}
+```
+
+Compatibility behavior currently implemented:
+
+- If a repeated capture (for example `$x` from `($($x:expr),*)`) is used directly (not inside a transcriber repetition), it expands to a list literal.
+  - Example: `($($x:expr),*) => $x` expands to `[ ... ]`.
+
+#### Built-in macros
+
+Forge currently includes these built-in macros:
+
+- `count_args!(...)` -> integer count of comma-separated arguments
+- `vec!(...)` -> list literal
+- `stringify!(...)` -> string representation of argument expression ASTs
+- `concat!(...)` / `concat_str!(...)` -> concatenates string literal arguments
+
+Example:
+
+```text
+macro_rules! debug_expr {
+  ($e:expr) => concat!("DBG(", stringify!($e), ")");
+}
+```
+
+#### Scope and placement
+
+- Macros can be declared at top level, including inside modules.
+- `macro_rules!` definitions are not supported inside expression blocks.
+- Current macro expansion target is expressions (not arbitrary item generation).
+
 ### Expressions
 
 - **Literals**: Integers, floats, booleans, strings, characters, unit `()`
@@ -132,6 +219,7 @@ end
 - **List Comprehensions**: `[x * 2 | x => [1...5], x > 2]`
 - **Tuples/Vectors**: `(1, "hello", true)`
 - **Code Blocks**: `{ expr1; expr2; result }`
+- **Macro Invocations**: `name!(...)`, `name![...]`, `name!{...}`
 
 ### Operators
 
@@ -196,6 +284,11 @@ Supports comprehensive pattern matching including:
 ## Examples
 
 The snippets below are illustrative; runnable examples live under [`programs/`](programs/), e.g. [`programs/minimal.ls`](programs/minimal.ls), [`programs/builtins_test.ls`](programs/builtins_test.ls), [`programs/record_update.ls`](programs/record_update.ls), [`programs/red_black_tree_example.ls`](programs/red_black_tree_example.ls), and the typeclass demos linked in [Typeclasses (traits)](#typeclasses-traits).
+
+Additional macro-focused examples:
+
+- [`programs/test.ls`](programs/test.ls)
+- [`test/macro_system_tests.ml`](test/macro_system_tests.ml) (language-level macro coverage)
 
 ### Basic Types and Expressions
 
@@ -292,6 +385,37 @@ map ((*) 2) [1, 2, 3]
 let (++) = fn a -> fn b -> a + b in
 (++) 10 20
 (* Result: 30 *)
+```
+
+### Macros
+
+```text
+macro_rules! choose {
+  () => 0;
+  ($x:expr) => $x;
+}
+
+let a = choose!()
+let b = choose!{42}
+```
+
+```text
+macro_rules! collect {
+  ($($x:expr),*) => $x;
+}
+
+let xs = collect!(1, 2, 3, 4)
+let n = list_length xs
+(* n == 4 *)
+```
+
+```text
+macro_rules! collect_and_count {
+  ($($x:expr),*) => count_args!($($x),*);
+}
+
+let n0 = collect_and_count!()
+let n3 = collect_and_count!(1, 2, 3)
 ```
 
 ### Lists
@@ -707,6 +831,7 @@ This will generate a coverage report showing which parts of the codebase are tes
 ### Test Organization
 
 - **`test/test.ml`** — large OUnit suite for the interpreter pipeline: type checking, inference, evaluation, pattern matching, ADTs, higher-order functions, builtins, and edge cases.
+- **`test/macro_system_tests.ml`** — `macro_rules!` matching/expansion and builtin macro behavior.
 - **`test/compiler_tests.ml`** + **`test/compiler_cases/`** — compile with `compile_forge`, run the binary, compare stdout.
 - **`test/hover_ident_tests.ml`** — hover / identifier typing via `Hover_query`.
 
@@ -714,7 +839,7 @@ This will generate a coverage report showing which parts of the codebase are tes
 
 The formal semantics live in LaTeX as [`documentation/LambdaScript.tex`](documentation/LambdaScript.tex). Build a PDF locally with `pdflatex` (or your usual LaTeX workflow) if you want a printable copy.
 
-**Note**: The formal write-up may lag recent surface syntax (traits, prelude, compiler details).
+**Note**: The formal write-up may lag recent surface syntax (traits, prelude, macro system, compiler details).
 
 ## Documentation
 
@@ -766,4 +891,3 @@ LambdaScript/         # repository root (language: Forge)
 ├── documentation/    # LambdaScript.tex (formal semantics)
 └── paper/            # lambdascript.tex (+ local Makefile / PDFs)
 ```
-
