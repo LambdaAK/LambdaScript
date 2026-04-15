@@ -1,34 +1,44 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { type PropsWithChildren } from 'react';
+import { NavLink } from 'react-router-dom';
 
-function SideLink({ to, children }: { to: string; children: React.ReactNode }) {
-  return (
-    <NavLink to={to} className={({ isActive }) => (isActive ? 'active' : undefined)}>
-      {children}
-    </NavLink>
-  )
+function navClass({ isActive }: { isActive: boolean }) {
+  return isActive ? 'active' : undefined;
 }
 
-export function DocsLayout() {
+function DocsLayout({ children }: PropsWithChildren) {
   return (
-    <div className="docs-shell">
-      <aside className="docs-nav">
-        <div className="docs-nav-section">Start</div>
-        <SideLink to="/docs/overview">Overview</SideLink>
-        <SideLink to="/docs/install">Install</SideLink>
-
-        <div className="docs-nav-section">Language</div>
-        <SideLink to="/docs/types">Types</SideLink>
-        <SideLink to="/docs/expressions">Expressions</SideLink>
-        <SideLink to="/docs/pattern-matching">Pattern matching</SideLink>
-        <SideLink to="/docs/traits">Traits</SideLink>
-
-        <div className="docs-nav-section">Reference</div>
-        <SideLink to="/docs/builtins">Built-ins</SideLink>
-        <SideLink to="/docs/prelude">Standard prelude</SideLink>
+    <div className="docs-grid">
+      <aside className="side-nav">
+        <h3>Documentation</h3>
+        <NavLink to="/docs/" end className={navClass}>
+          Overview
+        </NavLink>
+        <NavLink to="/docs/quickstart/" className={navClass}>
+          Quickstart
+        </NavLink>
+        <NavLink to="/docs/language-features/" className={navClass}>
+          Language Features
+        </NavLink>
+        <NavLink to="/docs/standard-library/" className={navClass}>
+          Standard Library
+        </NavLink>
+        <NavLink to="/docs/examples/" className={navClass}>
+          Examples
+        </NavLink>
+        <NavLink to="/docs/grammar/" className={navClass}>
+          Grammar
+        </NavLink>
+        <NavLink to="/docs/how-it-works/" className={navClass}>
+          How It Works
+        </NavLink>
+        <NavLink to="/docs/why-forge/" className={navClass}>
+          Why I Built It
+        </NavLink>
       </aside>
-      <div>
-        <Outlet />
-      </div>
+
+      <article className="docs-content">{children}</article>
     </div>
-  )
+  );
 }
+
+export default DocsLayout;

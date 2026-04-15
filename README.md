@@ -80,7 +80,7 @@ A **trait declaration** introduces a class name, optional type parameters, optio
 
 The keyword **`inter`** is an alternative, brace-oriented spelling for the same concept (see [`programs/haskell_style_typeclasses.ls`](programs/haskell_style_typeclasses.ls) and the small [`programs/typeclass_show.ls`](programs/typeclass_show.ls)). Prefer **`trait … where … end`** in new code if you want to match the prelude style.
 
-**Source order:** every trait must be **declared above** any `impl` that uses it in the same compilation unit. The parser/condenser resolves `impl` against traits seen earlier in the file (and, for the REPL or web playground, against traits from the prelude that were loaded at startup).
+**Source order:** every trait must be **declared above** any `impl` that uses it in the same compilation unit. The parser/condenser resolves `impl` against traits seen earlier in the file (and, for the REPL, against traits from the prelude that were loaded at startup).
 
 #### Implementing a trait: `impl`
 
@@ -859,18 +859,33 @@ make opendoc
 
 Optional PDF paper (unrelated to the main OCaml build): see [`paper/`](paper/) — e.g. `cd paper && make` runs `pdflatex` on `lambdascript.tex` (see that directory’s `Makefile`).
 
-### Forge website (Playground in the browser)
+## Website
 
-The Vite site under [`website/`](website/) includes a Playground backed by **js_of_ocaml** so visitors can run Forge **without** a server-side evaluator, once the bundle is built:
+The repository includes a static website/docs app under `website/`, built with **React + TypeScript + Vite** (no backend).
+
+### Run locally
 
 ```bash
-opam install js_of_ocaml-compiler js_of_ocaml
-dune build browser/forge_browser.bc.js
-npm run sync:forge-js --prefix website
-npm run dev --prefix website
+npm --prefix website install
+npm --prefix website run dev
 ```
 
-See [`website/src/content/docs/install.md`](website/src/content/docs/install.md) for the optional Node + native `playground` API used in local dev when the JS bundle is absent.
+Then open the local URL printed by Vite (usually `http://localhost:5173`).
+
+### Production build
+
+```bash
+npm --prefix website run build
+npm --prefix website run preview
+```
+
+### Netlify deployment
+
+`netlify.toml` is configured to:
+
+- run `npm --prefix website install && npm --prefix website run build`
+- publish `website/dist`
+- rewrite SPA routes to `index.html`
 
 ## Project Structure
 
@@ -886,8 +901,7 @@ LambdaScript/         # repository root (language: Forge)
 ├── runtime/          # ls_runtime.c (linked into native executables)
 ├── test/             # test.ml, compiler_tests, hover_ident_tests, compiler_cases/
 ├── programs/         # example .ls programs
-├── browser/          # js_of_ocaml bundle (forge_browser.ml) for static Playground
-├── website/          # Vite + React docs + Playground
 ├── documentation/    # LambdaScript.tex (formal semantics)
+├── website/          # React + TypeScript + Vite website/docs app
 └── paper/            # lambdascript.tex (+ local Makefile / PDFs)
 ```

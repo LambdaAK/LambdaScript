@@ -1,4 +1,4 @@
-(** Shared REPL / playground evaluation (no terminal I/O). *)
+(** Shared REPL evaluation core (no terminal I/O). *)
 
 open Lex
 open Parser.ExprOrDefnParser

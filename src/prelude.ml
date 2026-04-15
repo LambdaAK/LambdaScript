@@ -7,11 +7,6 @@
 
 let prelude_basename = "prelude.ls"
 
-(** When set (e.g. browser bundle), [contents] returns this string instead of reading the file. *)
-let browser_embedded_prelude : string option ref = ref None
-
-let set_browser_embedded_prelude (s : string) : unit = browser_embedded_prelude := Some s
-
 let normalize_abs_path (path : string) : string =
   if Filename.is_relative path then Filename.concat (Sys.getcwd ()) path else path
 
@@ -73,16 +68,13 @@ let first_existing (paths : string list) : string option =
 let resolved_path () : string option = first_existing (path_candidates ())
 
 let contents () : string =
-  match !browser_embedded_prelude with
-  | Some s -> s
-  | None -> (
-      match resolved_path () with
-      | None -> ""
-      | Some p ->
-          let ic = open_in_bin p in
-          Fun.protect
-            ~finally:(fun () -> close_in ic)
-            (fun () -> really_input_string ic (in_channel_length ic)))
+  match resolved_path () with
+  | None -> ""
+  | Some p ->
+      let ic = open_in_bin p in
+      Fun.protect
+        ~finally:(fun () -> close_in ic)
+        (fun () -> really_input_string ic (in_channel_length ic))
 
 let normalize_for_compare (path : string) : string =
   normalize_abs_path path
