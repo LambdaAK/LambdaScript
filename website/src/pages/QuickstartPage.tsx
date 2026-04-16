@@ -2,20 +2,20 @@ import { Link } from 'react-router-dom';
 import CodeBlock from '../components/CodeBlock';
 import DocsLayout from '../components/DocsLayout';
 
-const cloneBuild = `git clone https://github.com/LambdaAK/LambdaScript
-cd LambdaScript
+const cloneBuild = `git clone https://github.com/LambdaAK/Forge
+cd Forge
 make`;
 
-const runInterpreter = `dune exec ./bin/interpreter.exe programs/minimal.ls`;
+const runInterpreter = `dune exec ./bin/interpreter.exe programs/minimal.forge`;
 
 const replCmd = `make repl
 # optional preload
-make repl FILE=programs/simple_test.ls`;
+make repl FILE=programs/simple_test.forge`;
 
-const compileCmd = `make compile-ls FILE=programs/minimal.ls
+const compileCmd = `make compile-ls FILE=programs/minimal.forge
 ./a.out`;
 
-const compileOutCmd = `make compile-ls FILE=programs/minimal.ls OUT=./my_program
+const compileOutCmd = `make compile-ls FILE=programs/minimal.forge OUT=./my_program
 ./my_program`;
 
 const testCmd = `make suite
@@ -47,27 +47,26 @@ function QuickstartPage() {
       </ul>
 
       <h2>Clone and Build</h2>
-      <CodeBlock code={cloneBuild} />
+      <CodeBlock code={cloneBuild} language="plain" />
 
       <h2>Run a Program (Interpreter)</h2>
-      <CodeBlock code={runInterpreter} />
+      <CodeBlock code={runInterpreter} language="plain" />
 
       <h2>Use the REPL</h2>
-      <CodeBlock code={replCmd} />
+      <CodeBlock code={replCmd} language="plain" />
 
       <h2>Compile to Native Code</h2>
-      <CodeBlock code={compileCmd} />
+      <CodeBlock code={compileCmd} language="plain" />
 
       <h2>Optional Output Name</h2>
-      <CodeBlock code={compileOutCmd} />
+      <CodeBlock code={compileOutCmd} language="plain" />
 
       <h2>Test Commands</h2>
-      <CodeBlock code={testCmd} />
+      <CodeBlock code={testCmd} language="plain" />
 
       <div className="callout">
-        <strong>Note:</strong> Forge source files are commonly{' '}
-        <code className="inline-code">.ls</code>. Some legacy examples also use{' '}
-        <code className="inline-code">.txt</code>.
+        <strong>Note:</strong> Forge source files use{' '}
+        <code className="inline-code">.forge</code>.
       </div>
     </DocsLayout>
   );

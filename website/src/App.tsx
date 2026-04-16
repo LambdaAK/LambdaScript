@@ -8,7 +8,6 @@ import StandardLibraryPage from './pages/StandardLibraryPage';
 import ExamplesPage from './pages/ExamplesPage';
 import GrammarPage from './pages/GrammarPage';
 import HowItWorksPage from './pages/HowItWorksPage';
-import WhyForgePage from './pages/WhyForgePage';
 
 function App() {
   return (
@@ -29,7 +28,6 @@ function App() {
         <Route path="/docs/examples/" element={<ExamplesPage />} />
         <Route path="/docs/grammar/" element={<GrammarPage />} />
         <Route path="/docs/how-it-works/" element={<HowItWorksPage />} />
-        <Route path="/docs/why-forge/" element={<WhyForgePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </SiteLayout>

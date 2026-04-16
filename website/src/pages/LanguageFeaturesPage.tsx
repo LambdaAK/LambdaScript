@@ -15,13 +15,15 @@ let answer =
   | [] -> 0
   | h :: _ -> h`;
 
-const traitSnippet = `inter Show<a> {
-  val show : a -> string
-}
+const traitSnippet = `inter Render<a> where
+  val render : a -> string
+end
 
-impl Show for Int where
-  show = int_to_str
-end`;
+impl Render for Int where
+  render x = int_to_str x
+end
+
+let () = println (render 42)`;
 
 const macroSnippet = `macro_rules! choose {
   () => 0;

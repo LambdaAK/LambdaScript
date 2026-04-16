@@ -31,9 +31,6 @@ function DocsLayout({ children }: PropsWithChildren) {
         <NavLink to="/docs/how-it-works/" className={navClass}>
           How It Works
         </NavLink>
-        <NavLink to="/docs/why-forge/" className={navClass}>
-          Why I Built It
-        </NavLink>
       </aside>
 
       <article className="docs-content">{children}</article>

@@ -708,7 +708,7 @@ let poly_id = fn (x: a) -> x
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/LambdaAK/LambdaScript
+git clone https://github.com/LambdaAK/Forge
 cd LambdaScript
 ```
 

@@ -1,23 +1,18 @@
 import { type PropsWithChildren } from 'react';
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 
 function SiteLayout({ children }: PropsWithChildren) {
   return (
-    <>
+    <div className="site-shell">
       <header className="site-header">
         <div className="container site-header-inner">
           <NavLink className="brand" to="/">
-            <span>Forge</span>
-            <small>LambdaScript Repository</small>
+            <span className="brand-mark" aria-hidden>
+              F
+            </span>
+            <span className="brand-name">Forge</span>
           </NavLink>
           <nav className="top-nav" aria-label="Primary">
-            <NavLink
-              to="/"
-              end
-              className={({ isActive }) => (isActive ? 'active' : undefined)}
-            >
-              Home
-            </NavLink>
             <NavLink
               to="/docs/"
               className={({ isActive }) => (isActive ? 'active' : undefined)}
@@ -30,32 +25,46 @@ function SiteLayout({ children }: PropsWithChildren) {
             >
               Examples
             </NavLink>
-            <NavLink
-              to="/docs/quickstart/"
-              className={({ isActive }) => (isActive ? 'active' : undefined)}
-            >
-              Quickstart
-            </NavLink>
             <a
-              className="cta"
-              href="https://github.com/LambdaAK/LambdaScript"
+              href="https://github.com/LambdaAK/Forge"
               target="_blank"
               rel="noreferrer"
             >
               GitHub
             </a>
           </nav>
+          <Link className="btn btn-header" to="/docs/quickstart/">
+            Get started
+          </Link>
         </div>
       </header>
 
-      <main className="container">{children}</main>
+      <main className="container site-main">{children}</main>
 
-      <footer className="container">
-        <span>
-          Forge / LambdaScript • <span>{new Date().getFullYear()}</span>
-        </span>
+      <footer className="site-footer">
+        <div className="container site-footer-inner">
+          <NavLink className="brand brand-footer" to="/">
+            <span className="brand-mark" aria-hidden>
+              F
+            </span>
+            <span className="brand-name">Forge</span>
+          </NavLink>
+          <nav className="footer-nav" aria-label="Footer">
+            <NavLink to="/docs/">Docs</NavLink>
+            <NavLink to="/docs/examples/">Examples</NavLink>
+            <NavLink to="/docs/how-it-works/">How it works</NavLink>
+            <a
+              href="https://github.com/LambdaAK/Forge"
+              target="_blank"
+              rel="noreferrer"
+            >
+              GitHub
+            </a>
+          </nav>
+          <span className="footer-year">Forge · {new Date().getFullYear()}</span>
+        </div>
       </footer>
-    </>
+    </div>
   );
 }
 

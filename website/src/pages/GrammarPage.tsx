@@ -112,22 +112,22 @@ function GrammarPage() {
       </div>
 
       <h2>Program Structure</h2>
-      <CodeBlock code={programGrammar} />
+      <CodeBlock code={programGrammar} language="plain" />
 
       <h2>Definitions</h2>
-      <CodeBlock code={defnGrammar} />
+      <CodeBlock code={defnGrammar} language="plain" />
 
       <h2>Expressions</h2>
-      <CodeBlock code={exprGrammar} />
+      <CodeBlock code={exprGrammar} language="plain" />
 
       <h2>Patterns</h2>
-      <CodeBlock code={patGrammar} />
+      <CodeBlock code={patGrammar} language="plain" />
 
       <h2>Types</h2>
-      <CodeBlock code={typeGrammar} />
+      <CodeBlock code={typeGrammar} language="plain" />
 
       <h2>Macros</h2>
-      <CodeBlock code={macroGrammar} />
+      <CodeBlock code={macroGrammar} language="plain" />
 
       <div className="callout">
         <strong>Scope note:</strong> this page intentionally focuses on

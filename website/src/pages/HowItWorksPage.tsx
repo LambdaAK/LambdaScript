@@ -27,7 +27,7 @@ function HowItWorksPage() {
       </div>
 
       <h2>High-Level Pipeline</h2>
-      <CodeBlock code={pipeline} />
+      <CodeBlock code={pipeline} language="plain" />
 
       <h2>Lexer</h2>
       <ul>

@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import HighlightedCode, { type HighlightLanguage } from './HighlightedCode';
 
 type CodeBlockProps = {
   code: string;
+  language?: HighlightLanguage;
 };
 
-function CodeBlock({ code }: CodeBlockProps) {
+function CodeBlock({ code, language = 'forge' }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
   async function onCopy() {
@@ -23,7 +25,7 @@ function CodeBlock({ code }: CodeBlockProps) {
         {copied ? 'Copied' : 'Copy'}
       </button>
       <pre>
-        <code>{code}</code>
+        <HighlightedCode code={code} language={language} />
       </pre>
     </div>
   );

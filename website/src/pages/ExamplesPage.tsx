@@ -16,15 +16,15 @@ let p1 : Point = { x: 4, y: 9 }
 let p2 = { p1 with x = 100 }
 let () = println (int_to_str (p2.x + p2.y))`;
 
-const traitSnippet = `inter Show<a> {
-  val show : a -> string
-}
-
-impl Show for Int where
-  show = int_to_str
+const traitSnippet = `inter Render<a> where
+  val render : a -> string
 end
 
-let () = println (show 42)`;
+impl Render for Int where
+  render x = int_to_str x
+end
+
+let () = println (render 42)`;
 
 const macroSnippet = `macro_rules! add {
   ($a:expr, $b:expr) => $a + $b;
@@ -39,7 +39,7 @@ let items = collect!(1, 2, 3, 4)
 let () = println (int_to_str sum)
 let () = println (int_to_str (list_length items))`;
 
-const compileCmd = `make compile-ls FILE=programs/minimal.ls OUT=./minimal_native
+const compileCmd = `make compile-ls FILE=programs/minimal.forge OUT=./minimal_native
 ./minimal_native`;
 
 function ExamplesPage() {
@@ -53,7 +53,7 @@ function ExamplesPage() {
         <h1 className="page-title">Examples</h1>
         <p className="lead">
           These snippets are meant to be copied into local{' '}
-          <code className="inline-code">.ls</code> files and run with the
+          <code className="inline-code">.forge</code> files and run with the
           interpreter or compiler.
         </p>
       </div>
@@ -88,47 +88,47 @@ function ExamplesPage() {
         <tbody>
           <tr>
             <td>
-              <code className="inline-code">programs/minimal.ls</code>
+              <code className="inline-code">programs/minimal.forge</code>
             </td>
             <td>Small baseline sanity program</td>
             <td>
               <code className="inline-code">
-                dune exec ./bin/interpreter.exe programs/minimal.ls
+                dune exec ./bin/interpreter.exe programs/minimal.forge
               </code>
             </td>
           </tr>
           <tr>
             <td>
-              <code className="inline-code">programs/record_update.ls</code>
+              <code className="inline-code">programs/record_update.forge</code>
             </td>
             <td>Record access and immutable update</td>
             <td>
               <code className="inline-code">
-                dune exec ./bin/interpreter.exe programs/record_update.ls
+                dune exec ./bin/interpreter.exe programs/record_update.forge
               </code>
             </td>
           </tr>
           <tr>
             <td>
               <code className="inline-code">
-                programs/red_black_tree_example.ls
+                programs/red_black_tree_example.forge
               </code>
             </td>
             <td>Larger recursive ADT program</td>
             <td>
               <code className="inline-code">
-                dune exec ./bin/interpreter.exe programs/red_black_tree_example.ls
+                dune exec ./bin/interpreter.exe programs/red_black_tree_example.forge
               </code>
             </td>
           </tr>
           <tr>
             <td>
-              <code className="inline-code">programs/test.ls</code>
+              <code className="inline-code">programs/test.forge</code>
             </td>
             <td>Macro rules sample</td>
             <td>
               <code className="inline-code">
-                dune exec ./bin/interpreter.exe programs/test.ls
+                dune exec ./bin/interpreter.exe programs/test.forge
               </code>
             </td>
           </tr>
@@ -136,7 +136,7 @@ function ExamplesPage() {
       </table>
 
       <h2>Compile an Example Program</h2>
-      <CodeBlock code={compileCmd} />
+      <CodeBlock code={compileCmd} language="plain" />
 
       <div className="callout">
         <strong>Tip:</strong> if you are evaluating the project quickly, run

@@ -15,7 +15,7 @@ let evens = filter (fn x -> x % 2 == 0) [1, 2, 3, 4, 5, 6]
 let total = reduce_left (+) 0 evens
 let () = println (int_to_str total)`;
 
-const runProgram = `cat > programs/stdlib_demo.ls <<'LS'
+const runProgram = `cat > programs/stdlib_demo.forge <<'FORGE'
 let () = println (int_to_str (str_length "hello"))
 let () = println (str_concat "hello" " world")
 let () = println (str_slice "hello" 1 3)
@@ -26,9 +26,9 @@ let () = println (int_to_str (list_nth xs 2))
 let evens = filter (fn x -> x % 2 == 0) [1, 2, 3, 4, 5, 6]
 let total = reduce_left (+) 0 evens
 let () = println (int_to_str total)
-LS
+FORGE
 
-dune exec ./bin/interpreter.exe programs/stdlib_demo.ls`;
+dune exec ./bin/interpreter.exe programs/stdlib_demo.forge`;
 
 function StandardLibraryPage() {
   return (
@@ -121,7 +121,7 @@ function StandardLibraryPage() {
       <CodeBlock code={sampleProgram} />
 
       <h2>Run It</h2>
-      <CodeBlock code={runProgram} />
+      <CodeBlock code={runProgram} language="plain" />
     </DocsLayout>
   );
 }
