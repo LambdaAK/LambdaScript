@@ -883,9 +883,16 @@ npm --prefix website run preview
 
 `netlify.toml` is configured to:
 
-- run `npm --prefix website install && npm --prefix website run build`
+- run `npm ci --prefix website && npm --prefix website run build`
 - publish `website/dist`
 - rewrite SPA routes to `index.html`
+- use Node.js `20`
+
+If you deploy from the Netlify control panel:
+
+- **Build command**: `npm ci --prefix website && npm --prefix website run build`
+- **Publish directory**: `website/dist`
+- **Base directory**: leave empty (repo root)
 
 ## Project Structure
 

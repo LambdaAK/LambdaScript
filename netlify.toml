@@ -1,6 +1,9 @@
 [build]
-  command = "npm --prefix website install && npm --prefix website run build"
+  command = "npm ci --prefix website && npm --prefix website run build"
   publish = "website/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
 
 [[redirects]]
   from = "/*"
