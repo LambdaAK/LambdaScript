@@ -65,6 +65,15 @@ const quickstartSteps = [
   { title: 'Run the binary', command: './a.out' },
 ] as const;
 
+const heroQuickstartSteps = [
+  { label: 'Build', command: 'make' },
+  {
+    label: 'Run program',
+    command: 'dune exec ./bin/interpreter.exe\nprograms/minimal.forge',
+  },
+  { label: 'Open REPL', command: 'make repl\nFILE=programs/simple_test.forge' },
+] as const;
+
 function HomePage() {
   return (
     <div className="landing-frame">
@@ -89,19 +98,33 @@ function HomePage() {
             </a>
           </div>
         </div>
-        <aside className="hero-code">
-          <div className="hero-code-head">
-            <div className="window-dots" aria-hidden>
-              <span />
-              <span />
-              <span />
+        <div className="hero-panels">
+          <aside className="hero-code">
+            <div className="hero-code-head">
+              <div className="window-dots" aria-hidden>
+                <span />
+                <span />
+                <span />
+              </div>
+              <span>hello.forge</span>
             </div>
-            <span>hello.forge</span>
-          </div>
-          <pre>
-            <HighlightedCode code={heroCode} />
-          </pre>
-        </aside>
+            <pre>
+              <HighlightedCode code={heroCode} />
+            </pre>
+          </aside>
+
+          <aside className="hero-quickstart">
+            <div className="hero-quickstart-head">Quickstart</div>
+            <ol className="hero-quickstart-list">
+              {heroQuickstartSteps.map((step) => (
+                <li key={step.label}>
+                  <strong>{step.label}</strong>
+                  <code>{step.command}</code>
+                </li>
+              ))}
+            </ol>
+          </aside>
+        </div>
       </section>
 
       <section className="section-divider reveal delay-1">

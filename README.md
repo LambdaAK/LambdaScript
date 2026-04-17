@@ -697,27 +697,59 @@ let poly_id = fn (x: a) -> x
 
 ## Installation
 
-### Prerequisites
+### Quick Start (10 minutes)
 
-- OCaml 5.0.0 or higher
-- Dune build system
-- OPAM (OCaml package manager)
-- **Clang** (for the native compiler: LLVM IR → object code and linking with `runtime/ls_runtime.c`)
+#### 1) Install toolchain
 
-### Building from Source
+Forge needs **OCaml**, **Dune**, **OPAM**, and **Clang**.
 
-1. Clone the repository:
+macOS (Homebrew):
 ```bash
-git clone https://github.com/LambdaAK/Forge
-cd LambdaScript
+brew install opam
+brew install llvm clang
+opam init -a --disable-sandboxing
+eval "$(opam env)"
+opam switch create 5.1.1
+opam install dune
 ```
 
-2. Build the project:
+Ubuntu / Debian:
 ```bash
+sudo apt update
+sudo apt install -y opam m4 pkg-config libgmp-dev clang
+opam init -a
+eval "$(opam env)"
+opam switch create 5.1.1
+opam install dune
+```
+
+Verify:
+```bash
+ocamlc -version
+dune --version
+clang --version
+```
+
+#### 2) Clone and build
+
+```bash
+git clone https://github.com/LambdaAK/Forge
+cd Forge
 make
 ```
 
-This builds the **interpreter**, **REPL**, **compiler** (`compile_forge`), and other developer tools under `bin/`.
+This builds the **interpreter**, **REPL**, **compiler** (`compile_forge`), and other tools under `bin/`.
+
+#### 3) Run your first program
+
+```bash
+dune exec ./bin/interpreter.exe programs/minimal.forge
+```
+
+Expected output:
+```text
+3
+```
 
 ## Usage
 
@@ -731,26 +763,26 @@ make repl
 Optionally preload a file after the prelude:
 
 ```bash
-make repl FILE=programs/simple_test.ls
+make repl FILE=programs/simple_test.forge
 ```
 
 In the REPL, you can type expressions and see their types and evaluated results immediately.
 
 ### Running Forge programs
 
-Execute a `.ls` or `.txt` file containing Forge code (from the repository root, with the prelude available as usual):
+Execute a `.forge` file containing Forge code (from the repository root, with the prelude available as usual):
 ```bash
 dune exec ./bin/interpreter.exe <filename>
 ```
 
 Example:
 ```bash
-dune exec ./bin/interpreter.exe programs/minimal.ls
+dune exec ./bin/interpreter.exe programs/minimal.forge
 ```
 
 ### File Extension
 
-Source files typically use `.ls` or `.txt` extensions.
+Source files use `.forge`.
 
 ## Native compilation
 
@@ -759,21 +791,21 @@ The compiler parses and typechecks a Forge source file, lowers it to **Min IR** 
 From the repository root:
 
 ```bash
-make compile-ls FILE=programs/minimal.ls
+make compile-ls FILE=programs/minimal.forge
 ./a.out
 ```
 
 Optional output name:
 
 ```bash
-make compile-ls FILE=programs/minimal.ls OUT=./my_program
+make compile-ls FILE=programs/minimal.forge OUT=./my_program
 ./my_program
 ```
 
 Equivalent direct invocation:
 
 ```bash
-dune exec ./bin/compile_forge.exe programs/minimal.ls ./my_program
+dune exec ./bin/compile_forge.exe programs/minimal.forge ./my_program
 ```
 
 **Finding the runtime:** compilation searches upward from the current directory for `runtime/ls_runtime.c`. If you run the compiler from elsewhere, set `FORGE_ROOT` to the checkout path (the legacy variable `LAMBDASCRIPT_ROOT` is still accepted).
@@ -781,7 +813,7 @@ dune exec ./bin/compile_forge.exe programs/minimal.ls ./my_program
 **Inspecting IR without linking:**
 
 ```bash
-make dump-ir FILE=programs/minimal.ls
+make dump-ir FILE=programs/minimal.forge
 ```
 
 Additional compiler integration tests and fixtures live in `test/compiler_cases/`.
@@ -791,7 +823,7 @@ Additional compiler integration tests and fixtures live in `test/compiler_cases/
 [`bin/forge_hover.ml`](bin/forge_hover.ml) builds **`forge_hover`**, a small stdin/stdout tool meant to be driven by an LSP server for hover/type-at-point:
 
 ```bash
-dune exec ./bin/forge_hover.exe path/to/file.ls 1 10 4 < path/to/file.ls
+dune exec ./bin/forge_hover.exe path/to/file.forge 1 10 4 < path/to/file.forge
 ```
 
 Arguments: `path`, `prelude` (`1`/`true` to prepend the standard prelude, `0`/`false` for raw buffer only), zero-based `line`, zero-based `character`. On success it prints the type string to stdout; on failure it prints `ERROR: …` and exits with a non-zero status. Query logic lives in [`src/hover_query.ml`](src/hover_query.ml).
@@ -857,8 +889,6 @@ Open the generated documentation in your browser:
 make opendoc
 ```
 
-Optional PDF paper (unrelated to the main OCaml build): see [`paper/`](paper/) — e.g. `cd paper && make` runs `pdflatex` on `lambdascript.tex` (see that directory’s `Makefile`).
-
 ## Website
 
 The repository includes a static website/docs app under `website/`, built with **React + TypeScript + Vite** (no backend).
@@ -897,18 +927,17 @@ If you deploy from the Netlify control panel:
 ## Project Structure
 
 ```
-LambdaScript/         # repository root (language: Forge)
+Forge/                # repository root (language: Forge)
 ├── bin/              # interpreter, repl, compile_forge, dump_min_ir, forge_hover, …
 ├── src/              # lexer, parser, typecheck, interpreter, compiler pipeline
 │   ├── compile_pipeline.ml  # native driver (prelude, typecheck, IR, Clang)
 │   ├── min_ir.ml, lower_min_ir.ml, llvm_emit.ml
 │   ├── hover_query.ml       # type-at-point for forge_hover / IDE integration
 │   └── ...
-├── prelude/          # prelude.ls (prepended or REPL-loaded)
+├── prelude/          # prelude source (prepended or REPL-loaded)
 ├── runtime/          # ls_runtime.c (linked into native executables)
 ├── test/             # test.ml, compiler_tests, hover_ident_tests, compiler_cases/
-├── programs/         # example .ls programs
+├── programs/         # example .forge programs
 ├── documentation/    # LambdaScript.tex (formal semantics)
-├── website/          # React + TypeScript + Vite website/docs app
-└── paper/            # lambdascript.tex (+ local Makefile / PDFs)
+└── website/          # React + TypeScript + Vite website/docs app
 ```

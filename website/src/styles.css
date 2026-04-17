@@ -183,6 +183,16 @@ a {
   align-items: center;
 }
 
+.hero-panels {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  align-items: stretch;
+  width: 100%;
+  max-width: 520px;
+  justify-self: end;
+}
+
 .hero-kicker {
   display: inline-flex;
   align-items: center;
@@ -270,6 +280,60 @@ a {
   line-height: 1.65;
   color: #c9cce8;
   font-size: 0.83rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.hero-quickstart {
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  background: #14161d;
+  overflow: hidden;
+}
+
+.hero-quickstart-head {
+  border-bottom: 1px solid #2f3042;
+  padding: 0.58rem 0.74rem;
+  color: #89e4b6;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hero-quickstart-list {
+  margin: 0;
+  padding: 0.8rem;
+  list-style: none;
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hero-quickstart-list li {
+  border: 1px solid #323743;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.01);
+  padding: 0.52rem 0.6rem;
+}
+
+.hero-quickstart-list strong {
+  display: block;
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: #9ca2b8;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.hero-quickstart-list code {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: #d7dae3;
+  word-break: break-word;
 }
 
 .section-divider {
@@ -784,6 +848,16 @@ pre {
   .hero-section {
     grid-template-columns: 1fr;
     gap: 1.2rem;
+  }
+
+  .hero-panels {
+    grid-template-columns: 1fr;
+    max-width: 100%;
+    justify-self: stretch;
+  }
+
+  .hero-quickstart-list {
+    grid-template-columns: 1fr;
   }
 
   .feature-grid {
