@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import CodeBlock from '../components/CodeBlock';
 import HighlightedCode from '../components/HighlightedCode';
 
 const heroCode = `// Fibonacci with pattern matching
@@ -65,14 +66,9 @@ const quickstartSteps = [
   { title: 'Run the binary', command: './a.out' },
 ] as const;
 
-const heroQuickstartSteps = [
-  { label: 'Build', command: 'make' },
-  {
-    label: 'Run program',
-    command: 'dune exec ./bin/interpreter.exe\nprograms/minimal.forge',
-  },
-  { label: 'Open REPL', command: 'make repl\nFILE=programs/simple_test.forge' },
-] as const;
+const heroQuickstartCommands = `make
+dune exec ./bin/interpreter.exe programs/minimal.forge
+make repl FILE=programs/simple_test.forge`;
 
 function HomePage() {
   return (
@@ -115,14 +111,9 @@ function HomePage() {
 
           <aside className="hero-quickstart">
             <div className="hero-quickstart-head">Quickstart</div>
-            <ol className="hero-quickstart-list">
-              {heroQuickstartSteps.map((step) => (
-                <li key={step.label}>
-                  <strong>{step.label}</strong>
-                  <code>{step.command}</code>
-                </li>
-              ))}
-            </ol>
+            <div className="hero-quickstart-body">
+              <CodeBlock code={heroQuickstartCommands} language="plain" />
+            </div>
           </aside>
         </div>
       </section>

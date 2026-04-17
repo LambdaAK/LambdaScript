@@ -26,13 +26,13 @@ end
 
 let () = println (render 42)`;
 
-const macroSnippet = `macro_rules! add {
-  ($a:expr, $b:expr) => $a + $b;
-}
+const macroSnippet = `macro_rules! add where
+  ($a:expr, $b:expr) => $a + $b
+end
 
-macro_rules! collect {
-  ($($x:expr),*) => vec!($($x),*);
-}
+macro_rules! collect where
+  ($($x:expr),*) => vec!($($x),*)
+end
 
 let sum = add!(20, 22)
 let items = collect!(1, 2, 3, 4)

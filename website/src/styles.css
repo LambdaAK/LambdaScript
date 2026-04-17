@@ -301,39 +301,26 @@ a {
   text-transform: uppercase;
 }
 
-.hero-quickstart-list {
-  margin: 0;
-  padding: 0.8rem;
-  list-style: none;
-  display: grid;
-  gap: 0.55rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.hero-quickstart-body {
+  padding: 0.65rem 0.75rem 0.75rem;
 }
 
-.hero-quickstart-list li {
-  border: 1px solid #323743;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.01);
-  padding: 0.52rem 0.6rem;
+.hero-quickstart-body .code-block {
+  margin-top: 0;
 }
 
-.hero-quickstart-list strong {
-  display: block;
-  margin: 0;
+.hero-quickstart-body pre {
   font-size: 0.76rem;
-  font-weight: 800;
-  color: #9ca2b8;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  line-height: 1.5;
+  padding: 0.62rem 0.72rem;
+  padding-right: 3.25rem;
+  overflow-x: hidden;
 }
 
-.hero-quickstart-list code {
-  display: block;
-  margin-top: 0.18rem;
-  font-size: 0.76rem;
-  line-height: 1.45;
-  color: #d7dae3;
-  word-break: break-word;
+.hero-quickstart-body pre code,
+.hero-quickstart-body pre .code-token {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .section-divider {
@@ -671,6 +658,32 @@ pre {
   padding: 0.9rem;
   line-height: 1.55;
   font-size: 0.83rem;
+  scrollbar-width: thin;
+  scrollbar-color: #4a4e5c var(--surface-strong);
+}
+
+pre::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+pre::-webkit-scrollbar-track {
+  background: var(--surface-strong);
+  border-radius: 6px;
+}
+
+pre::-webkit-scrollbar-thumb {
+  background: #4a4e5c;
+  border-radius: 6px;
+  border: 2px solid var(--surface-strong);
+}
+
+pre::-webkit-scrollbar-thumb:hover {
+  background: #5a5e70;
+}
+
+pre::-webkit-scrollbar-corner {
+  background: var(--surface-strong);
 }
 
 .copy-btn {
@@ -854,10 +867,6 @@ pre {
     grid-template-columns: 1fr;
     max-width: 100%;
     justify-self: stretch;
-  }
-
-  .hero-quickstart-list {
-    grid-template-columns: 1fr;
   }
 
   .feature-grid {

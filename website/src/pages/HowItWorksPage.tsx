@@ -57,8 +57,10 @@ function HowItWorksPage() {
         </li>
         <li>
           Includes dedicated handling for{' '}
-          <code className="inline-code">macro_rules!</code> definitions and
-          macro invocation syntax.
+          <code className="inline-code">macro_rules!</code> definitions (with{' '}
+          <code className="inline-code">where</code> /{' '}
+          <code className="inline-code">end</code>, like modules) and macro
+          invocation syntax.
         </li>
       </ul>
 

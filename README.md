@@ -125,16 +125,16 @@ Forge supports Rust-style declarative macros that expand before typechecking and
 #### Defining and invoking macros
 
 ```text
-macro_rules! add {
-  ($a:expr, $b:expr) => $a + $b;
-}
+macro_rules! add where
+  ($a:expr, $b:expr) => $a + $b
+end
 
 let x = add!(1, 2)
 let y = add![3, 4]
 let z = add!{5, 6}
 ```
 
-- Macros are declared with `macro_rules! name { ... }`.
+- Macros are declared with `macro_rules! name where ... end` (same delimiters as `mod` / `impl` bodies).
 - A macro can have multiple arms; expansion uses the first arm whose matcher fits.
 - Invocation delimiters `()`, `[]`, and `{}` are all supported.
 
@@ -155,9 +155,15 @@ Matcher metavariables can be typed with:
 Example:
 
 ```text
-macro_rules! id1 { ($x:ident) => $x }
-macro_rules! use_path { ($p:path) => $p }
-macro_rules! show_ty { ($t:ty) => "ok" }
+macro_rules! id1 where
+  ($x:ident) => $x
+end
+macro_rules! use_path where
+  ($p:path) => $p
+end
+macro_rules! show_ty where
+  ($t:ty) => "ok"
+end
 ```
 
 #### Repetition
@@ -171,9 +177,9 @@ Repetitions follow Rust-like syntax:
 Example passthrough:
 
 ```text
-macro_rules! passthrough {
-  ($($x:expr),*) => vec!($($x),*);
-}
+macro_rules! passthrough where
+  ($($x:expr),*) => vec!($($x),*)
+end
 ```
 
 Compatibility behavior currently implemented:
@@ -193,9 +199,9 @@ Forge currently includes these built-in macros:
 Example:
 
 ```text
-macro_rules! debug_expr {
-  ($e:expr) => concat!("DBG(", stringify!($e), ")");
-}
+macro_rules! debug_expr where
+  ($e:expr) => concat!("DBG(", stringify!($e), ")")
+end
 ```
 
 #### Scope and placement
@@ -390,19 +396,19 @@ let (++) = fn a -> fn b -> a + b in
 ### Macros
 
 ```text
-macro_rules! choose {
+macro_rules! choose where
   () => 0;
-  ($x:expr) => $x;
-}
+  ($x:expr) => $x
+end
 
 let a = choose!()
 let b = choose!{42}
 ```
 
 ```text
-macro_rules! collect {
-  ($($x:expr),*) => $x;
-}
+macro_rules! collect where
+  ($($x:expr),*) => $x
+end
 
 let xs = collect!(1, 2, 3, 4)
 let n = list_length xs
@@ -410,9 +416,9 @@ let n = list_length xs
 ```
 
 ```text
-macro_rules! collect_and_count {
-  ($($x:expr),*) => count_args!($($x),*);
-}
+macro_rules! collect_and_count where
+  ($($x:expr),*) => count_args!($($x),*)
+end
 
 let n0 = collect_and_count!()
 let n3 = collect_and_count!(1, 2, 3)

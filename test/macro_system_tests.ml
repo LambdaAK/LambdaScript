@@ -93,7 +93,9 @@ let suite =
          ( "macro_rules_simple_expression_expansion" >:: fun _ ->
            let program =
              {|
-macro_rules! add1 { ($x:expr) => $x + 1 }
+macro_rules! add1 where
+  ($x:expr) => $x + 1
+end
 let out = add1!(41)
 |}
            in
@@ -102,8 +104,12 @@ let out = add1!(41)
          ( "macro_rules_nested_expansion" >:: fun _ ->
            let program =
              {|
-macro_rules! add { ($a:expr, $b:expr) => $a + $b }
-macro_rules! twice { ($x:expr) => add!($x, $x) }
+macro_rules! add where
+  ($a:expr, $b:expr) => $a + $b
+end
+macro_rules! twice where
+  ($x:expr) => add!($x, $x)
+end
 let out = twice!(21)
 |}
            in
@@ -113,7 +119,9 @@ let out = twice!(21)
            let program =
              {|
 mod M where
-  macro_rules! inc { ($x:expr) => $x + 1 }
+  macro_rules! inc where
+    ($x:expr) => $x + 1
+  end
   let out = inc!(41)
 end
 |}
@@ -123,10 +131,10 @@ end
          ( "macro_rules_multi_arm_dispatch" >:: fun _ ->
            let program =
              {|
-macro_rules! choose {
+macro_rules! choose where
   () => 0;
-  ($x:expr) => $x;
-}
+  ($x:expr) => $x
+end
 let a = choose!()
 let b = choose!(42)
 |}
@@ -138,10 +146,10 @@ let b = choose!(42)
          >:: fun _ ->
            let program =
              {|
-macro_rules! choose {
+macro_rules! choose where
   () => 0;
-  ($x:expr) => $x;
-}
+  ($x:expr) => $x
+end
 let a = choose![]
 let b = choose!{42}
 |}
@@ -152,9 +160,9 @@ let b = choose!{42}
          ( "macro_rules_repeat_matcher_binds_list_expression" >:: fun _ ->
            let program =
              {|
-macro_rules! collect {
-  ($($x:expr),*) => $x;
-}
+macro_rules! collect where
+  ($($x:expr),*) => $x
+end
 let out = list_length (collect!(1, 2, 3, 4))
 |}
            in
@@ -163,9 +171,9 @@ let out = list_length (collect!(1, 2, 3, 4))
          ( "macro_rules_transcriber_repetition_splices_into_args" >:: fun _ ->
            let program =
              {|
-macro_rules! passthrough {
-  ($($x:expr),*) => vec!($($x),*);
-}
+macro_rules! passthrough where
+  ($($x:expr),*) => vec!($($x),*)
+end
 let out = list_length (passthrough!(1, 2, 3, 4))
 |}
            in
@@ -174,9 +182,9 @@ let out = list_length (passthrough!(1, 2, 3, 4))
          ( "macro_rules_repeat_plus_requires_one_or_more" >:: fun _ ->
            let program =
              {|
-macro_rules! collect1 {
-  ($($x:expr),+) => $x;
-}
+macro_rules! collect1 where
+  ($($x:expr),+) => $x
+end
 let out = collect1!()
 |}
            in
@@ -185,10 +193,10 @@ let out = collect1!()
          ( "macro_rules_literal_token_dispatch" >:: fun _ ->
            let program =
              {|
-macro_rules! yes_no {
+macro_rules! yes_no where
   (yes) => 1;
-  (no) => 0;
-}
+  (no) => 0
+end
 let a = yes_no!(yes)
 let b = yes_no!(no)
 |}
@@ -199,9 +207,9 @@ let b = yes_no!(no)
          ( "macro_rules_tt_fragment_single_tree" >:: fun _ ->
            let program =
              {|
-macro_rules! one_tt {
-  ($x:tt) => vec!($x);
-}
+macro_rules! one_tt where
+  ($x:tt) => vec!($x)
+end
 let out = list_length (one_tt!((1 + 2)))
 |}
            in
@@ -210,9 +218,9 @@ let out = list_length (one_tt!((1 + 2)))
          ( "macro_rules_zero_repeat_can_drive_transcriber_repeat" >:: fun _ ->
            let program =
              {|
-macro_rules! collect_and_count {
-  ($($x:expr),*) => count_args!($($x),*);
-}
+macro_rules! collect_and_count where
+  ($($x:expr),*) => count_args!($($x),*)
+end
 let n0 = collect_and_count!()
 let n3 = collect_and_count!(1, 2, 3)
 |}
@@ -223,7 +231,9 @@ let n3 = collect_and_count!(1, 2, 3)
          ( "macro_rules_ident_fragment" >:: fun _ ->
            let program =
              {|
-macro_rules! id1 { ($x:ident) => $x }
+macro_rules! id1 where
+  ($x:ident) => $x
+end
 let n = 42
 let out = id1!(n)
 |}
@@ -233,7 +243,9 @@ let out = id1!(n)
          ( "macro_rules_literal_fragment" >:: fun _ ->
            let program =
              {|
-macro_rules! lit_id { ($x:literal) => $x }
+macro_rules! lit_id where
+  ($x:literal) => $x
+end
 let a = lit_id!(42)
 let b = lit_id!("ok")
 |}
@@ -245,7 +257,9 @@ let b = lit_id!("ok")
          >:: fun _ ->
            let program =
              {|
-macro_rules! show_ty { ($t:ty) => "ok" }
+macro_rules! show_ty where
+  ($t:ty) => "ok"
+end
 let out = show_ty!(Int)
 |}
            in
@@ -257,7 +271,9 @@ let out = show_ty!(Int)
 mod M where
   let v = 42
 end
-macro_rules! use_path { ($p:path) => $p }
+macro_rules! use_path where
+  ($p:path) => $p
+end
 let out = use_path!(M.v)
 |}
            in
@@ -284,9 +300,9 @@ let s = concat!("ab", "cd", "ef")
          ( "proc_macro_concat_accepts_nested_stringify_result" >:: fun _ ->
            let program =
              {|
-macro_rules! debug_expr {
-  ($e:expr) => concat!("DBG(", stringify!($e), ")");
-}
+macro_rules! debug_expr where
+  ($e:expr) => concat!("DBG(", stringify!($e), ")")
+end
 let label = debug_expr!(1 + 2 * 3)
 |}
            in
@@ -307,7 +323,9 @@ let out = missing!(1)
          ( "macro_rules_arity_mismatch_reports_error" >:: fun _ ->
            let program =
              {|
-macro_rules! add { ($a:expr, $b:expr) => $a + $b }
+macro_rules! add where
+  ($a:expr, $b:expr) => $a + $b
+end
 let out = add!(1)
 |}
            in

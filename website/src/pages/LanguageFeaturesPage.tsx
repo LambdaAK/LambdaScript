@@ -30,7 +30,7 @@ const patternSnippet = `type Option<a> =
 let describe opt =
   case opt do
   | None -> "empty"
-  | Some n -> str_concat "value=" (int_to_str n)
+  | Some n -> (++) "value=" (int_to_str n)
 
 let () = println (describe (Some 7))`;
 
@@ -59,14 +59,14 @@ end
 
 let () = println (render 42)`;
 
-const macroSnippet = `macro_rules! choose {
+const macroSnippet = `macro_rules! choose where
   () => 0;
-  ($x:expr) => $x;
-}
+  ($x:expr) => $x
+end
 
-macro_rules! collect_and_count {
-  ($($x:expr),*) => count_args!($($x),*);
-}
+macro_rules! collect_and_count where
+  ($($x:expr),*) => count_args!($($x),*)
+end
 
 let a = choose!()
 let b = choose!{42}
@@ -166,8 +166,10 @@ function LanguageFeaturesPage() {
       <h2>Rust-Style Declarative Macros</h2>
       <p>
         <code className="inline-code">macro_rules!</code> expands before
-        typechecking/evaluation/compilation. Matchers support fragment kinds and
-        repetition.
+        typechecking/evaluation/compilation. Definitions use{' '}
+        <code className="inline-code">where</code> /{' '}
+        <code className="inline-code">end</code> like modules and traits. Matchers
+        support fragment kinds and repetition.
       </p>
       <CodeBlock code={macroSnippet} />
 

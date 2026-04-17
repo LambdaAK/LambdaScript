@@ -1929,7 +1929,7 @@ end = struct
       let* () = expect_token SwitchArrow in
       let* body =
         parse_macro_tts_until (function
-          | Semicolon :: _ | Comma :: _ | RBrace :: _ -> true
+          | Semicolon :: _ | Comma :: _ | End :: _ -> true
           | _ -> false)
       in
       let* () = (expect_token Semicolon <|> expect_token Comma <|> return ()) in
@@ -1942,9 +1942,9 @@ end = struct
         | Id s -> Some s
         | _ -> None)
     in
-    let* () = expect_token LBrace in
+    let* () = expect_token Where in
     let* arms = parse_several macro_arm_parser in
-    let* () = expect_token RBrace in
+    let* () = expect_token End in
     let () =
       if arms = [] then
         failwith ("parser: macro_rules! " ^ name ^ " must define at least one arm")

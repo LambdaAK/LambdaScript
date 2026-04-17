@@ -81,7 +81,7 @@ type_defn     ::= "type" id type_params? "=" type
                | "type" id type_params? "=" constructor+
                | "type" "rec" sum_type ("and" sum_type)*`;
 
-const macroGrammar = `macro_defn   ::= "macro_rules" "!" id "{" macro_arm+ "}"
+const macroGrammar = `macro_defn   ::= "macro_rules" "!" id "where" macro_arm+ "end"
 macro_arm    ::= matcher "=>" transcriber [";" | ","]
 matcher      ::= delimited_token_trees
 transcriber  ::= token_trees_until_arm_end
