@@ -53,25 +53,27 @@ const featureCards = [
   },
 ] as const;
 
-const quickstartSteps = [
-  { title: 'Build the toolchain', command: 'make' },
-  {
-    title: 'Run the interpreter',
-    command: 'dune exec ./bin/interpreter.exe programs/minimal.forge',
-  },
-  {
-    title: 'Try the REPL',
-    command: 'make repl FILE=programs/simple_test.forge',
-  },
-  {
-    title: 'Run another example',
-    command: 'dune exec ./bin/interpreter.exe programs/test.forge',
-  },
-] as const;
+const dockerClone = `git clone https://github.com/LambdaAK/Forge
+cd Forge`;
 
-const heroQuickstartCommands = `make
-dune exec ./bin/interpreter.exe programs/minimal.forge
-make repl FILE=programs/simple_test.forge`;
+const dockerBuild = `docker build -t forge:local .`;
+
+const dockerRebuildClean = `docker build --no-cache -t forge:local .`;
+
+const dockerHelp = `docker run --rm forge:local help`;
+
+const dockerRunMinimal = `docker run --rm forge:local run /opt/forge/programs/minimal.forge`;
+
+const dockerExpectedMinimal = `3`;
+
+const dockerRepl = `docker run --rm -it forge:local repl`;
+
+const dockerRunMountedHello = `docker run --rm -it -v "$PWD":/work -w /work forge:local run /work/hello.forge`;
+
+const dockerRunMountedPrograms = `docker run --rm -v "$PWD":/work -w /work forge:local run /work/programs/minimal.forge`;
+
+const dockerCompileNative = `docker run --rm -it -v "$PWD":/work -w /work forge:local compile /work/hello.forge
+docker run --rm -v "$PWD":/work -w /work forge:local /work/a.out`;
 
 function HomePage() {
   return (
@@ -85,8 +87,11 @@ function HomePage() {
             compiler.
           </p>
           <div className="cta-row">
-            <Link className="btn btn-primary" to="/docs/quickstart/">
-              Quickstart
+            <a className="btn btn-primary" href="#run-with-docker">
+              Run with Docker
+            </a>
+            <Link className="btn" to="/docs/quickstart/">
+              Docs quickstart
             </Link>
             <a
               className="btn"
@@ -112,13 +117,6 @@ function HomePage() {
               <HighlightedCode code={heroCode} />
             </pre>
           </aside>
-
-          <aside className="hero-quickstart">
-            <div className="hero-quickstart-head">Quickstart</div>
-            <div className="hero-quickstart-body">
-              <CodeBlock code={heroQuickstartCommands} language="plain" />
-            </div>
-          </aside>
         </div>
       </section>
 
@@ -142,19 +140,148 @@ function HomePage() {
         </div>
       </section>
 
-      <section className="section-divider reveal delay-2">
-        <p className="section-kicker">Quick start</p>
-        <h2>Up and running in 4 steps.</h2>
-        <div className="quickstart-grid">
-          {quickstartSteps.map((step, index) => (
-            <article key={step.title} className="quickstart-step">
-              <div className="step-head">
-                <span className="step-number">{index + 1}</span>
-                <h3>{step.title}</h3>
-              </div>
-              <code className="step-command">{step.command}</code>
-            </article>
-          ))}
+      <section
+        id="run-with-docker"
+        className="home-docker-section reveal delay-2"
+        aria-labelledby="home-docker-heading"
+      >
+        <div className="home-docker-panel">
+          <p className="section-kicker">No local compiler toolchain</p>
+          <h2 id="home-docker-heading">Run Forge with Docker</h2>
+          <p className="section-lead home-docker-lead">
+            The easiest way to try the language: build one image from the
+            repository, then use the <code className="inline-code">forge</code>{' '}
+            entrypoint to interpret programs, open a REPL, or produce a native
+            binary. You do not need OCaml, opam, Dune, or Clang installed on your
+            computer.
+          </p>
+
+          <div className="callout home-docker-callout">
+            <strong>What you need:</strong> a working{' '}
+            <a
+              href="https://docs.docker.com/get-docker/"
+              target="_blank"
+              rel="noreferrer"
+              className="home-docker-link"
+            >
+              Docker
+            </a>{' '}
+            install (Docker Desktop on macOS and Windows, or Docker Engine on
+            Linux) and a terminal. Commands below assume your shell&apos;s current
+            directory is the <strong>root of the Forge git clone</strong>.
+          </div>
+
+          <div className="home-docker-body">
+            <h3 className="home-docker-h3">1. Clone the repository</h3>
+            <p className="home-docker-p">
+              If you do not have the source yet, clone it and enter the project
+              folder. All later <code className="inline-code">docker</code>{' '}
+              commands are run from this directory.
+            </p>
+            <CodeBlock code={dockerClone} language="plain" />
+
+            <h3 className="home-docker-h3">2. Build the Docker image</h3>
+            <p className="home-docker-p">
+              This Dockerfile compiles the Forge interpreter, REPL, and native
+              compiler inside the container, then copies a small runtime image.
+              The <strong>first</strong> build can take several minutes; later
+              rebuilds are faster when layers are cached.
+            </p>
+            <CodeBlock code={dockerBuild} language="plain" />
+            <p className="home-docker-p">
+              After you change Forge sources or example programs, run the same
+              build again so the image picks up your tree. For a completely clean
+              rebuild (ignore Docker layer cache):
+            </p>
+            <CodeBlock code={dockerRebuildClean} language="plain" />
+
+            <h3 className="home-docker-h3">3. List built-in commands</h3>
+            <p className="home-docker-p">
+              The container&apos;s entrypoint is a small helper named{' '}
+              <code className="inline-code">forge</code>. With no arguments it
+              prints help:
+            </p>
+            <CodeBlock code={dockerHelp} language="plain" />
+
+            <h3 className="home-docker-h3">4. Run a program bundled in the image</h3>
+            <p className="home-docker-p">
+              Example programs from the repo&apos;s{' '}
+              <code className="inline-code">programs/</code> directory are copied
+              into the image at{' '}
+              <code className="inline-code">/opt/forge/programs/</code> when you
+              build. This runs the minimal sanity check (prints the integer{' '}
+              <code className="inline-code">3</code>):
+            </p>
+            <CodeBlock code={dockerRunMinimal} language="plain" />
+            <p className="home-docker-caption">Expected output</p>
+            <CodeBlock code={dockerExpectedMinimal} language="plain" />
+
+            <h3 className="home-docker-h3">5. Open an interactive REPL</h3>
+            <p className="home-docker-p">
+              Use <code className="inline-code">-it</code> so Docker attaches your
+              terminal to the REPL session (stdin/stdout). Exit the REPL with
+              Ctrl+D or your usual EOF shortcut.
+            </p>
+            <CodeBlock code={dockerRepl} language="plain" />
+
+            <h3 className="home-docker-h3">6. Run a file from your machine</h3>
+            <p className="home-docker-p">
+              Mount your project directory at <code className="inline-code">/work</code>{' '}
+              and set the working directory there. Then pass paths under{' '}
+              <code className="inline-code">/work/...</code>. Replace{' '}
+              <code className="inline-code">hello.forge</code> with any{' '}
+              <code className="inline-code">.forge</code> file you create next to
+              your clone (for example <code className="inline-code">hello.forge</code>{' '}
+              in the repo root):
+            </p>
+            <CodeBlock code={dockerRunMountedHello} language="plain" />
+            <p className="home-docker-p">
+              To run something under <code className="inline-code">programs/</code>{' '}
+              without rebuilding the image after every edit:
+            </p>
+            <CodeBlock code={dockerRunMountedPrograms} language="plain" />
+            <p className="home-docker-note">
+              On Windows, use Docker Desktop&apos;s path conventions (often mount
+              the current directory with <code className="inline-code">%cd%</code>{' '}
+              in PowerShell or run these commands from Git Bash so{' '}
+              <code className="inline-code">$PWD</code> behaves like a Unix path).
+            </p>
+
+            <h3 className="home-docker-h3">7. Native compile (optional)</h3>
+            <p className="home-docker-p">
+              The image can also ahead-of-time compile to a native executable.
+              <code className="inline-code"> forge compile</code> always writes the
+              binary to <code className="inline-code">/work/a.out</code> inside the
+              container—which becomes <code className="inline-code">./a.out</code>{' '}
+              on your host when <code className="inline-code">/work</code> is your
+              mounted clone:
+            </p>
+            <CodeBlock code={dockerCompileNative} language="plain" />
+
+            <div className="callout home-docker-callout">
+              <strong>Rebuild vs mount:</strong> files under{' '}
+              <code className="inline-code">/opt/forge/...</code> reflect the repo
+              <em> at image build time</em>. To iterate on local{' '}
+              <code className="inline-code">.forge</code> files without rebuilding,
+              prefer the <code className="inline-code">-v &quot;$PWD&quot;:/work -w /work</code>{' '}
+              pattern and paths starting with <code className="inline-code">/work/</code>.
+            </div>
+
+            <p className="home-docker-footer">
+              More detail lives in the{' '}
+              <Link to="/docs/quickstart/">documentation quickstart</Link> and the{' '}
+              <a
+                href="https://github.com/LambdaAK/Forge/blob/main/README.md"
+                target="_blank"
+                rel="noreferrer"
+                className="home-docker-link"
+              >
+                README on GitHub
+              </a>
+              . To hack on the OCaml compiler itself, you will still want a local
+              opam/Dune setup—see that README.
+            </p>
+          </div>
         </div>
       </section>
     </div>

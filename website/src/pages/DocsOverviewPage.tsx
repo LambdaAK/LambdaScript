@@ -28,7 +28,10 @@ function DocsOverviewPage() {
             <td>
               <Link to="/docs/quickstart/">Quickstart</Link>
             </td>
-            <td>Install prerequisites and run Forge programs locally in minutes.</td>
+            <td>
+              Run Forge with Docker from a clone: build the image, interpret, REPL,
+              and native compile—no local OCaml toolchain required.
+            </td>
           </tr>
           <tr>
             <td>

@@ -28,7 +28,7 @@ let total = reduce_left (+) 0 evens
 let () = println (int_to_str total)
 FORGE
 
-dune exec ./bin/interpreter.exe programs/stdlib_demo.forge`;
+docker run --rm -v "$PWD":/work -w /work forge:local run /work/programs/stdlib_demo.forge`;
 
 function StandardLibraryPage() {
   return (
@@ -121,6 +121,12 @@ function StandardLibraryPage() {
       <CodeBlock code={sampleProgram} />
 
       <h2>Run It</h2>
+      <p>
+        From the repo root, build the image once (
+        <code className="inline-code">docker build -t forge:local .</code>), then
+        use the command below (same pattern as the{' '}
+        <Link to="/docs/quickstart/">Quickstart</Link>).
+      </p>
       <CodeBlock code={runProgram} language="plain" />
     </DocsLayout>
   );

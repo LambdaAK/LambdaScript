@@ -65,9 +65,11 @@ function ExamplesPage() {
         </div>
         <h1 className="page-title">Examples</h1>
         <p className="lead">
-          These snippets are meant to be copied into local{' '}
-          <code className="inline-code">.forge</code> files and run with the
-          interpreter.
+          Copy these into <code className="inline-code">.forge</code> files and run
+          them with Docker as in the{' '}
+          <Link to="/docs/quickstart/">Quickstart</Link> (mount the repo at{' '}
+          <code className="inline-code">/work</code> and use{' '}
+          <code className="inline-code">forge:local run …</code>).
         </p>
       </div>
 
@@ -90,8 +92,12 @@ function ExamplesPage() {
 
       <h2>Run Existing Programs in the Repo</h2>
       <p>
-        These are already included under{' '}
-        <code className="inline-code">programs/</code>.
+        These live under <code className="inline-code">programs/</code>. After{' '}
+        <code className="inline-code">docker build -t forge:local .</code> from the
+        repo root, you can either run the copy inside the image (paths under{' '}
+        <code className="inline-code">/opt/forge/programs/</code>) or mount your
+        checkout and use <code className="inline-code">/work/programs/…</code> as
+        in the table below.
       </p>
       <table className="info-table">
         <thead>
@@ -109,7 +115,8 @@ function ExamplesPage() {
             <td>Small baseline sanity program</td>
             <td>
               <code className="inline-code">
-                dune exec ./bin/interpreter.exe programs/minimal.forge
+                docker run --rm -v &quot;$PWD&quot;:/work -w /work forge:local run
+                /work/programs/minimal.forge
               </code>
             </td>
           </tr>
@@ -120,7 +127,8 @@ function ExamplesPage() {
             <td>Record access and immutable update</td>
             <td>
               <code className="inline-code">
-                dune exec ./bin/interpreter.exe programs/record_update.forge
+                docker run --rm -v &quot;$PWD&quot;:/work -w /work forge:local run
+                /work/programs/record_update.forge
               </code>
             </td>
           </tr>
@@ -133,7 +141,8 @@ function ExamplesPage() {
             <td>Larger recursive ADT program</td>
             <td>
               <code className="inline-code">
-                dune exec ./bin/interpreter.exe programs/red_black_tree_example.forge
+                docker run --rm -v &quot;$PWD&quot;:/work -w /work forge:local run
+                /work/programs/red_black_tree_example.forge
               </code>
             </td>
           </tr>
@@ -144,7 +153,8 @@ function ExamplesPage() {
             <td>Macro rules sample</td>
             <td>
               <code className="inline-code">
-                dune exec ./bin/interpreter.exe programs/test.forge
+                docker run --rm -v &quot;$PWD&quot;:/work -w /work forge:local run
+                /work/programs/test.forge
               </code>
             </td>
           </tr>
@@ -152,11 +162,11 @@ function ExamplesPage() {
       </table>
 
       <div className="callout">
-        <strong>Tip:</strong> if you are evaluating the project quickly, run
-        two interpreter programs (for example{' '}
+        <strong>Tip:</strong> after the image exists, run{' '}
         <code className="inline-code">minimal.forge</code> and{' '}
-        <code className="inline-code">test.forge</code>) to see core language +
-        macro behavior in under 2 minutes.
+        <code className="inline-code">test.forge</code> from the table above (from
+        the repo root) to see core language and macros without rebuilding for each
+        edit.
       </div>
     </DocsLayout>
   );
