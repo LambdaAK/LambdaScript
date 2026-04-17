@@ -16,6 +16,22 @@ let p1 : Point = { x: 4, y: 9 }
 let p2 = { p1 with x = 100 }
 let () = println (int_to_str (p2.x + p2.y))`;
 
+const recursiveAdtSnippet = `type rec Tree<a> =
+  | Leaf
+  | Node of (a, Tree<a>, Tree<a>)
+
+let rec size t =
+  case t do
+  | Leaf -> 0
+  | Node (_, left, right) -> 1 + size left + size right
+
+let t =
+  Node (10,
+    Node (5, Leaf, Leaf),
+    Node (20, Leaf, Leaf))
+
+let () = println (int_to_str (size t))`;
+
 const traitSnippet = `inter Render<a> where
   val render : a -> string
 end
@@ -63,10 +79,13 @@ function ExamplesPage() {
       <h3>2) Records</h3>
       <CodeBlock code={recordSnippet} />
 
-      <h3>3) Traits / Typeclasses</h3>
+      <h3>3) Recursive ADT (Tree)</h3>
+      <CodeBlock code={recursiveAdtSnippet} />
+
+      <h3>4) Traits / Typeclasses</h3>
       <CodeBlock code={traitSnippet} />
 
-      <h3>4) Macro Rules</h3>
+      <h3>5) Macro Rules</h3>
       <CodeBlock code={macroSnippet} />
 
       <h2>Run Existing Programs in the Repo</h2>

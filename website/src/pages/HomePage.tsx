@@ -126,7 +126,8 @@ function HomePage() {
         <p className="section-kicker">Core features</p>
         <h2>Everything you need, nothing you don't.</h2>
         <p className="section-lead">
-          A small, principled language designed for correctness, speed, and scalability.
+          A small, principled language focused on correctness, fast iteration,
+          and high-performance native execution.
         </p>
         <div className="feature-grid">
           {featureCards.map((feature) => (
