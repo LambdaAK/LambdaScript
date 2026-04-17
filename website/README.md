@@ -34,3 +34,12 @@ If you configure settings manually in Netlify:
 - **Build command**: `npm ci --prefix website && npm --prefix website run build`
 - **Publish directory**: `website/dist`
 - **Base directory**: leave empty
+
+SEO files are generated from static assets in `website/public/`:
+
+- `robots.txt`
+- `sitemap.xml`
+- `og-image.svg`
+
+If your production domain is not `forge-lang.netlify.app`, update the URLs in
+`robots.txt` and `sitemap.xml` before deploying.

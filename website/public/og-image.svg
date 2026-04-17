@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="80" y1="60" x2="1120" y2="570" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#232325"/>
+      <stop offset="1" stop-color="#1B1C21"/>
+    </linearGradient>
+    <linearGradient id="card" x1="132" y1="110" x2="1068" y2="520" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#232531"/>
+      <stop offset="1" stop-color="#1A1B22"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="100" y="86" width="1000" height="458" rx="20" fill="url(#card)" stroke="#3A3C45"/>
+  <rect x="140" y="126" width="34" height="34" rx="8" fill="#17182F" stroke="#31334D"/>
+  <text x="157" y="149" fill="#9B8BFF" font-family="Manrope, Inter, sans-serif" font-size="18" font-weight="700" text-anchor="middle">F</text>
+  <text x="194" y="149" fill="#F2F2F1" font-family="Manrope, Inter, sans-serif" font-size="28" font-weight="700">Forge</text>
+  <text x="140" y="244" fill="#F2F2F1" font-family="Manrope, Inter, sans-serif" font-size="66" font-weight="800">A functional language</text>
+  <text x="140" y="314" fill="#F2F2F1" font-family="Manrope, Inter, sans-serif" font-size="66" font-weight="800">that scales</text>
+  <text x="140" y="382" fill="#B3B5BF" font-family="Manrope, Inter, sans-serif" font-size="31" font-weight="600">
+    Type inference • Macros • Traits/Impls • Modules
+  </text>
+  <rect x="140" y="426" width="260" height="56" rx="12" fill="#2A2B31" stroke="#4A4D57"/>
+  <text x="172" y="462" fill="#F2F2F1" font-family="Manrope, Inter, sans-serif" font-size="30" font-weight="700">forge docs</text>
+</svg>

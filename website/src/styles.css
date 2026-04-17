@@ -171,6 +171,24 @@ a {
   border-right: 1px solid var(--line);
 }
 
+.not-found {
+  padding: 3rem 1.2rem;
+}
+
+.not-found h1 {
+  margin: 0.5rem 0 0;
+  font-size: clamp(2rem, 5vw, 3rem);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.not-found p {
+  margin: 0.8rem 0 0;
+  color: var(--muted);
+  max-width: 680px;
+  font-size: 1rem;
+}
+
 .landing-frame {
   min-height: 100%;
 }
