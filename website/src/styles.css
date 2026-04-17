@@ -31,6 +31,7 @@ body {
   font-family: 'Manrope', 'Avenir Next', 'Segoe UI', sans-serif;
   line-height: 1.6;
   color: var(--text);
+  overflow-x: hidden;
   background:
     radial-gradient(circle at 10% 0%, rgba(152, 121, 255, 0.08), transparent 28%),
     radial-gradient(circle at 100% 0%, rgba(91, 119, 255, 0.08), transparent 34%),
@@ -199,6 +200,7 @@ a {
   grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.95fr);
   gap: 1.6rem;
   align-items: center;
+  min-width: 0;
 }
 
 .hero-panels {
@@ -209,6 +211,7 @@ a {
   width: 100%;
   max-width: 520px;
   justify-self: end;
+  min-width: 0;
 }
 
 .hero-kicker {
@@ -253,6 +256,7 @@ a {
   background: #0f1018;
   overflow: hidden;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  min-width: 0;
 }
 
 .hero-code-head {
@@ -307,6 +311,7 @@ a {
   border-radius: 14px;
   background: #14161d;
   overflow: hidden;
+  min-width: 0;
 }
 
 .hero-quickstart-head {
@@ -496,6 +501,7 @@ a {
   grid-template-columns: 232px minmax(0, 1fr);
   gap: 1rem;
   padding: 1.2rem;
+  min-width: 0;
 }
 
 .side-nav {
@@ -506,6 +512,7 @@ a {
   border-radius: var(--radius);
   background: var(--surface);
   padding: 0.72rem;
+  min-width: 0;
 }
 
 .side-nav h3 {
@@ -541,6 +548,7 @@ a {
   border-radius: var(--radius);
   background: var(--surface);
   padding: 1.1rem;
+  min-width: 0;
 }
 
 .page-intro {
@@ -664,6 +672,7 @@ pre,
 .code-block {
   position: relative;
   margin-top: 0.7rem;
+  max-width: 100%;
 }
 
 pre {
@@ -678,6 +687,7 @@ pre {
   font-size: 0.83rem;
   scrollbar-width: thin;
   scrollbar-color: #4a4e5c var(--surface-strong);
+  max-width: 100%;
 }
 
 pre::-webkit-scrollbar {
@@ -948,6 +958,17 @@ pre::-webkit-scrollbar-corner {
   .docs-grid {
     padding-left: 0.86rem;
     padding-right: 0.86rem;
+  }
+
+  .docs-content {
+    padding: 0.9rem;
+  }
+
+  .info-table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .top-nav,
