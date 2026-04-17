@@ -34,14 +34,7 @@ const replCmd = `make repl
 # optional preload
 make repl FILE=programs/simple_test.forge`;
 
-const compileCmd = `make compile-ls FILE=programs/minimal.forge
-./a.out`;
-
-const compileOutCmd = `make compile-ls FILE=programs/minimal.forge OUT=./my_program
-./my_program`;
-
 const testCmd = `make suite
-make compiler-suite
 # everything dune knows about
 dune test`;
 
@@ -81,18 +74,13 @@ function QuickstartPage() {
       <h2>4) Use the REPL</h2>
       <CodeBlock code={replCmd} language="plain" />
 
-      <h2>5) Compile to Native Code</h2>
-      <CodeBlock code={compileCmd} language="plain" />
-
-      <h3>Optional Output Name</h3>
-      <CodeBlock code={compileOutCmd} language="plain" />
-
       <h2>Test Commands</h2>
       <CodeBlock code={testCmd} language="plain" />
 
       <div className="callout">
         <strong>Note:</strong> Start with interpreter + REPL first for fastest
-        feedback. Forge source files use{' '}
+        feedback. Native compilation is currently experimental. Forge source
+        files use{' '}
         <code className="inline-code">.forge</code>.
       </div>
     </DocsLayout>

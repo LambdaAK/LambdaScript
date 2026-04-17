@@ -41,8 +41,8 @@ const featureCards = [
   {
     icon: '~',
     iconClass: 'pink',
-    title: 'Native compiler',
-    description: 'Min IR -> LLVM -> native binary. Real performance, no runtime overhead.',
+    title: 'Native compiler (exp)',
+    description: 'LLVM backend under active development for native binaries.',
   },
   {
     icon: '▦',
@@ -60,10 +60,13 @@ const quickstartSteps = [
     command: 'dune exec ./bin/interpreter.exe programs/minimal.forge',
   },
   {
-    title: 'Compile a program',
-    command: 'make compile-ls FILE=programs/minimal.forge',
+    title: 'Try the REPL',
+    command: 'make repl FILE=programs/simple_test.forge',
   },
-  { title: 'Run the binary', command: './a.out' },
+  {
+    title: 'Run another example',
+    command: 'dune exec ./bin/interpreter.exe programs/test.forge',
+  },
 ] as const;
 
 const heroQuickstartCommands = `make
@@ -78,7 +81,8 @@ function HomePage() {
           <h1>A functional language that scales</h1>
           <p>
             Forge is a statically typed functional language with Hindley-Milner
-            type inference, Rust-style macros, and native compilation via LLVM.
+            type inference, Rust-style macros, and an experimental LLVM native
+            compiler.
           </p>
           <div className="cta-row">
             <Link className="btn btn-primary" to="/docs/quickstart/">

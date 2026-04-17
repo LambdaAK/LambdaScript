@@ -39,9 +39,6 @@ let items = collect!(1, 2, 3, 4)
 let () = println (int_to_str sum)
 let () = println (int_to_str (list_length items))`;
 
-const compileCmd = `make compile-ls FILE=programs/minimal.forge OUT=./minimal_native
-./minimal_native`;
-
 function ExamplesPage() {
   return (
     <DocsLayout>
@@ -54,7 +51,7 @@ function ExamplesPage() {
         <p className="lead">
           These snippets are meant to be copied into local{' '}
           <code className="inline-code">.forge</code> files and run with the
-          interpreter or compiler.
+          interpreter.
         </p>
       </div>
 
@@ -135,13 +132,12 @@ function ExamplesPage() {
         </tbody>
       </table>
 
-      <h2>Compile an Example Program</h2>
-      <CodeBlock code={compileCmd} language="plain" />
-
       <div className="callout">
         <strong>Tip:</strong> if you are evaluating the project quickly, run
-        one interpreter program and one compiler run. It shows both execution
-        paths in under 2 minutes.
+        two interpreter programs (for example{' '}
+        <code className="inline-code">minimal.forge</code> and{' '}
+        <code className="inline-code">test.forge</code>) to see core language +
+        macro behavior in under 2 minutes.
       </div>
     </DocsLayout>
   );
