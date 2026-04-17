@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Usage: gen_prelude_data_ml.bash <output.ml> <prelude.ls>
+# Usage: gen_prelude_data_ml.bash <output.ml> <prelude.forge>
 out="$1"
 prelude="$2"
 {

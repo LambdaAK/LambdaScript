@@ -1,6 +1,6 @@
 (** One-shot hover helper for the Forge LSP: reads full source from stdin.
 
-    Usage: [forge_hover path prelude line0 char0] < source.ls
+    Usage: [forge_hover path prelude line0 char0] < source.forge
 
     [prelude] is [1]/[true] to prepend the prelude (default for IDE), or
     [0]/[false] for raw buffer only.

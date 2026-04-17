@@ -1,11 +1,11 @@
 (** Standard prelude path resolution and source concatenation.
 
-    When compiling or interpreting a user [.ls] file, the prelude text is
+    When compiling or interpreting a user [.forge] file, the prelude text is
     prepended so canonical traits (e.g. [Monad]) are in scope. The REPL loads
     the prelude once at startup via its contents only — it does not prepend
     when evaluating that file again. *)
 
-let prelude_basename = "prelude.ls"
+let prelude_basename = "prelude.forge"
 
 let normalize_abs_path (path : string) : string =
   if Filename.is_relative path then Filename.concat (Sys.getcwd ()) path else path
@@ -47,7 +47,7 @@ let path_candidates () : string list =
     roots |> List.map ancestor_dirs_from |> List.flatten |> dedupe_preserve_order
   in
   (* When running under Dune, cwd may be inside [_build/default]. Prefer
-     workspace/source directories over build-tree mirrors of [prelude.ls]. *)
+     workspace/source directories over build-tree mirrors of [prelude.forge]. *)
   let dirs =
     let src_dirs, build_dirs =
       List.partition

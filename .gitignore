@@ -12,12 +12,12 @@ src/_build
 # Clang / LLDB debug symbol bundles (local builds)
 *.dSYM/
 
-# Forge compiler outputs (written next to the .ls source)
+# Forge compiler outputs (written next to the .forge source)
 *.mir
 *.ll
 *.s
 
-# Default linked executable name from compile-ls / manual clang (repo root)
+# Default linked executable name from compile-forge / manual clang (repo root)
 /a.out
 
 # Ad-hoc probe / scratch at repo root (compiler experiments)

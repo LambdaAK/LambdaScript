@@ -36,9 +36,8 @@ let is_regular_file (p : string) : bool =
 
 let candidate_import_paths ~(base_dir : string) (raw : string) : string list =
   let with_exts =
-    if Filename.check_suffix raw ".ls" || Filename.check_suffix raw ".forge" then
-      [ raw ]
-    else [ raw; raw ^ ".ls"; raw ^ ".forge" ]
+    if Filename.check_suffix raw ".forge" then [ raw ]
+    else [ raw; raw ^ ".forge" ]
   in
   with_exts
   |> List.map (fun p ->

@@ -68,7 +68,7 @@ let dump_ir (filename : string) =
 
 let () =
   if Array.length Sys.argv <> 2 then (
-    print_endline "Usage: dump_min_ir <filename.ls>";
+    print_endline "Usage: dump_min_ir <filename.forge>";
     exit 1)
   else
     try dump_ir Sys.argv.(1)

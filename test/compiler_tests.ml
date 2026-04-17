@@ -91,7 +91,7 @@ let compiler_cases_dir () : string =
 
 let repo_root_for_prelude () : string =
   let has_prelude dir =
-    Sys.file_exists (Filename.concat dir "prelude/prelude.ls")
+    Sys.file_exists (Filename.concat dir "prelude/prelude.forge")
   in
   let rec search_up dir =
     if has_prelude dir then Some dir
@@ -110,11 +110,11 @@ let list_case_files () : string list =
   let dir = compiler_cases_dir () in
   let entries = Sys.readdir dir |> Array.to_list in
   let cases =
-    List.filter (fun name -> Filename.check_suffix name ".ls") entries
+    List.filter (fun name -> Filename.check_suffix name ".forge") entries
     |> List.map (fun name -> Filename.concat dir name)
     |> List.sort String.compare
   in
-  if cases = [] then failwith ("No .ls compiler case files under " ^ dir);
+  if cases = [] then failwith ("No .forge compiler case files under " ^ dir);
   cases
 
 let test_one case_path =
@@ -124,7 +124,7 @@ let test_one case_path =
   let prelude = String.equal name "parser_expr_programs_test" in
   let repo_root = repo_root_for_prelude () in
   with_tmpdir @@ fun dir ->
-  let src = Filename.concat dir "prog.ls" in
+  let src = Filename.concat dir "prog.forge" in
   let exe = Filename.concat dir "prog_out" in
   Out_channel.with_open_bin src (fun oc -> Out_channel.output_string oc program);
   let compile_result =

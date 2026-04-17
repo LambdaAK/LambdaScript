@@ -3,7 +3,7 @@ open OUnit2
 let hover ~prelude ~source ~line0 ~char0 =
   match
     Language.Hover_query.hover_type_for_identifier ~prelude
-      ~src_path:"hover_fixture.ls" ~source ~line0 ~char0
+      ~src_path:"hover_fixture.forge" ~source ~line0 ~char0
   with
   | Ok s -> s
   | Error e -> assert_failure e

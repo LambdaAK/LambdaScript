@@ -11,6 +11,18 @@ eval "$(opam env)"
 opam switch create 5.1.1
 opam install dune`;
 
+const dockerBuild = `docker build -t forge:local .`;
+
+const dockerRunMinimal = `docker run --rm forge:local run /opt/forge/programs/minimal.forge`;
+
+const dockerRepl = `docker run --rm -it forge:local repl`;
+
+const dockerRunLocalFile = `docker run --rm -it -v "$PWD":/work -w /work forge:local run /work/hello.forge`;
+
+const dockerCompileLocalFile = `# compile always writes /work/a.out (host: ./a.out)
+docker run --rm -it -v "$PWD":/work -w /work forge:local compile /work/hello.forge
+docker run --rm -v "$PWD":/work -w /work forge:local /work/a.out`;
+
 const ubuntuToolchain = `# Ubuntu / Debian toolchain
 sudo apt update
 sudo apt install -y opam m4 pkg-config libgmp-dev clang
@@ -48,10 +60,30 @@ function QuickstartPage() {
         </div>
         <h1 className="page-title">Quickstart</h1>
         <p className="lead">
-          Install the toolchain, build Forge, then run your first program in a
-          few minutes.
+          Try Forge with Docker in minutes, or install the full local toolchain
+          for development.
         </p>
       </div>
+
+      <h2>0) Try With Docker (No Local Toolchain)</h2>
+      <p>
+        Docker mode avoids local installs of OPAM, OCaml, Dune, and Clang.
+      </p>
+
+      <h3>Build the Image</h3>
+      <CodeBlock code={dockerBuild} language="plain" />
+
+      <h3>Run the Minimal Program</h3>
+      <CodeBlock code={dockerRunMinimal} language="plain" />
+
+      <h3>Open REPL</h3>
+      <CodeBlock code={dockerRepl} language="plain" />
+
+      <h3>Run a Local File</h3>
+      <CodeBlock code={dockerRunLocalFile} language="plain" />
+
+      <h3>Compile a Local File</h3>
+      <CodeBlock code={dockerCompileLocalFile} language="plain" />
 
       <h2>1) Install the Toolchain</h2>
       <p>Forge needs OCaml + Dune + OPAM + Clang.</p>

@@ -149,7 +149,7 @@ let handle_command cmd static_env _dynamic_env type_env history =
   else if String.starts_with ~prefix:":load " trimmed then (
     print_error
       ":load is disabled; start the REPL with a file instead: make repl \
-       FILE=path/to/file.ls  (or: dune exec ./bin/repl.exe path)";
+       FILE=path/to/file.forge  (or: dune exec ./bin/repl.exe path)";
     NoChange)
   else (
     print_error ("Unknown command: " ^ trimmed);

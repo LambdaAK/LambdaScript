@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate test/compiler_cases/combo_NNN_*.ls — run from repo root:
+"""Generate test/compiler_cases/combo_NNN_*.forge — run from repo root:
    python3 scripts/gen_combo_compiler_tests.py"""
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ def compile_and_run(source: str) -> tuple[bool, str]:
     """On success return (True, stdout). On failure (False, error_or_stderr)."""
     with tempfile.TemporaryDirectory(dir=ROOT) as tds:
         td = pathlib.Path(tds)
-        src = td / "t.ls"
+        src = td / "t.forge"
         exe = td / "out.bin"
         src.write_text(source.rstrip() + "\n", encoding="utf-8")
         if not COMPILE_EXE.is_file():
@@ -175,7 +175,7 @@ def main() -> None:
     failed = []
     for i, (slug, src) in enumerate(PROGRAMS, start=1):
         ok, out = compile_and_run(src)
-        path = OUT_DIR / f"combo_{i:03d}_{slug}.ls"
+        path = OUT_DIR / f"combo_{i:03d}_{slug}.forge"
         if not ok:
             failed.append((i, slug, out[:500]))
             print(f"FAIL {path.name}: {out[:200]}", file=sys.stderr)

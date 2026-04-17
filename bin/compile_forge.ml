@@ -1,6 +1,6 @@
 let () =
   if Array.length Sys.argv < 2 || Array.length Sys.argv > 3 then (
-    print_endline "Usage: compile_forge <source.ls> [output_executable]";
+    print_endline "Usage: compile_forge <source.forge> [output_executable]";
     print_endline "Default output: ./a.out";
     exit 1);
   let src = Sys.argv.(1) in

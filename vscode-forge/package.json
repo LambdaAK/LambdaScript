@@ -33,11 +33,10 @@
       {
         "id": "forge",
         "aliases": [
-          "Forge",
-          "ls"
+          "Forge"
         ],
         "extensions": [
-          ".ls"
+          ".forge"
         ],
         "configuration": "./language-configuration.json"
       }

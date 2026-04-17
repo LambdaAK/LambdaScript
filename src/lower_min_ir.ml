@@ -1141,8 +1141,8 @@ let min_dom_ret_of_binary_app (global : static_env)
     monomorphization when {!mono_to_min} maps every sum type to {!RawPtr} so
     {!min_ty_to_mono} cannot recover type arguments.
 
-    Regression coverage: [test/compiler_cases/poly_option_none_arg.ls],
-    [test/compiler_cases/poly_option_none_let_bound.ls]. *)
+    Regression coverage: [test/compiler_cases/poly_option_none_arg.forge],
+    [test/compiler_cases/poly_option_none_let_bound.forge]. *)
 let mono_domain_of_binary_app (global : static_env)
     (type_env : Typecheck.type_env) (env : env) (e_fn : c_expr) (e_arg : c_expr)
     : mono_type option =
@@ -4864,7 +4864,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                         (emit, Val (Local emit, t, Some mono)) :: env_acc)
               | None -> (
                   (* Polymorphic nullary ctor as value ([None] at a call site):
-                     no [let None = …]; see poly_option_none_arg.ls in
+                     no [let None = …]; see poly_option_none_arg.forge in
                      compiler_cases. *)
                   match find_constructor_index ctor_env name with
                   | Some (tag, _, None) ->

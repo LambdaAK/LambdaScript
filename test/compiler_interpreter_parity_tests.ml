@@ -185,30 +185,30 @@ let compile_and_capture_stdout ?(prelude = true) (src_path : string)
 
 let parity_case_files =
   [
-    "show_linkedlist_recursive_dispatch.ls";
-    "show_linkedlist_recursive_dispatch_deep.ls";
-    "typeclass_recursive_method_indirect_self_call.ls";
-    "typeclass_recursive_method_shadowing.ls";
-    "typeclass_constrained_helper_dispatch.ls";
-    "typeclass_haskell_core.ls";
-    "typeclass_operator_method_alias.ls";
-    "typeclass_show_empty_list_dispatch.ls";
-    "real_budget_ledger_monthly_report.ls";
-    "real_customer_tiers.ls";
-    "real_inventory_planner.ls";
-    "real_project_scheduler.ls";
-    "real_route_planner.ls";
-    "real_sales_funnel.ls";
-    "real_sensor_alerts.ls";
+    "show_linkedlist_recursive_dispatch.forge";
+    "show_linkedlist_recursive_dispatch_deep.forge";
+    "typeclass_recursive_method_indirect_self_call.forge";
+    "typeclass_recursive_method_shadowing.forge";
+    "typeclass_constrained_helper_dispatch.forge";
+    "typeclass_haskell_core.forge";
+    "typeclass_operator_method_alias.forge";
+    "typeclass_show_empty_list_dispatch.forge";
+    "real_budget_ledger_monthly_report.forge";
+    "real_customer_tiers.forge";
+    "real_inventory_planner.forge";
+    "real_project_scheduler.forge";
+    "real_route_planner.forge";
+    "real_sales_funnel.forge";
+    "real_sensor_alerts.forge";
   ]
 
 let test_one case_name =
   Filename.remove_extension case_name >:: fun _ ->
   let case_path = Filename.concat (compiler_cases_dir ()) case_name in
   let expected_stdout, source = parse_case_file case_path in
-  let prelude = String.equal case_name "parser_expr_programs_test.ls" in
+  let prelude = String.equal case_name "parser_expr_programs_test.forge" in
   with_tmpdir @@ fun dir ->
-  let src = Filename.concat dir "prog.ls" in
+  let src = Filename.concat dir "prog.forge" in
   let exe = Filename.concat dir "prog_out" in
   Out_channel.with_open_bin src (fun oc -> Out_channel.output_string oc source);
   let interpreter_stdout = run_interpreter_capture_stdout ~prelude src in

@@ -71,8 +71,8 @@ let suite =
   >::: [
          ( "basic_relative_import_module_value" >:: fun _ ->
            with_tmpdir (fun dir ->
-               let lib = Filename.concat dir "lib_a.ls" in
-               let main = Filename.concat dir "main.ls" in
+               let lib = Filename.concat dir "lib_a.forge" in
+               let main = Filename.concat dir "main.forge" in
                let exe = Filename.concat dir "out" in
                write_file lib
                  {|
@@ -82,7 +82,7 @@ end
 |};
                write_file main
                  {|
-import "lib_a.ls"
+import "lib_a.forge"
 use A
 let () = print_string (int_to_str (x + 1))
 |};
@@ -90,8 +90,8 @@ let () = print_string (int_to_str (x + 1))
                assert_equal ~printer:Fun.id "42\n" out) );
          ( "import_without_extension_works" >:: fun _ ->
            with_tmpdir (fun dir ->
-               let lib = Filename.concat dir "lib_b.ls" in
-               let main = Filename.concat dir "main.ls" in
+               let lib = Filename.concat dir "lib_b.forge" in
+               let main = Filename.concat dir "main.forge" in
                let exe = Filename.concat dir "out" in
                write_file lib
                  {|
@@ -108,9 +108,9 @@ let () = print_string (int_to_str B.y)
                assert_equal ~printer:Fun.id "42\n" out) );
          ( "nested_import_chain_works" >:: fun _ ->
            with_tmpdir (fun dir ->
-               let c = Filename.concat dir "c.ls" in
-               let b = Filename.concat dir "b.ls" in
-               let main = Filename.concat dir "main.ls" in
+               let c = Filename.concat dir "c.forge" in
+               let b = Filename.concat dir "b.forge" in
+               let main = Filename.concat dir "main.forge" in
                let exe = Filename.concat dir "out" in
                write_file c
                  {|
@@ -120,24 +120,24 @@ end
 |};
                write_file b
                  {|
-import "c.ls"
+import "c.forge"
 mod B where
   let y = C.x + 1
 end
 |};
                write_file main
                  {|
-import "b.ls"
+import "b.forge"
 let () = print_string (int_to_str (B.y + 1))
 |};
                let out = compile_and_run main exe in
                assert_equal ~printer:Fun.id "42\n" out) );
          ( "shared_dependency_imported_once" >:: fun _ ->
            with_tmpdir (fun dir ->
-               let common = Filename.concat dir "common.ls" in
-               let left = Filename.concat dir "left.ls" in
-               let right = Filename.concat dir "right.ls" in
-               let main = Filename.concat dir "main.ls" in
+               let common = Filename.concat dir "common.forge" in
+               let left = Filename.concat dir "left.forge" in
+               let right = Filename.concat dir "right.forge" in
+               let main = Filename.concat dir "main.forge" in
                let exe = Filename.concat dir "out" in
                write_file common
                  {|
@@ -147,22 +147,22 @@ end
 |};
                write_file left
                  {|
-import "common.ls"
+import "common.forge"
 mod Left where
   let x = Common.v
 end
 |};
                write_file right
                  {|
-import "common.ls"
+import "common.forge"
 mod Right where
   let y = Common.v + 1
 end
 |};
                write_file main
                  {|
-import "left.ls"
-import "right.ls"
+import "left.forge"
+import "right.forge"
 let () = print_string (int_to_str Left.x)
 let () = print_string (int_to_str Right.y)
 |};
@@ -170,23 +170,23 @@ let () = print_string (int_to_str Right.y)
                assert_equal ~printer:Fun.id "41\n42\n" out) );
          ( "import_cycle_reports_error" >:: fun _ ->
            with_tmpdir (fun dir ->
-               let a = Filename.concat dir "a.ls" in
-               let b = Filename.concat dir "b.ls" in
-               let main = Filename.concat dir "main.ls" in
-               write_file a {|import "b.ls"|};
-               write_file b {|import "a.ls"|};
-               write_file main {|import "a.ls"|};
+               let a = Filename.concat dir "a.forge" in
+               let b = Filename.concat dir "b.forge" in
+               let main = Filename.concat dir "main.forge" in
+               write_file a {|import "b.forge"|};
+               write_file b {|import "a.forge"|};
+               write_file main {|import "a.forge"|};
                compile_expect_error ~src:main ~contains:"import cycle detected")
            );
          ( "missing_import_reports_error" >:: fun _ ->
            with_tmpdir (fun dir ->
-               let main = Filename.concat dir "main.ls" in
-               write_file main {|import "does_not_exist.ls"|};
+               let main = Filename.concat dir "main.forge" in
+               write_file main {|import "does_not_exist.forge"|};
                compile_expect_error ~src:main ~contains:"import not found") );
          ( "import_with_modules_traits_and_impls" >:: fun _ ->
            with_tmpdir (fun dir ->
-               let lib = Filename.concat dir "render.ls" in
-               let main = Filename.concat dir "main.ls" in
+               let lib = Filename.concat dir "render.forge" in
+               let main = Filename.concat dir "main.forge" in
                let exe = Filename.concat dir "out" in
                write_file lib
                  {|
@@ -204,15 +204,15 @@ end
 |};
                write_file main
                  {|
-import "render.ls"
+import "render.forge"
 let () = print_string (M.out 42)
 |};
                let out = compile_and_run main exe in
                assert_equal ~printer:Fun.id "42\n" out) );
          ( "relative_parent_path_import_works" >:: fun _ ->
            with_tmpdir (fun dir ->
-               let lib = Filename.concat dir "pkg/lib.ls" in
-               let main = Filename.concat dir "pkg/sub/main.ls" in
+               let lib = Filename.concat dir "pkg/lib.forge" in
+               let main = Filename.concat dir "pkg/sub/main.forge" in
                let exe = Filename.concat dir "out" in
                write_file lib
                  {|
@@ -222,7 +222,7 @@ end
 |};
                write_file main
                  {|
-import "../lib.ls"
+import "../lib.forge"
 let () = print_string (int_to_str L.x)
 |};
                let out = compile_and_run main exe in

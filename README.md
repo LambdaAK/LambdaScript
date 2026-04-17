@@ -9,20 +9,51 @@ The reference implementation in this repository is written in **OCaml** and incl
 
 An experimental TypeScript implementation is maintained in a separate repository.
 
+## Docker (quick start)
+
+Run Forge without a local OCaml/opam/clang toolchain.
+
+**Build** the image from the repository root:
+
+```bash
+docker build -t forge:local .
+```
+
+**Rebuild** after changing sources (same command). For a clean rebuild that ignores the layer cache:
+
+```bash
+docker build --no-cache -t forge:local .
+```
+
+**Run** a program that was copied into the image at build time (`programs/` is available as `/opt/forge/programs/`):
+
+```bash
+docker run --rm forge:local run /opt/forge/programs/<file>.forge
+```
+
+**Run your working tree** (no rebuild needed; mount the repo and use `/work`):
+
+```bash
+docker run --rm -v "$PWD":/work -w /work forge:local run /work/programs/<file>.forge
+```
+
+Other entrypoints: `docker run --rm forge:local help`, `docker run --rm -it forge:local repl`, and compile/run native binaries as described under [Installation](#installation) (subsection **Docker Quick Start**).
+
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Standard prelude](#standard-prelude)
-3. [Language Features](#language-features)
-4. [Examples](#examples)
-5. [Installation](#installation)
-6. [Usage](#usage)
-7. [Native compilation](#native-compilation)
-8. [Editor support: LSP hover](#editor-support-lsp-hover)
-9. [Testing](#testing)
-10. [Language Semantics](#language-semantics)
-11. [Documentation](#documentation)
-12. [Project Structure](#project-structure)
+1. [Docker (quick start)](#docker-quick-start)
+2. [Overview](#overview)
+3. [Standard prelude](#standard-prelude)
+4. [Language Features](#language-features)
+5. [Examples](#examples)
+6. [Installation](#installation)
+7. [Usage](#usage)
+8. [Native compilation](#native-compilation)
+9. [Editor support: LSP hover](#editor-support-lsp-hover)
+10. [Testing](#testing)
+11. [Language Semantics](#language-semantics)
+12. [Documentation](#documentation)
+13. [Project Structure](#project-structure)
 
 ## Overview
 
@@ -42,12 +73,12 @@ Forge is a **statically-typed functional programming language** inspired by OCam
 
 ## Standard prelude
 
-By default, user programs are combined with [`prelude/prelude.ls`](prelude/prelude.ls) (some tools, such as `forge_hover`, can opt out of prepending for a raw buffer):
+By default, user programs are combined with [`prelude/prelude.forge`](prelude/prelude.forge) (some tools, such as `forge_hover`, can opt out of prepending for a raw buffer):
 
-- **Interpreter and `compile_forge`**: the prelude source is **prepended** to your file (skipping self-prepend when you are editing the prelude itself). Resolution searches `prelude/prelude.ls` from the current directory, the executable’s directory, and a few parent layouts—see [`src/prelude.ml`](src/prelude.ml).
+- **Interpreter and `compile_forge`**: the prelude source is **prepended** to your file (skipping self-prepend when you are editing the prelude itself). Resolution searches `prelude/prelude.forge` from the current directory, the executable’s directory, and a few parent layouts—see [`src/prelude.ml`](src/prelude.ml).
 - **REPL**: the prelude is **loaded once** at startup into the environment (not re-prepended per line).
 
-The prelude defines the canonical `List`/`Option` types, standard traits (Functor, Applicative, Monad, Foldable, …), and default `Show` / `Eq` / `Ord` instances for built-in types. You can still define your own traits using either `trait … where` (prelude style) or `inter …` (see [`programs/haskell_style_typeclasses.ls`](programs/haskell_style_typeclasses.ls)).
+The prelude defines the canonical `List`/`Option` types, standard traits (Functor, Applicative, Monad, Foldable, …), and default `Show` / `Eq` / `Ord` instances for built-in types. You can still define your own traits using either `trait … where` (prelude style) or `inter …` (see [`programs/haskell_style_typeclasses.forge`](programs/haskell_style_typeclasses.forge)).
 
 ## Language Features
 
@@ -78,7 +109,7 @@ A **trait declaration** introduces a class name, optional type parameters, optio
 - **`requires`** lists traits that must already be implemented for the same type parameters (e.g. `trait Monoid<a> requires Semigroup<a> where …`). That corresponds to a superclass constraint in Haskell-style typeclasses.
 - Inside **`where … end`**, each method is introduced with **`val`** and its type (`val show : a -> String`). You can add default implementations with **`let`** in the trait body so instances may omit them unless they override.
 
-The keyword **`inter`** is an alternative, brace-oriented spelling for the same concept (see [`programs/haskell_style_typeclasses.ls`](programs/haskell_style_typeclasses.ls) and the small [`programs/typeclass_show.ls`](programs/typeclass_show.ls)). Prefer **`trait … where … end`** in new code if you want to match the prelude style.
+The keyword **`inter`** is an alternative, brace-oriented spelling for the same concept (see [`programs/haskell_style_typeclasses.forge`](programs/haskell_style_typeclasses.forge) and the small [`programs/typeclass_show.forge`](programs/typeclass_show.forge)). Prefer **`trait … where … end`** in new code if you want to match the prelude style.
 
 **Source order:** every trait must be **declared above** any `impl` that uses it in the same compilation unit. The parser/condenser resolves `impl` against traits seen earlier in the file (and, for the REPL, against traits from the prelude that were loaded at startup).
 
@@ -90,7 +121,7 @@ An **instance** is written **`impl Trait for Type where … end`**:
 - Inside **`where … end`**, you supply a **`let`** binding for each **`val`** required by the trait (unless the trait gave a default `let` you are happy to inherit). Operator methods use the same syntax as ordinary functions: `let (++) x y = …`.
 - Instances may be **parameterized**: for example, `impl Semigroup for List<a>` in the prelude implements the trait for all element types `a` at once.
 
-Illustrative fragments (same ideas as [`prelude/prelude.ls`](prelude/prelude.ls)):
+Illustrative fragments (same ideas as [`prelude/prelude.forge`](prelude/prelude.forge)):
 
 ```text
 trait Semigroup<a> where
@@ -114,9 +145,9 @@ end
 
 #### Further reading and limitations
 
-- **Prelude**: [`prelude/prelude.ls`](prelude/prelude.ls) is the canonical reference for trait definitions and instances.
-- **Smaller demos**: [`programs/typeclass_show.ls`](programs/typeclass_show.ls), [`programs/functor_list.ls`](programs/functor_list.ls).
-- **Native vs interpreter**: some typeclass-heavy programs are still smoother in the interpreter or REPL than in the native compiler; see comments in [`programs/haskell_style_typeclasses.ls`](programs/haskell_style_typeclasses.ls) and [`programs/typeclass_functor_native_list.ls`](programs/typeclass_functor_native_list.ls).
+- **Prelude**: [`prelude/prelude.forge`](prelude/prelude.forge) is the canonical reference for trait definitions and instances.
+- **Smaller demos**: [`programs/typeclass_show.forge`](programs/typeclass_show.forge), [`programs/functor_list.forge`](programs/functor_list.forge).
+- **Native vs interpreter**: some typeclass-heavy programs are still smoother in the interpreter or REPL than in the native compiler; see comments in [`programs/haskell_style_typeclasses.forge`](programs/haskell_style_typeclasses.forge) and [`programs/typeclass_functor_native_list.forge`](programs/typeclass_functor_native_list.forge).
 
 ### Macros (`macro_rules!`)
 
@@ -289,11 +320,11 @@ Supports comprehensive pattern matching including:
 
 ## Examples
 
-The snippets below are illustrative; runnable examples live under [`programs/`](programs/), e.g. [`programs/minimal.ls`](programs/minimal.ls), [`programs/builtins_test.ls`](programs/builtins_test.ls), [`programs/record_update.ls`](programs/record_update.ls), [`programs/red_black_tree_example.ls`](programs/red_black_tree_example.ls), and the typeclass demos linked in [Typeclasses (traits)](#typeclasses-traits).
+The snippets below are illustrative; runnable examples live under [`programs/`](programs/), e.g. [`programs/minimal.forge`](programs/minimal.forge), [`programs/builtins_test.forge`](programs/builtins_test.forge), [`programs/record_update.forge`](programs/record_update.forge), [`programs/red_black_tree_example.forge`](programs/red_black_tree_example.forge), and the typeclass demos linked in [Typeclasses (traits)](#typeclasses-traits).
 
 Additional macro-focused examples:
 
-- [`programs/test.ls`](programs/test.ls)
+- [`programs/test.forge`](programs/test.forge)
 - [`test/macro_system_tests.ml`](test/macro_system_tests.ml) (language-level macro coverage)
 
 ### Basic Types and Expressions
@@ -703,6 +734,52 @@ let poly_id = fn (x: a) -> x
 
 ## Installation
 
+### Docker Quick Start (no local toolchain)
+
+If you want to try Forge without installing `opam`, `ocaml`, or `clang` locally, use Docker.
+
+Build the image from this repository:
+
+```bash
+docker build -t forge:local .
+```
+
+Run the bundled minimal program:
+
+```bash
+docker run --rm forge:local run /opt/forge/programs/minimal.forge
+```
+
+Expected output:
+
+```text
+3
+```
+
+Start a REPL:
+
+```bash
+docker run --rm -it forge:local repl
+```
+
+Run a local source file (from your current host directory):
+
+```bash
+docker run --rm -it -v "$PWD":/work -w /work forge:local run /work/hello.forge
+```
+
+Native compile a local file:
+
+```bash
+docker run --rm -it -v "$PWD":/work -w /work forge:local compile /work/hello.forge
+docker run --rm -v "$PWD":/work -w /work forge:local /work/a.out
+```
+
+`forge compile` in the container always writes the executable to `/work/a.out`
+(on your host this is `./a.out` in the mounted directory).
+
+If you publish this image (for example `ghcr.io/<owner>/forge:latest`), replace `forge:local` with that image tag in the commands above.
+
 ### Quick Start (10 minutes)
 
 #### 1) Install toolchain
@@ -797,14 +874,14 @@ The compiler parses and typechecks a Forge source file, lowers it to **Min IR** 
 From the repository root:
 
 ```bash
-make compile-ls FILE=programs/minimal.forge
+make compile-forge FILE=programs/minimal.forge
 ./a.out
 ```
 
 Optional output name:
 
 ```bash
-make compile-ls FILE=programs/minimal.forge OUT=./my_program
+make compile-forge FILE=programs/minimal.forge OUT=./my_program
 ./my_program
 ```
 

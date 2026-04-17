@@ -173,7 +173,7 @@ connection.onHover(async (params): Promise<Hover | null> => {
     }
 
     const fsPath = uriToFsPath(params.textDocument.uri);
-    const srcPathForTool = fsPath ?? "untitled.ls";
+    const srcPathForTool = fsPath ?? "untitled.forge";
 
     const hoverInfo = await runForgeHover(
       exe,

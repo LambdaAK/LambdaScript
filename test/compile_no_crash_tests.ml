@@ -29,7 +29,7 @@ let with_tmpdir f =
 
 let repo_root_for_paths () : string =
   let has_prelude dir =
-    Sys.file_exists (Filename.concat dir "prelude/prelude.ls")
+    Sys.file_exists (Filename.concat dir "prelude/prelude.forge")
   in
   let rec search_up dir =
     if has_prelude dir then Some dir
@@ -45,7 +45,7 @@ let repo_root_for_paths () : string =
       | None -> Sys.getcwd ())
 
 let programs_test_path () : string =
-  Filename.concat (repo_root_for_paths ()) "programs/test.ls"
+  Filename.concat (repo_root_for_paths ()) "programs/test.forge"
 
 let interpreter_exe_path () : string =
   let root = repo_root_for_paths () in
