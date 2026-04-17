@@ -34,12 +34,10 @@
         "id": "forge",
         "aliases": [
           "Forge",
-          "LambdaScript",
           "ls"
         ],
         "extensions": [
-          ".ls",
-          ".lambdascript"
+          ".ls"
         ],
         "configuration": "./language-configuration.json"
       }

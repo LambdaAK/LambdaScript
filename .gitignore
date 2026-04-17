@@ -45,3 +45,14 @@ paper/*.lot
 paper/*.fls
 paper/*.fdb_latexmk
 paper/*.synctex.gz
+
+documentation/*.aux
+documentation/*.log
+documentation/*.toc
+documentation/*.out
+documentation/*.lof
+documentation/*.lot
+documentation/*.fls
+documentation/*.fdb_latexmk
+documentation/*.synctex.gz
+documentation/*.pdf

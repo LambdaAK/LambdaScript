@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rewrite LambdaScript type syntax inside test/test.ml string literals only."""
+"""Rewrite Forge type syntax inside test/test.ml string literals only."""
 
 import re
 import sys

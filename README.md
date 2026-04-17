@@ -1,13 +1,13 @@
-# Forge (LambdaScript)
+# Forge
 
-**Forge** is the language; this git repository is named **LambdaScript**. It is a statically typed functional language with type inference, polymorphism, pattern matching, and (via the standard prelude) traits/typeclasses.
+**Forge** is a statically typed functional language with type inference, polymorphism, pattern matching, and (via the standard prelude) traits/typeclasses.
 
 The reference implementation in this repository is written in **OCaml** and includes both:
 
 - an **interpreter** (evaluate programs directly), and  
 - an **ahead-of-time compiler** that lowers programs to **Min IR**, then **LLVM IR**, then **assembly**, and links a **native executable** with Clang using a small C runtime (`runtime/ls_runtime.c`).
 
-An experimental TypeScript implementation also exists in a separate repository: [LambdaScript-2](https://github.com/LambdaAK/LambdaScript-2).
+An experimental TypeScript implementation is maintained in a separate repository by the same authors.
 
 ## Table of Contents
 
@@ -814,7 +814,7 @@ Equivalent direct invocation:
 dune exec ./bin/compile_forge.exe programs/minimal.forge ./my_program
 ```
 
-**Finding the runtime:** compilation searches upward from the current directory for `runtime/ls_runtime.c`. If you run the compiler from elsewhere, set `FORGE_ROOT` to the checkout path (the legacy variable `LAMBDASCRIPT_ROOT` is still accepted).
+**Finding the runtime:** compilation searches upward from the current directory for `runtime/ls_runtime.c`. If you run the compiler from elsewhere, set `FORGE_ROOT` to the checkout path.
 
 **Inspecting IR without linking:**
 
@@ -875,7 +875,7 @@ This will generate a coverage report showing which parts of the codebase are tes
 
 ## Language Semantics
 
-The formal semantics live in LaTeX as [`documentation/LambdaScript.tex`](documentation/LambdaScript.tex). Build a PDF locally with `pdflatex` (or your usual LaTeX workflow) if you want a printable copy.
+The formal semantics live in LaTeX as [`documentation/Forge.tex`](documentation/Forge.tex). Build a PDF locally with `pdflatex documentation/Forge.tex` (or your usual LaTeX workflow) if you want a printable copy.
 
 **Note**: The formal write-up may lag recent surface syntax (traits, prelude, macro system, compiler details).
 
@@ -944,6 +944,6 @@ Forge/                # repository root (language: Forge)
 ├── runtime/          # ls_runtime.c (linked into native executables)
 ├── test/             # test.ml, compiler_tests, hover_ident_tests, compiler_cases/
 ├── programs/         # example .forge programs
-├── documentation/    # LambdaScript.tex (formal semantics)
+├── documentation/    # Forge.tex (formal semantics)
 └── website/          # React + TypeScript + Vite website/docs app
 ```
