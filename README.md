@@ -7,7 +7,7 @@ The reference implementation in this repository is written in **OCaml** and incl
 - an **interpreter** (evaluate programs directly), and  
 - an **ahead-of-time compiler** that lowers programs to **Min IR**, then **LLVM IR**, then **assembly**, and links a **native executable** with Clang using a small C runtime (`runtime/ls_runtime.c`).
 
-An experimental TypeScript implementation is maintained in a separate repository by the same authors.
+An experimental TypeScript implementation is maintained in a separate repository.
 
 ## Table of Contents
 
