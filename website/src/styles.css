@@ -82,6 +82,16 @@ a {
   color: var(--text);
 }
 
+.brand-logo {
+  width: 28px;
+  height: 28px;
+  display: block;
+  flex-shrink: 0;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
 .brand-mark {
   width: 28px;
   height: 28px;

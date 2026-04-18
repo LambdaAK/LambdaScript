@@ -1,5 +1,6 @@
 import { type PropsWithChildren } from 'react';
 import { Link, NavLink } from 'react-router-dom';
+import forgeLogo from '../../Forge.png';
 
 function SiteLayout({ children }: PropsWithChildren) {
   return (
@@ -7,9 +8,14 @@ function SiteLayout({ children }: PropsWithChildren) {
       <header className="site-header">
         <div className="container site-header-inner">
           <NavLink className="brand" to="/">
-            <span className="brand-mark" aria-hidden>
-              F
-            </span>
+            <img
+              src={forgeLogo}
+              alt=""
+              width={28}
+              height={28}
+              className="brand-logo"
+              decoding="async"
+            />
             <span className="brand-name">Forge</span>
           </NavLink>
           <nav className="top-nav" aria-label="Primary">
