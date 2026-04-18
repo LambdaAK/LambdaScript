@@ -35,6 +35,16 @@ function DocsOverviewPage() {
           </tr>
           <tr>
             <td>
+              <Link to="/docs/vscode-extension/">VS Code extension</Link>
+            </td>
+            <td>
+              Build <code className="inline-code">vscode-forge</code>, run from an
+              Extension Development Host (F5), optional VSIX install, and wire up{' '}
+              <code className="inline-code">forge_hover</code> for type-on-hover.
+            </td>
+          </tr>
+          <tr>
+            <td>
               <Link to="/docs/language-features/">Language Features</Link>
             </td>
             <td>Types, pattern matching, traits/typeclasses, and Rust-style macros.</td>

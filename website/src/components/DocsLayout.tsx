@@ -16,6 +16,9 @@ function DocsLayout({ children }: PropsWithChildren) {
         <NavLink to="/docs/quickstart/" className={navClass}>
           Quickstart
         </NavLink>
+        <NavLink to="/docs/vscode-extension/" className={navClass}>
+          VS Code extension
+        </NavLink>
         <NavLink to="/docs/language-features/" className={navClass}>
           Language Features
         </NavLink>

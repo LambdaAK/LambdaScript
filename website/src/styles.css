@@ -420,6 +420,10 @@ a {
   margin-top: 1rem;
 }
 
+.vscode-ext-footer {
+  margin-top: 1.25rem;
+}
+
 .home-docker-body .code-block {
   margin-top: 0.45rem;
 }
