@@ -1,1 +1,21 @@
-let () = println "3"
+type rec List<a> =
+  | Nil
+  | Cons of (a, List<a>)
+
+let rec length lst =
+  case lst do
+  | Nil -> 0
+  | Cons (_, t) -> 1 + length t
+
+
+trait Functor<f> where
+  val fmap : (a -> b) -> f<a> -> f<b>
+end
+
+impl Functor for List where
+  fmap f lst =
+    case lst do
+    | Nil -> Nil
+    | Cons (h, t) -> Cons (f h, fmap f t)
+end
+

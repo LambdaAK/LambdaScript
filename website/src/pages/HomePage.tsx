@@ -269,17 +269,9 @@ function HomePage() {
 
             <p className="home-docker-footer">
               More detail lives in the{' '}
-              <Link to="/docs/quickstart/">documentation quickstart</Link> and the{' '}
-              <a
-                href="https://github.com/LambdaAK/Forge/blob/main/README.md"
-                target="_blank"
-                rel="noreferrer"
-                className="home-docker-link"
-              >
-                README on GitHub
-              </a>
-              . To hack on the OCaml compiler itself, you will still want a local
-              opam/Dune setup—see that README.
+              <Link to="/docs/quickstart/">documentation quickstart</Link>. To hack
+              on the OCaml compiler itself, you will still want a local opam/Dune
+              setup—see that README.
             </p>
           </div>
         </div>
