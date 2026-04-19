@@ -2159,7 +2159,16 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
 
       (* Create a fresh type variable for the recursive binding *)
       let rec_type = fresh_type_var () in
-      let rec_env = (fst (List.hd pattern_env), Mono rec_type) :: env in
+      let rec_name_opt =
+        match pat with
+        | CIdPat id -> Some id
+        | _ -> None
+      in
+      let rec_env =
+        match rec_name_opt with
+        | Some id -> (id, Mono rec_type) :: env
+        | None -> env
+      in
 
       (* Generate type and equations for the body with the recursive binding *)
       let- body_type, body_equations, _ = generate rec_env type_env body in
@@ -2170,7 +2179,11 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       in
 
       (* Add constraint that the recursive type must match the body type *)
-      let rec_constraint = (rec_type, body_type) in
+      let rec_constraints =
+        match rec_name_opt with
+        | Some _ -> [ (rec_type, body_type) ]
+        | None -> []
+      in
 
       (* Constraint: pattern type must match body type *)
       let pattern_body_constraint = (pattern_type, body_type) in
@@ -2209,7 +2222,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       let all_equations =
         body_equations @ pattern_equations @ annotation_equations
         @ return_type_equations @ class_link_equations
-        @ [ rec_constraint; pattern_body_constraint ]
+        @ rec_constraints @ [ pattern_body_constraint ]
       in
 
       (* Generalize the body type *)
@@ -3111,6 +3124,12 @@ let rec elaborate_expr ?(rewrite_constrained_calls = false)
                     let try_arg_at i =
                       match arg_at_index i all_args with
                       | None -> None
+                      | Some (EId (id, _)) when List.mem id shadowed ->
+                          (* [id] is locally shadowed in this expression.
+                             Avoid resolving it through the outer static env,
+                             which can incorrectly pick a top-level binding
+                             with the same name (e.g. local [x] vs global [x]). *)
+                          None
                       | Some tau_e -> (
                           match type_of_c_expr static_env type_env tau_e with
                           | Ok arg_ct -> (

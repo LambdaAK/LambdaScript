@@ -351,6 +351,43 @@ let bug7_short_circuit =
   ]
 
 (* -------------------------------------------------------------------------- *)
+(* Bug 8: top-level let rec with non-binding patterns must not crash          *)
+(*                                                                             *)
+(* Fix: CDefnRec typing no longer calls List.hd on an empty pattern env.      *)
+(* -------------------------------------------------------------------------- *)
+
+let generate_single_defn_result (program_src : string) =
+  let tokens = lex_tokens program_src in
+  let defns =
+    match program_parser tokens with
+    | None -> failwith "program parse failed"
+    | Some (d, _) -> d
+  in
+  let c_defns = condense_program defns in
+  match c_defns with
+  | [ d ] -> TC.generate_defn (build_full_static_env ()) [] d
+  | _ -> failwith "expected exactly one definition"
+
+let bug8_top_level_let_rec_pattern_no_crash =
+  "bug8_top_level_let_rec_pattern_no_crash"
+  >::: [
+    ( "let rec () = 1 returns a type error instead of raising" >:: fun _ ->
+      let result =
+        try
+          match generate_single_defn_result "let rec () = 1" with
+          | TC.Error _ -> `TypeError
+          | TC.Ok _ -> `UnexpectedOk
+        with exn -> `Raised (Printexc.to_string exn)
+      in
+      match result with
+      | `TypeError -> ()
+      | `UnexpectedOk ->
+          assert_failure "Expected type error for let rec () = 1"
+      | `Raised e ->
+          assert_failure ("Expected type error, but raised: " ^ e) );
+  ]
+
+(* -------------------------------------------------------------------------- *)
 (* Test suite registration                                                     *)
 (* -------------------------------------------------------------------------- *)
 
@@ -364,6 +401,7 @@ let regression_bug_tests =
     bug5_lexer_enum_no_space;
     bug6_subst_capture_avoidance;
     bug7_short_circuit;
+    bug8_top_level_let_rec_pattern_no_crash;
   ]
 
 let () = run_test_tt_main regression_bug_tests

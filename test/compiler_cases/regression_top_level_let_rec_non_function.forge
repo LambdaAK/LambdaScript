@@ -1,0 +1,6 @@
+Expected:
+ok
+
+Source:
+let rec x = 1
+let () = print_string "ok"

@@ -1049,7 +1049,7 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       in
       (* Try to bind the pattern to the recursive value *)
       match bind_pat pat value_rec with
-      | None -> failwith "eval_defn: pattern match failed"
+      | None -> Error (OtherError "eval_defn: pattern match failed")
       | Some new_bindings ->
           (* If it's a recursive function, backpatch the environment *)
           (match value_rec with

@@ -4047,9 +4047,11 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           let param_pats, anns, inner = peel_efun [] [] e1 in
           match param_pats with
           | [] ->
-              unsupported
-                "let rec on non-function values is not supported for native \
-                 compilation"
+              (* Interpreter semantics for non-function [let rec] are the same
+                 as plain [let]: evaluate rhs in the current environment and
+                 bind the pattern in [e2]. *)
+              lower_expr (EBind (CIdPat name, None, e1, e2, None)) env ctx
+                static_env type_env shadows
           | _ :: _ ->
               let static_here = (name, fn_ct) :: se in
               let emit = mangle_nested_emit name in
@@ -4094,9 +4096,12 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               ctx.nested_funcs <- ctx.nested_funcs @ nested @ [ fn ];
               lower_expr e2 outer_env ctx static_here type_env
                 (shadow_add_pat (CIdPat name) shadows)))
-  | EBindRec _ ->
-      unsupported
-        "let rec: only simple identifier patterns supported for compilation"
+  | EBindRec (pat, _ta, e1, e2, _rt) ->
+      (* Non-identifier [let rec] patterns have no usable self-binding name for
+         native recursion; match interpreter behaviour by lowering as plain
+         [let]. *)
+      lower_expr (EBind (pat, None, e1, e2, None)) env ctx static_env type_env
+        shadows
   | EFunction _ as lam -> (
       let param_pats, anns, inner_most = peel_efun [] [] lam in
       List.iter
@@ -4908,15 +4913,16 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
         | CSumTypeRec _
         | CSumTypeRecMutRec _ )
         :: rest -> walk env rest
-      | CDefnRec (pat, _, _, body, _, _) :: rest -> (
+      | CDefnRec (pat, cs, ta, body, rt, n) :: rest -> (
           match pat with
           | CIdPat name -> (
               let param_pats, anns, inner = peel_efun [] [] body in
               match param_pats with
               | [] ->
-                  unsupported
-                    "let rec on non-function values is not supported for \
-                     native compilation"
+                  (* Non-function top-level [let rec] behaves like plain [let]
+                     in the interpreter; lower it through the non-recursive
+                     top-level path. *)
+                  walk env (CDefn (pat, cs, ta, body, rt, n) :: rest)
               | _ :: _ when is_poly_static name static_env -> walk env rest
               | _ :: _ ->
                   let stub =
@@ -4930,9 +4936,9 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                   user_funs := !user_funs @ nested @ [ fn ];
                   walk ((name, C stub) :: env) rest)
           | CUnitPat | CWildcardPat | _ ->
-              unsupported
-                "let rec only supports identifier bindings in native \
-                 compilation")
+              (* Non-identifier top-level [let rec] has no recursive name to
+                 backpatch in native lowering; compile it as plain [let]. *)
+              walk env (CDefn (pat, cs, ta, body, rt, n) :: rest))
       | CDefnMutRec defns :: rest ->
           let parsed =
             List.map

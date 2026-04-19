@@ -185,6 +185,9 @@ let compile_and_capture_stdout ?(prelude = true) (src_path : string)
 
 let parity_case_files =
   [
+    "regression_elab_scope_shadow_x.forge";
+    "regression_top_level_let_rec_non_function.forge";
+    "regression_top_level_let_rec_wildcard_non_function.forge";
     "show_linkedlist_recursive_dispatch.forge";
     "show_linkedlist_recursive_dispatch_deep.forge";
     "typeclass_recursive_method_indirect_self_call.forge";
@@ -206,7 +209,10 @@ let test_one case_name =
   Filename.remove_extension case_name >:: fun _ ->
   let case_path = Filename.concat (compiler_cases_dir ()) case_name in
   let expected_stdout, source = parse_case_file case_path in
-  let prelude = String.equal case_name "parser_expr_programs_test.forge" in
+  let prelude =
+    String.equal case_name "parser_expr_programs_test.forge"
+    || String.equal case_name "regression_elab_scope_shadow_x.forge"
+  in
   with_tmpdir @@ fun dir ->
   let src = Filename.concat dir "prog.forge" in
   let exe = Filename.concat dir "prog_out" in

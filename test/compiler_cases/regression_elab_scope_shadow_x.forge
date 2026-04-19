@@ -1,0 +1,7 @@
+Expected:
+1
+
+Source:
+let x = 1
+let helper x = print_string (show x)
+let () = helper "1"

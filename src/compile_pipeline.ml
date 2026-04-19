@@ -58,6 +58,24 @@ let rec typecheck_defns static_env type_env ctor_env defns :
             rest
       | Error e -> Error (string_of_type_check_error e))
 
+let rec typecheck_and_elaborate_defns static_env type_env ctor_env
+    (acc : Cexpr.c_defn list) (defns : Cexpr.c_defn list) :
+    (Cexpr.c_defn list * typechecked_envs, string) result =
+  match defns with
+  | [] -> Ok (List.rev acc, (static_env, type_env, ctor_env))
+  | defn :: rest -> (
+      match generate_defn static_env type_env defn with
+      | Ok (new_bindings, new_type_env, new_ctor_env) ->
+          let static_env' = new_bindings @ static_env in
+          let type_env' = new_type_env @ type_env in
+          let ctor_env' = new_ctor_env @ ctor_env in
+          let elaborated_defn =
+            Typecheck.elaborate_defn static_env' type_env' defn
+          in
+          typecheck_and_elaborate_defns static_env' type_env' ctor_env'
+            (elaborated_defn :: acc) rest
+      | Error e -> Error (string_of_type_check_error e))
+
 let compile ?(quiet = false) ?(prelude = true) (src_path : string)
     (out_path : string) : (unit, string) result =
   let file_contents = read_program_source ~prelude src_path in
@@ -104,14 +122,12 @@ let compile ?(quiet = false) ?(prelude = true) (src_path : string)
       let static_env = build_full_static_env () in
       let type_env : type_env = [] in
       let ctor_env : Typecheck.constructor_env = [] in
-      match typecheck_defns static_env type_env ctor_env condensed_program with
+      match
+        typecheck_and_elaborate_defns static_env type_env ctor_env []
+          condensed_program
+      with
       | Error _ as e -> e
-      | Ok (static_env, type_env, ctor_env) -> (
-          let condensed_program =
-            List.map
-              (Typecheck.elaborate_defn static_env type_env)
-              condensed_program
-          in
+      | Ok (condensed_program, (static_env, type_env, ctor_env)) -> (
           match
             Lower_min_ir.lower_c_program condensed_program static_env type_env
               ctor_env

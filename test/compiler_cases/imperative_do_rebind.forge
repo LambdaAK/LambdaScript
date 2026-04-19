@@ -1,0 +1,9 @@
+Expected:
+3
+
+Source:
+let () = do
+  x <- 1;
+  x <- x + 2;
+  print_string (int_to_str x)
+end

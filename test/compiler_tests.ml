@@ -121,7 +121,10 @@ let test_one case_path =
   let name = Filename.remove_extension (Filename.basename case_path) in
   name >:: fun _ ->
   let expected_stdout, program = parse_case_file case_path in
-  let prelude = String.equal name "parser_expr_programs_test" in
+  let prelude =
+    String.equal name "parser_expr_programs_test"
+    || String.equal name "regression_elab_scope_shadow_x"
+  in
   let repo_root = repo_root_for_prelude () in
   with_tmpdir @@ fun dir ->
   let src = Filename.concat dir "prog.forge" in
