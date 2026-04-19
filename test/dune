@@ -86,3 +86,9 @@
  (libraries Language ounit2 unix)
  (deps ../bin/interpreter.exe)
  (action (chdir %{workspace_root} (run %{test}))))
+
+(test
+ (name regression_bug_tests)
+ (modules regression_bug_tests)
+ (libraries Language ounit2)
+ (action (chdir %{workspace_root} (run %{test}))))
