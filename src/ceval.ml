@@ -367,7 +367,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
         | [ Expr e ] -> eval_c_expr e env
         | Expr e :: t ->
             (* if the last part is an expression, we evaluate to it *)
-            let _ = eval_c_expr e env in
+            let* _ = eval_c_expr e env in
             eval_block_parts t env
         | Defn d :: t ->
             (* when the next part is a definition, we run the definition and add
@@ -822,7 +822,7 @@ and generate_envs_from_generators generators env : env list eval_result =
             | [] -> return (List.flatten (List.rev acc))
             | value :: rest -> (
                 match bind_pat p value with
-                | None -> Error (PatternMatchError (p, value))
+                | None -> collect_envs acc rest
                 | Some bindings ->
                     let new_env = bindings @ env in
                     let* envs = generate_envs_from_generators t new_env in
@@ -855,8 +855,12 @@ and eval_bop (op : c_bop) (e1 : c_expr) (e2 : c_expr) (env : env) :
       | CPlus, IntegerValue a, IntegerValue b -> IntegerValue (a + b) |> return
       | CMinus, IntegerValue a, IntegerValue b -> IntegerValue (a - b) |> return
       | CMul, IntegerValue a, IntegerValue b -> IntegerValue (a * b) |> return
-      | CDiv, IntegerValue a, IntegerValue b -> IntegerValue (a / b) |> return
-      | CMod, IntegerValue a, IntegerValue b -> IntegerValue (a mod b) |> return
+      | CDiv, IntegerValue a, IntegerValue b ->
+          if b = 0 then Error (OtherError "division by zero")
+          else IntegerValue (a / b) |> return
+      | CMod, IntegerValue a, IntegerValue b ->
+          if b = 0 then Error (OtherError "division by zero")
+          else IntegerValue (a mod b) |> return
       | CConcat, StringValue s1, StringValue s2 ->
           StringValue (s1 ^ s2) |> return
       | CEQ, a, b -> BooleanValue (a = b) |> return

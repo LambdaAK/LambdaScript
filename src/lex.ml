@@ -397,6 +397,12 @@ let is_num_or_dot : char -> bool = function
 
 let rec lex_num (lst : char list) (acc : string) : token * char list =
   match lst with
+  | '.' :: '.' :: _ ->
+      (* stop before .. so the ... enum operator is not consumed into this token *)
+      if String.contains acc '.' then
+        ( { token_type = FloatToken (float_of_string acc); line = 0; byte_start = 0; byte_end = 0 }, lst )
+      else
+        ( { token_type = Integer (int_of_string acc); line = 0; byte_start = 0; byte_end = 0 }, lst )
   | n :: t when is_num_or_dot n ->
       let n_string : string = string_of_char n in
       lex_num t (acc ^ n_string)

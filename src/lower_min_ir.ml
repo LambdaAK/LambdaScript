@@ -3795,26 +3795,48 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
                   let o1, t1 =
                     lower_expr_val e1 env ctx static_env type_env shadows
                   in
+                  if t1 <> I1 then unsupported "&& expects bool operands";
+                  let l_rhs = fresh_lbl ctx "and_rhs" in
+                  let l_false = fresh_lbl ctx "and_false" in
+                  let l_merge = fresh_lbl ctx "and_merge" in
+                  close_block ctx (BrCond (o1, l_rhs, l_false));
+                  open_block ctx l_rhs;
                   let o2, t2 =
                     lower_expr_val e2 env ctx static_env type_env shadows
                   in
-                  if t1 <> I1 || t2 <> I1 then
-                    unsupported "&& expects bool operands";
-                  let t = fresh () in
-                  emit_instr ctx (Assign (t, IAnd (o1, o2)));
-                  LVal (Local t, I1)
+                  if t2 <> I1 then unsupported "&& expects bool operands";
+                  let l_rhs_exit = ctx.cur_label in
+                  close_block ctx (Br l_merge);
+                  open_block ctx l_false;
+                  close_block ctx (Br l_merge);
+                  open_block ctx l_merge;
+                  let res = fresh () in
+                  emit_instr ctx
+                    (Phi (res, I1, [ (l_rhs_exit, o2); (l_false, ConstI1 false) ]));
+                  LVal (Local res, I1)
               | COr ->
                   let o1, t1 =
                     lower_expr_val e1 env ctx static_env type_env shadows
                   in
+                  if t1 <> I1 then unsupported "|| expects bool operands";
+                  let l_true = fresh_lbl ctx "or_true" in
+                  let l_rhs = fresh_lbl ctx "or_rhs" in
+                  let l_merge = fresh_lbl ctx "or_merge" in
+                  close_block ctx (BrCond (o1, l_true, l_rhs));
+                  open_block ctx l_true;
+                  close_block ctx (Br l_merge);
+                  open_block ctx l_rhs;
                   let o2, t2 =
                     lower_expr_val e2 env ctx static_env type_env shadows
                   in
-                  if t1 <> I1 || t2 <> I1 then
-                    unsupported "|| expects bool operands";
-                  let t = fresh () in
-                  emit_instr ctx (Assign (t, IOr (o1, o2)));
-                  LVal (Local t, I1)
+                  if t2 <> I1 then unsupported "|| expects bool operands";
+                  let l_rhs_exit = ctx.cur_label in
+                  close_block ctx (Br l_merge);
+                  open_block ctx l_merge;
+                  let res = fresh () in
+                  emit_instr ctx
+                    (Phi (res, I1, [ (l_true, ConstI1 true); (l_rhs_exit, o2) ]));
+                  LVal (Local res, I1)
               | CConcat ->
                   let o1, t1 =
                     lower_expr_val e1 env ctx static_env type_env shadows

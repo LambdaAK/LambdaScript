@@ -613,20 +613,39 @@ and cons_from_list : c_expr list -> c_expr = function
   | e :: es -> EBop (CCons, e, cons_from_list es)
 
 (** Replace free [EId] keys in [sub] (mapping to arbitrary expressions). *)
+let rec c_pat_bound_vars : c_pat -> string list = function
+  | CIdPat x -> [ x ]
+  | CUnitPat | CWildcardPat | CNilPat | CIntPat _ | CBoolPat _
+  | CStringPat _ | CCharPat _ -> []
+  | CConsPat (a, b) -> c_pat_bound_vars a @ c_pat_bound_vars b
+  | CVectorPat ps -> List.concat_map c_pat_bound_vars ps
+  | CRecordPat fs -> List.concat_map (fun (_, p) -> c_pat_bound_vars p) fs
+  | CVariantPat (_, None) -> []
+  | CVariantPat (_, Some p) -> c_pat_bound_vars p
+
 let rec subst_c_expr (sub : (string * c_expr) list) (e : c_expr) : c_expr =
   let s = subst_c_expr sub in
+  let remove_captured p =
+    let bound = c_pat_bound_vars p in
+    List.filter (fun (k, _) -> not (List.mem k bound)) sub
+  in
   match e with
   | EId (x, _) -> (
       match List.assoc_opt x sub with
       | Some e' -> e'
       | None -> e)
   | EApp (a, b) -> EApp (s a, s b)
-  | EFunction (p, t, b) -> EFunction (p, t, s b)
-  | EBind (p, t, e1, e2, r) -> EBind (p, t, s e1, s e2, r)
-  | EBindRec (p, t, e1, e2, r) -> EBindRec (p, t, s e1, s e2, r)
+  | EFunction (p, t, b) -> EFunction (p, t, subst_c_expr (remove_captured p) b)
+  | EBind (p, t, e1, e2, r) -> EBind (p, t, s e1, subst_c_expr (remove_captured p) e2, r)
+  | EBindRec (p, t, e1, e2, r) ->
+      let sub' = remove_captured p in
+      EBindRec (p, t, subst_c_expr sub' e1, subst_c_expr sub' e2, r)
   | EBindMutRec (bs, body) ->
+      let all_bound = List.concat_map (fun (p, _, _, _, _) -> c_pat_bound_vars p) bs in
+      let sub' = List.filter (fun (k, _) -> not (List.mem k all_bound)) sub in
       EBindMutRec
-        (List.map (fun (p, t, e1, r, n) -> (p, t, s e1, r, n)) bs, s body)
+        (List.map (fun (p, t, e1, r, n) -> (p, t, subst_c_expr sub' e1, r, n)) bs,
+         subst_c_expr sub' body)
   | EBlock parts ->
       EBlock
         (List.map
@@ -636,7 +655,7 @@ let rec subst_c_expr (sub : (string * c_expr) list) (e : c_expr) : c_expr =
            parts)
   | ETernary (a, b, c) -> ETernary (s a, s b, s c)
   | ESwitch (scr, brs) ->
-      ESwitch (s scr, List.map (fun (p, e') -> (p, s e')) brs)
+      ESwitch (s scr, List.map (fun (p, e') -> (p, subst_c_expr (remove_captured p) e')) brs)
   | EBop (op, a, b) -> EBop (op, s a, s b)
   | EVector es -> EVector (List.map s es)
   | EListComprehension (e, gens) ->

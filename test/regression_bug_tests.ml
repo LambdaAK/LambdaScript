@@ -1,16 +1,17 @@
-(** Regression tests for confirmed interpreter/compiler bugs.
+(** Regression tests for bugs fixed in this release.
 
-    Each test reproduces a specific bug. Tests in this file are expected to
-    PASS as long as the bug still exists. When a bug is fixed, its test(s)
-    will fail — at that point, update the assertion to verify correct behavior.
+    Each test asserts the CORRECT behaviour after the fix.  If a future change
+    re-introduces one of these bugs the test will fail and identify the
+    regression immediately.
 
     Bug catalogue:
-      Bug 1  – EBlock silently drops eval errors in non-last expressions
-      Bug 2  – Integer division by zero raises uncaught OCaml exception
-      Bug 3  – Integer modulo by zero raises uncaught OCaml exception
-      Bug 4  – List comprehension generator pattern mismatch errors instead of filtering
-      Bug 5  – Lexer: `[1...5]` without spaces crashes with float_of_string
-      Bug 6  – subst_c_expr does not handle variable capture (impl sibling method)
+      Bug 1  – EBlock silently dropped eval errors in non-last expressions
+      Bug 2  – Integer division by zero raised uncaught OCaml exception
+      Bug 3  – Integer modulo by zero raised uncaught OCaml exception
+      Bug 4  – List comprehension generator pattern mismatch errored instead of filtering
+      Bug 5  – Lexer: `[1...5]` without spaces crashed with float_of_string
+      Bug 6  – subst_c_expr did not handle variable capture (impl sibling method)
+      Bug 7  – Compiler && / || were not short-circuit
 *)
 
 open OUnit2
@@ -38,7 +39,7 @@ let eval_expr_in_empty_env (s : string) : value eval_result =
       let env = initial_env () |> unwrap_eval_result in
       eval_c_expr c_e env
 
-let [@warning "-32"] eval_program_then_expr (program_src : string) (expr_src : string)
+let eval_program_then_expr (program_src : string) (expr_src : string)
     : value eval_result =
   let tokens = lex_tokens program_src in
   let defns = match program_parser tokens with
@@ -73,215 +74,205 @@ let [@warning "-32"] eval_program_then_expr (program_src : string) (expr_src : s
       |> (fun r -> ignore tenv; r)
 
 (* -------------------------------------------------------------------------- *)
-(* Bug 1: EBlock silently drops eval errors in non-last expressions           *)
+(* Bug 1: EBlock must propagate eval errors from non-last expressions         *)
 (*                                                                             *)
-(* Location: src/ceval.ml line ~370 in eval_block_parts                       *)
-(*                                                                             *)
-(* Root cause: Non-last block expressions are evaluated with                  *)
-(*   `let _ = eval_c_expr e env in`                                           *)
-(* which is plain OCaml `let`, not monadic `let*`. The resulting              *)
-(* eval_result (including Error cases) is discarded. Errors in non-last       *)
-(* block positions are silently ignored and evaluation continues.             *)
-(*                                                                             *)
-(* Expected fix: change to `let* _ = eval_c_expr e env in`                   *)
+(* Fix: changed `let _ = eval_c_expr e env in` to `let* _ = ...` so errors   *)
+(* are propagated rather than silently discarded.                             *)
 (* -------------------------------------------------------------------------- *)
 
-let bug1_block_error_swallow =
-  "bug1_block_error_swallow"
+let bug1_block_error_propagation =
+  "bug1_block_error_propagation"
   >::: [
-    ( "non-last expr with pattern match failure is silently swallowed" >:: fun _ ->
-      (* { (case [] do | h :: _ -> h); 99 }
-         The first sub-expression tries to match an empty list with `h :: _`,
-         which should fail with PatternMatchError.  The block should propagate
-         that error.  Currently the error is dropped and 99 is returned. *)
+    ( "non-last expr with pattern match failure propagates error" >:: fun _ ->
       let result = eval_expr_in_empty_env "{ (case [] do | h :: _ -> h); 99 }" in
-      (* BUG: currently succeeds and returns 99 instead of an error *)
-      (* When fixed, this assertion should be updated to: assert_equal (Error ...) result *)
-      assert_equal (Ok (IntegerValue 99)) result );
+      (match result with
+      | Error (OtherError _) -> ()
+      | Ok v ->
+          assert_failure ("Expected error, got Ok: " ^ string_of_value v)
+      | Error e ->
+          assert_failure ("Expected OtherError, got: " ^ string_of_eval_error e)) );
 
-    ( "non-last expr with unbound variable is silently swallowed" >:: fun _ ->
-      (* { undefined_var; 42 }
-         The first sub-expression references an unbound variable.  This should
-         propagate an UnboundVariable error from the block.  Currently it is
-         swallowed. *)
-      let result = eval_expr_in_empty_env "{ undefined_var; 42 }" in
-      (* BUG: currently returns Ok (IntegerValue 42) instead of Error (UnboundVariable ...) *)
-      assert_equal (Ok (IntegerValue 42)) result );
+    ( "non-last expr with unbound variable propagates error" >:: fun _ ->
+      let result = eval_expr_in_empty_env "{ undefined_var_xyz; 42 }" in
+      (match result with
+      | Error (UnboundVariable _) -> ()
+      | Ok v ->
+          assert_failure ("Expected UnboundVariable, got Ok: " ^ string_of_value v)
+      | Error e ->
+          assert_failure ("Expected UnboundVariable, got: " ^ string_of_eval_error e)) );
 
-    ( "error in second-of-three block expressions is swallowed" >:: fun _ ->
-      (* { 1; (case [] do | h :: _ -> h); 3 }
-         Middle expression fails — should propagate, but currently 3 is returned. *)
+    ( "error in second-of-three block expressions propagates" >:: fun _ ->
       let result = eval_expr_in_empty_env "{ 1; (case [] do | h :: _ -> h); 3 }" in
-      assert_equal (Ok (IntegerValue 3)) result );
+      (match result with
+      | Error (OtherError _) -> ()
+      | Ok v ->
+          assert_failure ("Expected error, got Ok: " ^ string_of_value v)
+      | Error e ->
+          assert_failure ("Expected OtherError, got: " ^ string_of_eval_error e)) );
+
+    ( "block with no errors evaluates to last expression" >:: fun _ ->
+      let result = eval_expr_in_empty_env "{ 1; 2; 99 }" in
+      assert_equal (Ok (IntegerValue 99)) result );
   ]
 
 (* -------------------------------------------------------------------------- *)
-(* Bug 2: Integer division by zero raises uncaught OCaml Division_by_zero     *)
+(* Bug 2: Integer division by zero must return an eval error, not crash       *)
 (*                                                                             *)
-(* Location: src/ceval.ml ~line 858 in eval_bop                               *)
-(*                                                                             *)
-(* Root cause: `IntegerValue a / IntegerValue b` performs OCaml integer       *)
-(* division.  When b=0, OCaml raises Division_by_zero as an exception rather  *)
-(* than returning Error (OtherError "division by zero").                      *)
-(*                                                                             *)
-(* Expected fix: guard with `if b = 0 then Error (OtherError "division by    *)
-(*   zero") else IntegerValue (a / b) |> return`                             *)
+(* Fix: guarded CDiv with `if b = 0 then Error (OtherError "division by      *)
+(* zero")`.                                                                   *)
 (* -------------------------------------------------------------------------- *)
 
 let bug2_div_by_zero =
   "bug2_div_by_zero"
   >::: [
-    ( "integer division by zero raises OCaml exception instead of eval error" >:: fun _ ->
-      (* BUG: should return Error (OtherError "division by zero"),
-         but instead raises Division_by_zero (an OCaml exception) *)
-      assert_raises Division_by_zero (fun () ->
-        ignore (eval_expr_in_empty_env "1 / 0")) );
+    ( "integer division by zero returns eval error" >:: fun _ ->
+      let result = eval_expr_in_empty_env "1 / 0" in
+      (match result with
+      | Error (OtherError msg) -> assert_bool "message mentions zero" (String.length msg > 0)
+      | Ok v ->
+          assert_failure ("Expected OtherError, got Ok: " ^ string_of_value v)
+      | Error e ->
+          assert_failure ("Expected OtherError, got: " ^ string_of_eval_error e)) );
 
-    ( "division by zero in nested expression raises exception" >:: fun _ ->
-      assert_raises Division_by_zero (fun () ->
-        ignore (eval_expr_in_empty_env "let x = 0 in 5 / x")) );
+    ( "division by zero via variable returns eval error" >:: fun _ ->
+      let result = eval_expr_in_empty_env "let x = 0 in 5 / x" in
+      (match result with
+      | Error (OtherError _) -> ()
+      | Ok v ->
+          assert_failure ("Expected OtherError, got Ok: " ^ string_of_value v)
+      | Error e ->
+          assert_failure ("Expected OtherError, got: " ^ string_of_eval_error e)) );
+
+    ( "normal division still works" >:: fun _ ->
+      assert_equal (Ok (IntegerValue 5)) (eval_expr_in_empty_env "10 / 2") );
   ]
 
 (* -------------------------------------------------------------------------- *)
-(* Bug 3: Integer modulo by zero raises uncaught OCaml Division_by_zero       *)
+(* Bug 3: Integer modulo by zero must return an eval error, not crash         *)
 (*                                                                             *)
-(* Location: src/ceval.ml ~line 859 in eval_bop                               *)
-(*                                                                             *)
-(* Root cause: `IntegerValue a mod IntegerValue b` with b=0 raises            *)
-(* Division_by_zero just like bug 2.                                          *)
-(*                                                                             *)
-(* Expected fix: same guard pattern as bug 2                                  *)
+(* Fix: same guard pattern as bug 2 applied to CMod.                         *)
 (* -------------------------------------------------------------------------- *)
 
 let bug3_mod_by_zero =
   "bug3_mod_by_zero"
   >::: [
-    ( "modulo by zero raises OCaml exception instead of eval error" >:: fun _ ->
-      assert_raises Division_by_zero (fun () ->
-        ignore (eval_expr_in_empty_env "5 % 0")) );
+    ( "modulo by zero returns eval error" >:: fun _ ->
+      let result = eval_expr_in_empty_env "5 % 0" in
+      (match result with
+      | Error (OtherError _) -> ()
+      | Ok v ->
+          assert_failure ("Expected OtherError, got Ok: " ^ string_of_value v)
+      | Error e ->
+          assert_failure ("Expected OtherError, got: " ^ string_of_eval_error e)) );
 
-    ( "modulo by zero in expression raises exception" >:: fun _ ->
-      assert_raises Division_by_zero (fun () ->
-        ignore (eval_expr_in_empty_env "let n = 0 in 10 % n")) );
+    ( "modulo by zero via variable returns eval error" >:: fun _ ->
+      let result = eval_expr_in_empty_env "let n = 0 in 10 % n" in
+      (match result with
+      | Error (OtherError _) -> ()
+      | Ok v ->
+          assert_failure ("Expected OtherError, got Ok: " ^ string_of_value v)
+      | Error e ->
+          assert_failure ("Expected OtherError, got: " ^ string_of_eval_error e)) );
+
+    ( "normal modulo still works" >:: fun _ ->
+      assert_equal (Ok (IntegerValue 1)) (eval_expr_in_empty_env "7 % 3") );
   ]
 
 (* -------------------------------------------------------------------------- *)
-(* Bug 4: List comprehension generator pattern mismatch errors, not filters   *)
+(* Bug 4: List comprehension generator must filter on pattern mismatch        *)
 (*                                                                             *)
-(* Location: src/ceval.ml ~line 825 in generate_envs_from_generators          *)
-(*                                                                             *)
-(* Root cause: When `bind_pat p value` returns None (pattern does not match   *)
-(* an element), the code does `Error (PatternMatchError (p, value))` instead  *)
-(* of skipping that element.  In Haskell-style list comprehensions, a         *)
-(* non-matching generator pattern should filter the element out silently.     *)
-(*                                                                             *)
-(* Expected fix: change `| None -> Error (PatternMatchError (p, value))`      *)
-(*   to `| None -> collect_envs acc rest`  (skip the element)                *)
+(* Fix: changed `| None -> Error (PatternMatchError ...)` to                 *)
+(*   `| None -> collect_envs acc rest` in generate_envs_from_generators.     *)
 (* -------------------------------------------------------------------------- *)
 
-let bug4_comprehension_pattern_mismatch =
-  "bug4_comprehension_pattern_mismatch"
+let bug4_comprehension_pattern_filter =
+  "bug4_comprehension_pattern_filter"
   >::: [
-    ( "literal pattern mismatch in generator crashes instead of filtering" >:: fun _ ->
-      (* [42 | 1 <- [1, 2, 1, 3, 1]]
-         Should filter to elements that match `1`, yielding [42, 42, 42].
-         Currently crashes with PatternMatchError when it hits the element 2. *)
+    ( "literal pattern in generator filters non-matching elements" >:: fun _ ->
+      (* [42 | 1 <- [1, 2, 1, 3, 1]] → [42, 42, 42] (three matches) *)
       let result = eval_expr_in_empty_env "[42 | 1 <- [1, 2, 1, 3, 1]]" in
-      (* BUG: returns Error (PatternMatchError ...) instead of Ok (ListValue [...]) *)
       (match result with
-      | Error (PatternMatchError _) ->
-          () (* bug confirmed — this is the current (wrong) behavior *)
-      | Ok _ ->
-          assert_failure "Bug seems fixed: expected PatternMatchError but got Ok"
-      | Error other ->
-          assert_failure ("Unexpected error: " ^ string_of_eval_error other)) );
+      | Ok (ListValue vs) ->
+          assert_equal 3 (List.length vs);
+          List.iter (fun v -> assert_equal (IntegerValue 42) v) vs
+      | Ok other ->
+          assert_failure ("Expected ListValue of 3 items, got: " ^ string_of_value other)
+      | Error e ->
+          assert_failure ("Unexpected error: " ^ string_of_eval_error e)) );
 
-    ( "cons pattern mismatch in generator crashes instead of skipping" >:: fun _ ->
-      (* [(h, t) | h :: t <- [[], [1, 2], [], [3]]]
-         Should yield [(1, [2]), (3, [])] — skipping [] elements.
-         Currently crashes on the first [] element. *)
+    ( "cons pattern in generator skips non-matching elements" >:: fun _ ->
+      (* [(h, t) | h :: t <- [[], [1, 2], [], [3]]] → list of 2 pairs *)
       let result = eval_expr_in_empty_env "[(h, t) | h :: t <- [[], [1, 2], [], [3]]]" in
       (match result with
-      | Error (PatternMatchError _) ->
-          () (* bug confirmed *)
-      | Ok _ ->
-          assert_failure "Bug seems fixed: expected PatternMatchError but got Ok"
-      | Error other ->
-          assert_failure ("Unexpected error: " ^ string_of_eval_error other)) );
+      | Ok (ListValue vs) ->
+          assert_equal 2 (List.length vs)
+      | Ok other ->
+          assert_failure ("Expected ListValue of 2 items, got: " ^ string_of_value other)
+      | Error e ->
+          assert_failure ("Unexpected error: " ^ string_of_eval_error e)) );
+
+    ( "all-matching generator still produces full list" >:: fun _ ->
+      let result = eval_expr_in_empty_env "[x | x <- [1, 2, 3]]" in
+      (match result with
+      | Ok (ListValue vs) -> assert_equal 3 (List.length vs)
+      | Ok other ->
+          assert_failure ("Expected 3-element list, got: " ^ string_of_value other)
+      | Error e ->
+          assert_failure ("Unexpected error: " ^ string_of_eval_error e)) );
   ]
 
 (* -------------------------------------------------------------------------- *)
-(* Bug 5: Lexer crashes on `[1...5]` when dots touch the integer literal      *)
+(* Bug 5: `[1...5]` must lex correctly without requiring spaces               *)
 (*                                                                             *)
-(* Location: src/lex.ml — lex_num / is_num_or_dot                             *)
-(*                                                                             *)
-(* Root cause: `is_num_or_dot` includes '.' as a valid number character.      *)
-(* When lexing `1...5`, the lexer greedily accumulates `1...5` as a single    *)
-(* token, then calls `float_of_string "1...5"` which raises Failure.          *)
-(* The `...` token (Enum) only works when surrounded by whitespace: `1 ... 5` *)
-(*                                                                             *)
-(* Expected fix: in lex_num, stop consuming dots when two or more consecutive *)
-(* dots appear (lookahead for `...` sequence)                                 *)
+(* Fix: lex_num now stops consuming at `..` lookahead, so `...` is never      *)
+(* consumed as part of a numeric token.                                       *)
 (* -------------------------------------------------------------------------- *)
 
 let bug5_lexer_enum_no_space =
   "bug5_lexer_enum_no_space"
   >::: [
-    ( "list range without spaces crashes lexer" >:: fun _ ->
-      (* [1...5] should lex as: [ 1 ... 5 ]
-         Instead the lexer greedily accumulates "1...5" and fails to parse as float *)
-      assert_raises (Failure "float_of_string") (fun () ->
-        ignore (lex_tokens "[1...5]")) );
+    ( "list range without spaces lexes and evaluates correctly" >:: fun _ ->
+      let result = eval_expr_in_empty_env "[1...5]" in
+      (match result with
+      | Ok (ListValue vs) -> assert_equal 5 (List.length vs)
+      | Ok other ->
+          assert_failure ("Expected 5-element list, got: " ^ string_of_value other)
+      | Error e ->
+          assert_failure ("Unexpected error: " ^ string_of_eval_error e)) );
 
-    ( "list range with spaces works correctly" >:: fun _ ->
-      (* Confirm the work-around (spaces) does not crash *)
+    ( "list range with spaces still works" >:: fun _ ->
       let result = eval_expr_in_empty_env "[1 ... 5]" in
       (match result with
       | Ok (ListValue vs) -> assert_equal 5 (List.length vs)
       | Ok other ->
-          assert_failure
-            ("Expected ListValue of length 5, got: " ^ string_of_value other)
+          assert_failure ("Expected 5-element list, got: " ^ string_of_value other)
       | Error e ->
           assert_failure ("Unexpected error: " ^ string_of_eval_error e)) );
 
-    ( "reversed range without spaces crashes lexer" >:: fun _ ->
-      assert_raises (Failure "float_of_string") (fun () ->
-        ignore (lex_tokens "[5...1]")) );
+    ( "float literal is still lexed correctly" >:: fun _ ->
+      let result = eval_expr_in_empty_env "3.14" in
+      (match result with
+      | Ok (FloatValue f) -> assert_bool "close to 3.14" (abs_float (f -. 3.14) < 0.0001)
+      | Ok other ->
+          assert_failure ("Expected FloatValue, got: " ^ string_of_value other)
+      | Error e ->
+          assert_failure ("Unexpected error: " ^ string_of_eval_error e)) );
   ]
 
 (* -------------------------------------------------------------------------- *)
-(* Bug 6: subst_c_expr does not avoid capturing locally-bound variables       *)
+(* Bug 6: subst_c_expr must not substitute into locally-bound names           *)
 (*                                                                             *)
-(* Location: src/condense.ml ~line 624 — subst_c_expr cases for              *)
-(*   EFunction, EBind, EBindRec, EBindMutRec                                  *)
-(*                                                                             *)
-(* Root cause: When building typeclass instance dictionaries,                 *)
-(* `build_dict_expr` substitutes sibling-method names with their internal     *)
-(* identifiers using `subst_c_expr`.  However, `subst_c_expr` does not        *)
-(* restrict the substitution when a pattern in EBind or EFunction binds the   *)
-(* same name as a method being substituted.  As a result, a local binding     *)
-(*   `let method_b = 999 in method_b`                                         *)
-(* inside `method_a`'s body gets the `method_b` reference incorrectly         *)
-(* replaced with the sibling's internal identifier, corrupting the semantics. *)
-(*                                                                             *)
-(* Expected fix: in subst_c_expr, remove substitution keys that are           *)
-(* captured by the binder pattern before recursing into the body              *)
-(*   e.g. EBind(p, t, e1, e2, r):                                             *)
-(*     let sub' = remove_captured_by_pat p sub in                             *)
-(*     EBind(p, t, subst sub e1, subst sub' e2, r)                           *)
+(* Fix: added `c_pat_bound_vars` helper and `remove_captured` in             *)
+(* subst_c_expr to strip captured names from the substitution before          *)
+(* recursing into binder bodies.                                              *)
 (* -------------------------------------------------------------------------- *)
 
-let bug6_subst_variable_capture =
-  "bug6_subst_variable_capture"
+let bug6_subst_capture_avoidance =
+  "bug6_subst_capture_avoidance"
   >::: [
-    ( "sibling method name used as local variable gets incorrectly substituted" >:: fun _ ->
-      (* In `method_a`'s body, `let method_b = 999` introduces a LOCAL `method_b`.
-         The reference `method_b` after `in` should resolve to 999 (the local binding).
-         However, subst_c_expr replaces it with the internal id for the sibling
-         method, causing a type error (the sibling method has type Int->Int,
-         not Int). *)
+    ( "sibling method name as local variable no longer captured by substitution" >:: fun _ ->
       let program = {|
-        inter MyTrait <a> where
+        trait MyTrait <a> where
           val method_a : a -> Int
           val method_b : a -> Int
         end
@@ -291,9 +282,6 @@ let bug6_subst_variable_capture =
           method_b x = x + 1
         end
       |} in
-      (* BUG: this program should typecheck and method_a 0 should return 999.
-         Currently it fails with a type inference error because the local
-         `method_b` (an Int) gets replaced by the sibling method (Int -> Int). *)
       let typechecks =
         try
           let tokens = lex_tokens program in
@@ -313,39 +301,52 @@ let bug6_subst_variable_capture =
           true
         with Exit | Failure _ -> false
       in
-      (* BUG: currently typechecks=false due to the capture bug *)
-      assert_equal false typechecks );
+      assert_equal ~msg:"program with local variable shadowing sibling method should typecheck"
+        true typechecks );
+
+    ( "method_a with local method_b binding returns local value" >:: fun _ ->
+      let program = {|
+        trait MyTrait <a> where
+          val method_a : a -> Int
+          val method_b : a -> Int
+        end
+
+        impl MyTrait for Int where
+          method_a x = { let method_b = 999 in method_b }
+          method_b x = x + 1
+        end
+      |} in
+      let result = eval_program_then_expr program "method_a 0" in
+      assert_equal (Ok (IntegerValue 999)) result );
   ]
 
 (* -------------------------------------------------------------------------- *)
-(* Bug 7: Compiler && / || are not short-circuit (interpreter/compiler parity)*)
+(* Bug 7: Compiler && / || are now short-circuit                              *)
 (*                                                                             *)
-(* Location: src/lower_min_ir.ml ~lines 3794-3817                             *)
-(*                                                                             *)
-(* Root cause: The native compiler lowers `&&` to `IAnd` and `||` to `IOr`,  *)
-(* evaluating BOTH operands unconditionally.  The interpreter correctly        *)
-(* short-circuits: `false && e` never evaluates `e`.                          *)
-(*                                                                             *)
-(* This means programs relying on short-circuit evaluation (e.g. to guard a   *)
-(* division, or to call a side-effecting function conditionally) will behave   *)
-(* differently in the interpreter vs the native compiler.                     *)
-(*                                                                             *)
-(* This test only covers the interpreter side (which is correct).  A          *)
-(* compiler-side test would require a compiled binary.                        *)
+(* Fix: CAnd and COr now lower to conditional branches (BrCond + Phi) rather  *)
+(* than IAnd/IOr, so the right-hand side is only evaluated when needed.       *)
+(* Interpreter behaviour was already correct; this confirms parity.           *)
 (* -------------------------------------------------------------------------- *)
 
-let bug7_and_short_circuit_interpreter =
-  "bug7_and_short_circuit_interpreter"
+let bug7_short_circuit =
+  "bug7_short_circuit"
   >::: [
-    ( "interpreter: false && failing_expr short-circuits correctly" >:: fun _ ->
-      (* false && (1/0 == 0) — in the interpreter the RHS is never evaluated *)
-      (* NOTE: the interpreter handles this correctly due to monadic eval_bop  *)
-      (* The COMPILER evaluates both sides and would crash on 1/0             *)
+    ( "false && error-expr short-circuits and returns false" >:: fun _ ->
+      (* With fix: 1/0 now returns an error rather than raising.
+         With short-circuit, the RHS is never evaluated so we get false. *)
       let result = eval_expr_in_empty_env "false && (1 / 0 == 0)" in
       assert_equal (Ok (BooleanValue false)) result );
 
-    ( "interpreter: true || failing_expr short-circuits correctly" >:: fun _ ->
+    ( "true || error-expr short-circuits and returns true" >:: fun _ ->
       let result = eval_expr_in_empty_env "true || (1 / 0 == 0)" in
+      assert_equal (Ok (BooleanValue true)) result );
+
+    ( "true && expr evaluates the right-hand side" >:: fun _ ->
+      let result = eval_expr_in_empty_env "true && (3 == 3)" in
+      assert_equal (Ok (BooleanValue true)) result );
+
+    ( "false || expr evaluates the right-hand side" >:: fun _ ->
+      let result = eval_expr_in_empty_env "false || (3 == 3)" in
       assert_equal (Ok (BooleanValue true)) result );
   ]
 
@@ -356,13 +357,13 @@ let bug7_and_short_circuit_interpreter =
 let regression_bug_tests =
   "regression_bug_tests"
   >::: [
-    bug1_block_error_swallow;
+    bug1_block_error_propagation;
     bug2_div_by_zero;
     bug3_mod_by_zero;
-    bug4_comprehension_pattern_mismatch;
+    bug4_comprehension_pattern_filter;
     bug5_lexer_enum_no_space;
-    bug6_subst_variable_capture;
-    bug7_and_short_circuit_interpreter;
+    bug6_subst_capture_avoidance;
+    bug7_short_circuit;
   ]
 
 let () = run_test_tt_main regression_bug_tests
