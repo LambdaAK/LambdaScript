@@ -347,6 +347,7 @@ let cli_rejections =
       ("cli: missing instance", "let () = println (fn x -> x)");
       ("cli: annotation mismatch", "let x : Int = \"a\"");
       ("cli: missing field", "let v = {x: 1}.y");
+      ("cli: annotation with a type variable", "let f (x : a) : String = x + 1");
     ]
 
 let suite =

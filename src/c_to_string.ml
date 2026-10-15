@@ -190,7 +190,7 @@ let string_of_c_type (ct : c_type) : string =
     empty string if None. *)
 let format_type_annotation (t_opt : c_type option) : string =
   match t_opt with
-  | Some t -> " : " ^ string_of_type t
+  | Some t -> " : " ^ string_of_c_type t
   | None -> ""
 
 let rec string_of_pat : c_pat -> string = function
@@ -306,12 +306,12 @@ and string_of_defn : c_defn -> string = function
   | CDefn (pat, _cs, t_opt, e, return_type_opt, _) ->
       let type_annot =
         match t_opt with
-        | Some t -> " : " ^ string_of_type t
+        | Some t -> " : " ^ string_of_c_type t
         | None -> ""
       in
       let return_annot =
         match return_type_opt with
-        | Some t -> " : " ^ string_of_type t
+        | Some t -> " : " ^ string_of_c_type t
         | None -> ""
       in
       "let " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = "
@@ -319,12 +319,12 @@ and string_of_defn : c_defn -> string = function
   | CDefnRec (pat, _cs, t_opt, e, return_type_opt, _) ->
       let type_annot =
         match t_opt with
-        | Some t -> " : " ^ string_of_type t
+        | Some t -> " : " ^ string_of_c_type t
         | None -> ""
       in
       let return_annot =
         match return_type_opt with
-        | Some t -> " : " ^ string_of_type t
+        | Some t -> " : " ^ string_of_c_type t
         | None -> ""
       in
       "let rec " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = "
@@ -335,7 +335,7 @@ and string_of_defn : c_defn -> string = function
           (fun (pat, _cs, t_opt, e, _, _) ->
             let type_annot =
               match t_opt with
-              | Some t -> " : " ^ string_of_type t
+              | Some t -> " : " ^ string_of_c_type t
               | None -> ""
             in
             string_of_pat pat ^ type_annot ^ " = " ^ string_of_expr e)

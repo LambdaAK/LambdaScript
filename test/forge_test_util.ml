@@ -211,6 +211,8 @@ let internal_markers =
     "Match_failure";
     "impossible";
     "internal:";
+    (* the type checker's name for a type variable written in an annotation *)
+    "$written";
   ]
 
 (** Program must fail with a non-zero exit code (not a signal, not a hang),
