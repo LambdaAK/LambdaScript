@@ -30,10 +30,6 @@ repl-with-file:
 	@if [ -z "$(FILE)" ]; then echo "Usage: make repl-with-file FILE=path  (or: make repl FILE=path)"; exit 1; fi
 	dune exec ./bin/repl.exe "$(FILE)"
 
-repl-test:
-	dune build bin/repl.exe
-	dune exec ./bin/repl.exe "./programs/test.txt"
-
 old_repl:
 	dune build bin/old_repl.exe
 	dune exec ./bin/old_repl.exe
