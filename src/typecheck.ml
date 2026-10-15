@@ -2099,36 +2099,6 @@ and mono_fun_type_of_curried_app (env : static_env) (type_env : type_env)
       in
       loop m0 [] args
 
-and mono_type_fully_concrete (m : mono_type) : bool = get_type_vars m = []
-
-(** Replace every [TypeVar] with [IntType] (deep). Used to build a native
-    monomorph key when a call spine leaves unconstrained type variables;
-    distinct logical instantiations may collapse — programs relying on that
-    distinction should use explicit type annotations. *)
-and mono_default_type_vars_to_int (m : mono_type) : mono_type =
-  let rec go = function
-    | TypeVar _ -> IntType
-    | IntType -> IntType
-    | BoolType -> BoolType
-    | StringType -> StringType
-    | UnitType -> UnitType
-    | FloatType -> FloatType
-    | CharType -> CharType
-    | TypeName _ as t -> t
-    | FunctionType (a, r) -> FunctionType (go a, go r)
-    | VectorType ts -> VectorType (List.map go ts)
-    | CListType e -> CListType (go e)
-    | CTypeApp (n, args) -> CTypeApp (n, List.map go args)
-    | TCtorApp (w, args) -> TCtorApp (w, List.map go args)
-    | FixedPoint (n, b) -> FixedPoint (n, go b)
-    | RecordType fields ->
-        RecordType (List.map (fun (nm, t) -> (nm, go t)) fields)
-  in
-  go m
-
-and mono_concrete_or_int_default (m : mono_type) : mono_type =
-  if mono_type_fully_concrete m then m else mono_default_type_vars_to_int m
-
 (* swap all variables for new variables *)
 and swap_all_variables_in_type (t : mono_type) : mono_type type_check_result =
   (* First generalize the type to quantify over all variables *)
@@ -3076,17 +3046,6 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
       in
       aux [] fields
 
-(** Inferred type of [e1] in [let rec id = e1 in ...], using [env] as the
-    surrounding static environment (for lowering after whole-program typecheck).
-*)
-let type_rec_binding_rhs (env : static_env) (type_env : type_env) (id : string)
-    (e1 : c_expr) : c_type type_check_result =
-  let function_type = fresh_type_var () in
-  let new_env = (id, Mono function_type) :: env in
-  let- t1, c1, _ = generate new_env type_env e1 in
-  let new_constraint = (function_type, t1) in
-  generalize (new_constraint :: c1) env type_env t1
-
 let rec get_mono_type (t : c_type) : mono_type =
   match t with
   | Mono t -> t
@@ -3129,50 +3088,6 @@ let rec extract_class_param_and_mono_template (class_name : string) (t : c_type)
       | Some (_c, TypeVar v), Mono mty -> Some (v, mty)
       | _ -> None)
   | _ -> None
-
-let instantiate_method_type_for_class ~(static_env : static_env)
-    ~(class_name : string) ~(method_name : string) ~(tau : mono_type)
-    ~(type_env : type_env) : mono_type option =
-  match List.assoc_opt method_name static_env with
-  | None -> None
-  | Some sch -> (
-      match extract_class_param_and_mono_template class_name sch with
-      | None -> None
-      | Some (var_id, mty) -> (
-          let arity = Type_arity.ctor_arity_for_written_var var_id mty in
-          let specialized =
-            Type_arity.substitute_instance_in_mono ~written_var:var_id ~inst:tau
-              arity mty
-          in
-          match simplify_mono_type specialized type_env with
-          | Ok t -> Some t
-          | Error _ -> Some specialized))
-
-let dict_expected_record_type ~(static_env : static_env) ~(class_name : string)
-    ~(tau : mono_type) ~(type_env : type_env) : mono_type option =
-  let forged_method_names = class_method_names ~static_env ~class_name in
-  let restrict_to_forged_fields = forged_method_names <> [] in
-  let method_fields =
-    List.filter_map
-      (fun (name, sch) ->
-        if restrict_to_forged_fields && not (List.mem name forged_method_names)
-        then None
-        else
-          match primary_class_constraint sch with
-          | Some c when c = class_name && scheme_has_class_constraint sch -> (
-              match
-                instantiate_method_type_for_class ~static_env ~class_name
-                  ~method_name:name ~tau ~type_env
-              with
-              | Some t -> Some (name, t)
-              | None -> None)
-          | _ -> None)
-      static_env
-  in
-  if method_fields = [] then None
-  else
-    let fields = List.sort (fun (a, _) (b, _) -> compare a b) method_fields in
-    Some (RecordType fields)
 
 (** Substitute occurrences of class method names with dictionary field
     accesses.  Used to elaborate the body of a constrained non-method function

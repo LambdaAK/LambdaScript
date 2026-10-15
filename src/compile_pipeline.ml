@@ -46,17 +46,6 @@ let runtime_c_path () =
               "Cannot find runtime/ls_runtime.c — run from the Forge repo root \
                or set FORGE_ROOT")
 
-let rec typecheck_defns static_env type_env ctor_env defns :
-    (typechecked_envs, string) result =
-  match defns with
-  | [] -> Ok (static_env, type_env, ctor_env)
-  | defn :: rest -> (
-      match generate_defn static_env type_env defn with
-      | Ok (nb, nte, nce) ->
-          typecheck_defns (nb @ static_env) (nte @ type_env) (nce @ ctor_env)
-            rest
-      | Error e -> Error (string_of_type_check_error e))
-
 let rec typecheck_and_elaborate_defns static_env type_env ctor_env
     (acc : Cexpr.c_defn list) (defns : Cexpr.c_defn list) :
     (Cexpr.c_defn list * typechecked_envs, string) result =
@@ -125,7 +114,7 @@ and min_ir_of_file_exn ~prelude (src_path : string) : (Min_ir.prog, string) resu
   let static_env = build_full_static_env () in
   match typecheck_and_elaborate_defns static_env [] [] [] condensed_program with
   | Error _ as e -> e
-  | Ok (elaborated, _) when Sys.getenv_opt "FORGE_OLD_NATIVE" = None -> (
+  | Ok (elaborated, _) -> (
       (* Dictionaries are resolved statically, every polymorphic definition is
          copied per type, and the typed monomorphic program is lowered. *)
       match Mono.program (Specialize.program (Mono.builtin_defns () @ elaborated)) with
@@ -136,20 +125,6 @@ and min_ir_of_file_exn ~prelude (src_path : string) : (Min_ir.prog, string) resu
           | exception Lower_typed.Unsupported msg ->
               Error ("the native compiler does not support this program yet: " ^ msg)
           | prog -> Ok prog))
-  | Ok (elaborated, _) -> (
-      (* Dictionaries are resolved statically, and the class-free program is
-         type-checked again for the lowering. *)
-      match Specialize.program elaborated with
-      | exception Specialize.Unsupported msg ->
-          Error ("the native compiler does not support this program yet: " ^ msg)
-      | specialized -> (
-          match typecheck_defns (build_full_static_env ()) [] [] specialized with
-          | Error e ->
-              Error ("internal compiler error: the specialised program does not type-check: " ^ e)
-          | Ok (static_env, type_env, ctor_env) -> (
-              match Lower_min_ir.lower_c_program specialized static_env type_env ctor_env with
-              | Error msg -> Error ("the native compiler does not support this program yet: " ^ msg)
-              | Ok prog -> Ok prog)))
 
 (** Compile [src_path] to the executable [out_path]: writes [.mir], [.ll] and
     [.s] next to the source, then links with the C runtime using clang. *)
