@@ -191,7 +191,9 @@ let operator_tests =
     t_tokens "custom <|>" "a <|> b" [ Id "a"; Relop "<|>"; Id "b" ];
     t_tokens "custom <$>" "f <*> x" [ Id "f"; Relop "<*>"; Id "x" ];
     t_tokens "custom **" "a ** b" [ Id "a"; Mulop "**"; Id "b" ];
-    t_tokens "custom |||" "a ||| b" [ Id "a"; Logop "|||"; Id "b" ];
+    (* [||], [&&], [|>] and [::] are fixed tokens matched before operator
+       lexing (maximal munch is not applied to them), as in Rust. *)
+    t_tokens "|| is a fixed token" "a ||| b" [ Id "a"; OR; Pipe; Id "b" ];
     t_tokens "operator section" "(+)" [ LParen; Addop "+"; RParen ];
     t_tokens "operator section cons" "(::)" [ LParen; ConsToken; RParen ];
     t_tokens "pipe" "| x" [ Pipe; Id "x" ];
