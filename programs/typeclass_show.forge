@@ -1,14 +1,16 @@
-inter Show <a> {
-  val show : a -> string
+// A small trait declared with the brace-oriented `inter` syntax, and two
+// instances. (The prelude's own Show already covers the built-in types.)
+inter Describe <a> {
+  val describe : a -> String
 }
 
-impl Show for Int where
-  show = int_to_str
+impl Describe for Int where
+  describe = int_to_str
 end
 
-impl Show for Bool where
-  show = fn b -> if b then "true" else "false"
+impl Describe for Bool where
+  describe = fn b -> if b then "yes" else "no"
 end
 
-let () = println (__forge_dict_Show_int.show 42)
-let () = println (__forge_dict_Show_bool.show true)
+let () = print_string (describe 42)
+let () = print_string (describe true)

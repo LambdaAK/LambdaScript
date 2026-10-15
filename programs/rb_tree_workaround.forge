@@ -8,7 +8,7 @@ let make_node color value left right =
   Node (color, value, left, right)
 
 let rec contains x tree =
-  switch tree =>
+  case tree do
   | Leaf -> false
   | Node (_, y, left, right) ->
       if x == y then true
@@ -16,12 +16,12 @@ let rec contains x tree =
       else contains x right
 
 let rec size tree =
-  switch tree =>
+  case tree do
   | Leaf -> 0
   | Node (_, _, left, right) -> 1 + size left + size right
 
 let balance tree =
-  switch tree =>
+  case tree do
   | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
       Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
   | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
@@ -33,7 +33,7 @@ let balance tree =
   | _ -> tree
 
 let rec insert_aux x tree =
-  switch tree =>
+  case tree do
   | Leaf -> make_node Red x Leaf Leaf
   | Node (color, y, left, right) ->
       if x < y then
@@ -44,7 +44,7 @@ let rec insert_aux x tree =
         tree
 
 let make_black tree =
-  switch tree =>
+  case tree do
   | Leaf -> Leaf
   | Node (_, x, left, right) -> make_node Black x left right
 
@@ -59,7 +59,9 @@ let tree3 = insert 7 tree2
 let () = println (int_to_str (size tree3))
 let () = if contains 5 tree3 then println "Found 5" else println "Not found"
 
+// The constructor is type-checked like any function: Node (5, 10, Leaf, Leaf)
+// is rejected (5 is not a Color), so make_node is no longer needed.
 let () = println ""
-let () = println "Direct Node constructor still works but accepts wrong types:"
-let bad_node = Node (5, 10, Leaf, Leaf)
-let () = println (int_to_str (size bad_node))
+let () = println "Direct Node constructor:"
+let direct = Node (Black, 10, Leaf, Leaf)
+let () = println (int_to_str (size direct))

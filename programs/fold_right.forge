@@ -1,7 +1,8 @@
+// fold_right combines the elements of a list from the right.
 let rec fold_right f lst acc =
-switch lst =>
+  case lst do
   | [] -> acc
   | h :: t -> f h (fold_right f t acc)
 
-let () = println (fold_right (\s -> \acc -> s ^ " " ^ acc) ["hello", "world", "lambda", "script"] "")
-
+// Prints "hello world lambda script " (each word followed by a space).
+let () = print_string (fold_right (fn s -> fn acc -> s ^ " " ^ acc) ["hello", "world", "lambda", "script"] "")

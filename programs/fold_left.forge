@@ -1,6 +1,8 @@
+// fold_left combines the elements of a list from the left.
 let rec fold_left f acc lst =
-switch lst =>
+  case lst do
   | [] -> acc
   | h :: t -> fold_left f (f acc h) t
 
-let () = println (int_to_str (fold_left (\acc -> \x -> acc + x) 0 [1 ... 100]))
+// Sum of 1..100: prints 5050.
+let () = println (fold_left (fn acc -> fn x -> acc + x) 0 [1...100])

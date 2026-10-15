@@ -1,15 +1,20 @@
-inter Show<a> {
-  val show : a -> string
-}
-
-impl Show for Int where
-  show = int_to_str
+// A user trait with instances for Int, Bool and lists of anything that has
+// an instance.
+trait Pretty<a> where
+  val pretty : a -> String
 end
 
-impl Show for Bool where
-  show = fn b -> if b then "true" else "false"
+impl Pretty for Int where
+  pretty = int_to_str
 end
 
-impl Show for [a] where
-  show = fn lst -> ""
+impl Pretty for Bool where
+  pretty = fn b -> if b then "true" else "false"
 end
+
+impl Pretty for List<a> requires Pretty<a> where
+  pretty xs = case xs do | [] -> "" | h :: t -> pretty h ^ " " ^ pretty t
+end
+
+let () = print_string (pretty [1, 2, 3])
+let () = print_string (pretty [true, false])

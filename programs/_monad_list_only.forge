@@ -1,18 +1,26 @@
-inter Monad<m> {
-    val (>>=) : m<a> -> (a -> m<b>) -> m<b>
-    val return : a -> m<a>
-  }
-
-type rec List<a> =
+// A user-defined list type with the prelude's Functor, Applicative and Monad
+// instances (Monad requires Applicative, which requires Functor).
+type rec MyList<a> =
   | Nil
-  | Cons of (a, List<a>)
+  | Cons of (a, MyList<a>)
 
-impl Monad for List where
-  (>>=) x f =
-    case x do
-    | Nil -> Nil
-    | Cons (h, t) -> Cons (h, (>>=) t f)
+let rec append xs ys = case xs do | Nil -> ys | Cons (h, t) -> Cons (h, append t ys)
 
-  ,
-  return x = Cons (x, Nil)
+impl Functor for MyList where
+  fmap f xs = case xs do | Nil -> Nil | Cons (h, t) -> Cons (f h, fmap f t)
 end
+
+impl Applicative for MyList where
+  pure x = Cons (x, Nil)
+  ,
+  ap fs xs = case fs do | Nil -> Nil | Cons (f, rest) -> append (fmap f xs) (ap rest xs)
+end
+
+impl Monad for MyList where
+  bind xs f = case xs do | Nil -> Nil | Cons (h, t) -> append (f h) (bind t f)
+end
+
+let rec to_list xs = case xs do | Nil -> [] | Cons (h, t) -> h :: to_list t
+
+let pairs = Cons (1, Cons (2, Nil)) >>= (fn x -> Cons (x, Cons (x * 10, Nil)))
+let () = println (to_list pairs)

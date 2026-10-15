@@ -1,99 +1,53 @@
-// Haskell-style typeclasses: Show, Eq, Semigroup, Monoid, Functor (Option).
-// Compiles with compile_forge and runs in the interpreter / REPL.
-// Native-list Functor [u] is demonstrated in programs/typeclass_functor_native_list.ls
-// (CEval + typechecker support it; the LLVM monomorph pass still rejects that combo).
+// Haskell-style typeclasses: the prelude's Show, Eq, Ord, Semigroup, Monoid
+// and Functor traits implemented for user-defined types.
 
-inter Show <a> {
-  val show : a -> string
-}
+type Point = | Point of (Int, Int)
 
-impl Show for Int where
-  show = int_to_str
+impl Show for Point where
+  show p = case p do | Point (x, y) -> "<" ^ show x ^ ", " ^ show y ^ ">"
 end
 
-impl Show for Bool where
-  show = fn b -> if b then "true" else "false"
+impl Eq for Point where
+  (==) p q = case (p, q) do | (Point (a, b), Point (c, d)) -> a == c && b == d
 end
 
-impl Show for [a] where
-  show xs =
-    case xs do
-    | [] -> "[]"
-    | _ :: _ -> "[?]"
+// Points are ordered by x, then by y.
+impl Ord for Point where
+  compare p q =
+    case (p, q) do
+    | (Point (a, b), Point (c, d)) ->
+        case compare a c do
+        | EQ -> compare b d
+        | o -> o
 end
 
-inter Eq <a> {
-  val eq : a -> a -> bool
-}
-
-impl Eq for Int where
-  eq x y = x == y
-end
-
-impl Eq for Bool where
-  eq x y = if x then y else if y then false else true
-end
-
-inter Semigroup <a> {
-  val sappend : a -> a -> a
-}
-
-impl Semigroup for Int where
-  sappend x y = x + y
-end
-
-impl Semigroup for [a] where
-  sappend xs ys =
-    case xs do
-    | [] -> ys
-    | h :: t -> h :: sappend t ys
-end
-
-inter Monoid <a> {
-  val mappend : a -> a -> a
-  val mempty : a
-}
-
-impl Monoid for [a] where
-  mappend x y =
-    case x do
-    | [] -> y
-    | h :: t -> h :: mappend t y
-
+// Points add up coordinate-wise, with the origin as identity.
+impl Semigroup for Point where
+  mappend p q = case (p, q) do | (Point (a, b), Point (c, d)) -> Point (a + c, b + d)
   ,
-  mempty = []
+  (++) p q = mappend p q
 end
 
-type Option<a> =
-  | None
-  | Some of a
-
-inter Functor <f> {
-  val fmap : (a -> b) -> f<a> -> f<b>
-}
-
-impl Functor for Option where
-  fmap g x =
-    case x do
-    | None -> None
-    | Some v -> Some (g v)
+impl Monoid for Point where
+  empty = Point (0, 0)
 end
 
-let rec len xs =
-  case xs do
-  | [] -> 0
-  | _ :: t -> 1 + len t
+type Box<a> = | Box of a
 
-let () = println (show 42)
-let () = println (show true)
-let () = println (show (1 :: 2 :: []))
-let () = println (int_to_str (if eq 5 5 then 1 else 0))
-let () = println (int_to_str (if eq true false then 1 else 0))
-let () = println (int_to_str (sappend 8 34))
-let () = println (int_to_str (len (mappend (1 :: []) (2 :: 3 :: []))))
-let () =
-  println
-    (int_to_str
-       (case fmap (fn x -> x * 2) (Some 21) do
-        | Some n -> n
-        | None -> 0))
+impl Functor for Box where
+  fmap f b = case b do | Box x -> Box (f x)
+end
+
+impl Show for Box<a> requires Show<a> where
+  show b = case b do | Box x -> "Box(" ^ show x ^ ")"
+end
+
+// Works for any monoid.
+let rec concat_all xs = case xs do | [] -> empty | h :: t -> h ++ concat_all t
+
+let () = println (Point (1, 2))
+let () = println (Point (1, 2) == Point (1, 2))
+let () = println (compare (Point (1, 2)) (Point (1, 3)))
+let () = println (concat_all [Point (1, 2), Point (3, 4), Point (5, 6)])
+let () = println (concat_all ["ab", "cd"])
+let () = println (fmap (fn x -> x * 2) (Box 21))

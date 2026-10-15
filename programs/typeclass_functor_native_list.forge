@@ -1,10 +1,5 @@
-// Functor instance for native lists [u] — run with interpreter or REPL.
-// (LLVM compilation can fail on this path; see comment in haskell_style_typeclasses.ls.)
-
-inter Functor <f> {
-  val fmap : (a -> b) -> f<a> -> f<b>
-}
-
+// Functor for built-in lists, used through a function that works for any
+// Functor (here: lists and the prelude's Option).
 impl Functor for [u] where
   fmap g xs =
     case xs do
@@ -12,9 +7,7 @@ impl Functor for [u] where
     | h :: t -> g h :: fmap g t
 end
 
-let () =
-  println
-    (int_to_str
-       (case fmap (fn x -> x + 1) (1 :: 2 :: 3 :: []) do
-        | h :: _ -> h
-        | [] -> 0))
+let double_all xs = fmap (fn x -> x * 2) xs
+
+let () = println (double_all [1, 2, 3])
+let () = println (double_all (Some 21))
