@@ -160,6 +160,13 @@ let builtin_tests =
     ok "tuple_fst of nested" (pr "tuple_fst (tuple_snd (1, (2, 3)))") "2\n";
     ok "int_to_float" (pr "float_to_int (int_to_float 12)") "12\n";
     ok "float_to_str shortest round trip" (ps "float_to_str 0.1 ^ \" \" ^ float_to_str 0.333333333333 ^ \" \" ^ float_to_str (-2.25)") "0.1 0.333333333333 -2.25\n";
+    ok "float arithmetic operators" (ps "float_to_str (1.5 +. 2.25) ^ \" \" ^ float_to_str (1.0 -. 4.0) ^ \" \" ^ float_to_str (2.5 *. 4.0) ^ \" \" ^ float_to_str (1.0 /. 8.0)") "3.75 -3.0 10.0 0.125\n";
+    ok "float operators: precedence like + and *" (ps "float_to_str (3.0 *. 2.0 -. 1.0 /. 4.0 +. 1.0)") "6.75\n";
+    ok "float operators as values" "let () = println (reduce_left (+.) 0.0 [0.5, 1.5, 2.0], map ((*.) 2.0) [1.0, 3.0])" "(4.0, [2.0, 6.0])\n";
+    ok "sqrt exp log" (ps "float_to_str (sqrt 16.0) ^ \" \" ^ float_to_str (exp 0.0) ^ \" \" ^ float_to_str (log 1.0) ^ \" \" ^ float_to_str (log (exp 2.0))") "4.0 1.0 0.0 2.0\n";
+    ok "float_to_str: integral values keep their digits"
+      (ps "float_to_str (-10.0) ^ \" \" ^ float_to_str 123.0 ^ \" \" ^ float_to_str 1000000000000000.0 ^ \" \" ^ float_to_str 99.5")
+      "-10.0 123.0 1000000000000000.0 99.5\n";
     ok "float_to_str integral and large" (ps "float_to_str 7.0 ^ \" \" ^ float_to_str 100000000000000000000000.0 ^ \" \" ^ float_to_str 0.0000001") "7.0 1e+23 1e-07\n";
     ok "char_to_str" (ps "char_to_str 'a' ^ char_to_str 'b'") "ab\n";
     ok "not false" (pr "not false") "true\n";

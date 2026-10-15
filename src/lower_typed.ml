@@ -459,7 +459,7 @@ let rec match_pat (fc : fctx) (env : env) (p : pat) (op : operand) (fail : strin
 let prim_arity (p : string) : int =
   match p with
   | "str_slice" -> 3
-  | "str_concat" | "int_eq" | "float_eq" | "str_eq" | "char_eq" | "bool_eq" | "unit_eq"
+  | "+." | "-." | "*." | "/." | "str_concat" | "int_eq" | "float_eq" | "str_eq" | "char_eq" | "bool_eq" | "unit_eq"
   | "int_compare" | "float_compare" | "str_compare" | "char_compare" | "bool_compare"
   | "unit_compare" ->
       2
@@ -482,6 +482,11 @@ let prim_op (fc : fctx) (p : string) (tys : Tast.ty list) (vs : operand list) : 
   | "float_to_int", [ x ] -> assign fc (Call ("ls_float_to_int", [ x ]))
   | "float_to_str", [ x ] -> assign fc (Call ("ls_float_to_str", [ x ]))
   | "char_to_str", [ x ] -> assign fc (Call ("ls_char_to_str", [ x ]))
+  | "+.", [ a; b ] -> assign fc (Call ("ls_fadd", [ a; b ]))
+  | "-.", [ a; b ] -> assign fc (Call ("ls_fsub", [ a; b ]))
+  | "*.", [ a; b ] -> assign fc (Call ("ls_fmul", [ a; b ]))
+  | "/.", [ a; b ] -> assign fc (Call ("ls_fdiv", [ a; b ]))
+  | ("sqrt" | "exp" | "log"), [ x ] -> assign fc (Call ("ls_" ^ p, [ x ]))
   | ("string_to_list" | "list_of_string"), [ x ] -> assign fc (Call ("ls_string_to_list", [ x ]))
   | "str_length", [ x ] -> assign fc (Call ("ls_str_length", [ x ]))
   | "str_slice", [ s; a; b ] -> assign fc (Call ("ls_str_slice", [ s; a; b ]))

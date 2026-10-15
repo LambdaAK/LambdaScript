@@ -190,6 +190,9 @@ and builtin_function =
   | StrLength
   | StrConcat
   | StrConcatPartial of string
+  | FloatOp of string
+  | FloatOpPartial of string * float
+  | FloatMath of string
   | StrSlice
   | StrSlicePartial1 of string
   | StrSlicePartial2 of string * int

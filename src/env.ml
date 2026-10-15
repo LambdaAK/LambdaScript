@@ -11,6 +11,13 @@ let built_ins : (string * value * c_type) list =
     ("float_to_int", BuiltInFunction FloatToInt, Mono (FloatType => IntType));
     ("float_to_str", BuiltInFunction FloatToString, Mono (FloatType => StringType));
     ("char_to_str", BuiltInFunction CharToString, Mono (CharType => StringType));
+    ("+.", BuiltInFunction (FloatOp "+."), Mono (FloatType => (FloatType => FloatType)));
+    ("-.", BuiltInFunction (FloatOp "-."), Mono (FloatType => (FloatType => FloatType)));
+    ("*.", BuiltInFunction (FloatOp "*."), Mono (FloatType => (FloatType => FloatType)));
+    ("/.", BuiltInFunction (FloatOp "/."), Mono (FloatType => (FloatType => FloatType)));
+    ("sqrt", BuiltInFunction (FloatMath "sqrt"), Mono (FloatType => FloatType));
+    ("exp", BuiltInFunction (FloatMath "exp"), Mono (FloatType => FloatType));
+    ("log", BuiltInFunction (FloatMath "log"), Mono (FloatType => FloatType));
     ( "string_to_list",
       BuiltInFunction StringToList,
       Mono (StringType => CListType CharType) );

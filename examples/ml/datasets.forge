@@ -1,0 +1,60 @@
+// Synthetic datasets, generated from a seed (so every run, in either back
+// end, sees the same data). Each returns (features, targets, next seed).
+import "util.forge"
+import "linalg.forge"
+
+mod Data where
+  // House prices: price = 40 + 1.8 size + 12 rooms - 0.9 age + noise.
+  let housing n seed =
+    let draw s =
+      let (size, s1) = Rng.between 50.0 250.0 s in
+      let (r, s2) = Rng.between 1.0 6.0 s1 in
+      let rooms = int_to_float (float_to_int r) in
+      let (age, s3) = Rng.between 0.0 50.0 s2 in
+      let (noise, s4) = Rng.normal 0.0 8.0 s3 in
+      (([size, rooms, age], 40.0 +. 1.8 *. size +. 12.0 *. rooms -. 0.9 *. age +. noise), s4)
+    in
+    let (rows, s) = Rng.repeat n draw seed in
+    (Mat.of_rows (map tuple_fst rows), map tuple_snd rows, s)
+
+  // Two Gaussian blobs in the plane, labels 0 and 1.
+  let blobs n seed =
+    let draw s =
+      let (u, s1) = Rng.uniform s in
+      let label = if u < 0.5 then 0.0 else 1.0 in
+      let (cx, cy) = if label == 0.0 then (0.0 -. 1.0, 0.0 -. 1.0) else (1.2, 1.0) in
+      let (x, s2) = Rng.normal cx 0.9 s1 in
+      let (y, s3) = Rng.normal cy 0.9 s2 in
+      (([x, y], label), s3)
+    in
+    let (rows, s) = Rng.repeat n draw seed in
+    (Mat.of_rows (map tuple_fst rows), map tuple_snd rows, s)
+
+  // XOR: label 1 when the two coordinates have the same sign. No line
+  // separates the classes.
+  let xor n seed =
+    let draw s =
+      let (x, s1) = Rng.between (0.0 -. 1.0) 1.0 s in
+      let (y, s2) = Rng.between (0.0 -. 1.0) 1.0 s1 in
+      (([x, y], if x *. y > 0.0 then 1.0 else 0.0), s2)
+    in
+    let (rows, s) = Rng.repeat n draw seed in
+    (Mat.of_rows (map tuple_fst rows), map tuple_snd rows, s)
+
+  // A cubic: y = x^3 - 2x + noise, for x in [-2, 2].
+  let cubic n seed =
+    let draw s =
+      let (x, s1) = Rng.between (0.0 -. 2.0) 2.0 s in
+      let (noise, s2) = Rng.normal 0.0 0.2 s1 in
+      (([x], x *. x *. x -. 2.0 *. x +. noise), s2)
+    in
+    let (rows, s) = Rng.repeat n draw seed in
+    (Mat.of_rows (map tuple_fst rows), map tuple_snd rows, s)
+
+  // The first k examples for training, the rest for testing.
+  let rec take k xs = if k == 0 then [] else case xs do | [] -> [] | h :: t -> h :: take (k - 1) t
+  let rec drop k xs = if k == 0 then xs else case xs do | [] -> [] | _ :: t -> drop (k - 1) t
+
+  let split k x y =
+    ((Mat.of_rows (take k (Mat.rows x)), take k y), (Mat.of_rows (drop k (Mat.rows x)), drop k y))
+end

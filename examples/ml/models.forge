@@ -1,0 +1,165 @@
+// Models: linear and logistic regression, kernels, and the Adam optimizer.
+import "linalg.forge"
+
+// Adam (Kingma and Ba, 2015). The state keeps the running averages of the
+// gradient (m) and of its square (v), and beta1^t, beta2^t for the bias
+// correction.
+type AdamConfig = { lr: Float, beta1: Float, beta2: Float, eps: Float }
+type AdamState = { m: List<Float>, v: List<Float>, b1t: Float, b2t: Float }
+
+mod Adam where
+  let config lr = { lr: lr, beta1: 0.9, beta2: 0.999, eps: 0.00000001 }
+
+  let init n = { m: Vec.zeros n, v: Vec.zeros n, b1t: 1.0, b2t: 1.0 }
+
+  // One step: new parameters and state from the gradient g.
+  let step (c : AdamConfig) (st : AdamState) theta g =
+    let m = Vec.zip_with (fn mi -> fn gi -> c.beta1 *. mi +. (1.0 -. c.beta1) *. gi) st.m g in
+    let v = Vec.zip_with (fn vi -> fn gi -> c.beta2 *. vi +. (1.0 -. c.beta2) *. gi *. gi) st.v g in
+    let b1t = st.b1t *. c.beta1 in
+    let b2t = st.b2t *. c.beta2 in
+    let update mi vi =
+      let m_hat = mi /. (1.0 -. b1t) in
+      let v_hat = vi /. (1.0 -. b2t) in
+      c.lr *. m_hat /. (sqrt v_hat +. c.eps)
+    in
+    (Vec.sub theta (Vec.zip_with update m v), { m: m, v: v, b1t: b1t, b2t: b2t })
+
+  // Run `steps` steps of Adam on the gradient function `grad`, from theta.
+  let minimize c grad theta steps =
+    let rec go k theta st =
+      if k == 0 then theta
+      else
+        let (theta1, st1) = step c st theta (grad theta) in
+        go (k - 1) theta1 st1
+    in
+    go steps theta (init (list_length theta))
+end
+
+// Rescale every feature to mean 0 and standard deviation 1, with the
+// statistics of the training set.
+type Scaler = { means: List<Float>, stds: List<Float> }
+
+mod Scale where
+  let fit x = { means: Mat.column_means x, stds: Mat.column_stds x }
+  let apply (s : Scaler) x =
+    Mat.of_rows
+      (map
+        (fn r -> Vec.zip_with (fn xi -> fn (mu, sd) -> (xi -. mu) /. sd) r (Vec.zip_with (fn a -> fn b -> (a, b)) s.means s.stds))
+        (Mat.rows x))
+
+  // Weights learnt on scaled features, in the original units:
+  // w_j / sd_j, and the intercept w_0 - sum_j w_j mu_j / sd_j.
+  let unscale_weights (s : Scaler) w =
+    case w do
+    | [] -> []
+    | w0 :: ws ->
+        let raw = Vec.zip_with (fn wj -> fn sd -> wj /. sd) ws s.stds in
+        (w0 -. Vec.dot raw s.means) :: raw
+end
+
+// Linear regression: y ~ w0 + w1 x1 + ... (w0 is the intercept).
+mod Linear where
+  let predict w x = Mat.mul_vec (Mat.with_bias x) w
+
+  // Closed form (ridge): solve (X^T X + lambda I) w = X^T y.
+  let fit_exact lambda x y =
+    let xb = Mat.with_bias x in
+    let xt = Mat.transpose xb in
+    Solve.solve (Mat.add_diagonal lambda (Mat.mul xt xb)) (Mat.mul_vec xt y)
+
+  // Mean squared error and its gradient, 2/n X^T (X w - y).
+  let mse_grad xb xt y w =
+    let n = int_to_float (list_length y) in
+    Vec.scale (2.0 /. n) (Mat.mul_vec xt (Vec.sub (Mat.mul_vec xb w) y))
+
+  let fit_adam lr steps x y =
+    let xb = Mat.with_bias x in
+    let xt = Mat.transpose xb in
+    Adam.minimize (Adam.config lr) (mse_grad xb xt y) (Vec.zeros (Mat.num_cols xb)) steps
+end
+
+let sigmoid z = if z >= 0.0 then 1.0 /. (1.0 +. exp (0.0 -. z)) else exp z /. (1.0 +. exp z)
+
+// Logistic regression on 0/1 labels, trained with Adam on the
+// cross-entropy plus an L2 penalty.
+mod Logistic where
+  let probabilities w x = map sigmoid (Mat.mul_vec (Mat.with_bias x) w)
+  let predict w x = map (fn p -> if p >= 0.5 then 1.0 else 0.0) (probabilities w x)
+
+  // Gradient: 1/n X^T (sigmoid(X w) - y) + lambda w.
+  let grad lambda xb xt y w =
+    let n = int_to_float (list_length y) in
+    let residual = Vec.sub (map sigmoid (Mat.mul_vec xb w)) y in
+    Vec.add (Vec.scale (1.0 /. n) (Mat.mul_vec xt residual)) (Vec.scale lambda w)
+
+  let fit lambda lr steps x y =
+    let xb = Mat.with_bias x in
+    let xt = Mat.transpose xb in
+    Adam.minimize (Adam.config lr) (grad lambda xb xt y) (Vec.zeros (Mat.num_cols xb)) steps
+end
+
+// Kernels: k(x, y) is an inner product in some feature space, so a model
+// written in terms of inner products learns non-linear functions.
+mod Kernel where
+  let linear x y = Vec.dot x y
+
+  let rec power b e = if e == 0 then 1.0 else b *. power b (e - 1)
+  let polynomial degree c x y = power (Vec.dot x y +. c) degree
+
+  let rbf gamma x y =
+    let d = Vec.sub x y in
+    exp (0.0 -. gamma *. Vec.dot d d)
+
+  // K[i][j] = k(a_i, b_j), for the rows of a and b.
+  let gram k a b = Mat.of_rows [[k ai bj | bj <- Mat.rows b] | ai <- Mat.rows a]
+end
+
+// Kernel ridge regression: alpha = (K + lambda I)^-1 y, and the prediction
+// at x is sum_i alpha_i k(x, x_i).
+mod KernelRidge where
+  let fit k lambda x y = Solve.solve (Mat.add_diagonal lambda (Kernel.gram k x x)) y
+  let predict k x_train alpha x = Mat.mul_vec (Kernel.gram k x x_train) alpha
+end
+
+// Kernel logistic regression: f(x) = b + sum_i alpha_i k(x, x_i), trained
+// with Adam on the cross-entropy plus lambda/2 alpha^T K alpha. The
+// parameters are b followed by alpha.
+mod KernelLogistic where
+  let scores kmat theta =
+    case theta do
+    | b :: alpha -> map (fn s -> s +. b) (Mat.mul_vec kmat alpha)
+    | [] -> []
+
+  // K is symmetric, so the gradient in alpha is 1/n K (p - y) + lambda K alpha.
+  let grad lambda kmat y theta =
+    case theta do
+    | [] -> []
+    | b :: alpha ->
+        let n = int_to_float (list_length y) in
+        let residual = Vec.sub (map sigmoid (scores kmat theta)) y in
+        let g_alpha = Vec.add (Vec.scale (1.0 /. n) (Mat.mul_vec kmat residual)) (Vec.scale lambda (Mat.mul_vec kmat alpha)) in
+        Vec.sum residual /. n :: g_alpha
+
+  let fit k lambda lr steps x y =
+    let kmat = Kernel.gram k x x in
+    Adam.minimize (Adam.config lr) (grad lambda kmat y) (Vec.zeros (list_length y + 1)) steps
+
+  let predict k x_train theta x =
+    map (fn s -> if sigmoid s >= 0.5 then 1.0 else 0.0) (scores (Kernel.gram k x x_train) theta)
+end
+
+mod Metrics where
+  let mse pred y = Vec.mean (map (fn d -> d *. d) (Vec.sub pred y))
+  let rmse pred y = sqrt (mse pred y)
+
+  // 1 - (residual sum of squares) / (total sum of squares).
+  let r2 pred y =
+    let mu = Vec.mean y in
+    let ss_res = Vec.sum (map (fn d -> d *. d) (Vec.sub pred y)) in
+    let ss_tot = Vec.sum (map (fn v -> (v -. mu) *. (v -. mu)) y) in
+    1.0 -. ss_res /. ss_tot
+
+  let accuracy pred y =
+    Vec.mean (Vec.zip_with (fn p -> fn t -> if p == t then 1.0 else 0.0) pred y)
+end

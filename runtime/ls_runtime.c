@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 /** Report a run-time error (like the interpreter: message on stderr, exit
     status 1) after flushing the program's output. */
@@ -210,6 +211,16 @@ void *ls_string_to_list(const char *s) {
 
 double ls_int_to_float(int64_t x) { return (double)x; }
 
+/* Float arithmetic ([+.] [-.] [*.] [/.]) and [sqrt], [exp], [log]: IEEE
+   doubles, like the interpreter's OCaml floats. */
+double ls_fadd(double a, double b) { return a + b; }
+double ls_fsub(double a, double b) { return a - b; }
+double ls_fmul(double a, double b) { return a * b; }
+double ls_fdiv(double a, double b) { return a / b; }
+double ls_sqrt(double x) { return sqrt(x); }
+double ls_exp(double x) { return exp(x); }
+double ls_log(double x) { return log(x); }
+
 /** Truncation toward zero (like OCaml's int_of_float for finite values). */
 int64_t ls_float_to_int(double f) {
   if (f != f)
@@ -232,7 +243,13 @@ char *ls_float_to_str(double f) {
   else if (f == -1.0 / 0.0)
     snprintf(buf, sizeof buf, "-inf");
   else {
-    for (int p = 1; p <= 17; p++) {
+    /* At least as many digits as the integer part has (-10.0, not -1e+01). */
+    int start = 1;
+    double a = f < 0 ? -f : f;
+    if (a >= 1 && a < 1e16)
+      for (; a >= 10; a /= 10)
+        start++;
+    for (int p = start; p <= 17; p++) {
       snprintf(buf, sizeof buf, "%.*g", p, f);
       if (strtod(buf, NULL) == f)
         break;

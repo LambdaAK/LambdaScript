@@ -399,6 +399,14 @@ let lex_bop (lst : char list) =
         (List.rev acc, lst)
   in
   let bop_chars, remaining_chars = get_bop_chars lst [] in
+  (* Float arithmetic: [+.], [-.], [*.] and [/.] (a float literal never starts
+     with a dot, so the dot cannot belong to a number). *)
+  let bop_chars, remaining_chars =
+    match (bop_chars, remaining_chars) with
+    | [ ('+' | '-' | '*' | '/') ], '.' :: rest when (match rest with '.' :: _ -> false | _ -> true) ->
+        (bop_chars @ [ '.' ], rest)
+    | _ -> (bop_chars, remaining_chars)
+  in
   (bop_from_char_list bop_chars, remaining_chars)
 
 let string_of_char = String.make 1

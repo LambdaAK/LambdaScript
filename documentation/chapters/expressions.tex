@@ -89,7 +89,7 @@ application \tc{f x} & left & \\
 \end{tabularx}
 \end{table}
 
-\paragraph{Arithmetic} \fc|+ - * / %| work on \fc|Int|; division truncates
+\paragraph{Arithmetic} \fc|+ - * / %| work on \fc|Int|, and \fc|+. -. *. /.| on \fc|Float| (with the precedence of \fc|+| and \fc|*|); integer division truncates
 toward zero, \fc|%| has the sign of its left operand, and dividing by zero is
 a run-time error.\label{sec:int-width}\index{integers!width}
 Integers wrap around on overflow. Their width is not yet the same in the two

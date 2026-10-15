@@ -85,6 +85,16 @@ let interpreter_tests =
          let () = println (loop 2000000 0)"
       in
       assert_runs ~expected:"2000000\n" "loop" src (interp ~timeout:15.0 src) );
+    (* A call to a list builtin (map, reduce_left, ...) used to copy every
+       instance dictionary of the prelude into the callee's environment,
+       comparing names as it went: this loop took 11 s. It now takes a third
+       of a second. *)
+    ( "interpreter: calls to list builtins do not scale with the prelude" >:: fun _ ->
+      let src =
+        "let rec go n acc = if n == 0 then acc else go (n - 1) (acc + reduce_left (+) 0 [1, 2, 3])\n\
+         let () = println (go 100000 0)"
+      in
+      assert_runs ~expected:"600000\n" "builtins" src (interp ~timeout:5.0 src) );
     (* Every minor collection scans the evaluator's (deep) stack: with the
        default minor heap this recursion took about 20 s; now about 2 s. *)
     ( "interpreter: recursion five million calls deep" >:: fun _ ->
@@ -296,9 +306,37 @@ let dump_ir_tests =
     clean_error "dump_min_ir: missing file" "dump_min_ir" [ "/nonexistent/p.forge" ];
   ]
 
+(* examples/ml: a small machine-learning library (matrices, regression,
+   kernels, Adam) and four experiments. Both back ends must print
+   examples/ml/main.out. *)
+let ml_example_tests =
+  let dir () = Filename.concat (repo ()) "examples/ml" in
+  let expected () = read_file (Filename.concat (dir ()) "main.out") in
+  [
+    ( "interpreter" >:: fun _ ->
+      let r = run_process ~timeout:180.0 ~cwd:(repo ()) (exe "interpreter") [ Filename.concat (dir ()) "main.forge" ] in
+      assert_equal ~printer:string_of_status (Exited 0) r.status;
+      assert_equal ~printer:(fun s -> s) "" r.err;
+      assert_equal ~printer:(fun s -> s) (expected ()) r.out );
+    ( "native" >:: fun _ ->
+      with_tmpdir @@ fun tmp ->
+      Array.iter
+        (fun f ->
+          if Filename.check_suffix f ".forge" then
+            write_file (Filename.concat tmp f) (read_file (Filename.concat (dir ()) f)))
+        (Sys.readdir (dir ()));
+      let out = Filename.concat tmp "main.exe" in
+      let c = run_process ~timeout:120.0 ~cwd:(repo ()) (exe "compile_forge") [ Filename.concat tmp "main.forge"; out ] in
+      assert_equal ~printer:string_of_status ~msg:(describe c) (Exited 0) c.status;
+      let r = run_process ~timeout:60.0 out [] in
+      assert_equal ~printer:string_of_status (Exited 0) r.status;
+      assert_equal ~printer:(fun s -> s) (expected ()) r.out );
+  ]
+
 let suite =
   "cli"
   >::: [
+         "ml example" >::: ml_example_tests;
          "interpreter" >::: interpreter_tests;
          "ambiguity" >::: ambiguity_tests;
          "compile_forge" >::: compiler_tests;

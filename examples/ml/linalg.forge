@@ -1,0 +1,130 @@
+// Linear algebra on lists of floats.
+//
+// A vector is a List<Float>. A matrix is a list of rows; every operation
+// walks rows and columns in order (no indexing), so the costs are the usual
+// ones: O(n) per vector operation, O(n m p) for a product.
+
+mod Vec where
+  let rec zip_with f xs ys =
+    case (xs, ys) do
+    | (x :: xt, y :: yt) -> f x y :: zip_with f xt yt
+    | _ -> []
+
+  let add xs ys = zip_with (+.) xs ys
+  let sub xs ys = zip_with (-.) xs ys
+  // Element-wise (Hadamard) product.
+  let mul xs ys = zip_with (*.) xs ys
+  let scale c xs = map (fn x -> c *. x) xs
+  let sum xs = reduce_left (+.) 0.0 xs
+  let dot xs ys = sum (mul xs ys)
+  let norm xs = sqrt (dot xs xs)
+  let mean xs = sum xs /. int_to_float (list_length xs)
+  let zeros n = [0.0 | _ <- [1...n]]
+  let fill n c = [c | _ <- [1...n]]
+end
+
+// Rows of a matrix; built with Mat.of_rows.
+type Matrix = | Matrix of List<List<Float>>
+
+mod Mat where
+  let of_rows rs = Matrix rs
+  let rows m = case m do | Matrix rs -> rs
+  let num_rows m = list_length (rows m)
+  let num_cols m = case rows m do | [] -> 0 | r :: _ -> list_length r
+
+  let map_entries f m = Matrix (map (map f) (rows m))
+  let add a b = Matrix (Vec.zip_with Vec.add (rows a) (rows b))
+  let sub a b = Matrix (Vec.zip_with Vec.sub (rows a) (rows b))
+  let scale c m = map_entries (fn x -> c *. x) m
+
+  // The columns of a list of rows, as rows.
+  let rec transpose_rows rs =
+    case rs do
+    | [] -> []
+    | [] :: _ -> []
+    | _ -> map list_head rs :: transpose_rows (map list_tail rs)
+
+  let transpose m = Matrix (transpose_rows (rows m))
+
+  // A v, for a vector v.
+  let mul_vec m v = map (fn r -> Vec.dot r v) (rows m)
+
+  // A B: every row of A against every column of B.
+  let mul a b =
+    let cols = transpose_rows (rows b) in
+    Matrix (map (fn r -> map (fn c -> Vec.dot r c) cols) (rows a))
+
+  let identity n = Matrix [[if i == j then 1.0 else 0.0 | j <- [1...n]] | i <- [1...n]]
+
+  // A + c I.
+  let add_diagonal c m =
+    let rec go i rs =
+      case rs do
+      | [] -> []
+      | r :: rest ->
+          let rec bump j xs =
+            case xs do
+            | [] -> []
+            | x :: xt -> (if i == j then x +. c else x) :: bump (j + 1) xt
+          in
+          bump 0 r :: go (i + 1) rest
+    in
+    Matrix (go 0 (rows m))
+
+  // Column means and standard deviations, to standardise features.
+  let column_means m = map Vec.mean (transpose_rows (rows m))
+  let column_stds m =
+    map
+      (fn c ->
+        let mu = Vec.mean c in
+        sqrt (Vec.mean (map (fn x -> (x -. mu) *. (x -. mu)) c)))
+      (transpose_rows (rows m))
+
+  // A column of ones in front of every row (the intercept).
+  let with_bias m = Matrix (map (fn r -> 1.0 :: r) (rows m))
+end
+
+// Solve A x = b by Gaussian elimination with partial pivoting.
+// Rows are augmented with b; each step moves the row with the largest pivot
+// to the top, eliminates its column from the rows below, and recurses on
+// them. Back substitution then runs from the last row up.
+mod Solve where
+  let abs x = if x < 0.0 then 0.0 -. x else x
+
+  let rec last xs = case xs do | [] -> 0.0 | x :: [] -> x | _ :: t -> last t
+  let rec init xs = case xs do | [] -> [] | _ :: [] -> [] | x :: t -> x :: init t
+
+  // The row with the largest first entry (in absolute value), and the rest.
+  let rec take_pivot best others rest =
+    case rest do
+    | [] -> (best, others)
+    | r :: t ->
+        if abs (list_head r) > abs (list_head best) then take_pivot r (best :: others) t
+        else take_pivot best (r :: others) t
+
+  // Upper-triangular system: every row is one entry shorter than the last.
+  let rec eliminate rs =
+    case rs do
+    | [] -> []
+    | r :: t ->
+        let (p, others) = take_pivot r [] t in
+        let reduced =
+          map
+            (fn row ->
+              let f = list_head row /. list_head p in
+              Vec.sub (list_tail row) (Vec.scale f (list_tail p)))
+            others
+        in
+        p :: eliminate reduced
+
+  // x_k = (b_k - sum of a_kj x_j over the later j) / a_kk.
+  let rec back_substitute rs =
+    case rs do
+    | [] -> []
+    | r :: rest ->
+        let xs = back_substitute rest in
+        (last r -. Vec.dot (init (list_tail r)) xs) /. list_head r :: xs
+
+  let solve a b =
+    back_substitute (eliminate (Vec.zip_with (fn r -> fn bi -> r ++ [bi]) (Mat.rows a) b))
+end

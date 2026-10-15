@@ -1,0 +1,67 @@
+// Machine learning in Forge: four experiments on synthetic data.
+//
+//   interpreter:  dune exec ./bin/interpreter.exe examples/ml/main.forge
+//   native:       dune exec ./bin/compile_forge.exe examples/ml/main.forge ml && ./ml
+import "util.forge"
+import "linalg.forge"
+import "models.forge"
+import "datasets.forge"
+
+let say s = print_string s
+let line label value = say ("  " ^ Fmt.left 42 label ^ value)
+let coefs ws = "[" ^ reduce_left (fn acc -> fn w -> if acc == "" then Fmt.fixed 3 w else acc ^ ", " ^ Fmt.fixed 3 w) "" ws ^ "]"
+
+// 1. Linear regression on house prices.
+let () = say "1. Linear regression: house prices from size, rooms and age"
+let (hx, hy, seed1) = Data.housing 200 42
+let ((hx_train, hy_train), (hx_test, hy_test)) = Data.split 150 hx hy
+let () = line "true weights [bias, size, rooms, age]" (coefs [40.0, 1.8, 12.0, 0.0 -. 0.9])
+let w_exact = Linear.fit_exact 0.0 hx_train hy_train
+let () = line "closed form (normal equations)" (coefs w_exact)
+let () = line "  test RMSE" (Fmt.fixed 2 (Metrics.rmse (Linear.predict w_exact hx_test) hy_test))
+let () = line "  test R^2" (Fmt.fixed 4 (Metrics.r2 (Linear.predict w_exact hx_test) hy_test))
+// Adam needs features on comparable scales.
+let scaler = Scale.fit hx_train
+let w_adam = Linear.fit_adam 1.0 2000 (Scale.apply scaler hx_train) hy_train
+let () = line "Adam, 2000 steps (in original units)" (coefs (Scale.unscale_weights scaler w_adam))
+let () = line "  test RMSE" (Fmt.fixed 2 (Metrics.rmse (Linear.predict w_adam (Scale.apply scaler hx_test)) hy_test))
+let () = line "  test R^2" (Fmt.fixed 4 (Metrics.r2 (Linear.predict w_adam (Scale.apply scaler hx_test)) hy_test))
+
+// 2. Logistic regression on two blobs.
+let () = say ""
+let () = say "2. Logistic regression: two Gaussian blobs"
+let (bx, by, seed2) = Data.blobs 300 seed1
+let ((bx_train, by_train), (bx_test, by_test)) = Data.split 200 bx by
+let w_log = Logistic.fit 0.001 0.1 300 bx_train by_train
+let () = line "weights [bias, x, y]" (coefs w_log)
+let () = line "train accuracy" (Fmt.percent (Metrics.accuracy (Logistic.predict w_log bx_train) by_train))
+let () = line "test accuracy" (Fmt.percent (Metrics.accuracy (Logistic.predict w_log bx_test) by_test))
+
+// 3. XOR: a linear classifier fails, a kernel classifier does not.
+let () = say ""
+let () = say "3. Kernel logistic regression: XOR"
+let (xx, xy, seed3) = Data.xor 160 seed2
+let ((xx_train, xy_train), (xx_test, xy_test)) = Data.split 120 xx xy
+let w_lin = Logistic.fit 0.001 0.1 300 xx_train xy_train
+let () = line "linear logistic, test accuracy" (Fmt.percent (Metrics.accuracy (Logistic.predict w_lin xx_test) xy_test))
+let rbf = Kernel.rbf 2.0
+let theta_rbf = KernelLogistic.fit rbf 0.0001 0.1 200 xx_train xy_train
+let () = line "RBF kernel (gamma 2), train accuracy" (Fmt.percent (Metrics.accuracy (KernelLogistic.predict rbf xx_train theta_rbf xx_train) xy_train))
+let () = line "RBF kernel (gamma 2), test accuracy" (Fmt.percent (Metrics.accuracy (KernelLogistic.predict rbf xx_train theta_rbf xx_test) xy_test))
+let poly2 = Kernel.polynomial 2 1.0
+let theta_poly = KernelLogistic.fit poly2 0.0001 0.1 200 xx_train xy_train
+let () = line "polynomial kernel (degree 2), test acc." (Fmt.percent (Metrics.accuracy (KernelLogistic.predict poly2 xx_train theta_poly xx_test) xy_test))
+
+// 4. Kernel ridge regression on a cubic.
+let () = say ""
+let () = say "4. Kernel ridge regression: y = x^3 - 2x + noise"
+let (cx, cy, seed4) = Data.cubic 120 seed3
+let ((cx_train, cy_train), (cx_test, cy_test)) = Data.split 80 cx cy
+let w_line = Linear.fit_exact 0.0 cx_train cy_train
+let () = line "linear regression, test R^2" (Fmt.fixed 4 (Metrics.r2 (Linear.predict w_line cx_test) cy_test))
+let alpha_rbf = KernelRidge.fit (Kernel.rbf 1.0) 0.01 cx_train cy_train
+let () = line "RBF kernel ridge, test R^2" (Fmt.fixed 4 (Metrics.r2 (KernelRidge.predict (Kernel.rbf 1.0) cx_train alpha_rbf cx_test) cy_test))
+let () = line "  test RMSE (noise sd 0.2)" (Fmt.fixed 3 (Metrics.rmse (KernelRidge.predict (Kernel.rbf 1.0) cx_train alpha_rbf cx_test) cy_test))
+let cubic_kernel = Kernel.polynomial 3 1.0
+let alpha_poly = KernelRidge.fit cubic_kernel 0.01 cx_train cy_train
+let () = line "polynomial kernel ridge (degree 3), R^2" (Fmt.fixed 4 (Metrics.r2 (KernelRidge.predict cubic_kernel cx_train alpha_poly cx_test) cy_test))
