@@ -1,0 +1,220 @@
+\chapter{How Forge is implemented}
+\label{ch:implementation}
+\index{implementation}
+
+The implementation is an OCaml library (\texttt{src/}) shared by all the
+executables. Figure~\ref{fig:pipeline} shows the path of a program through
+it: a common front end, then either the interpreter or the native back end.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[node distance=5mm and 6mm,
+    every node/.append style={font=\sffamily\footnotesize},
+    stage/.append style={minimum width=23mm,minimum height=9mm,inner sep=2pt}]
+  % front end, left to right
+  \node[stage] (src) {source\\\tiny\texttt{.forge} + prelude};
+  \node[stage,right=of src] (lex) {Lexer\\\tiny\texttt{lex.ml}};
+  \node[stage,right=of lex] (parse) {Parser\\\tiny\texttt{parser.ml}};
+  \node[stage,right=of parse] (expand) {Expansion\\\tiny imports, modules, macros};
+  % type system, right to left
+  \node[stage,below=8mm of expand] (condense) {Condense\\\tiny\texttt{condense.ml}};
+  \node[stage,hot,left=of condense] (tc) {Type inference\\\tiny\texttt{typecheck.ml}};
+  \node[stage,left=of tc] (exh) {Exhaustiveness\\\tiny warnings};
+  \node[stage,hot,below=8mm of tc] (elab) {Elaboration\\\tiny dictionaries};
+  % back ends
+  \node[stage,cool,below=8mm of exh |- elab.south,anchor=north] (interp) {Interpreter\\\tiny\texttt{ceval.ml}};
+  \node[stage,cool,below=8mm of elab] (spec) {Specialise\\\tiny\texttt{specialize.ml}};
+  \node[stage,cool,right=of spec] (mono) {Monomorphise\\\tiny\texttt{mono.ml}};
+  \node[stage,cool,right=of mono] (lower) {Lower\\\tiny\texttt{lower\_typed.ml}};
+  \node[stage,cool,below=8mm of lower] (llvm) {LLVM IR\\\tiny\texttt{llvm\_emit.ml}};
+  \node[stage,cool,left=of llvm] (clang) {Clang\\\tiny\texttt{ls\_runtime.c}};
+  \node[stage,left=of clang] (exe) {native\\executable};
+  \node[stage,below=8mm of interp] (out) {output};
+  \draw[flow] (src) -- (lex);
+  \draw[flow] (lex) -- (parse);
+  \draw[flow] (parse) -- (expand);
+  \draw[flow] (expand) -- (condense);
+  \draw[flow] (condense) -- (tc);
+  \draw[flow] (tc) -- (exh);
+  \draw[flow] (tc) -- (elab);
+  \draw[flow] (elab.south) -- ++(0,-4mm) -| (interp.north);
+  \draw[flow] (elab) -- (spec);
+  \draw[flow] (spec) -- (mono);
+  \draw[flow] (mono) -- (lower);
+  \draw[flow] (lower) -- (llvm);
+  \draw[flow] (llvm) -- (clang);
+  \draw[flow] (clang) -- (exe);
+  \draw[flow] (interp) -- (out);
+\end{tikzpicture}
+\caption{The pipeline: tokens, a syntax tree, the core language, then
+either the interpreter or native code. Orange: the type system; blue: the
+two back ends.}
+\label{fig:pipeline}
+\end{figure}
+
+\section{Front end}
+
+\paragraph{Lexing and parsing} The lexer turns the source into tokens, each
+with its position. The parser is written with parser combinators over the
+token list; it backtracks, and on failure reports the token furthest into
+the file that it could not get past, with its line. The prelude is parsed
+separately so that errors in a program point into the program.
+
+\paragraph{Expansion} \fc|import| inserts the imported files (each once,
+rejecting cycles), modules are flattened into qualified names, and macro
+invocations are replaced by their expansions.
+
+\paragraph{Condensation} The surface syntax is reduced to a small core
+language: operators become applications, blocks become nested \fc|let|s,
+functions with several parameters become curried lambdas, a comprehension
+guard becomes a generator over a one-element list, and each \fc|impl|
+becomes a \emph{dictionary} --- a record of its methods.
+
+\section{Type inference}
+\label{sec:impl-inference}
+
+Inference is the Damas--Milner algorithm~\cite{damas-milner}, in two phases. \emph{Constraint generation} walks
+an expression and returns a type --- often a fresh type variable --- with
+equations between types; \emph{solving} unifies the equations into a
+substitution. At each \fc|let|, the equations so far are solved and the type
+of the bound names is generalised over the variables that do not occur in
+the environment. Figure~\ref{fig:inference} follows the inference of
+\fc|let twice f x = f (f x)|.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[font=\small,
+    eq/.style={draw=ForgeSteel!60,fill=ForgeSteel!6,rounded corners=2pt,inner sep=4pt,align=left},
+    res/.style={draw=ForgeEmber,fill=ForgeEmber!8,rounded corners=2pt,inner sep=5pt,align=center}]
+  \node[stage,minimum width=60mm] (e) {\fc|fn f -> fn x -> f (f x)|};
+  \node[eq,below left=8mm and -8mm of e] (gen) {%
+    $f : \alpha \qquad x : \beta$\\
+    $f\ x : \gamma$ \quad gives \quad $\alpha = \beta \to \gamma$\\
+    $f\ (f\ x) : \delta$ \quad gives \quad $\alpha = \gamma \to \delta$\\
+    result: $\alpha \to \beta \to \delta$};
+  \node[eq,right=14mm of gen] (solve) {%
+    unify $\beta \to \gamma$ with $\gamma \to \delta$:\\
+    $\beta = \gamma$, \quad $\gamma = \delta$\\[2pt]
+    substitution: $\alpha \mapsto \delta \to \delta$,\\
+    $\beta \mapsto \delta$, \quad $\gamma \mapsto \delta$};
+  \node[res,below=8mm of $(gen.south)!0.5!(solve.south)$] (ty) {%
+    $(\delta \to \delta) \to \delta \to \delta$ \quad generalised:\quad
+    $\forall a.\ (a \to a) \to a \to a$};
+  \draw[flow] (e.south) -- node[data,above left]{generate} (gen.north);
+  \draw[flow] (gen.east) -- node[data,above]{solve} (solve.west);
+  \draw[flow] (solve.south) -- (ty.north east);
+  \draw[flow] (gen.south) -- (ty.north west);
+\end{tikzpicture}
+\caption{Inferring the type of \fc|twice|: generate equations, solve them, generalise.}
+\label{fig:inference}
+\end{figure}
+
+The solver handles the extensions of the type language: a type-constructor
+variable applied to arguments (\fc|f<a>| in \fc|Functor|) unifies with
+\fc|Option<Int>| or \fc|List<Int>| by binding the variable to the
+constructor; records unify field by field, and an open record's \emph{row}
+variable~\cite{remy} absorbs the fields the other side has in addition. Trait predicates
+(\fc|Show a|) are collected along the way; at generalisation, those on the
+definition's own type variables become part of its scheme, and those on
+concrete types must have an instance.
+
+\section{Traits}
+\label{sec:impl-traits}
+
+Traits are implemented by \emph{dictionary passing}~\cite{wadler-blott}.
+After a definition has been typed, it is typed again with logging switched
+on, recording the predicates instantiated at every use of a method or of a
+constrained function. Under the definition's solution, each predicate is
+resolved: on one of the definition's own type variables, to a dictionary
+parameter; on a concrete type, to an instance dictionary, applied to the
+dictionaries its \fc|requires| clause needs. The result is an ordinary
+program in which methods are record fields and constrained functions take
+dictionaries as extra arguments.
+
+The interpreter runs that program as it is. The native back end goes one
+step further (\texttt{specialize.ml}): since every dictionary in a whole
+program is ultimately a known instance, it makes one copy of each
+constrained function per tuple of dictionaries it is used with, and replaces
+each method of a known dictionary by that instance's implementation. No
+dictionaries remain at run time.
+
+\section{Exhaustiveness}
+\label{sec:impl-exhaustiveness}
+
+The checker in \texttt{exhaustiveness.ml} implements Maranget's
+\emph{usefulness} algorithm~\cite{maranget}. A vector of patterns is useful
+with respect to a matrix of pattern rows if some value matches the vector
+and no row. A \fc|case| with arms $p_1, \dots, p_n$ is exhaustive when the
+wildcard is not useful with respect to all of them, and arm $p_i$ is
+redundant when it is not useful with respect to $p_1, \dots, p_{i-1}$. The
+algorithm works column by column, using the scrutinee's type to know the
+constructors of each column; when it finds a useful wildcard it also
+returns a value that no arm matches, which the warning shows.
+
+\section{The interpreter}
+
+\texttt{ceval.ml} evaluates the core language directly, following the rules
+of Section~\ref{sec:dynamic-semantics}: environments map names to values,
+functions are closures that capture their environment, and recursive
+functions refer to themselves through a mutable reference in their closure.
+
+\section{The native back end}
+\label{sec:native}
+
+\paragraph{Monomorphisation} \texttt{mono.ml} type-checks the specialised
+program once more, now recording the type of every expression. Under the
+solution of each definition, and the instantiation of the copy being built,
+every node has a concrete type. Polymorphic functions and values --- at top
+level or local --- are copied once per type they are used at, starting from
+the program's top-level effects; every local variable gets a unique name. The
+result is a typed, monomorphic tree (\texttt{tast.ml}).
+
+\paragraph{Lowering} \texttt{lower\_typed.ml} translates that tree into Min
+IR, a small SSA intermediate representation with basic blocks and $\phi$
+nodes:
+\begin{itemize}
+  \item a named function --- top-level or local --- is \emph{lambda-lifted}
+    into a function that takes its captured variables as extra parameters,
+    and a call that supplies all its arguments is a direct call;
+  \item every function value is a curried closure: a code pointer and an
+    environment, applied to one argument at a time;
+  \item \fc|case| compiles to a chain of tests that jump to the next arm on
+    failure, and to a run-time error after the last;
+  \item ranges and comprehensions are loops; structural comparison uses one
+    generated function per type.
+\end{itemize}
+
+\paragraph{Code generation} \texttt{llvm\_emit.ml} prints Min IR as LLVM IR,
+and Clang compiles it and links it with the C runtime
+(\texttt{runtime/ls\_runtime.c}), which provides memory allocation, strings,
+the variant and closure layouts, and the run-time errors.
+Table~\ref{tab:repr} shows how values are represented.
+
+\begin{table}[ht]
+\centering\small
+\caption{Representation of values in native code.}
+\label{tab:repr}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Forge type} & \textbf{Native representation} \\
+\midrule
+\tc{Int}, \tc{Char} & 64-bit integer \\
+\tc{Bool} & 1-bit integer \\
+\tc{Float} & IEEE double \\
+\tc{String} & pointer to a NUL-terminated string \\
+\tc{List<a>} & null, or a pointer to a cell \{head, tail\} \\
+tuples, records & LLVM structures (records in field-name order) \\
+sum types & pointer to \{tag, pointer to the boxed payload\} \\
+functions & pointer to \{code, environment\} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Testing}
+
+The test suites under \texttt{test/} exercise every stage, from the lexer's
+handling of escapes to the error messages of the command-line tools. Two
+kinds of tests guard the agreement of the back ends: \emph{differential}
+tests run every example program --- including those of this manual --- in
+both and require identical output, and a \emph{fuzzer} generates random
+well-typed programs (deterministically, from a seed) and does the same.

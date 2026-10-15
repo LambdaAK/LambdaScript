@@ -1,0 +1,87 @@
+\chapter{Introduction}
+\label{ch:introduction}
+
+Forge is a small, statically typed functional programming language. It is
+in the ML family: programs are made of definitions, every expression has a
+type, and the compiler works the types out for you. On top of that core it
+offers the features that make a functional language pleasant to write ---
+algebraic data types and pattern matching, records with structural typing,
+Haskell-style \idx{traits} (type classes), Rust-style
+\fc|macro_rules!| macros, and modules --- and it runs your programs two ways:
+with an \idx{interpreter}, or compiled ahead of time to a native executable
+through LLVM.
+
+\begin{itemize}
+  \item \textbf{Types without the ceremony.} Hindley--Milner type inference
+    with let-polymorphism: annotations are optional and checked when given.
+  \item \textbf{Data you can take apart.} Sum types, tuples, records and
+    lists, with nested patterns, list comprehensions and warnings for
+    non-exhaustive or redundant \fc|case| arms.
+  \item \textbf{Overloading done right.} Traits with superclasses, default
+    methods, parameterised instances (\fc|impl Show for List<a> requires Show<a>|)
+    and higher-kinded classes such as \fc|Functor| and \fc|Monad|.
+  \item \textbf{One language, two back ends.} A tree-walking interpreter and
+    REPL for quick feedback, and a compiler that turns the same programs into
+    native code. The test suite runs thousands of programs through both and
+    requires identical output.
+\end{itemize}
+
+\section{A guided tour}
+\label{sec:tour}
+
+A Forge program is a sequence of top-level definitions. A definition
+\fc|let () = |\textit{e} evaluates \textit{e} for its effect; that is how a
+program prints.
+
+\forgeexample{tour-hello}
+
+Functions are values. \fc|let f x y = ...| defines a curried function of two
+arguments, \fc|fn x -> ...| is an anonymous function, and applying a function
+to fewer arguments than it takes gives back a function.
+
+\forgeexample{tour-functions}
+
+\fc|println| prints any value whose type has a \fc|Show| instance --- numbers,
+strings, lists, options, tuples --- followed by a newline. Lists come with
+ranges and comprehensions, and \fc|case| takes values apart by their shape:
+
+\forgeexample{tour-lists}
+
+New types are declared with \fc|type|. A \emph{sum type} lists its
+constructors; records need no declaration at all, and a function that reads a
+field accepts any record that has it:
+
+\forgeexample{tour-types}
+
+Traits describe operations that several types support. An instance can be
+conditional --- lists of describable things are describable --- and a
+function that uses a trait method works for every type with an instance:
+
+\forgeexample{tour-traits}
+
+\section{Running Forge}
+
+The same file runs in the interpreter or compiles to a native executable:
+
+\begin{shellpanel}
+\begin{lstlisting}
+$ dune exec ./bin/interpreter.exe documentation/examples/tour-hello.forge
+Hello, Forge!
+$ dune exec ./bin/compile_forge.exe documentation/examples/tour-hello.forge hello
+$ ./hello
+Hello, Forge!
+\end{lstlisting}
+\end{shellpanel}
+
+Chapter~\ref{ch:tools} describes the tools; Chapters
+\ref{ch:lexical}--\ref{ch:modules} describe the language, Chapter~\ref{ch:formal}
+defines it formally, Chapter~\ref{ch:library} documents the standard library and
+Chapter~\ref{ch:implementation} explains how the implementation works.
+
+\begin{notebox}[About the examples]
+Every program in this manual is a file in \texttt{documentation/examples},
+shown together with the output it produces. The test suite
+(\texttt{test/manual\_tests.ml}) runs each of them with the interpreter and
+with the native compiler and checks that both print exactly what the manual
+shows.
+\end{notebox}

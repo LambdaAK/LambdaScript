@@ -1,0 +1,65 @@
+\chapter{Patterns}
+\label{ch:patterns}
+\index{patterns}
+
+Patterns describe the shape of a value. They appear in \fc|case| arms, in
+\fc|let| definitions, in function parameters and in comprehension
+generators. Matching a pattern against a value either fails or succeeds and
+binds the pattern's variables.
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Pattern} & \textbf{Matches} \\
+\midrule
+\tc{x} & anything, and binds it to \tc{x} \\
+\tc{_} & anything \\
+\tc{42}, \tc{-1}, \tc{'c'}, \tc{"text"}, \tc{true}, \tc{()} & exactly that literal \\
+\tc{[]} & the empty list \\
+\tc{p1 :: p2} & a non-empty list whose head matches \tc{p1} and tail \tc{p2} \\
+\tc{(p1, p2, p3)} & a tuple, component by component \\
+\tc{{ f: p, g }} & a record whose field \tc{f} matches \tc{p}; \tc{g} alone binds field \tc{g} to a variable \tc{g}; other fields are ignored \\
+\tc{C} & the constant constructor \tc{C} \\
+\tc{C p} & constructor \tc{C} whose payload matches \tc{p} (\tc{Node (l, v, r)}) \\
+\tc{(p)} & the same as \tc{p} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Patterns nest freely: \fc|Some (x :: _)| matches an option holding a
+non-empty list. A variable may appear only once in a pattern. List
+patterns are written with \fc|::| and \fc|[]| (there is no
+\fc|[x, y]| pattern: write \fc|x :: y :: []|).
+
+\section{Refutable patterns}
+A pattern that can fail --- a literal, a constructor of a type with several
+constructors, \fc|[]| or \fc|::| --- is \emph{refutable}. In a \fc|case|,
+the next arm is tried. In a \fc|let| or a function parameter there is no
+next arm: if the value does not match, evaluation stops with the run-time
+error \textit{no pattern matched}. In a comprehension generator, the element
+is skipped.
+
+\section{Exhaustiveness and redundancy}
+\label{sec:exhaustiveness}
+\index{exhaustiveness}\index{warnings}
+
+Both back ends check every \fc|case|, using the type of the value matched:
+\begin{itemize}
+  \item If some value matches no arm, the \fc|case| is \emph{not
+    exhaustive}; the warning shows one such value.
+  \item If an arm can never be reached because the arms before it cover
+    everything it matches, it is \emph{redundant}.
+\end{itemize}
+Warnings do not stop the program. Integers, strings, characters and floats
+have too many values to enumerate, so a \fc|case| on them needs a variable
+or \fc|_| arm to be exhaustive.
+
+\forgeexample{patterns-warnings}
+
+When the missing case does happen, the program stops:
+
+\forgeexample{patterns-runtime-error}
+
+The checker is an implementation of Maranget's algorithm for pattern
+matrices~\cite{maranget}; Section~\ref{sec:impl-exhaustiveness} describes it.

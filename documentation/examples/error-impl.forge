@@ -2,7 +2,6 @@ trait T<a> where
   val m : a -> Int
 end
 impl T for Int where
-  m x = x
-  ,
+  m x = x,
   n x = x
 end

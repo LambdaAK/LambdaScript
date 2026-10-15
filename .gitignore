@@ -55,6 +55,9 @@ documentation/*.lot
 documentation/*.fls
 documentation/*.fdb_latexmk
 documentation/*.synctex.gz
+documentation/*.idx
+documentation/*.ilg
+documentation/*.ind
 documentation/*.pdf
 
 # Audit working notes (not part of the project)

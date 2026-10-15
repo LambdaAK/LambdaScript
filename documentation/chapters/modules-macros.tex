@@ -1,0 +1,58 @@
+\chapter{Modules, imports and macros}
+\label{ch:modules}
+
+\section{Modules}
+\label{sec:modules}
+\index{modules}\index{mod@\texttt{mod}}\index{use@\texttt{use}}
+
+\fc|mod Name where ... end| groups definitions, types, traits and nested
+modules under a name. Outside the module, its items are written with a
+qualified name, \fc|Name.item|; inside, they are used directly.
+\fc|use Name| brings a module's items into scope for the rest of the file.
+Modules nest: \fc|A.B.x|, \fc|use A.B|.
+
+\forgeexample{modules}
+
+\section{Imports}
+\label{sec:imports}
+\index{import@\texttt{import}}
+\fc|import "path"| inserts the definitions of another file at that point.
+The path is relative to the importing file, and the \texttt{.forge}
+extension may be omitted. A file imported twice is included once, and an
+import cycle is an error.
+
+\forgeexample*{import-lib}
+\forgeexample{import-main}
+
+\section{Macros}
+\label{sec:macros}
+\index{macros}\index{macro_rules@\texttt{macro\_rules"!}}
+
+\fc|macro_rules!| defines a macro by example, in the style of Rust. A macro
+has one or more arms, separated by semicolons; each arm is a \emph{matcher}
+and a \emph{transcriber}. An invocation \fc|name!(...)|, \fc|name![...]| or
+\fc|name!{...}| is replaced, before type checking, by the transcriber of the
+first arm whose matcher fits its arguments.
+
+\begin{itemize}
+\item In a matcher, \fc|$x:kind| captures a fragment of the given kind:
+  \texttt{expr}, \texttt{pat}, \texttt{ty} (or \texttt{type}),
+  \texttt{ident}, \texttt{literal} (or \texttt{lit}), \texttt{path},
+  \texttt{block}, \texttt{item} or \texttt{tt} (a single token tree). Other
+  tokens must appear literally.
+\item \fc|$( ... )*| repeats a part zero or more times, \fc|$( ... )+| one
+  or more times; a separator can come before the \fc|*| or \fc|+|:
+  \fc|$($x:expr),*|.
+\item An \texttt{expr} fragment is substituted as a single expression, as if
+  parenthesised: with \fc|$e * $e|, \fc|square!(1 + 2)| is \fc|9|.
+\end{itemize}
+
+The built-in macros are \fc|count_args!(...)| (the number of
+comma-separated arguments), \fc|vec!(...)| (a list), \fc|concat!(...)| (the
+concatenation of string literals) and \fc|stringify!(...)| (a textual dump of
+the argument's syntax tree).
+
+\forgeexample{macros}
+
+Macros are expanded before type checking, so a macro can expand to any
+expression; they cannot be defined inside a block.

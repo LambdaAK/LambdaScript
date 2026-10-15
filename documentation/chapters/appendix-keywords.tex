@@ -1,0 +1,47 @@
+\chapter{Reserved words}
+\label{ch:keywords}
+\index{keywords}
+
+The words below cannot be used as identifiers.
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Word} & \textbf{Use} \\
+\midrule
+\tc{and} & separates the definitions of \tc{let rec ... and ...} and \tc{type rec ... and ...} \\
+\tc{case}, \tc{do} & pattern matching, \tc{case e do | p -> e ...} \\
+\tc{else}, \tc{if}, \tc{then} & conditionals \\
+\tc{end} & closes \tc{trait}, \tc{impl}, \tc{mod} and \tc{macro_rules!} bodies \\
+\tc{enum} & a synonym of \tc{...} in ranges, \tc{[1 enum 5]}; reserved for future use \\
+\tc{false}, \tc{true} & the booleans \\
+\tc{fn} & anonymous functions, \tc{fn x -> e} \\
+\tc{for} & \tc{impl Trait for Type} \\
+\tc{impl} & instance declarations \\
+\tc{import} & \tc{import "file.forge"} \\
+\tc{in} & local definitions, \tc{let x = e in body} \\
+\tc{inter} & a synonym of \tc{trait} \\
+\tc{let} & definitions \\
+\tc{macro_rules} & macro definitions, \tc{macro_rules! name where ... end} \\
+\tc{mod} & module declarations, \tc{mod Name where ... end} \\
+\tc{of} & the payload of a constructor, \tc{| Some of a} \\
+\tc{rec} & recursive definitions (\tc{let rec}) and types (\tc{type rec}) \\
+\tc{requires} & superclasses of a trait and preconditions of an impl \\
+\tc{switch} & reserved, unused \\
+\tc{trait} & trait declarations \\
+\tc{type} & type declarations and aliases \\
+\tc{use} & \tc{use Module}, bringing a module's items into scope \\
+\tc{val} & method signatures in a trait, \tc{val show : a -> String} \\
+\tc{where} & opens a \tc{trait}, \tc{impl}, \tc{mod} or \tc{macro_rules!} body \\
+\tc{with} & record update, \tc{{ r with x = 1 }} \\
+\midrule
+\tc{Int}, \tc{Float}, \tc{Bool}, \tc{Char}, \tc{String}, \tc{Unit} & the primitive types \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent The names of the prelude --- \fc|List|, \fc|Option|,
+\fc|Ordering|, \fc|Some|, \fc|None|, \fc|LT|, \fc|EQ|, \fc|GT|, \fc|show|,
+\fc|map| and the others of Chapter~\ref{ch:library} --- are ordinary names
+and can be redefined.

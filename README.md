@@ -956,12 +956,19 @@ This will generate a coverage report showing which parts of the codebase are tes
 - **`test/compiler_tests.ml`** + **`test/compiler_cases/`** — compile with `compile_forge`, run the binary, compare stdout.
 - **`test/compiler_interpreter_parity_tests.ml`**, **`test/fuzz_tests.ml`** — differential testing of the two back ends.
 - **`test/hover_ident_tests.ml`** — hover / identifier typing via `Hover_query`.
+- **`test/manual_tests.ml`** — every example of the reference manual (`documentation/examples/`), in both back ends.
 
 ## Language Semantics
 
-The formal semantics live in LaTeX as [`documentation/Forge.tex`](documentation/Forge.tex). Build a PDF locally with `pdflatex documentation/Forge.tex` (or your usual LaTeX workflow) if you want a printable copy.
+The **Forge Reference Manual** ([`documentation/Forge.tex`](documentation/Forge.tex)) is the complete description of the language: a guided tour, the tools, a reference chapter for every part of the language, the EBNF grammar with typing and evaluation rules, the standard library (every function, with an example), how the implementation works, and appendices on operators, reserved words and error messages.
 
-**Note**: The formal write-up may lag recent surface syntax (traits, prelude, macro system, compiler details).
+Build it (needs a LaTeX distribution with `latexmk`, `pdflatex` and `makeindex`) and open `documentation/Forge.pdf`:
+
+```bash
+make docs
+```
+
+Every program in the manual is a file under [`documentation/examples/`](documentation/examples), and `test/manual_tests.ml` runs each one through the interpreter and the native compiler and checks that it prints exactly what the manual shows.
 
 ## Documentation
 

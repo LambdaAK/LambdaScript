@@ -1,0 +1,63 @@
+\chapter{Operators}
+\label{ch:operators}
+\index{operators}
+
+Table~\ref{tab:operators} lists every operator with its type, from the
+loosest to the tightest binding; operators in one group have the same
+precedence. Binary operators are functions: \fc|(+)| is the addition
+function, and \fc|(+) 1| adds one.
+
+\begin{table}[ht]
+\centering\small
+\caption{Operators, loosest first.}
+\label{tab:operators}
+\begin{tabularx}{\textwidth}{@{}l l l X@{}}
+\toprule
+\textbf{Operator} & \textbf{Assoc.} & \textbf{Type} & \textbf{Meaning} \\
+\midrule
+\tc{x |> f} & left & \tc{a -> (a -> b) -> b} & \tc{f x} \\
+\midrule
+\tc{x :: xs} & right & \tc{a -> List<a> -> List<a>} & a list with head \tc{x} \\
+\midrule
+\tc{a || b} & right & \tc{Bool -> Bool -> Bool} & or; \tc{b} is evaluated only if \tc{a} is false \\
+\midrule
+\tc{a && b} & right & \tc{Bool -> Bool -> Bool} & and; \tc{b} is evaluated only if \tc{a} is true \\
+\midrule
+\tc{==}, \tc{!=}, \tc{<>} & left & \tc{a -> a -> Bool} & structural equality, inequality \\
+\tc{<}, \tc{<=}, \tc{>}, \tc{>=} & left & \tc{a -> a -> Bool} & structural order \\
+\tc{>>=} & left & \tc{Monad f => f<a> -> (a -> f<b>) -> f<b>} & monadic bind (prelude) \\
+\tc{<|>} & left & \tc{Alternative f => f<a> -> f<a> -> f<a>} & first success (prelude) \\
+\midrule
+\tc{+}, \tc{-} & left & \tc{Int -> Int -> Int} & addition, subtraction \\
+\tc{^} & left & \tc{String -> String -> String} & concatenation \\
+\tc{++} & left & \tc{Semigroup a => a -> a -> a} & \tc{mappend} (prelude) \\
+\midrule
+\tc{*}, \tc{/}, \tc{\%} & left & \tc{Int -> Int -> Int} & product, quotient, remainder \\
+\midrule
+\tc{f x} & left & & function application \\
+\midrule
+\tc{-x} & & \tc{Int -> Int} & negation \\
+\tc{r.f} & & & field \tc{f} of record \tc{r} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Custom operators} An operator defined by the program,
+\fc|let (<+>) a b = ...|, has the precedence and associativity of the group
+of its first character: \fc|<|, \fc|>|, \fc|=| or \fc|!| --- comparison;
+\fc|+|, \fc|-| or \fc|^| --- addition; \fc|*|, \fc|/| or \fc|%| ---
+multiplication.
+
+\paragraph{Expression forms} \fc|fn|, \fc|if|, \fc|let ... in| and
+\fc|case| extend as far to the right as possible: \fc|if c then 1 else 2 + 3|
+is \fc|if c then 1 else (2 + 3)|. They cannot appear directly as the operand
+of an operator: write \fc|1 + (if c then 2 else 3)|.
+
+\paragraph{Other symbols} \fc|->| separates a parameter from the body of
+a function, a pattern from the arm of a \fc|case|, and the argument from the
+result in a type; \fc|<-| introduces a comprehension generator;
+\fc|=>| separates a macro rule from its expansion; \fc|...| builds a range;
+\fc|:| introduces a type annotation or a record field's value; \fc|=|
+introduces a definition or a record update; \fc|!| invokes a macro;
+\fc!|! starts a constructor of a type declaration, an arm of a \fc|case| and
+the generators of a comprehension.

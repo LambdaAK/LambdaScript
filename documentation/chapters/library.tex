@@ -1,0 +1,167 @@
+\chapter{The standard library}
+\label{ch:library}
+\index{prelude}\index{standard library}
+
+Every program starts with two sets of names in scope: the \emph{built-in
+functions}, implemented by the language runtime, and the \emph{prelude},
+\texttt{prelude/prelude.forge}, a Forge source file that the tools load
+before the program. A program may redefine any of these names; the new
+definition applies from that point on.
+
+\newcommand{\sig}[2]{\item[{\tc{#1}\enspace{\color{ForgeAsh}:}\enspace\tc{#2}}]}
+\newenvironment{siglist}{\begin{description}[style=nextline,leftmargin=1.5em,font=\normalfont,itemsep=3pt]}{\end{description}}
+
+\section{Types}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\tc{type rec List<a> = | [] | (::) of (a, List<a>)} & lists, written \tc{[1, 2]} and \tc{1 :: []} \\
+\tc{type Option<a> = | None | Some of a} & an optional value \\
+\tc{type Ordering = | LT | EQ | GT} & the result of \tc{compare} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Traits and instances}
+\label{sec:prelude-traits}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.27\textwidth} >{\raggedright\arraybackslash}p{0.26\textwidth} >{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Trait} & \textbf{Methods} & \textbf{Instances} \\
+\midrule
+\tc{Show<a>} & \tc{show : a -> String} & \tc{Int}, \tc{Float}, \tc{Bool}, \tc{Char}, \tc{String}, \tc{Unit}, \tc{Ordering}, \tc{List<a>}, \tc{Option<a>}, pairs and triples \\
+\tc{Eq<a>} & \tc{(==)}, \tc{(!=)} & \tc{Int}, \tc{Float}, \tc{Bool}, \tc{Char}, \tc{String}, \tc{Unit}, \tc{Ordering} \\
+\tc{Ord<a>} (requires \tc{Eq}) & \tc{compare}, \tc{(<)}, \tc{(<=)}, \tc{(>)}, \tc{(>=)} & \tc{Int}, \tc{Float}, \tc{Bool}, \tc{Char}, \tc{String}, \tc{Unit} \\
+\tc{Semigroup<a>} & \tc{mappend}, \tc{(++)} & \tc{String}, \tc{List<a>}, \tc{Option<a>} \\
+\tc{Monoid<a>} (requires \tc{Semigroup}) & \tc{empty} & \tc{String}, \tc{List<a>}, \tc{Option<a>} \\
+\tc{Functor<f<_>>} & \tc{fmap} & \tc{Option} \\
+\tc{Applicative<f<_>>} (requires \tc{Functor}) & \tc{pure}, \tc{ap} & \tc{Option} \\
+\tc{Monad<f<_>>} (requires \tc{Applicative}) & \tc{bind}, \tc{(>>=)} & \tc{Option} \\
+\tc{Alternative<f<_>>} (requires \tc{Applicative}) & \tc{aempty}, \tc{(<|>)} & \tc{Option} \\
+\tc{Foldable<f<_>>} & \tc{fold_left}, \tc{fold_right} & --- \\
+\tc{Bifunctor<f<_, _>>} & \tc{bimap} & --- \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent \tc{Foldable} and \tc{Bifunctor} are declared for programs to
+implement; the prelude has no instances of them.
+
+\subsection{Show}
+\begin{siglist}
+\sig{show}{Show a => a -> String} The textual form of a value. Strings and
+characters are shown as they are (without quotes); lists as
+\tc{[1, 2, 3]}; options as \tc{Some 1} and \tc{None}; tuples as
+\tc{(1, a)}; floats in their shortest form that reads back (\tc{0.1},
+\tc{3.0}).
+\sig{println}{Show a => a -> Unit} Prints \tc{show x} and a newline.
+\end{siglist}
+\forgeexample{prelude-show}
+
+\subsection{Eq and Ord}
+\begin{siglist}
+\sig{(==), (!=)}{Eq a => a -> a -> Bool} Equality as a method;
+\tc{(!=)} defaults to the negation of \tc{(==)}.
+\sig{compare}{Ord a => a -> a -> Ordering} \tc{LT}, \tc{EQ} or \tc{GT}.
+\sig{(<), (<=), (>), (>=)}{Ord a => a -> a -> Bool} Defined from
+\tc{compare} by default.
+\end{siglist}
+\noindent The operators \tc{==}, \tc{<}, \dots\ in expressions are
+structural and do not go through these traits (Section~\ref{sec:operators}).
+\forgeexample{prelude-eq-ord}
+
+\subsection{Semigroup and Monoid}
+\begin{siglist}
+\sig{mappend, (++)}{Semigroup a => a -> a -> a} Combine two values:
+concatenation for strings and lists; for options, the first \tc{Some}.
+\sig{empty}{Monoid a => a} The identity of \tc{mappend}: \tc{""},
+\tc{[]}, \tc{None}.
+\end{siglist}
+\forgeexample{prelude-semigroup}
+
+\subsection{Functor, Applicative, Monad, Alternative}
+\begin{siglist}
+\sig{fmap}{Functor f => (a -> b) -> f<a> -> f<b>} Apply a function inside a
+container.
+\sig{pure}{Applicative f => a -> f<a>} Wrap a value.
+\sig{ap}{Applicative f => f<a -> b> -> f<a> -> f<b>} Apply a wrapped function.
+\sig{bind, (>>=)}{Monad f => f<a> -> (a -> f<b>) -> f<b>} Sequence a
+computation that may fail: for \tc{Option}, \tc{None} short-circuits.
+\sig{aempty}{Alternative f => f<a>} The failing value (\tc{None}).
+\sig{(<|>)}{Alternative f => f<a> -> f<a> -> f<a>} The first success.
+\end{siglist}
+\forgeexample{prelude-monad}
+
+\subsection{Foldable and Bifunctor}
+\begin{siglist}
+\sig{fold_left}{Foldable f => (b -> a -> b) -> b -> f<a> -> b} Combine the
+elements from the left, starting from an initial value.
+\sig{fold_right}{Foldable f => (a -> b -> b) -> b -> f<a> -> b} Combine the
+elements from the right.
+\sig{bimap}{Bifunctor f => (a -> c) -> (b -> d) -> f<a, b> -> f<c, d>} Map
+both parameters of a two-parameter type.
+\end{siglist}
+\forgeexample{prelude-foldable}
+
+\section{Built-in functions}
+\label{sec:builtins}
+\index{built-in functions}
+
+\subsection{Input and output}
+\begin{siglist}
+\sig{print}{String -> Unit} Print a string, without a newline.
+\sig{print_string}{String -> Unit} Print a string followed by a newline.
+\end{siglist}
+\forgeexample{builtins-io}
+
+\subsection{Numbers and conversions}
+\begin{siglist}
+\sig{int_to_str}{Int -> String} Decimal form of an integer.
+\sig{int_to_float}{Int -> Float} The integer as a float.
+\sig{float_to_int}{Float -> Int} Truncates toward zero.
+\sig{float_to_str}{Float -> String} The shortest form that reads back.
+\sig{char_to_str}{Char -> String} A one-character string.
+\end{siglist}
+\forgeexample{builtins-numbers}
+
+\subsection{Strings}
+\begin{siglist}
+\sig{str_length}{String -> Int} Number of characters.
+\sig{str_concat}{String -> String -> String} Concatenation, the same as \tc{^}.
+\sig{str_slice}{String -> Int -> Int -> String} \tc{str_slice s start len}:
+the substring of length \tc{len} from position \tc{start} (counting from 0),
+clamped to the string.
+\sig{string_to_list, list_of_string}{String -> List<Char>} The characters
+of a string.
+\end{siglist}
+\forgeexample{builtins-strings}
+
+\subsection{Lists, tuples and booleans}
+\begin{siglist}
+\sig{list_length}{List<a> -> Int} Number of elements.
+\sig{list_head}{List<a> -> a} The first element (a run-time error on \tc{[]}).
+\sig{list_tail}{List<a> -> List<a>} All but the first element (an error on \tc{[]}).
+\sig{list_nth}{List<a> -> Int -> a} The element at an index, from 0 (an
+error when out of range).
+\sig{map}{(a -> b) -> List<a> -> List<b>} Apply a function to every element.
+\sig{filter}{(a -> Bool) -> List<a> -> List<a>} Keep the elements that satisfy a predicate.
+\sig{reduce_left}{(b -> a -> b) -> b -> List<a> -> b} Fold from the left:
+\tc{reduce_left f z [x1, x2]} is \tc{f (f z x1) x2}.
+\sig{reduce_right}{(a -> b -> b) -> List<a> -> b -> b} Fold from the right:
+\tc{reduce_right f [x1, x2] z} is \tc{f x1 (f x2 z)}.
+\sig{tuple_fst}{(a, b) -> a} The first component of a pair.
+\sig{tuple_snd}{(a, b) -> b} The second component of a pair.
+\sig{not}{Bool -> Bool} Negation.
+\end{siglist}
+\forgeexample{builtins-lists}
+
+\subsection{Primitive comparisons}
+The functions \tc{int_eq}, \tc{float_eq}, \tc{char_eq}, \tc{str_eq},
+\tc{bool_eq} and \tc{unit_eq} (\tc{T -> T -> Bool}) and \tc{int_compare},
+\tc{float_compare}, \tc{char_compare}, \tc{str_compare}, \tc{bool_compare}
+and \tc{unit_compare} (\tc{T -> T -> Ordering}) are the comparisons the
+prelude's \tc{Eq} and \tc{Ord} instances are built from.
