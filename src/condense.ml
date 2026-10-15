@@ -186,6 +186,13 @@ let pop_named (kind : string) (name : string) : unit =
 let is_plain_type_var_name (s : string) : bool =
   s <> "" && String.for_all (fun c -> c >= 'a' && c <= 'z') s
 
+(** The annotations [(x : T)] met inside the pattern being condensed, in
+    source order once reversed. The pattern's binder ([case] arm, [fn],
+    [let ... in]) checks them by wrapping its body in [let (_ : T) = x in]. *)
+let pat_annots : (string * compound_type) list ref = ref []
+
+let annot_counter = ref 0
+
 let rec condense_pat : pat -> c_pat = function
   | SubPat sub_pat -> condense_sub_pat sub_pat
   | ConsPat (sub_pat, pat) ->
@@ -224,6 +231,25 @@ and condense_sub_pat : sub_pat -> c_pat = function
         | Some p -> Some (condense_pat p)
       in
       CVariantPat (name, payload_c_pat_opt)
+  | AnnotPat (p, ct) -> (
+      let rec strip = function
+        | SubPat (Pat p) | SubPat (VectorPat [ p ]) -> strip p
+        | p -> p
+      in
+      match strip p with
+      | SubPat (IdPat x) ->
+          let cp = condense_sub_pat (IdPat x) in
+          pat_annots := (x, ct) :: !pat_annots;
+          cp
+      | SubPat WildcardPat ->
+          incr annot_counter;
+          let x = "__annot_" ^ string_of_int !annot_counter in
+          pat_annots := (x, ct) :: !pat_annots;
+          CIdPat x
+      | _ ->
+          failwith
+            "syntax error: inside a pattern, only a name or `_` can be \
+             annotated, as in `Some (x : Int)`")
 
 (** A block [{ s1; ...; sn }] is a chain of local definitions and statements:
     [let p = e] scopes over the rest of the block, a statement is evaluated
@@ -249,6 +275,17 @@ let rec block_to_lets (parts : c_expr_or_c_defn list) : c_expr =
           (List.map (fun (p, _, ann, e1, rt, n) -> (p, ann, e1, rt, n)) ds, block_to_lets rest)
     | Defn _ :: _ -> EBlock parts
 
+(* A top-level binding has no body to check annotations in. *)
+let condense_top_pat (p : pat) : c_pat =
+  let saved = !pat_annots in
+  pat_annots := [];
+  let cp = condense_pat p in
+  let found = !pat_annots <> [] in
+  pat_annots := saved;
+  if found then
+    failwith "syntax error: annotate a top-level definition as a whole, as in `let ((a, b) : (Int, Int)) = ...`"
+  else cp
+
 let rec condense_defn : defn -> c_defn = function
   | Defn
       ( pattern,
@@ -257,7 +294,7 @@ let rec condense_defn : defn -> c_defn = function
         body_expression,
         return_type,
         num_explicit_params ) ->
-      let a : c_pat = condense_pat pattern in
+      let a : c_pat = condense_top_pat pattern in
       let constraints : (string * mono_type) list =
         List.map
           (fun (cls, ct) ->
@@ -279,7 +316,7 @@ let rec condense_defn : defn -> c_defn = function
         body_expression,
         return_type,
         num_explicit_params ) ->
-      let a : c_pat = condense_pat pattern in
+      let a : c_pat = condense_top_pat pattern in
       let constraints : (string * mono_type) list =
         List.map
           (fun (cls, ct) ->
@@ -303,7 +340,7 @@ let rec condense_defn : defn -> c_defn = function
                  body_expression,
                  return_type,
                  num_explicit_params ) ->
-            let p = condense_pat pattern in
+            let p = condense_top_pat pattern in
             let constraints =
               List.map
                 (fun (cls, ct) ->
@@ -422,33 +459,46 @@ and condense_params_body (n : int) (body : expr) (rt : compound_type option) : c
   else
     match body with
     | Function (pat, ct_opt, inner) ->
-        let p = condense_pat pat in
+        let p, check = condense_annotated_pat pat in
         let t = condense_type_opt ct_opt in
         let inner', rt' = condense_params_body (n - 1) inner rt in
-        (EFunction (p, t, inner'), rt')
+        (EFunction (p, t, check inner'), rt')
     | _ ->
         let t = condense_type_opt rt in
         (condense_expr body, t)
+
+(* [p], condensed, and the checks of the annotations inside it. *)
+and condense_annotated_pat (p : pat) : c_pat * (c_expr -> c_expr) =
+  let saved = !pat_annots in
+  pat_annots := [];
+  let cp = condense_pat p in
+  let annots = List.rev_map (fun (x, ct) -> (x, condense_type ct)) !pat_annots in
+  pat_annots := saved;
+  ( cp,
+    fun body ->
+      List.fold_right
+        (fun (x, t) b -> EBind (CWildcardPat, Some t, EId (x, None), b, None))
+        annots body )
 
 and condense_type_opt (cto : compound_type option) : c_type option =
   match cto with None -> None | Some ct -> Some (condense_type ct)
 
 and condense_expr : expr -> c_expr = function
   | Function (pat, ct_opt, expr) ->
-      let p = condense_pat pat in
+      let p, check = condense_annotated_pat pat in
       let t = condense_type_opt ct_opt in
-      EFunction (p, t, condense_expr expr)
+      EFunction (p, t, check (condense_expr expr))
   | Ternary (e1, e2, e3) ->
       let a = condense_expr e1 in
       let b = condense_expr e2 in
       ETernary (a, b, condense_expr e3)
   | ConsExpr ce -> condense_cons_expr ce
   | Bind (pat, cto, e1, e2, return_type) ->
-      let p = condense_pat pat in
+      let p, check = condense_annotated_pat pat in
       let t = condense_type_opt cto in
       let rt = condense_type_opt return_type in
       let a = condense_expr e1 in
-      EBind (p, t, a, condense_expr e2, rt)
+      EBind (p, t, a, check (condense_expr e2), rt)
   | BindRec (pat, cto, e1, e2, return_type) ->
       let p = condense_pat pat in
       let t = condense_type_opt cto in
@@ -472,8 +522,8 @@ and condense_expr : expr -> c_expr = function
         ( scrutinee,
           List.map
             (fun (pat, expr) ->
-              let p = condense_pat pat in
-              (p, condense_expr expr))
+              let p, check = condense_annotated_pat pat in
+              (p, check (condense_expr expr)))
             branches )
   | Block parts ->
       block_to_lets

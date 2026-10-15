@@ -543,6 +543,15 @@ end = struct
       let* () = expect_token WildcardPattern in
       return WildcardPat
 
+    (* [(p : T)] inside a pattern, e.g. [Some (x : Int)]. *)
+    let annot_pat_parser : sub_pat parser =
+      let* () = expect_token LParen in
+      let* p = PatParser.pat_parser in
+      let* () = expect_token Colon in
+      let* ct = CompoundTypeParser.compound_type_parser in
+      let* () = expect_token RParen in
+      return (AnnotPat (p, ct))
+
     let vector_pat_parser : sub_pat parser =
       let* () = expect_token LParen in
       let* pats = parse_sep_delim PatParser.pat_parser Comma in
@@ -582,6 +591,7 @@ end = struct
           infix_pat_parser;
           paren_infix_pat_parser;
           wildcard_pat_parser;
+          annot_pat_parser;
           vector_pat_parser;
           record_pat_parser;
         ]

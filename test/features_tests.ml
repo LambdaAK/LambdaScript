@@ -117,6 +117,8 @@ let trait_errors =
   [
     bad ~mentions:[ "instance" ] "missing impl for type"
       (size_trait ^ "impl Size for Int where\n  size n = n\nend\nlet () = println (size true)");
+    bad ~mentions:[ "String"; "Int" ] "an annotated pattern is checked"
+      "let f o = case o do | Some (x : Int) -> x | None -> 0\nlet () = println (f (Some \"s\"))";
     bad "impl of unknown trait" "impl Nope for Int where\n  f x = x\nend";
     bad "impl missing method"
       "trait T<a> where\n  val f : a -> Int\n  val g : a -> Int\nend\nimpl T for Int where\n  f x = x\nend";
@@ -202,6 +204,9 @@ let module_tests =
     ok "impl for a named record type"
       "type P = { x: Int, y: Int }\nimpl Show for P where\n  show p = \"P(\" ^ int_to_str p.x ^ \")\"\nend\nlet p : P = { x: 1, y: 2 }\nlet () = print_string (show p)"
       "P(1)\n";
+    ok "annotated patterns in case arms, functions and lets"
+      "let f o = case o do | Some (x : Int) -> x + 1 | None -> 0\nlet g = fn (a, (b : String)) -> a ^ b\nlet h p = let (x, (_ : Int)) = p in x\nlet () = println (f (Some 41), g (\"a\", \"b\"), h (true, 2))"
+      "(42, ab, true)\n";
     ok "named record type in a trait signature"
       "type P = { x: Int }\ntrait Get<m> where\n  val get : m -> P -> Int\nend\nimpl Get for Int where\n  get n p = n + p.x\nend\nlet () = println (get 1 { x: 2 })"
       "3\n";

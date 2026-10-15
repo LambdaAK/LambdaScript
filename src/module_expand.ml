@@ -192,6 +192,7 @@ let rec bound_ids_in_sub_pat : sub_pat -> string list = function
   | RecordPat fs -> List.concat (List.map (fun (_, p) -> bound_ids_in_pat p) fs)
   | VariantPat (_, Some p) -> bound_ids_in_pat p
   | VariantPat (_, None) -> []
+  | AnnotPat (p, _) -> bound_ids_in_pat p
   | UnitPat | WildcardPat | IntPat _ | CharPat _ | StringPat _ | BoolPat _
   | NilPat ->
       []
@@ -298,6 +299,8 @@ let rec rewrite_sub_pat_local (sym : symbols) (path : string list)
         ( resolve_ctor_name sym.ctors ~kind:"constructor" sym path uses name,
           option_map (rewrite_pat_local sym path uses) payload )
   | Pat p -> Pat (rewrite_pat_local sym path uses p)
+  | AnnotPat (p, ct) ->
+      AnnotPat (rewrite_pat_local sym path uses p, rewrite_compound_type sym path uses ct)
   | VectorPat ps -> VectorPat (List.map (rewrite_pat_local sym path uses) ps)
   | RecordPat fs ->
       RecordPat
@@ -324,6 +327,8 @@ let rec qualify_sub_pat_top (sym : symbols) (path : string list)
         ( resolve_ctor_name sym.ctors ~kind:"constructor" sym path uses name,
           option_map (qualify_pat_top sym path uses) payload )
   | Pat p -> Pat (qualify_pat_top sym path uses p)
+  | AnnotPat (p, ct) ->
+      AnnotPat (qualify_pat_top sym path uses p, rewrite_compound_type sym path uses ct)
   | VectorPat ps -> VectorPat (List.map (qualify_pat_top sym path uses) ps)
   | RecordPat fs ->
       RecordPat
