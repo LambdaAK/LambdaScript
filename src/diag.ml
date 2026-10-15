@@ -43,6 +43,11 @@ let type_error_message (e : Typecheck.type_error) : string =
 let runtime_error_message (e : Ceval.eval_error) : string =
   "runtime error: " ^ clean (Ceval.string_of_eval_error e)
 
+(** Print a warning on stderr (after the program's output so far). *)
+let warn (msg : string) : unit =
+  flush stdout;
+  prerr_endline ("warning: " ^ clean msg)
+
 (** Print [error: msg] on stderr (after flushing the program's own output)
     and exit with status 1. *)
 let die (msg : string) : 'a =

@@ -30,9 +30,11 @@ let interpret (filename : string) =
   let type_env : Typecheck.type_env = [] in
   ignore
     (List.fold_left
-       (fun (static_env, dynamic_env, type_env) defn ->
-         match Typecheck.generate_defn static_env type_env defn with
-         | Typecheck.Ok (new_bindings, new_type_env, _new_ctor_env) ->
+       (fun (static_env, dynamic_env, type_env, ctor_env) defn ->
+         match
+           Exhaustiveness.generate_defn_checked ~warn:Diag.warn static_env type_env ctor_env defn
+         with
+         | Typecheck.Ok (new_bindings, new_type_env, new_ctor_env) ->
              let defn =
                Typecheck.elaborate_defn ~rewrite_constrained_calls:true
                  (new_bindings @ static_env) (new_type_env @ type_env) defn
@@ -44,9 +46,10 @@ let interpret (filename : string) =
              in
              ( new_bindings @ static_env,
                new_dynamic_bindings @ dynamic_env,
-               new_type_env @ type_env )
+               new_type_env @ type_env,
+               new_ctor_env @ ctor_env )
          | Typecheck.Error e -> Diag.die (Diag.type_error_message e))
-       (static_env, dynamic_env, type_env)
+       (static_env, dynamic_env, type_env, [])
        condensed_program)
 
 let () =

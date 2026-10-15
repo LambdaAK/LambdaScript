@@ -63,7 +63,9 @@ let rec typecheck_and_elaborate_defns static_env type_env ctor_env
   match defns with
   | [] -> Ok (List.rev acc, (static_env, type_env, ctor_env))
   | defn :: rest -> (
-      match generate_defn static_env type_env defn with
+      match
+        Exhaustiveness.generate_defn_checked ~warn:Diag.warn static_env type_env ctor_env defn
+      with
       | Ok (new_bindings, new_type_env, new_ctor_env) ->
           let static_env' = new_bindings @ static_env in
           let type_env' = new_type_env @ type_env in
