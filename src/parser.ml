@@ -103,25 +103,31 @@ module ParserUtils = struct
         than delimiters if parsing succeeds. *)
   let parse_with_delims (parser : 'a parser) (is_delim : token_type -> bool) :
       ('a list * token_type list) parser =
-    let rec helper acc_values acc_delims tokens =
+    (* [before_delim] is the input just before the last delimiter consumed:
+       if the operand after a delimiter does not parse, the delimiter is given
+       back (e.g. [1 +] or [x == -1]) so the caller sees a well-formed
+       operand/operator alternation and can report a normal parse error. *)
+    let rec helper acc_values acc_delims before_delim tokens =
       match parser tokens with
       | Some (value, remaining_tokens) -> (
           (* Check for a delimiter *)
           match remaining_tokens with
           | delim :: rest when is_delim delim ->
               (* Parse the delimiter and continue *)
-              helper (value :: acc_values) (delim :: acc_delims) rest
+              helper (value :: acc_values) (delim :: acc_delims) remaining_tokens rest
           | _ ->
               (* No more delimiters, return results *)
               Some
                 ( (List.rev (value :: acc_values), List.rev acc_delims),
                   remaining_tokens ))
-      | None ->
+      | None -> (
           (* Parsing failed for the first item or subsequent values *)
-          if acc_values = [] then None
-          else Some ((List.rev acc_values, List.rev acc_delims), tokens)
+          match (acc_values, acc_delims) with
+          | [], _ -> None
+          | _, _ :: delims -> Some ((List.rev acc_values, List.rev delims), before_delim)
+          | _, [] -> Some ((List.rev acc_values, []), tokens))
     in
-    fun tokens -> helper [] [] tokens
+    fun tokens -> helper [] [] tokens tokens
 
   let ( let* ) = ( >>= )
 
@@ -132,21 +138,55 @@ module ParserUtils = struct
 
   let ( let= ) = ( >== )
 
+  (** Error reporting: while [track_furthest] is set (only when re-parsing a
+      definition that failed), every failed token test records how many tokens
+      were left; the smallest count marks the furthest point the parser
+      reached, which is where the syntax error is reported. *)
+  module SuffixTbl = Hashtbl.Make (struct
+    type t = token_type list
+
+    let equal = ( == )
+    let hash = Hashtbl.hash
+  end)
+
+  (** While tracking, maps every suffix of the token list being parsed
+      (physically) to its index, so recording a failure costs O(1). *)
+  let suffix_index : int SuffixTbl.t option ref = ref None
+
+  let furthest_index = ref (-1)
+
+  let note_failure (tokens : token_type list) : unit =
+    match !suffix_index with
+    | None -> ()
+    | Some tbl -> (
+        match SuffixTbl.find_opt tbl tokens with
+        | Some i -> if i > !furthest_index then furthest_index := i
+        | None -> ())
+
   let expect_token (expected : token_type) : unit parser =
    fun tokens ->
     match tokens with
-    | [] -> None
+    | [] ->
+        note_failure tokens;
+        None
     | token :: remaining_tokens ->
-        if token = expected then Some ((), remaining_tokens) else None
+        if token = expected then Some ((), remaining_tokens)
+        else (
+          note_failure tokens;
+          None)
 
   let expect_token_get_data (pred : token_type -> 'a option) : 'a parser =
    fun tokens ->
     match tokens with
-    | [] -> None
+    | [] ->
+        note_failure tokens;
+        None
     | token :: remaining_tokens -> (
         match pred token with
         | Some data -> Some (data, remaining_tokens)
-        | None -> None)
+        | None ->
+            note_failure tokens;
+            None)
 
   let return (result : 'a) : 'a parser = fun tokens -> Some (result, tokens)
   let fail : 'a parser = fun _ -> None
@@ -439,13 +479,11 @@ end = struct
       return (BoolPat b)
 
     let int_pat_parser : sub_pat parser =
-      let* i =
-        expect_token_get_data (function
-          | Integer i -> Some i
-          | _ -> None)
-      in
-
-      return (IntPat i)
+     fun tokens ->
+      match tokens with
+      | Integer i :: rest -> Some (IntPat i, rest)
+      | (Addop "-" | Opposite) :: Integer i :: rest -> Some (IntPat (-i), rest)
+      | _ -> None
 
     let string_pat_parser : sub_pat parser =
       let* s =
@@ -510,9 +548,13 @@ end = struct
             | Id id -> Some id
             | _ -> None)
         in
-        let* () = expect_token Colon in
-        let* p = PatParser.pat_parser in
-        return (field_name, p)
+        (let* () = expect_token Colon in
+         let* p = PatParser.pat_parser in
+         return (field_name, p))
+        <|>
+        (* Punning: [{ x, y }] binds fields [x] and [y] to variables of the
+           same name. *)
+        return (field_name, SubPat (IdPat field_name))
       in
       let* fields = parse_sep_delim (parse_field ()) Comma in
       let* () = expect_token RBrace in
@@ -693,29 +735,27 @@ end = struct
 
        where a and b are integers *)
     let* () = expect_token LBracket in
-    let* a =
-      expect_token_get_data (function
-        | Integer i -> Some i
-        | _ -> None)
-    in
-
+    let* a = expr_parser in
     let* () = expect_token Enum in
-
-    let* b =
-      expect_token_get_data (function
-        | Integer i -> Some i
-        | _ -> None)
-    in
-
+    let* b = expr_parser in
     let* () = expect_token RBracket in
-
-    return (ListEnumeration (int_to_expr a, int_to_expr b))
+    return (ListEnumeration (a, b))
 
   and list_comprehension_branch_parser : (pat * expr) parser =
-    let* pat = PatParser.pat_parser in
-    let* () = expect_token BindArrow in
-    let* expr = expr_parser in
-    return (pat, expr)
+    (let* pat = PatParser.pat_parser in
+     let* () = expect_token BindArrow in
+     let* expr = expr_parser in
+     return (pat, expr))
+    <|>
+    (* A guard [cond] keeps the elements for which it holds; it is sugar for
+       the refutable generator [true <- [cond]]. *)
+    let* cond = expr_parser in
+    return (SubPat (BoolPat true), ConsExpr
+      (DisjunctionUnderCons
+         (ConjunctionUnderDisjunction
+            (RelationUnderConjunction
+               (ArithmeticUnderRelExpr
+                  (Term (Factor (FactorUnderApplication (ListSugar [ cond ])))))))))
 
   and list_comprehension_parser () : factor parser =
     (* [e | p1 = e1, pn = pn] *)
@@ -855,14 +895,39 @@ and TermParser : sig
 end = struct
   open AppFactorParser
 
+  let app_factor_to_expr (af : app_factor) : expr =
+    ConsExpr
+      (DisjunctionUnderCons
+         (ConjunctionUnderDisjunction
+            (RelationUnderConjunction
+               (ArithmeticUnderRelExpr (Term (Factor af))))))
+
+  (** Operand of [*]/[/]/[%]: an application, optionally preceded by unary
+      minus ([-f x] is [-(f x)]; [-a * b] is [(-a) * b]). A [-] that follows
+      an operand is binary, so [f -1] is [f - 1] as in OCaml. *)
+  let rec signed_app_factor_parser : app_factor parser =
+   fun tokens ->
+    match tokens with
+    | Addop "-" :: rest -> (
+        match signed_app_factor_parser rest with
+        | Some (af, rest') ->
+            let f =
+              match af with
+              | FactorUnderApplication f -> f
+              | Application _ -> ParenFactor (app_factor_to_expr af)
+            in
+            Some (FactorUnderApplication (Opposite f), rest')
+        | None -> None)
+    | _ -> app_factor_parser tokens
+
   let factor_parser : term parser =
-    let* factor = app_factor_parser in
+    let* factor = signed_app_factor_parser in
     return (Factor factor)
 
   let term_op_parser : term parser =
     (* first, parse app_factors separated by delimiters *)
     let* app_factors, seps =
-      parse_with_delims app_factor_parser (function
+      parse_with_delims signed_app_factor_parser (function
         | Plus | Minus | Times | Mod | Divide | Mulop _ -> true
         | _ -> false)
     in
@@ -1000,9 +1065,24 @@ end = struct
   and function_parser () : expr parser =
     let* () = expect_token Fn in
     let* pat, type_annotation_option = pat_and_type_annotation_parser in
-
+    (* Optional result annotation [fn (x : Int) : Int -> e]: checked by binding
+       the body to an annotated name. The annotation is a single type factor
+       (parenthesise function types: [: (Int -> Int)]) so that the [->] that
+       starts the body is not read as part of the type. *)
+    let* return_type_option =
+      (let* () = expect_token Colon in
+       let* ft = FactorTypeParser.factor_type_parser in
+       return (Some (BasicType ft)))
+      <|> return None
+    in
     let* () = expect_token Arrow in
     let* body = expr_parser () in
+    let body =
+      match return_type_option with
+      | None -> body
+      | Some ct ->
+          Bind (SubPat (IdPat "__fn_result"), Some ct, body, id_to_expr "__fn_result", None)
+    in
     return (Function (pat, type_annotation_option, body))
 
   and ternary_parser () : expr parser =
@@ -1129,9 +1209,9 @@ end = struct
     let* () = expect_token Case in
     let* e = expr_parser () in
     let* () = expect_token Do in
-    (* parse the branches *)
+    (* parse the branches (at least one) *)
     let* branches = parse_several (branch_parser ()) in
-    return (Switch (e, branches))
+    if branches = [] then fail else return (Switch (e, branches))
 
   and expr_parser () : expr parser =
     block_parser () <|> function_parser () <|> bind_rec_parser ()
@@ -1768,7 +1848,7 @@ end = struct
     let* is_sum_type = check_tokens Pipe in
     if is_sum_type then
       let* constructors = parse_several constructor_parser in
-      return (SumTypeDef (name, [], constructors))
+      if constructors = [] then fail else return (SumTypeDef (name, [], constructors))
     else
       let* ct = CompoundTypeParser.compound_type_parser in
       return (TypeDef (name, [], ct))
@@ -1798,9 +1878,9 @@ end = struct
       <|> return []
     in
     let* () = expect_token Equals in
-    (* Parse constructors *)
+    (* Parse constructors (at least one) *)
     let* constructors = parse_several constructor_parser in
-    return (name, args, constructors)
+    if constructors = [] then fail else return (name, args, constructors)
 
   let rec_sum_type_defn_parser_with_args () : defn parser =
     let* () = expect_token Type in
@@ -1862,9 +1942,9 @@ end = struct
         | _ -> None)
     in
     let* () = expect_token Equals in
-    (* Parse constructors *)
+    (* Parse constructors (at least one) *)
     let* constructors = parse_several constructor_parser in
-    return (SumTypeDef (name, args, constructors))
+    if constructors = [] then fail else return (SumTypeDef (name, args, constructors))
 
   let sum_type_defn_parser_no_args () : defn parser =
     let* () = expect_token Type in
@@ -1874,9 +1954,9 @@ end = struct
         | _ -> None)
     in
     let* () = expect_token Equals in
-    (* Parse constructors *)
+    (* Parse constructors (at least one) *)
     let* constructors = parse_several constructor_parser in
-    return (SumTypeDef (name, [], constructors))
+    if constructors = [] then fail else return (SumTypeDef (name, [], constructors))
 
   let type_alias_defn_parser_with_args () : defn parser =
     let* () = expect_token Type in
@@ -1903,7 +1983,7 @@ end = struct
     let* is_sum_type = check_tokens Pipe in
     if is_sum_type then
       let* constructors = parse_several constructor_parser in
-      return (SumTypeDef (name, args, constructors))
+      if constructors = [] then fail else return (SumTypeDef (name, args, constructors))
     else
       let* ct = CompoundTypeParser.compound_type_parser in
       return (TypeDef (name, args, ct))
@@ -1994,3 +2074,71 @@ and ProgramParser : sig
 end = struct
   let program_parser : program parser = parse_several DefnParser.defn_parser
 end
+
+(** {1 Whole-program parsing with diagnostics} *)
+
+(** A syntax error: message and 1-based line. *)
+exception Parse_error of string * int
+
+(** Parse a lexed program. On failure, re-parses with failure tracking and
+    raises [Parse_error] at the furthest token any alternative reached (the
+    usual heuristic for backtracking parsers); errors raised by the parser
+    itself with [failwith] (e.g. a lowercase constructor name) are reported
+    at the furthest token reached when they were raised. *)
+let rec parse_program_tokens ?(boundary : int option) (tokens : Lex.token list) : program =
+  match boundary with
+  | Some b ->
+      (* A prepended prefix (the prelude) and the user's code are parsed as
+         separate programs, so the user's first tokens can never extend the
+         prefix's last definition. *)
+      let prefix, rest = List.partition (fun t -> t.Lex.byte_start < b) tokens in
+      parse_program_tokens prefix @ parse_program_tokens rest
+  | None -> parse_one_program tokens
+
+and parse_one_program (tokens : Lex.token list) : program =
+  let tts = List.map (fun t -> t.Lex.token_type) tokens in
+  let total = List.length tts in
+  let arr = Array.of_list tokens in
+  let line_of_index i =
+    if total = 0 then 1
+    else if i < total then arr.(i).Lex.line
+    else arr.(total - 1).Lex.line
+  in
+  let near i =
+    if i >= total then "unexpected end of input"
+    else "syntax error near `" ^ Lex.source_of_token_type arr.(i).Lex.token_type ^ "`"
+  in
+  let error_from_tracked_parse () =
+    let tbl = SuffixTbl.create (2 * total + 1) in
+    let rec fill i l =
+      SuffixTbl.replace tbl l i;
+      match l with [] -> () | _ :: t -> fill (i + 1) t
+    in
+    fill 0 tts;
+    suffix_index := Some tbl;
+    furthest_index := -1;
+    let outcome =
+      try
+        match ProgramParser.program_parser tts with
+        | Some (_, rest) -> `Leftover (total - List.length rest)
+        | None -> `Leftover 0
+      with Failure msg -> `Failed msg
+    in
+    suffix_index := None;
+    let at = max 0 !furthest_index in
+    match outcome with
+    | `Failed msg -> raise (Parse_error (msg, line_of_index at))
+    | `Leftover start ->
+        let at = max at start in
+        let msg =
+          match (at = start, if start < total then Some arr.(start).Lex.token_type else None) with
+          | true, Some (Id _ | Integer _ | FloatToken _ | StringToken _ | CharToken _ | Boolean _ | LParen) ->
+              near at
+              ^ " (top-level code must be a definition such as `let () = …`)"
+          | _ -> near at
+        in
+        raise (Parse_error (msg, line_of_index at))
+  in
+  match (try `Parsed (ProgramParser.program_parser tts) with Failure _ -> `Failure) with
+  | `Parsed (Some (program, [])) -> program
+  | `Parsed _ | `Failure -> error_from_tracked_parse ()

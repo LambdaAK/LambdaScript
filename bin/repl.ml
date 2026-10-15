@@ -49,8 +49,13 @@ let rec read_multiline ?(prompt = "") () =
         read_line ())
     in
     if String.trim line = ";;" then ""
+    else if prompt = "" && String.starts_with ~prefix:":" (String.trim line) then
+      (* REPL commands (:quit, :type e, …) are one line and need no [;;]. *)
+      let t = String.trim line in
+      if String.ends_with ~suffix:";;" t then String.sub t 0 (String.length t - 2) else t
     else if String.ends_with ~suffix:";;" (String.trim line) then
-      String.sub line 0 (String.length line - 2)
+      let t = String.trim line in
+      String.sub t 0 (String.length t - 2)
     else
       line ^ "\n" ^ read_multiline ~prompt:(color_dim ^ "  > " ^ color_reset) ()
   with
@@ -132,15 +137,18 @@ let handle_command cmd static_env _dynamic_env type_env history =
         | None ->
             print_error "Failed to parse expression";
             NoChange
-        | Some (Expr expr, _) ->
+        | Some (_, tok :: _) ->
+            print_error ("syntax error near `" ^ Language.Lex.source_of_token_type tok ^ "`");
+            NoChange
+        | Some (Expr expr, []) ->
             let c_expr = condense_expr expr in
             (match type_of_c_expr static_env type_env c_expr with
             | Ok t ->
                 print_colored color_blue "Type: ";
                 print_colored_line color_cyan (string_of_c_type t)
-            | Error e -> print_error (string_of_type_check_error e));
+            | Error e -> print_error (Language.Diag.clean (string_of_type_check_error e)));
             NoChange
-        | Some (Definition _, _) ->
+        | Some (Definition _, []) ->
             print_error "Use :type with expressions, not definitions";
             NoChange
       with _ ->
@@ -189,7 +197,7 @@ let repl (static_env : static_env) (dynamic_env : env) (type_env : type_env)
     in
     match outcome with
     | Language.Repl_kernel.Ev_error msg ->
-        print_error msg;
+        print_error (Language.Diag.clean msg);
         (NoChange, new_history)
     | Language.Repl_kernel.Ev_expr { typ; value } ->
         print_separator ();
@@ -222,58 +230,36 @@ let rec run_repl_loop static_env dynamic_env type_env history =
 
 let load_file_into_env filename static_env dynamic_env type_env =
   try
-    let content = Language.Compile_pipeline.read_program_source filename in
-
-    let input = content |> String.to_seq |> List.of_seq in
-    let tokens = lex input |> List.map (fun t -> t.token_type) in
-
-    (* Try to parse as a program (multiple definitions) *)
-    match Language.Parser.ProgramParser.program_parser tokens with
-    | Some (program, []) ->
-        (* Successfully parsed entire file as a program *)
-        let program =
-          try
-            Language.Import_resolve.resolve_program ~root_file:filename
-              ~base_dir:(Filename.dirname filename)
-              program
-          with Failure msg ->
-            print_error msg;
-            []
-        in
-        if program = [] then (static_env, dynamic_env, type_env)
-        else
-        let condensed_program = condense_program program in
-
-        let new_static_env, new_dynamic_env, new_type_env, loaded_ok =
-          match
-            Language.Repl_kernel.process_condensed_defns static_env dynamic_env
-              type_env condensed_program
-          with
-          | Language.Typecheck.Ok (ms, md, mt, _, _, _) ->
-              Language.Repl_kernel.remember_user_defns_for_condense program
-                condensed_program;
-              (ms, md, mt, true)
-          | Language.Typecheck.Error e ->
-              print_error (string_of_type_check_error e);
-              (static_env, dynamic_env, type_env, false)
-        in
-
-        if loaded_ok then print_colored_line color_green ("Loaded " ^ filename);
-        (new_static_env, new_dynamic_env, new_type_env)
-    | Some (_, remaining) ->
-        print_error ("Warning: " ^ string_of_int (List.length remaining) ^
-                    " tokens remaining after parsing");
-        (static_env, dynamic_env, type_env)
-    | None ->
-        print_error "Failed to parse file";
-        (static_env, dynamic_env, type_env)
-  with
-  | Sys_error msg ->
-      print_error ("File error: " ^ msg);
-      (static_env, dynamic_env, type_env)
-  | e ->
-      print_error ("Error loading file: " ^ Printexc.to_string e);
-      (static_env, dynamic_env, type_env)
+    (* The prelude is already loaded into the environment: parse the file on
+       its own so error lines refer to it. *)
+    let content = Language.Compile_pipeline.read_file filename in
+    let program = Language.Diag.parse_file_source ~file:filename content in
+    let program =
+      Language.Import_resolve.resolve_program ~root_file:filename
+        ~base_dir:(Filename.dirname filename) program
+    in
+    if program = [] then (static_env, dynamic_env, type_env)
+    else
+      let condensed_program = Language.Repl_kernel.condense_user_defns program in
+      match
+        Language.Repl_kernel.process_condensed_defns static_env dynamic_env type_env
+          condensed_program
+      with
+      | Language.Typecheck.Ok (ms, md, mt, _, _, _) ->
+          Language.Repl_kernel.remember_user_defns_for_condense program condensed_program;
+          print_colored_line color_green ("Loaded " ^ filename);
+          (ms, md, mt)
+      | Language.Typecheck.Error e ->
+          print_error (Language.Diag.clean (string_of_type_check_error e));
+          (static_env, dynamic_env, type_env)
+  with e ->
+    let msg =
+      match Language.Diag.message_of_exn ~file:filename e with
+      | Some m -> m
+      | None -> Printexc.to_string e
+    in
+    print_error ("could not load " ^ filename ^ ": " ^ msg);
+    (static_env, dynamic_env, type_env)
 
 let merge_prelude static_env dynamic_env type_env =
   match Language.Repl_kernel.merge_prelude static_env dynamic_env type_env with
@@ -320,6 +306,6 @@ let () =
       let filename = Sys.argv.(1) in
       run_repl ~preload_file:filename ()
   | _ ->
-      print_endline "Usage: repl [file_to_preload]";
-      print_endline "  Start the REPL, optionally preloading definitions from a file";
-      exit 1
+      prerr_endline "usage: repl [file_to_preload]";
+      prerr_endline "  Start the REPL, optionally preloading definitions from a file";
+      exit 2

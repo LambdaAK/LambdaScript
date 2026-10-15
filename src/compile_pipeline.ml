@@ -1,5 +1,4 @@
 open Lex
-open Parser.ProgramParser
 open Condense
 open Import_resolve
 open Typecheck
@@ -74,105 +73,106 @@ let rec typecheck_and_elaborate_defns static_env type_env ctor_env
           in
           typecheck_and_elaborate_defns static_env' type_env' ctor_env'
             (elaborated_defn :: acc) rest
-      | Error e -> Error (string_of_type_check_error e))
+      | Error e -> Error (Diag.type_error_message e))
 
-let compile ?(quiet = false) ?(prelude = true) (src_path : string)
-    (out_path : string) : (unit, string) result =
-  let file_contents = read_program_source ~prelude src_path in
-  let user_raw = read_file src_path in
+(** Front end + lowering: parse, resolve imports, condense, typecheck,
+    elaborate and lower [src_path] (with the prelude unless [~prelude:false])
+    to Min IR. Errors are user-facing messages. *)
+let rec min_ir_of_file ?(prelude = true) (src_path : string) :
+    (Min_ir.prog, string) result =
+  try min_ir_of_file_exn ~prelude src_path with
+  | e -> (
+      Condense.clear_id_queue ();
+      match Diag.message_of_exn ~file:src_path e with
+      | Some msg -> Error msg
+      | None -> Error ("internal compiler error: " ^ Printexc.to_string e))
+
+and min_ir_of_file_exn ~prelude (src_path : string) : (Min_ir.prog, string) result =
+  let user_raw =
+    try read_file src_path with Sys_error msg -> failwith ("cannot read " ^ msg)
+  in
+  let file_contents = Prelude.prepend_to_source ~enabled:prelude ~src_path user_raw in
   let delta = String.length file_contents - String.length user_raw in
-  let full_tokens = lex (file_contents |> String.to_seq |> List.of_seq) in
+  let prefix_lines = Diag.lines_in_prefix file_contents delta in
+  let full_tokens =
+    Diag.with_source_lines ~file:src_path ~prefix_lines (fun () ->
+        lex (file_contents |> String.to_seq |> List.of_seq))
+  in
   Condense.set_id_queue_from_tokens full_tokens;
-  let tokens = List.map (fun t -> t.token_type) full_tokens in
-  match program_parser tokens with
-  | None ->
-      Condense.clear_id_queue ();
-      Error "Parsing failed"
-  | Some (_, remaining) when remaining <> [] ->
-      Condense.clear_id_queue ();
-      Error "Parsing failed: extra tokens after program"
-  | Some (program, _) -> (
-      let program_or_err : (Expr.defn list, string) Stdlib.result =
-        try
-          Stdlib.Ok
-            (resolve_program ~root_file:src_path
-               ~base_dir:(Filename.dirname src_path)
-               program)
-        with Failure msg ->
-          Condense.clear_id_queue ();
-          Stdlib.Error msg
-      in
-      match program_or_err with
-      | Stdlib.Error _ as e -> e
-      | Stdlib.Ok program ->
-      let prelude_n =
-        if delta <= 0 then 0
+  let program =
+    Diag.with_source_lines ~file:src_path ~prefix_lines (fun () ->
+        Parser.parse_program_tokens ~boundary:delta full_tokens)
+  in
+  let program =
+    resolve_program ~root_file:src_path ~base_dir:(Filename.dirname src_path) program
+  in
+  let prelude_n =
+    if delta <= 0 then 0
+    else
+      let frag = String.sub file_contents 0 delta in
+      let n = Prelude.defn_count_for_source_fragment frag in
+      if n > 0 then n else Prelude.defn_count_when_parsed ()
+  in
+  let condensed_program =
+    condense_program
+      ?user_id_byte_min_after_prelude:(if delta = 0 then None else Some (prelude_n, delta))
+      program
+  in
+  Condense.clear_id_queue ();
+  let static_env = build_full_static_env () in
+  match typecheck_and_elaborate_defns static_env [] [] [] condensed_program with
+  | Error _ as e -> e
+  | Ok (condensed_program, (static_env, type_env, ctor_env)) -> (
+      match Lower_min_ir.lower_c_program condensed_program static_env type_env ctor_env with
+      | Error msg -> Error ("the native compiler does not support this program yet: " ^ msg)
+      | Ok prog -> Ok prog)
+
+(** Compile [src_path] to the executable [out_path]: writes [.mir], [.ll] and
+    [.s] next to the source, then links with the C runtime using clang. *)
+let compile ?(quiet = false) ?(prelude = true) (src_path : string) (out_path : string) :
+    (unit, string) result =
+  match min_ir_of_file ~prelude src_path with
+  | Error _ as e -> e
+  | Ok min_ir_prog -> (
+      try
+        let base = Filename.remove_extension src_path in
+        let mir_path = base ^ ".mir" in
+        Out_channel.with_open_bin mir_path (fun oc ->
+            output_string oc (string_of_prog min_ir_prog));
+        let ll = emit_prog min_ir_prog in
+        let ll_path = base ^ ".ll" in
+        let asm_path = base ^ ".s" in
+        Out_channel.with_open_bin ll_path (fun oc -> output_string oc ll);
+        let cmd_asm =
+          Printf.sprintf "clang -S -O1 -g -Wno-override-module -o %s %s"
+            (Filename.quote asm_path) (Filename.quote ll_path)
+        in
+        let code_asm = Sys.command cmd_asm in
+        if code_asm <> 0 then
+          Error
+            (Printf.sprintf
+               "internal compiler error: clang rejected the generated LLVM IR %s (exit %d)"
+               ll_path code_asm)
         else
-          let frag = String.sub file_contents 0 delta in
-          let n = Prelude.defn_count_for_source_fragment frag in
-          if n > 0 then n else Prelude.defn_count_when_parsed ()
-      in
-      let condensed_program =
-        condense_program
-          ?user_id_byte_min_after_prelude:
-            (if delta = 0 then None else Some (prelude_n, delta))
-          program
-      in
-      Condense.clear_id_queue ();
-      let static_env = build_full_static_env () in
-      let type_env : type_env = [] in
-      let ctor_env : Typecheck.constructor_env = [] in
-      match
-        typecheck_and_elaborate_defns static_env type_env ctor_env []
-          condensed_program
+          let rt = runtime_c_path () in
+          let cmd_exe =
+            Printf.sprintf "clang -O1 -g -Wno-override-module -o %s %s %s"
+              (Filename.quote out_path) (Filename.quote ll_path) (Filename.quote rt)
+          in
+          let code_exe = Sys.command cmd_exe in
+          if code_exe <> 0 then
+            Error (Printf.sprintf "linking %s with clang failed (exit %d)" out_path code_exe)
+          else (
+            if not quiet then
+              Printf.printf
+                "Wrote Min IR:     %s\n\
+                 Wrote LLVM IR:    %s\n\
+                 Wrote assembly:   %s\n\
+                 Wrote executable: %s\n"
+                mir_path ll_path asm_path out_path;
+            Ok ())
       with
-      | Error _ as e -> e
-      | Ok (condensed_program, (static_env, type_env, ctor_env)) -> (
-          match
-            Lower_min_ir.lower_c_program condensed_program static_env type_env
-              ctor_env
-          with
-          | Error msg ->
-              if not quiet then print_endline ("Lowering failed: " ^ msg);
-              Error ("Lowering failed: " ^ msg)
-          | Ok min_ir_prog ->
-              let base = Filename.remove_extension src_path in
-              let mir_path = base ^ ".mir" in
-              let oc_mir = open_out mir_path in
-              output_string oc_mir (string_of_prog min_ir_prog);
-              close_out oc_mir;
-              let ll = emit_prog min_ir_prog in
-              let ll_path = base ^ ".ll" in
-              let asm_path = base ^ ".s" in
-              let oc = open_out ll_path in
-              output_string oc ll;
-              close_out oc;
-              let cmd_asm =
-                Printf.sprintf "clang -S -O1 -g -Wno-override-module -o %s %s"
-                  asm_path ll_path
-              in
-              let code_asm = Sys.command cmd_asm in
-              if code_asm <> 0 then
-                Error
-                  (Printf.sprintf "clang -S (IR → assembly) failed (exit %d)"
-                     code_asm)
-              else
-                let rt = runtime_c_path () in
-                let cmd_exe =
-                  Printf.sprintf "clang -O1 -g -Wno-override-module -o %s %s %s"
-                    out_path ll_path rt
-                in
-                let code_exe = Sys.command cmd_exe in
-                if code_exe <> 0 then
-                  Error
-                    (Printf.sprintf "clang (link executable) failed (exit %d)"
-                       code_exe)
-                else (
-                  if not quiet then
-                    Printf.printf
-                      "Wrote Min IR:     %s\n\
-                       Wrote LLVM IR:  %s\n\
-                       Wrote assembly: %s\n\
-                       Wrote executable: %s\n"
-                      mir_path ll_path asm_path out_path;
-                  Ok ())))
+      | Sys_error msg -> Error msg
+      | Failure msg when String.starts_with ~prefix:"llvm_emit" msg ->
+          Error ("internal compiler error: " ^ msg)
+      | Failure msg -> Error (Diag.clean msg))

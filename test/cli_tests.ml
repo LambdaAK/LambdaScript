@@ -177,7 +177,8 @@ let repl_tests =
     ( "repl: :quit exits 0" >:: fun _ ->
       let r = repl_run ":quit\n1 + 1;;\n" in
       assert_equal ~printer:string_of_status (Exited 0) r.status;
-      assert_bool "does not evaluate after quit" (not (contains (strip_ansi r.out) "2 : Int")) );
+      assert_bool "does not evaluate after quit" (not (contains (strip_ansi r.out) "2 : Int"));
+      assert_bool ("commands need no ;; : " ^ r.out) (not (contains (strip_ansi r.out) "Unknown command")) );
     ( "repl: error then recovery" >:: fun _ ->
       let r = repl_run "1 + true;;\n2 + 2;;\n" in
       let out = strip_ansi r.out in

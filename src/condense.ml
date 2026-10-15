@@ -520,7 +520,12 @@ and condense_factor : factor -> c_expr = function
   | FloatFactor f -> EFloat f
   | Id s -> eid_from_source s
   | ParenFactor expr -> condense_expr expr
-  | Opposite factor -> EBop (CMinus, EInt 0, condense_factor factor)
+  | Opposite factor -> (
+      (* Negative literals are constants; other operands become [0 - e]. *)
+      match condense_factor factor with
+      | EInt i -> EInt (-i)
+      | EFloat f -> EFloat (-.f)
+      | e -> EBop (CMinus, EInt 0, e))
   | Vector expressions -> EVector (List.map condense_expr expressions)
   | Nil -> ENil
   | ListSugar e_list ->

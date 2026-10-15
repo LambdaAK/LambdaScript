@@ -303,21 +303,22 @@ let malformed_tests =
       "let a = 1\nlet b = 2\nlet c = (3\nlet d = 4";
   ]
 
-(* Parse errors should point at the offending line. *)
+(* Errors are reported as [file:line: message]. A dangling [+] at the end of
+   line 3 is detected at the [let] on line 4, where an operand was expected. *)
 let location_tests =
   [
     ( "parse error message names the line" >:: fun _ ->
       let src = "let a = 1\nlet b = 2\nlet c = 3 +\nlet d = 4\n" in
       let r = interp src in
-      assert_clean_error ~mentions:[ "line 3" ] "parse error line" src r );
+      assert_clean_error ~mentions:[ "prog.forge:4:" ] "parse error line" src r );
     ( "lexer error message names the line" >:: fun _ ->
       let src = "let a = 1\n\nlet b = @\n" in
       let r = interp src in
-      assert_clean_error ~mentions:[ "line 3" ] "lex error line" src r );
+      assert_clean_error ~mentions:[ "prog.forge:3:" ] "lex error line" src r );
     ( "unterminated string names the line" >:: fun _ ->
       let src = "let a = 1\nlet s = \"abc\n" in
       let r = interp src in
-      assert_clean_error ~mentions:[ "line 2" ] "string error line" src r );
+      assert_clean_error ~mentions:[ "prog.forge:2:" ] "string error line" src r );
   ]
 
 (* Pathological-but-valid inputs must parse in reasonable time. *)

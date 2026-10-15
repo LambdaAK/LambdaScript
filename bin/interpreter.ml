@@ -1,87 +1,64 @@
-open Language.Lex
-open Language.Parser.ProgramParser
-open Language.Condense
-open Language.Typecheck
-open Language.Cexpr
-open Language.Ceval
-open Language.Build_env
+(* Forge interpreter: run a .forge file (with the standard prelude).
+
+   Errors are reported on stderr as [error: <message>] and exit with status
+   1; the program's own output stays on stdout. *)
+
+open Language
 
 let interpret (filename : string) =
-  let file_contents =
-    try Language.Compile_pipeline.read_program_source filename
-    with Sys_error msg ->
-      print_endline ("Error opening file: " ^ msg);
-      exit 1
+  let user_source =
+    try Compile_pipeline.read_file filename
+    with Sys_error msg -> Diag.die ("cannot read " ^ msg)
   in
-
-  let tokens =
-    lex (file_contents |> String.to_seq |> List.of_seq)
-    |> List.map (fun t -> t.token_type)
+  let full_source = Prelude.prepend_to_source ~src_path:filename user_source in
+  let prefix_lines =
+    Diag.lines_in_prefix full_source (String.length full_source - String.length user_source)
   in
-
-  match program_parser tokens with
-  | None ->
-      print_endline "Parsing failed";
-      exit 1
-  | Some (program, remaining) ->
-      (* Check if there are unparsed tokens remaining *)
-      (match remaining with
-      | [] -> () (* All tokens consumed, good! *)
-      | _ ->
-          print_endline ("Warning: " ^ string_of_int (List.length remaining) ^ " tokens remaining after parsing");
-          print_endline "The entire file was not parsed successfully.";
-          exit 1);
-      let program =
-        try
-          Language.Import_resolve.resolve_program ~root_file:filename
-            ~base_dir:(Filename.dirname filename)
-            program
-        with Failure msg ->
-          print_endline msg;
-          exit 1
-      in
-      let condensed_program = condense_program program in
-
-      let static_env : static_env = build_full_static_env () in
-      let dynamic_env : env = initial_env () |> unwrap_eval_result in
-      let type_env : type_env = [] in
-
-      (* use fold_left to iterate through the definitions and evaluate them *)
-      let static_env, dynamic_env, type_env =
-        List.fold_left
-          (fun (static_env, dynamic_env, type_env) defn ->
-            match generate_defn static_env type_env defn with
-            | Ok (new_bindings, new_type_env, _new_ctor_env) ->
-                (* TODO: propagate the monadic errors *)
-                let defn =
-                  elaborate_defn ~rewrite_constrained_calls:true
-                    (new_bindings @ static_env) (new_type_env @ type_env) defn
-                in
-                let new_dynamic_bindings =
-                  match eval_defn defn dynamic_env with
-                  | Ok v -> v
-                  | Error e -> failwith ("Evaluation failed: " ^ string_of_eval_error e)
-                in
-                (new_bindings @ static_env, new_dynamic_bindings @ dynamic_env, new_type_env @ type_env)
-            | Error e ->
-                print_endline (string_of_type_check_error e);
-                exit 1)
-          (static_env, dynamic_env, type_env) condensed_program
-      in
-
-      (* As of now, we don't really need to do anything with the resulting
-         environments *)
-      ignore static_env;
-      ignore dynamic_env;
-      ignore type_env
+  let program =
+    Diag.with_source_lines ~file:filename ~prefix_lines (fun () ->
+        Parser.parse_program_tokens
+          ~boundary:(String.length full_source - String.length user_source)
+          (Lex.lex (full_source |> String.to_seq |> List.of_seq)))
+  in
+  let program =
+    Import_resolve.resolve_program ~root_file:filename
+      ~base_dir:(Filename.dirname filename) program
+  in
+  let condensed_program = Condense.condense_program program in
+  let static_env = Build_env.build_full_static_env () in
+  let dynamic_env = Ceval.initial_env () |> Ceval.unwrap_eval_result in
+  let type_env : Typecheck.type_env = [] in
+  ignore
+    (List.fold_left
+       (fun (static_env, dynamic_env, type_env) defn ->
+         match Typecheck.generate_defn static_env type_env defn with
+         | Typecheck.Ok (new_bindings, new_type_env, _new_ctor_env) ->
+             let defn =
+               Typecheck.elaborate_defn ~rewrite_constrained_calls:true
+                 (new_bindings @ static_env) (new_type_env @ type_env) defn
+             in
+             let new_dynamic_bindings =
+               match Ceval.eval_defn defn dynamic_env with
+               | Ceval.Ok v -> v
+               | Ceval.Error e -> Diag.die (Diag.runtime_error_message e)
+             in
+             ( new_bindings @ static_env,
+               new_dynamic_bindings @ dynamic_env,
+               new_type_env @ type_env )
+         | Typecheck.Error e -> Diag.die (Diag.type_error_message e))
+       (static_env, dynamic_env, type_env)
+       condensed_program)
 
 let () =
   if Array.length Sys.argv <> 2 then (
-    print_endline "Usage: interpreter <filename>";
-    exit 1)
+    prerr_endline "usage: interpreter <file.forge>";
+    exit 2)
   else
     let filename = Sys.argv.(1) in
-    try interpret filename
-    with e ->
-      print_endline (Printexc.to_string e);
-      exit 1
+    try
+      interpret filename;
+      flush stdout
+    with e -> (
+      match Diag.message_of_exn ~file:filename e with
+      | Some msg -> Diag.die msg
+      | None -> Diag.die ("internal error: " ^ Printexc.to_string e))
