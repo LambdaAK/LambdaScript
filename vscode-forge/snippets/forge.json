@@ -1,0 +1,77 @@
+{
+  "Function": {
+    "prefix": "let",
+    "body": ["let ${1:name} ${2:x} =", "  ${0:body}"],
+    "description": "Define a function"
+  },
+  "Recursive function": {
+    "prefix": "letrec",
+    "body": ["let rec ${1:name} ${2:x} =", "  ${0:body}"],
+    "description": "Define a recursive function"
+  },
+  "Effect": {
+    "prefix": "main",
+    "body": ["let () = ${0:println ()}"],
+    "description": "Run an expression for its effect"
+  },
+  "Case": {
+    "prefix": "case",
+    "body": ["case ${1:value} do", "| ${2:pattern} -> ${3:result}", "| ${4:_} -> ${0:result}"],
+    "description": "Pattern match"
+  },
+  "List case": {
+    "prefix": "caselist",
+    "body": ["case ${1:xs} do", "| [] -> ${2:empty}", "| ${3:h} :: ${4:t} -> ${0:result}"],
+    "description": "Pattern match on a list"
+  },
+  "If": {
+    "prefix": "if",
+    "body": ["if ${1:condition} then ${2:yes} else ${0:no}"],
+    "description": "Conditional"
+  },
+  "Lambda": {
+    "prefix": "fn",
+    "body": ["fn ${1:x} -> ${0:body}"],
+    "description": "Anonymous function"
+  },
+  "Sum type": {
+    "prefix": "type",
+    "body": ["type ${1:Name} =", "  | ${2:A} of ${3:Int}", "  | ${0:B}"],
+    "description": "Declare a sum type"
+  },
+  "Record type": {
+    "prefix": "typerecord",
+    "body": ["type ${1:Name} = { ${2:field}: ${0:Int} }"],
+    "description": "Declare a record type alias"
+  },
+  "Trait": {
+    "prefix": "trait",
+    "body": ["trait ${1:Name}<${2:a}> where", "  val ${3:method} : ${2:a} -> ${0:String}", "end"],
+    "description": "Declare a trait"
+  },
+  "Impl": {
+    "prefix": "impl",
+    "body": ["impl ${1:Trait} for ${2:Type} where", "  ${3:method} ${4:x} = ${0:body}", "end"],
+    "description": "Implement a trait"
+  },
+  "Module": {
+    "prefix": "mod",
+    "body": ["mod ${1:Name} where", "  ${0}", "end"],
+    "description": "Declare a module"
+  },
+  "Macro": {
+    "prefix": "macro_rules",
+    "body": ["macro_rules! ${1:name} where", "  (\\$${2:x}:expr) => ${0:\\$${2:x}}", "end"],
+    "description": "Declare a macro"
+  },
+  "Comprehension": {
+    "prefix": "comp",
+    "body": ["[${1:x} | ${1:x} <- ${2:xs}${3:, ${4:condition}}]"],
+    "description": "List comprehension"
+  },
+  "Import": {
+    "prefix": "import",
+    "body": ["import \"${1:file}.forge\""],
+    "description": "Import another file"
+  }
+}

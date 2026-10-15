@@ -910,15 +910,31 @@ make dump-ir FILE=programs/minimal.forge
 
 Additional compiler integration tests and fixtures live in `test/compiler_cases/`.
 
-## Editor support: LSP hover
+## Editor support (VS Code and Cursor)
 
-[`bin/forge_hover.ml`](bin/forge_hover.ml) builds **`forge_hover`**, a small stdin/stdout tool meant to be driven by an LSP server for hover/type-at-point:
+[`vscode-forge/`](vscode-forge) is a VS Code / Cursor extension with:
+- errors and warnings as you type;
+- hover types and doc comments;
+- go to definition (also into imports and the prelude), find references and rename;
+- completion, an outline, and inline type hints;
+- semantic highlighting;
+- commands to run, compile and open a REPL.
+
+It is driven by **`forge_ide`** ([`bin/forge_ide.ml`](bin/forge_ide.ml), logic in [`src/ide.ml`](src/ide.ml)). Given a file's path and its text on stdin, the tool prints the file's diagnostics, every symbol with its location, type and doc comment, and every reference resolved to its symbol, as JSON:
 
 ```bash
-dune exec ./bin/forge_hover.exe path/to/file.forge 1 10 4 < path/to/file.forge
+dune exec ./bin/forge_ide.exe path/to/file.forge < path/to/file.forge
 ```
 
-Arguments: `path`, `prelude` (`1`/`true` to prepend the standard prelude, `0`/`false` for raw buffer only), zero-based `line`, zero-based `character`. On success it prints the type string to stdout; on failure it prints `ERROR: …` and exits with a non-zero status. Query logic lives in [`src/hover_query.ml`](src/hover_query.ml).
+Build and install the extension (it bundles the Forge tools, so it works on any `.forge` file):
+
+```bash
+dune build
+cd vscode-forge && npm install && npm run package
+cursor --install-extension forge-0.2.0.vsix    # or: code --install-extension forge-0.2.0.vsix
+```
+
+See [`vscode-forge/README.md`](vscode-forge/README.md) for the features and settings. The older one-shot hover tool, `forge_hover` ([`src/hover_query.ml`](src/hover_query.ml)), is still built.
 
 ## Testing
 
@@ -1026,7 +1042,7 @@ If you deploy from the Netlify control panel:
 
 ```
 Forge/                # repository root (language: Forge)
-├── bin/              # interpreter, repl, compile_forge, dump_min_ir, forge_hover, …
+├── bin/              # interpreter, repl, compile_forge, dump_min_ir, forge_ide, forge_hover, …
 ├── src/              # lexer, parser, typecheck, interpreter, compiler pipeline
 │   ├── lex.ml, parser.ml, condense.ml   # front end (tokens, AST, core AST)
 │   ├── typecheck.ml                     # inference and type-class elaboration
