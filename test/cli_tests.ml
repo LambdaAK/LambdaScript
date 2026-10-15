@@ -76,6 +76,15 @@ let interpreter_tests =
       let src = "let rec go n = if n == 0 then () else { print_string \"line\"; go (n - 1) }\nlet () = go 20000" in
       let r = interp ~timeout:30.0 src in
       assert_equal ~printer:string_of_int (20000 * 5) (String.length r.out) );
+    (* A call used to scan the whole environment (all of the prelude): about
+       20 microseconds per call, 40 s for this loop. It now takes well under
+       a second. *)
+    ( "interpreter: two million calls finish quickly" >:: fun _ ->
+      let src =
+        "let rec loop n acc = if n == 0 then acc else loop (n - 1) (acc + 1)\n\
+         let () = println (loop 2000000 0)"
+      in
+      assert_runs ~expected:"2000000\n" "loop" src (interp ~timeout:15.0 src) );
   ]
 
 let ambiguity_tests =

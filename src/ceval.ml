@@ -394,16 +394,55 @@ let is_dict_binding_name (name : string) : bool =
   String.starts_with ~prefix:"__forge_dict_" name
   || String.starts_with ~prefix:"__dict_" name
 
+(** The dictionary bindings of [caller_env] that [closure_env] lacks, put in
+    front of [closure_env].
+
+    Bindings in the longest tail the two environments share (physically) are
+    in [closure_env] already, so only the bindings of [caller_env] above that
+    tail need to be examined: usually a few locals, instead of the whole
+    prelude on every call. *)
 let merge_closure_env_with_caller_dicts (closure_env : env) (caller_env : env) :
     env =
-  let has_name name env = List.exists (fun (n, _) -> n = name) env in
-  let extra_dicts =
-    List.filter
-      (fun (name, _) ->
-        is_dict_binding_name name && not (has_name name closure_env))
-      caller_env
-  in
-  extra_dicts @ closure_env
+  if caller_env == closure_env then closure_env
+  else
+    let rec drop n l =
+      if n <= 0 then l else match l with [] -> [] | _ :: t -> drop (n - 1) t
+    in
+    (* Any shared tail gives the same result (the bindings in it are in
+       [closure_env]); a longer one is faster. Usually one of the first tails
+       of [closure_env] is near the top of [caller_env] (a call from the
+       closure's own body, or from the scope that defined it), so look there
+       first, and compare the aligned lists otherwise. *)
+    let rec near_top c l d =
+      l == c || (d > 0 && match l with [] -> false | _ :: t -> near_top c t (d - 1))
+    in
+    let rec quick c k =
+      if near_top c caller_env 8 then Some c
+      else if k = 0 then None
+      else match c with [] -> None | _ :: t -> quick t (k - 1)
+    in
+    let shared =
+      match quick closure_env 8 with
+      | Some c -> c
+      | None ->
+          let lc = List.length closure_env and lk = List.length caller_env in
+          let rec shared_tail c k =
+            if c == k then c
+            else match (c, k) with _ :: ct, _ :: kt -> shared_tail ct kt | _ -> []
+          in
+          shared_tail (drop (lc - lk) closure_env) (drop (lk - lc) caller_env)
+    in
+    let has_name name env = List.exists (fun (n, _) -> n = name) env in
+    let rec extra l =
+      if l == shared then []
+      else
+        match l with
+        | [] -> []
+        | ((name, _) as b) :: t ->
+            if is_dict_binding_name name && not (has_name name closure_env) then b :: extra t
+            else extra t
+    in
+    match extra caller_env with [] -> closure_env | extra_dicts -> extra_dicts @ closure_env
 
 (** [eval_c_expr ce env] evaluates a condensed expression [ce] in the context of
     environment [env].
