@@ -451,6 +451,15 @@ end = struct
 
       (* Check if it starts with uppercase - if so, it's a constructor *)
       if is_uppercase_first id then
+        (* A constructor may be qualified by its module: [M.C], [M.N.C]. *)
+        let* rest =
+          parse_several
+            (let* () = expect_token Dot in
+             expect_token_get_data (function
+               | Id s when is_uppercase_first s -> Some s
+               | _ -> None))
+        in
+        let id = String.concat "." (id :: rest) in
         (* Try to parse an optional payload pattern *)
         let* payload_option =
           (let* payload_sub_pat = SubPatParser.sub_pat_parser in
