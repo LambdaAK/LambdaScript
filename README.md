@@ -118,7 +118,7 @@ The keyword **`inter`** is an alternative, brace-oriented spelling for the same 
 An **instance** is written **`impl Trait for Type where … end`**:
 
 - **`Type`** is the implementing type: monomorphic (`Int`, `Bool`, `String`, …), a type constructor applied to parameters (`List<a>`, `Option<a>`), etc., as allowed by the typechecker.
-- Inside **`where … end`**, you supply a **`let`** binding for each **`val`** required by the trait (unless the trait gave a default `let` you are happy to inherit). Operator methods use the same syntax as ordinary functions: `let (++) x y = …`.
+- Inside **`where … end`**, you give one equation per method required by the trait (unless the trait gave a default `let` you are happy to inherit), written like a function definition without `let` — `show x = …`, `(++) x y = …` — and separated by commas.
 - Instances may be **parameterized**: for example, `impl Semigroup for List<a>` in the prelude implements the trait for all element types `a` at once.
 
 Illustrative fragments (same ideas as [`prelude/prelude.forge`](prelude/prelude.forge)):
@@ -134,12 +134,12 @@ trait Monoid<a> requires Semigroup<a> where
 end
 
 impl Semigroup for String where
-  let mappend x y = str_concat x y
-  let (++) x y = mappend x y
+  mappend x y = str_concat x y,
+  (++) x y = mappend x y
 end
 
 impl Monoid for String where
-  let empty = ""
+  empty = ""
 end
 ```
 
@@ -147,7 +147,7 @@ end
 
 - **Prelude**: [`prelude/prelude.forge`](prelude/prelude.forge) is the canonical reference for trait definitions and instances.
 - **Smaller demos**: [`programs/typeclass_show.forge`](programs/typeclass_show.forge), [`programs/functor_list.forge`](programs/functor_list.forge).
-- **Native vs interpreter**: some typeclass-heavy programs are still smoother in the interpreter or REPL than in the native compiler; see comments in [`programs/haskell_style_typeclasses.forge`](programs/haskell_style_typeclasses.forge) and [`programs/typeclass_functor_native_list.forge`](programs/typeclass_functor_native_list.forge).
+- **Both back ends**: the interpreter passes dictionaries at run time; the native compiler resolves them statically (one specialised copy of a function per instance it is used with). [`programs/haskell_style_typeclasses.forge`](programs/haskell_style_typeclasses.forge) implements the prelude's traits for user types; [`programs/typeclass_functor_native_list.forge`](programs/typeclass_functor_native_list.forge) gives built-in lists a `Functor` instance.
 
 ### Macros (`macro_rules!`)
 
@@ -253,7 +253,7 @@ end
 - **Pattern Matching**: `case expr do | pattern -> result`
 - **Lists**: `[1, 2, 3]` or `1 :: 2 :: 3 :: []`
 - **List Ranges**: `[1...10]` or `[1 ... 10]` (spaces optional)
-- **List Comprehensions**: `[x * 2 | x => [1...5], x > 2]`
+- **List Comprehensions**: `[x * 2 | x <- [1...5], x > 2]` (generators `p <- list`, filters `cond`; elements a generator pattern does not match are skipped)
 - **Tuples/Vectors**: `(1, "hello", true)`
 - **Code Blocks**: `{ expr1; expr2; result }`
 - **Macro Invocations**: `name!(...)`, `name![...]`, `name!{...}`
@@ -266,7 +266,7 @@ All operators can be used as first-class values by wrapping in parentheses: `(+)
 
 **Strings**: `^` (concatenation)
 
-**Comparison**: `==`, `!=`, `<>`, `<`, `>`, `<=`, `>=`
+**Comparison**: `==`, `!=`, `<>` (same as `!=`), `<`, `>`, `<=`, `>=` — structural, on values of any type except functions (records field by field, constructors in declaration order)
 
 **Logical**: `&&`, `||`, and `not` (prefix)
 
@@ -287,14 +287,18 @@ Supports comprehensive pattern matching including:
 ### Built-in Functions
 
 **I/O**:
-- `print : string -> unit` - print without newline
-- `println : string -> unit` - print with newline
+- `print : String -> Unit` - print a string without a newline
+- `print_string : String -> Unit` - print a string followed by a newline
+- `println : a -> Unit` (prelude, for any `a` with a `Show` instance) - print `show x` followed by a newline
+- `show : a -> String` (prelude `Show` trait) - instances for `Int`, `Float`, `Bool`, `Char`, `String`, `Unit`, `Ordering`, lists, `Option` and pairs/triples
 
 **Type Conversions**:
 - `int_to_str : int -> string`
 - `int_to_float : int -> float`
-- `float_to_int : float -> int`
-- `string_to_list : string -> [char]`
+- `float_to_int : float -> int` (truncates toward zero)
+- `float_to_str : float -> string` (shortest form that reads back: `0.1`, `3.0`)
+- `char_to_str : char -> string`
+- `string_to_list : string -> [char]` (also `list_of_string`)
 
 **String Operations**:
 - `str_length : string -> int` - length of string
@@ -330,98 +334,98 @@ Additional macro-focused examples:
 ### Basic Types and Expressions
 
 ```ocaml
-(* Integers *)
+// Integers
 42
 -17
 
-(* Floats *)
+// Floats
 3.14
 -2.5
 int_to_float 2
 float_to_int 3.9
 
-(* Booleans *)
+// Booleans
 true
 false
 
-(* Strings *)
+// Strings
 "Hello, world!"
 
-(* Characters *)
+// Characters
 'a'
 'Z'
 
-(* Unit *)
+// Unit
 ()
 ```
 
 ### Variables and Let Bindings
 
 ```ocaml
-(* Simple binding *)
+// Simple binding
 let x = 42 in x + 1
-(* Result: 43 *)
+// Result: 43
 
-(* Multiple bindings *)
+// Multiple bindings
 let x = 5 in
 let y = 10 in
 x + y
-(* Result: 15 *)
+// Result: 15
 
-(* Type annotations *)
+// Type annotations
 let (x: int) = 42 in x
 ```
 
 ### Functions
 
 ```ocaml
-(* Lambda function *)
+// Lambda function
 fn x -> x + 1
 
-(* Named function *)
+// Named function
 let add = fn x -> fn y -> x + y in
 add 3 4
-(* Result: 7 *)
+// Result: 7
 
-(* Pattern matching in parameters *)
+// Pattern matching in parameters
 let first = fn (x, y) -> x in
 first (5, 10)
-(* Result: 5 *)
+// Result: 5
 
-(* With type annotations *)
+// With type annotations
 let increment = fn (x: int) : int -> x + 1 in
 increment 41
-(* Result: 42 *)
+// Result: 42
 
-(* Recursive functions *)
+// Recursive functions
 let rec factorial = fn n ->
   if n == 0 then 1
   else n * factorial (n - 1)
 in
 factorial 5
-(* Result: 120 *)
+// Result: 120
 ```
 
 ### Operators as First-Class Values
 
 ```ocaml
-(* Use operators as functions *)
+// Use operators as functions
 let add = (+) in
 add 3 4
-(* Result: 7 *)
+// Result: 7
 
-(* Partial application *)
+// Partial application
 let add5 = (+) 5 in
 add5 10
-(* Result: 15 *)
+// Result: 15
 
-(* Pass to higher-order functions *)
+// Pass to higher-order functions
 map ((*) 2) [1, 2, 3]
 
-(* Custom operator definitions *)
+// Custom operator definitions
 let (++) = fn a -> fn b -> a + b in
 (++) 10 20
-(* Result: 30 *)
+// Result: 30
 ```
 
 ### Macros
@@ -443,7 +447,7 @@ end
 
 let xs = collect!(1, 2, 3, 4)
 let n = list_length xs
-(* n == 4 *)
+// n == 4
 ```
 
 ```text
@@ -458,55 +462,55 @@ let n3 = collect_and_count!(1, 2, 3)
 ### Lists
 
 ```ocaml
-(* Empty list *)
+// Empty list
 []
 
-(* List literals *)
+// List literals
 [1, 2, 3, 4, 5]
 
-(* Cons operator *)
+// Cons operator
 1 :: 2 :: 3 :: []
-(* Result: [1, 2, 3] *)
+// Result: [1, 2, 3]
 
-(* List ranges *)
+// List ranges
 [1...10]
-(* Result: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] *)
+// Result: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
-(* List comprehensions *)
-[x * x | x => [1...5]]
-(* Result: [1, 4, 9, 16, 25] *)
+// List comprehensions
+[x * x | x <- [1...5]]
+// Result: [1, 4, 9, 16, 25]
 
-(* With filter *)
-[x | x => [1...10], x % 2 == 0]
-(* Result: [2, 4, 6, 8, 10] *)
+// With filter
+[x | x <- [1...10], x % 2 == 0]
+// Result: [2, 4, 6, 8, 10]
 ```
 
 ### Tuples/Vectors
 
 ```ocaml
-(* Pairs *)
+// Pairs
 (1, 2)
 
-(* Triples *)
+// Triples
 (1, "hello", true)
 
-(* Pattern matching tuples *)
+// Pattern matching tuples
 let (x, y) = (5, 10) in x + y
-(* Result: 15 *)
+// Result: 15
 ```
 
 ### Conditionals and Boolean Operators
 
 ```ocaml
-(* if / then / else (both branches must match in type) *)
+// if / then / else (both branches must match in type)
 if 3 < 5 then "yes" else "no"
 
-(* Short-circuiting logical operators *)
+// Short-circuiting logical operators
 true && false
 true || false
 not true
 
-(* Combining comparisons *)
+// Combining comparisons
 let n = 7 in
 if n > 0 && n % 2 == 0 then "positive even" else "other"
 ```
@@ -514,25 +518,25 @@ if n > 0 && n % 2 == 0 then "positive even" else "other"
 ### Pattern Matching
 
 ```ocaml
-(* Match on lists *)
-let length = fn lst ->
+// Match on lists
+let rec length = fn lst ->
   case lst do
   | [] -> 0
   | h :: t -> 1 + length t
 in
 length [1, 2, 3]
-(* Result: 3 *)
+// Result: 3
 
-(* Match on integers *)
+// Match on integers
 let sign = fn n ->
   case n do
   | 0 -> "zero"
   | n -> if n > 0 then "positive" else "negative"
 in
 sign (-5)
-(* Result: "negative" *)
+// Result: "negative"
 
-(* Complex patterns *)
+// Complex patterns
 let get_second = fn lst ->
   case lst do
   | [] -> 0
@@ -540,34 +544,34 @@ let get_second = fn lst ->
   | x :: y :: rest -> y
 in
 get_second [1, 2, 3]
-(* Result: 2 *)
+// Result: 2
 
-(* Record patterns (fields can be literals or binders) *)
+// Record patterns (fields can be literals or binders)
 let person = { name: "John", age: 30, city: "New York" }
 let tag = case person do
   | { name: "Alex" } -> 1
   | { name: "John" } -> 2
   | _ -> 3
-(* tag == 2 *)
+// tag == 2
 ```
 
 ### Records
 
 ```ocaml
-(* Record type and literals *)
+// Record type and literals
 type Point = { x: int, y: int }
 
 let p1 : Point = { x: 10, y: 20 }
 
-(* Field access *)
+// Field access
 let sum_xy = p1.x + p1.y
 
-(* Functional update (immutable: creates a new record) *)
+// Functional update (immutable: creates a new record)
 let p2 = { p1 with x = 100 }
 let p3 = { p2 with y = 50 }
 let p4 = { p1 with x = 5, y = 15 }
 
-(* Matching on record fields *)
+// Matching on record fields
 type User = { login: string, active: bool }
 
 let status = fn u ->
@@ -580,16 +584,16 @@ let status = fn u ->
 ### Higher-Order Functions
 
 ```ocaml
-(* Map *)
+// Map
 let rec map = fn f -> fn lst ->
   case lst do
   | [] -> []
   | h :: t -> f h :: map f t
 in
 map (fn x -> x * x) [1, 2, 3, 4, 5]
-(* Result: [1, 4, 9, 16, 25] *)
+// Result: [1, 4, 9, 16, 25]
 
-(* Filter *)
+// Filter
 let rec filter = fn pred -> fn lst ->
   case lst do
   | [] -> []
@@ -598,16 +602,16 @@ let rec filter = fn pred -> fn lst ->
     else filter pred t
 in
 filter (fn x -> x % 2 == 0) [1, 2, 3, 4, 5, 6]
-(* Result: [2, 4, 6] *)
+// Result: [2, 4, 6]
 
-(* Fold/Reduce *)
+// Fold/Reduce
 let rec fold_left = fn op -> fn acc -> fn lst ->
   case lst do
   | [] -> acc
   | h :: t -> fold_left op (op acc h) t
 in
 fold_left (+) 0 [1, 2, 3, 4, 5]
-(* Result: 15 *)
+// Result: 15
 ```
 
 ### Built-in Library Functions
@@ -645,10 +649,10 @@ let x = int_to_float 42
 ### Algebraic Data Types
 
 ```ocaml
-(* Type aliases *)
+// Type aliases
 type IntPair = (int, int)
 
-(* Sum types *)
+// Sum types
 type Option<a> =
   | None
   | Some of a
@@ -657,7 +661,7 @@ type Either<a, b> =
   | Left of a
   | Right of b
 
-(* Recursive types *)
+// Recursive types
 type rec List<a> =
   | []
   | (::) of (a, List<a>)
@@ -666,7 +670,7 @@ type rec Tree<a> =
   | Leaf
   | Node of (a, Tree<a>, Tree<a>)
 
-(* Using custom types *)
+// Using custom types
 let rec tree_size = fn t ->
   case t do
   | Leaf -> 0
@@ -674,26 +678,26 @@ let rec tree_size = fn t ->
     1 + tree_size left + tree_size right
 in
 tree_size (Node (5, Leaf, Node (3, Leaf, Leaf)))
-(* Result: 2 *)
+// Result: 2
 ```
 
 ### Polymorphic Functions
 
 ```ocaml
-(* Identity function *)
+// Identity function
 let id = fn x -> x
-(* Type: a -> a *)
+// Type: a -> a
 
-(* Composition *)
+// Composition
 let compose = fn f -> fn g -> fn x -> f (g x)
-(* Type: (b -> c) -> (a -> b) -> a -> c *)
+// Type: (b -> c) -> (a -> b) -> a -> c
 
-(* Map for any type *)
+// Map for any type
 let rec map = fn f -> fn lst ->
   case lst do
   | [] -> []
   | h :: t -> f h :: map f t
-(* Type: (a -> b) -> [a] -> [b] *)
+// Type: (a -> b) -> [a] -> [b]
 ```
 
 ### Code Blocks
@@ -705,31 +709,31 @@ let rec map = fn f -> fn lst ->
   let z = x + y;
   z * 2
 }
-(* Result: 30 *)
+// Result: 30
 ```
 
 ### Type Annotations
 
 ```ocaml
-(* Variable annotations *)
+// Variable annotations
 let (x: int) = 42 in x
 
-(* Function parameter annotations *)
+// Function parameter annotations
 let add = fn (x: int) -> fn (y: int) -> x + y in
 add 3 4
 
-(* Return type annotations *)
+// Return type annotations
 let increment = fn (x: int) : int -> x + 1 in
 increment 5
 
-(* Full function type annotation *)
+// Full function type annotation
 let apply = fn (f: int -> int) -> fn (x: int) : int -> f x in
 apply (fn x -> x * 2) 21
-(* Result: 42 *)
+// Result: 42
 
-(* Type variable in an annotation: a, b, … *)
+// Type variable in an annotation: a, b, …
 let poly_id = fn (x: a) -> x
-(* Type: a -> a *)
+// Type: a -> a
 ```
 
 ## Installation
@@ -793,7 +797,8 @@ brew install llvm clang
 opam init -a --disable-sandboxing
 eval "$(opam env)"
 opam switch create 5.1.1
-opam install dune
+eval "$(opam env)"
+opam install dune ounit2
 ```
 
 Ubuntu / Debian:
@@ -803,8 +808,11 @@ sudo apt install -y opam m4 pkg-config libgmp-dev clang
 opam init -a
 eval "$(opam env)"
 opam switch create 5.1.1
-opam install dune
+eval "$(opam env)"
+opam install dune ounit2
 ```
+
+(`ounit2` is the test framework; `make` builds the test suites too.)
 
 Verify:
 ```bash
@@ -921,18 +929,12 @@ The project ships two main test entry points (the exact counts change as tests a
   ```bash
   make suite
   ```
-- **Compiler end-to-end cases** (compile, run native executable, compare output):
+- **All test suites** (every suite under `test/`, including the compiler end-to-end cases, which compile, run the native executable and compare its output):
   ```bash
   make compiler-suite
   ```
 
-To run everything Dune knows about (when the tree builds cleanly):
-
-```bash
-dune test
-```
-
-That includes `compiler_tests` (see `test/compiler_cases/`) and `hover_ident_tests` (hover/type-at-point queries).
+`dune test` runs the same suites. Several of them run every program through **both** the interpreter and the native compiler and require identical output: `eval_tests`, `features_tests`, `prelude_tests`, `compiler_interpreter_parity_tests` (all of `programs/`, `examples/`, `test/compiler_cases/` and `test/diff_cases/`) and `fuzz_tests` (randomly generated well-typed programs; set `FORGE_FUZZ_SEED` / `FORGE_FUZZ_COUNT` to explore more).
 
 ### Test Coverage
 
@@ -946,8 +948,13 @@ This will generate a coverage report showing which parts of the codebase are tes
 ### Test Organization
 
 - **`test/test.ml`** — large OUnit suite for the interpreter pipeline: type checking, inference, evaluation, pattern matching, ADTs, higher-order functions, builtins, and edge cases.
+- **`test/lexer_tests.ml`, `parser_tests.ml`, `typecheck_tests.ml`** — the front end, including error messages and their locations.
+- **`test/eval_tests.ml`, `prelude_tests.ml`, `features_tests.ml`** — semantics, the prelude, traits / macros / modules / imports, in both back ends.
+- **`test/exhaustiveness_tests.ml`** — warnings for non-exhaustive and redundant `case` arms.
+- **`test/cli_tests.ml`** — exit codes and diagnostics of the executables.
 - **`test/macro_system_tests.ml`** — `macro_rules!` matching/expansion and builtin macro behavior.
 - **`test/compiler_tests.ml`** + **`test/compiler_cases/`** — compile with `compile_forge`, run the binary, compare stdout.
+- **`test/compiler_interpreter_parity_tests.ml`**, **`test/fuzz_tests.ml`** — differential testing of the two back ends.
 - **`test/hover_ident_tests.ml`** — hover / identifier typing via `Hover_query`.
 
 ## Language Semantics
@@ -1013,14 +1020,19 @@ If you deploy from the Netlify control panel:
 Forge/                # repository root (language: Forge)
 ├── bin/              # interpreter, repl, compile_forge, dump_min_ir, forge_hover, …
 ├── src/              # lexer, parser, typecheck, interpreter, compiler pipeline
-│   ├── compile_pipeline.ml  # native driver (prelude, typecheck, IR, Clang)
-│   ├── min_ir.ml, lower_min_ir.ml, llvm_emit.ml
-│   ├── hover_query.ml       # type-at-point for forge_hover / IDE integration
+│   ├── lex.ml, parser.ml, condense.ml   # front end (tokens, AST, core AST)
+│   ├── typecheck.ml                     # inference and type-class elaboration
+│   ├── exhaustiveness.ml                # missing / redundant case arms
+│   ├── ceval.ml                         # the interpreter
+│   ├── compile_pipeline.ml              # native driver (prelude, typecheck, IR, Clang)
+│   ├── specialize.ml, mono.ml, tast.ml  # static dictionaries, monomorphisation
+│   ├── lower_typed.ml, min_ir.ml, llvm_emit.ml  # typed lowering, Min IR, LLVM
+│   ├── hover_query.ml                   # type-at-point for forge_hover / IDE integration
 │   └── ...
 ├── prelude/          # prelude source (prepended or REPL-loaded)
 ├── runtime/          # ls_runtime.c (linked into native executables)
-├── test/             # test.ml, compiler_tests, hover_ident_tests, compiler_cases/
+├── test/             # OUnit suites, compiler_cases/, diff_cases/
 ├── programs/         # example .forge programs
-├── documentation/    # Forge.tex (formal semantics)
+├── documentation/    # Forge.tex, the reference manual (make docs)
 └── website/          # React + TypeScript + Vite website/docs app
 ```
