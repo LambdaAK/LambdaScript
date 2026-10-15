@@ -2517,6 +2517,23 @@ and lower_expr_val_as_call_arg ?(callee_fn_expr : c_expr option) (arg : c_expr)
   | EId (x, _)
     when is_poly_static x static_env
          && (not (S.mem x shadows))
+         && (not (List.mem_assoc x env))
+         && ty_equal expect RawPtr
+         && (match find_constructor_index !lowering_ctor_env x with
+            | Some (_, _, None) -> true
+            | _ -> false) ->
+      (* A nullary constructor ([None]) is the same value at every type. *)
+      let tag =
+        match find_constructor_index !lowering_ctor_env x with
+        | Some (tag, _, _) -> tag
+        | None -> assert false
+      in
+      let v = fresh () in
+      emit_instr ctx (Assign (v, VariantMk (tag, RawNull)));
+      (Local v, RawPtr)
+  | EId (x, _)
+    when is_poly_static x static_env
+         && (not (S.mem x shadows))
          && not (List.mem_assoc x env) ->
       (* A polymorphic top-level name passed as an argument (not a local or
          parameter that happens to have the same name, e.g. the prelude's
@@ -5149,6 +5166,38 @@ let native_builtin_defns (static_env : static_env) (program : c_defn list) : c_d
   in
   library @ wrappers
 
+(** Two-argument builtins lowered as direct runtime calls. Where one is used
+    as a value or partially applied ([map (str_concat "<") xs]), it is
+    eta-expanded into a lambda, which becomes an ordinary closure. *)
+let binary_builtin_values =
+  [
+    "int_eq"; "bool_eq"; "unit_eq"; "str_eq"; "char_eq"; "float_eq"; "int_compare";
+    "str_compare"; "bool_compare"; "unit_compare"; "char_compare"; "float_compare"; "str_concat";
+  ]
+
+let eta_expand_builtin_values (defs : c_defn list) : c_defn list =
+  let user_defined = defined_names defs in
+  let expand x args =
+    if (not (List.mem x binary_builtin_values)) || List.mem x user_defined || List.length args >= 2
+    then None
+    else
+      let a = "__builtin_arg_a" and b = "__builtin_arg_b" in
+      let call = EApp (EApp (EId (x, None), EId (a, None)), EId (b, None)) in
+      match args with
+      | [] -> Some (EFunction (CIdPat a, None, EFunction (CIdPat b, None, call)))
+      | [ arg ] -> Some (EBind (CIdPat a, None, arg, EFunction (CIdPat b, None, call), None))
+      | _ -> None
+  in
+  let rw = Specialize.map_free_spines expand Specialize.SS.empty in
+  List.map
+    (function
+      | CDefn (p, cs, t, body, r, n) -> CDefn (p, cs, t, rw body, r, n)
+      | CDefnRec (p, cs, t, body, r, n) -> CDefnRec (p, cs, t, rw body, r, n)
+      | CDefnMutRec ds ->
+          CDefnMutRec (List.map (fun (p, cs, t, body, r, n) -> (p, cs, t, rw body, r, n)) ds)
+      | d -> d)
+    defs
+
 let lower_c_program (defs : c_defn list) (static_env : static_env)
     (type_env : Typecheck.type_env) (ctor_env : Typecheck.constructor_env) :
     (prog, string) result =
@@ -5163,6 +5212,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
     let static_env = native_prim_types @ static_env in
     let defs = eta_expand_program static_env defs in
     let defs = native_builtin_defns static_env defs @ defs in
+    let defs = eta_expand_builtin_values defs in
     lowering_defs := defs;
     let instances = collect_mono_instantiations defs static_env type_env in
     let user_funs = ref [] in

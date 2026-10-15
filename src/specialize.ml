@@ -92,6 +92,74 @@ and map_free_defn f bound d : c_defn * SS.t =
         bound' )
   | d -> (d, bound)
 
+(** Rewrite every application spine [x a1 ... an] (n >= 0) whose head is a
+    free identifier: [f x args] (with the arguments already rewritten) gives
+    the replacement, or [None] to keep the spine. *)
+let rec map_free_spines (f : string -> c_expr list -> c_expr option) (bound : SS.t)
+    (e : c_expr) : c_expr =
+  let rec spine e acc = match e with EApp (g, a) -> spine g (a :: acc) | h -> (h, acc) in
+  match e with
+  | EApp _ | EId _ -> (
+      let h, args = spine e [] in
+      let args' = List.map (map_free_spines f bound) args in
+      let rebuild h = List.fold_left (fun acc a -> EApp (acc, a)) h args' in
+      match h with
+      | EId (x, _) when not (SS.mem x bound) -> (
+          match f x args' with Some e' -> e' | None -> rebuild h)
+      | EId _ -> rebuild h
+      | _ -> rebuild (map_free_spines f bound h))
+  | _ ->
+      (* Every other construct: recurse with [map_free]'s scoping, through a
+         replacement that never fires at the top. *)
+      map_children (map_free_spines f) bound e
+
+(** Apply [g bound'] to the immediate subexpressions of [e], where [bound']
+    adds the variables [e] binds around each of them. *)
+and map_children (g : SS.t -> c_expr -> c_expr) (bound : SS.t) (e : c_expr) : c_expr =
+  let go = g bound in
+  let under p = g (add_pat bound p) in
+  match e with
+  | EId _ | EBool _ | EString _ | EUnit | EInt _ | EChar _ | EFloat _ | ENil -> e
+  | EApp (a, b) -> EApp (go a, go b)
+  | EFunction (p, t, b) -> EFunction (p, t, under p b)
+  | EBind (p, t, e1, e2, r) -> EBind (p, t, go e1, under p e2, r)
+  | EBindRec (p, t, e1, e2, r) -> EBindRec (p, t, under p e1, under p e2, r)
+  | EBindMutRec (bs, body) ->
+      let bound' = List.fold_left (fun acc (p, _, _, _, _) -> add_pat acc p) bound bs in
+      EBindMutRec (List.map (fun (p, t, e1, r, n) -> (p, t, g bound' e1, r, n)) bs, g bound' body)
+  | EBlock parts ->
+      let rec block bound = function
+        | [] -> []
+        | Expr x :: rest -> Expr (g bound x) :: block bound rest
+        | Defn d :: rest ->
+            let d', bound' =
+              match d with
+              | CDefn (p, cs, t, e1, r, k) -> (CDefn (p, cs, t, g bound e1, r, k), add_pat bound p)
+              | CDefnRec (p, cs, t, e1, r, k) ->
+                  let b' = add_pat bound p in
+                  (CDefnRec (p, cs, t, g b' e1, r, k), b')
+              | CDefnMutRec ds ->
+                  let b' = List.fold_left (fun acc (p, _, _, _, _, _) -> add_pat acc p) bound ds in
+                  (CDefnMutRec (List.map (fun (p, cs, t, e1, r, k) -> (p, cs, t, g b' e1, r, k)) ds), b')
+              | d -> (d, bound)
+            in
+            Defn d' :: block bound' rest
+      in
+      EBlock (block bound parts)
+  | ETernary (a, b, c) -> ETernary (go a, go b, go c)
+  | ESwitch (sc, brs) -> ESwitch (go sc, List.map (fun (p, b) -> (p, under p b)) brs)
+  | EBop (o, a, b) -> EBop (o, go a, go b)
+  | EVector es -> EVector (List.map go es)
+  | EListEnumeration (a, b) -> EListEnumeration (go a, go b)
+  | EListComprehension (body, gens) ->
+      let gens', bound' =
+        List.fold_left (fun (acc, bnd) (p, ge) -> ((p, g bnd ge) :: acc, add_pat bnd p)) ([], bound) gens
+      in
+      EListComprehension (g bound' body, List.rev gens')
+  | ERecordLit fs -> ERecordLit (List.map (fun (n, x) -> (n, go x)) fs)
+  | ERecordUpdate (r, fs) -> ERecordUpdate (go r, List.map (fun (n, x) -> (n, go x)) fs)
+  | EFieldAccess (r, m) -> EFieldAccess (go r, m)
+
 (** {1 Unique top-level names}
 
     Specialised copies are emitted where they are first used, which may be
