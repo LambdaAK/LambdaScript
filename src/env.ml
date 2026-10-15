@@ -140,6 +140,7 @@ filter|}
     (">=", {|fn a -> fn b -> a >= b|});
     ("==", {|fn a -> fn b -> a == b|});
     ("!=", {|fn a -> fn b -> if a == b then false else true|});
+    ("<>", {|fn a -> fn b -> if a == b then false else true|});
     ("^", {|fn a -> fn b -> a ^ b|});
     ("&&", {|fn a -> fn b -> a && b|});
     ("||", {|fn a -> fn b -> a || b|});
