@@ -3,7 +3,7 @@
     Intended pipeline (later): [Cexpr] or surface AST -> [Min_ir] -> LLVM IR.
 
     Scope of this IR (intentionally tiny):
-    - Types [i32], [i1], [string], [unit], homogeneous [list] (opaque [i8*] in
+    - Types [i64] (Int and Char), [i1], [string], [unit], homogeneous [list] (opaque [i8*] in
       LLVM: cons nodes via [ls_malloc], see list struct layout in codegen).
     - [string] is an opaque value (LLVM will use something like [i8*] + runtime).
     - Local bindings via [Assign]; every intermediate has a name (LLVM-friendly)
@@ -17,7 +17,7 @@
     GC/free, tags beyond this, varargs, exceptions. *)
 
 type ty =
-  | I32
+  | I64
   | I1
   | F64
   | String
@@ -41,7 +41,7 @@ type icmp = Eq | Ne | Ult | Slt | Sle | Sge
 (** Values that can flow through SSA edges (constants or locals). *)
 type operand =
   | Local of string
-  | ConstI32 of int
+  | ConstI64 of int
   | ConstI1 of bool
   | ConstF64 of float
   (* UTF-8 string literal; lowering from [EString]. Codegen links to runtime. *)
@@ -150,7 +150,7 @@ let labels_of_func (f : func_def) : string list = List.map fst f.blocks
 (* ----- pretty-print (debug / incremental testing) ----- *)
 
 let rec string_of_ty = function
-  | I32 -> "i32"
+  | I64 -> "i64"
   | I1 -> "i1"
   | F64 -> "f64"
   | String -> "string"
@@ -199,7 +199,7 @@ let escape_string s =
 
 let string_of_operand = function
   | Local x -> "%" ^ x
-  | ConstI32 n -> string_of_int n
+  | ConstI64 n -> string_of_int n
   | ConstI1 b -> if b then "true" else "false"
   | ConstF64 f -> Printf.sprintf "%.17g" f
   | ConstStr s -> Printf.sprintf "\"%s\"" (escape_string s)

@@ -135,9 +135,9 @@ let rec peel_function_chain_to_min (acc : ty list) (m : mono_type) :
 and mono_to_min (m : mono_type) : ty =
   let type_env = !lowering_type_env in
   match m with
-  | IntType -> I32
+  | IntType -> I64
   | BoolType -> I1
-  | CharType -> I32
+  | CharType -> I64
   | FloatType -> F64
   | StringType -> String
   | UnitType -> Unit
@@ -180,7 +180,7 @@ and mono_to_min (m : mono_type) : ty =
 
 let rec ty_equal (a : ty) (b : ty) : bool =
   match (a, b) with
-  | I32, I32 | I1, I1 | F64, F64 | String, String | Unit, Unit | RawPtr, RawPtr
+  | I64, I64 | I1, I1 | F64, F64 | String, String | Unit, Unit | RawPtr, RawPtr
     -> true
   | Tuple t1, Tuple t2 ->
       List.length t1 = List.length t2 && List.for_all2 ty_equal t1 t2
@@ -777,17 +777,17 @@ let native_builtin_binary_callable (name : string) : callable option =
       }
   in
   match name with
-  | "int_eq" -> mk "__builtin_int_eq" [ I32; I32 ] I1
+  | "int_eq" -> mk "__builtin_int_eq" [ I64; I64 ] I1
   | "bool_eq" -> mk "__builtin_bool_eq" [ I1; I1 ] I1
   | "unit_eq" -> mk "__builtin_unit_eq" [ Unit; Unit ] I1
   | "str_eq" -> mk "__builtin_str_eq" [ String; String ] I1
-  | "char_eq" -> mk "__builtin_char_eq" [ I32; I32 ] I1
+  | "char_eq" -> mk "__builtin_char_eq" [ I64; I64 ] I1
   | "float_eq" -> mk "__builtin_float_eq" [ F64; F64 ] I1
-  | "int_compare" -> mk "__builtin_int_compare" [ I32; I32 ] RawPtr
+  | "int_compare" -> mk "__builtin_int_compare" [ I64; I64 ] RawPtr
   | "str_compare" -> mk "__builtin_str_compare" [ String; String ] RawPtr
   | "bool_compare" -> mk "__builtin_bool_compare" [ I1; I1 ] RawPtr
   | "unit_compare" -> mk "__builtin_unit_compare" [ Unit; Unit ] RawPtr
-  | "char_compare" -> mk "__builtin_char_compare" [ I32; I32 ] RawPtr
+  | "char_compare" -> mk "__builtin_char_compare" [ I64; I64 ] RawPtr
   | "float_compare" -> mk "__builtin_float_compare" [ F64; F64 ] RawPtr
   | "str_concat" -> mk "__builtin_str_concat" [ String; String ] String
   | _ -> None
@@ -800,7 +800,7 @@ let native_builtin_as_fun_ptr (name : string) : (operand * ty) option =
   | "print_string" ->
       Some (FnAddr ("ls_println", [ String ], Unit), Fun ([ String ], Unit))
   | "int_to_str" ->
-      Some (FnAddr ("ls_int_to_str", [ I32 ], String), Fun ([ I32 ], String))
+      Some (FnAddr ("ls_int_to_str", [ I64 ], String), Fun ([ I64 ], String))
   | _ -> None
 
 let rec pat_bound_simple : c_pat -> string list = function
@@ -920,7 +920,7 @@ let rec list_drop n xs =
 let rec layout_byte_size_lower (xs : ty list) : int =
   let align_up x a = if x mod a = 0 then x else x + (a - (x mod a)) in
   let sz_al = function
-    | I32 -> (4, 4)
+    | I64 -> (8, 8)
     | I1 -> (4, 4)
     | F64 -> (8, 8)
     | String | RawPtr | Clos _ | List _ -> (8, 8)
@@ -1036,7 +1036,7 @@ let is_forge_dict_name (name : string) : bool =
     Min_IR → mono for monomorph keys (curried [Fun] / [Clos] chains). *)
 let rec min_ty_to_mono (t : ty) : mono_type =
   match t with
-  | I32 -> IntType
+  | I64 -> IntType
   | I1 -> BoolType
   | F64 -> FloatType
   | String -> StringType
@@ -1056,7 +1056,7 @@ let rec min_ty_to_mono (t : ty) : mono_type =
         "Internal: expected type for polymorphic instantiation used RawPtr"
 
 and min_ty_to_mono_opt : ty -> mono_type option = function
-  | I32 -> Some IntType
+  | I64 -> Some IntType
   | I1 -> Some BoolType
   | F64 -> Some FloatType
   | String -> Some StringType
@@ -2337,7 +2337,7 @@ and lower_builtin_print name arg env ctx static_env type_env (shadows : S.t) =
 
 and lower_builtin_int_to_str arg env ctx static_env type_env (shadows : S.t) =
   let o2, t2 = lower_expr_val arg env ctx static_env type_env shadows in
-  if t2 <> I32 then unsupported "int_to_str expects i32";
+  if t2 <> I64 then unsupported "int_to_str expects an Int";
   let t = fresh () in
   emit_instr ctx (Assign (t, Call ("int_to_str", [ o2 ])));
   LVal (Local t, String)
@@ -2374,7 +2374,7 @@ and apply_call_args ?(callee_fn_expr : c_expr option) (env : env) (ctx : fn_ctx)
                         arg d)
                   | _ -> d)
               | Some (d, _)
-                when from_param = I32 && not (ty_equal d I32) ->
+                when from_param = I64 && not (ty_equal d I64) ->
                   d
               | Some (d, _)
                 when from_param = RawPtr && not (ty_equal d RawPtr)
@@ -2450,7 +2450,7 @@ and emit_saturated_call ctx (c : callable) : expr_result =
           let tmp = fresh () in
           emit_instr ctx (Assign (tmp, Call ("strcmp", [ o1; o2 ])));
           let t = fresh () in
-          emit_instr ctx (Assign (t, ICmp (Eq, Local tmp, ConstI32 0)));
+          emit_instr ctx (Assign (t, ICmp (Eq, Local tmp, ConstI64 0)));
           LVal (Local t, I1)
       | _ -> unsupported "internal: str_eq arity")
   | "__builtin_float_eq" -> (
@@ -2459,7 +2459,7 @@ and emit_saturated_call ctx (c : callable) : expr_result =
           let tmp = fresh () in
           emit_instr ctx (Assign (tmp, Call ("float_eq", [ o1; o2 ])));
           let t = fresh () in
-          emit_instr ctx (Assign (t, ICmp (Ne, Local tmp, ConstI32 0)));
+          emit_instr ctx (Assign (t, ICmp (Ne, Local tmp, ConstI64 0)));
           LVal (Local t, I1)
       | _ -> unsupported "internal: float_eq arity")
   | "__builtin_int_compare" -> (
@@ -2567,7 +2567,7 @@ and apply_fun1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
                     (a_ty, r))
                 | _ -> (d, r))
             | Some (d, r)
-              when a_ty = I32 && not (ty_equal d I32) ->
+              when a_ty = I64 && not (ty_equal d I64) ->
                 (* Value may carry a flex-var default to [i32]; inference has the
                    real domain (e.g. higher-rank [id] uses). *)
                 (d, r)
@@ -2620,7 +2620,7 @@ and apply_clos1 ?(callee_fn_expr : c_expr option) env ctx static_env type_env
                     type_of_arg_min_ty_refine_rawptr_stub se static_env type_env
                       arg d)
                 | _ -> d)
-            | Some (d, _) when p = I32 && not (ty_equal d I32) -> d
+            | Some (d, _) when p = I64 && not (ty_equal d I64) -> d
             | Some (d, _) when p = RawPtr && not (ty_equal d RawPtr) -> d
             | Some (d, _) when is_list_ty p && is_list_ty d && not (ty_equal d p) ->
                 d
@@ -2725,11 +2725,11 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
       emit_instr ctx (Assign (c, ICmp (Eq, o_s, ConstUnit)));
       (env, Local c)
   | CIntPat k ->
-      if t_s <> I32 then
+      if t_s <> I64 then
         unsupported
           "native pattern match: integer literal pattern expects int scrutinee";
       let c = fresh () in
-      emit_instr ctx (Assign (c, ICmp (Eq, o_s, ConstI32 k)));
+      emit_instr ctx (Assign (c, ICmp (Eq, o_s, ConstI64 k)));
       (env, Local c)
   | CBoolPat b ->
       if t_s <> I1 then
@@ -2746,7 +2746,7 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
       let tmp = fresh () in
       emit_instr ctx (Assign (tmp, Call ("strcmp", [ o_s; ConstStr s ])));
       let c = fresh () in
-      emit_instr ctx (Assign (c, ICmp (Eq, Local tmp, ConstI32 0)));
+      emit_instr ctx (Assign (c, ICmp (Eq, Local tmp, ConstI64 0)));
       (env, Local c)
   | CVectorPat subs -> (
       match t_s with
@@ -2825,7 +2825,7 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
           emit_instr ctx (Assign (tg, VariantTag o_s));
           let c_tag = fresh () in
           emit_instr ctx
-            (Assign (c_tag, ICmp (Eq, Local tg, ConstI32 expected_tag)));
+            (Assign (c_tag, ICmp (Eq, Local tg, ConstI64 expected_tag)));
           match (payload_pat_opt, ctor_payload_opt) with
           | None, None -> (env, Local c_tag)
           | Some _, None | None, Some _ ->
@@ -3017,7 +3017,7 @@ and lower_list_int_enumeration (env : env) (ctx : fn_ctx)
     (e_lo : c_expr) (e_hi : c_expr) : expr_result =
   let o_lo, _ = lower_expr_val e_lo env ctx static_env type_env shadows in
   let o_hi, _ = lower_expr_val e_hi env ctx static_env type_env shadows in
-  let elem_ty = I32 in
+  let elem_ty = I64 in
   let nil_tmp = fresh () in
   emit_instr ctx (Assign (nil_tmp, ListNil elem_ty));
   let loop_hdr = fresh_lbl ctx "lrh" in
@@ -3031,7 +3031,7 @@ and lower_list_int_enumeration (env : env) (ctx : fn_ctx)
   let v_cur1 = fresh () in
   let v_acc_new = fresh () in
   emit_instr ctx
-    (Phi (v_cur, I32, [ (pred0, o_hi); (loop_body, Local v_cur1) ]));
+    (Phi (v_cur, I64, [ (pred0, o_hi); (loop_body, Local v_cur1) ]));
   emit_instr ctx
     (Phi
        ( v_acc,
@@ -3044,7 +3044,7 @@ and lower_list_int_enumeration (env : env) (ctx : fn_ctx)
   emit_instr ctx
     (Assign
        (v_acc_new, ListCons { elem_ty; head = Local v_cur; tail = Local v_acc }));
-  emit_instr ctx (Assign (v_cur1, Binop (Sub, Local v_cur, ConstI32 1)));
+  emit_instr ctx (Assign (v_cur1, Binop (Sub, Local v_cur, ConstI64 1)));
   close_block ctx (Br loop_hdr);
   open_block ctx loop_end;
   LVal (Local v_acc, List elem_ty)
@@ -3676,7 +3676,7 @@ and desugar_list_comp (body : c_expr) (generators : (c_pat * c_expr) list) :
 and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
     (type_env : Typecheck.type_env) (shadows : S.t) : expr_result =
   match e with
-  | EInt n -> LVal (ConstI32 n, I32)
+  | EInt n -> LVal (ConstI64 n, I64)
   | EBool b -> LVal (ConstI1 b, I1)
   | EString s -> LVal (ConstStr s, String)
   | EUnit -> LVal (ConstUnit, Unit)
@@ -3764,11 +3764,11 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       | Some b ->
           let o1, t1 = lower_expr_val e1 env ctx static_env type_env shadows in
           let o2, t2 = lower_expr_val e2 env ctx static_env type_env shadows in
-          if t1 <> I32 || t2 <> I32 then
+          if t1 <> I64 || t2 <> I64 then
             unsupported "Arithmetic expects i32 operands";
           let t = fresh () in
           emit_instr ctx (Assign (t, Binop (b, o1, o2)));
-          LVal (Local t, I32)
+          LVal (Local t, I64)
       | None -> (
           match map_cmp op with
           | Some c ->
@@ -3778,7 +3778,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
               let o2, t2 =
                 lower_expr_val e2 env ctx static_env type_env shadows
               in
-              if t1 <> I32 || t2 <> I32 then
+              if t1 <> I64 || t2 <> I64 then
                 unsupported "Integer comparison expects i32 operands";
               let t = fresh () in
               emit_instr ctx (Assign (t, ICmp (c, o1, o2)));
@@ -3792,7 +3792,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
                   let o2, t2 =
                     lower_expr_val e2 env ctx static_env type_env shadows
                   in
-                  if t1 <> I32 || t2 <> I32 then
+                  if t1 <> I64 || t2 <> I64 then
                     unsupported "Integer comparison expects i32 operands";
                   let t = fresh () in
                   emit_instr ctx (Assign (t, ICmp (Slt, o2, o1)));
@@ -4355,7 +4355,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
            (fun acc nm -> shadow_add_pat (CIdPat nm) acc)
            shadows names)
   | EChar c ->
-      LVal (ConstI32 (Char.code c), I32)
+      LVal (ConstI64 (Char.code c), I64)
   | EFloat f ->
       LVal (ConstF64 f, F64)
   | ERecordLit fields -> (

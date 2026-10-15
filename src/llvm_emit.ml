@@ -65,7 +65,7 @@ let rec ty_list_equal_ll (a : ty list) (b : ty list) : bool =
 
 and ty_equal_ll (a : ty) (b : ty) : bool =
   match (a, b) with
-  | I32, I32 | I1, I1 | F64, F64 | String, String | Unit, Unit | RawPtr, RawPtr
+  | I64, I64 | I1, I1 | F64, F64 | String, String | Unit, Unit | RawPtr, RawPtr
     -> true
   | Tuple ts1, Tuple ts2 -> ty_list_equal_ll ts1 ts2
   | List e1, List e2 -> ty_equal_ll e1 e2
@@ -102,7 +102,7 @@ let rec llvm_fun_ptr_ty_ctx (ctx : emit_ctx) (params : ty list) (ret : ty) :
 
 and llvm_ll_ty_ctx (ctx : emit_ctx) (t : ty) : string =
   match t with
-  | I32 -> "i32"
+  | I64 -> "i64"
   | I1 -> "i1"
   | F64 -> "double"
   | String -> "i8*"
@@ -156,7 +156,7 @@ and register_list_cell_layout (ctx : emit_ctx) (elem_ty : ty) : string =
 
 and llvm_struct_elem_ty (ctx : emit_ctx) (t : ty) : string =
   match t with
-  | I32 -> "i32"
+  | I64 -> "i64"
   | I1 -> "i1"
   | F64 -> "double"
   | String | RawPtr | Clos _ | List _ -> "i8*"
@@ -215,7 +215,7 @@ let llvm_value_ty_ctx (ctx : emit_ctx) (t : ty) : string =
 let llvm_env_field_ll_ty (ctx : emit_ctx) (t : ty) : string =
   match t with
   | I1 -> "i32"
-  | I32 -> "i32"
+  | I64 -> "i64"
   | F64 -> "double"
   | String | RawPtr | Clos _ | List _ -> "i8*"
   | Unit -> "i8"
@@ -237,7 +237,7 @@ let rec layout_byte_size (xs : ty list) : int =
     if x mod a = 0 then x else x + (a - (x mod a))
   in
   let sz_al = function
-    | I32 -> (4, 4)
+    | I64 -> (8, 8)
     | I1 -> (4, 4)
     | F64 -> (8, 8)
     | String | RawPtr | Clos _ | List _ -> (8, 8)
@@ -270,9 +270,11 @@ let step_fn_ptr_ty (ctx : emit_ctx) (fd : func_def) : string =
   Printf.sprintf "%s (%s)*" rl pl
 
 let ibin_ll : ibin -> string = function
-  | Add -> "add nsw"
-  | Sub -> "sub nsw"
-  | Mul -> "mul nsw"
+  (* Wrapping (two's complement) arithmetic, no [nsw]: overflow is not UB.
+     Division goes through the runtime (zero check, INT64_MIN / -1). *)
+  | Add -> "add"
+  | Sub -> "sub"
+  | Mul -> "mul"
   | Div -> "sdiv"
   | Mod -> "srem"
 
@@ -342,19 +344,21 @@ let runtime_declarations : string =
   "declare void @ls_print(i8*)\n\
    declare void @ls_println(i8*)\n\
    declare void @ls_abort()\n\
-   declare i8* @ls_int_to_str(i32)\n\
+   declare i8* @ls_int_to_str(i64)\n\
+   declare i64 @ls_idiv(i64, i64)\n\
+   declare i64 @ls_imod(i64, i64)\n\
    declare i8* @ls_str_concat(i8*, i8*)\n\
    declare i32 @strcmp(i8*, i8*)\n\
    declare i32 @ls_float_eq(double, double)\n\
-   declare i8* @ls_ordering_int32(i32, i32)\n\
+   declare i8* @ls_ordering_int32(i64, i64)\n\
    declare i8* @ls_ordering_str(i8*, i8*)\n\
    declare i8* @ls_ordering_bool(i8, i8)\n\
    declare i8* @ls_ordering_float(double, double)\n\
-   declare i8* @ls_ordering_char(i32, i32)\n\
+   declare i8* @ls_ordering_char(i64, i64)\n\
    declare i8* @ls_malloc(i64)\n\
    declare i8* @ls_mkclos(i8*, i8*)\n\
-   declare i8* @ls_variant_mk(i32, i8*)\n\
-   declare i32 @ls_variant_tag(i8*)\n\
+   declare i8* @ls_variant_mk(i64, i8*)\n\
+   declare i64 @ls_variant_tag(i8*)\n\
    declare i8* @ls_variant_payload(i8*)\n"
 
 let module_banner =
@@ -381,7 +385,7 @@ let emit_global_string ctx (dst : string) (s : string) : string =
     dst n n gname
 
 let operand_min_ty (h : (string, ty) H.t) : operand -> ty = function
-  | ConstI32 _ -> I32
+  | ConstI64 _ -> I64
   | ConstI1 _ -> I1
   | ConstF64 _ -> F64
   | ConstStr _ -> String
@@ -396,7 +400,7 @@ let operand_min_ty (h : (string, ty) H.t) : operand -> ty = function
 let emit_operand (ctx : emit_ctx) (h : (string, ty) H.t) (op : operand) :
     string * string =
   match op with
-  | ConstI32 n -> ("i32", string_of_int n)
+  | ConstI64 n -> ("i64", string_of_int n)
   | ConstI1 b -> ("i1", if b then "true" else "false")
   | ConstF64 f -> ("double", Printf.sprintf "double %.17g" f)
   | ConstStr _ -> failwith "llvm_emit: ConstStr must use Copy/global"
@@ -474,10 +478,10 @@ let emit_copy_dst (ctx : emit_ctx) (h : (string, ty) H.t)
   | ConstStr s ->
       lines := !lines @ [ emit_global_string ctx dst s ];
       H.replace h dst String
-  | ConstI32 _ | ConstI1 _ ->
+  | ConstI64 _ | ConstI1 _ ->
       let t, v = emit_operand ctx h o in
       let ins =
-        if t = "i32" then Printf.sprintf "  %%%s = add nsw i32 %s, 0" dst v
+        if t = "i64" then Printf.sprintf "  %%%s = add i64 %s, 0" dst v
         else Printf.sprintf "  %%%s = xor i1 %s, false" dst v
       in
       lines := !lines @ [ ins ];
@@ -511,7 +515,7 @@ let emit_copy_dst (ctx : emit_ctx) (h : (string, ty) H.t)
             if ty = Unit then Printf.sprintf "  %%%s = add i8 %s, 0" dst v
             else if (match ty with Fun _ -> true | _ -> false) then
               Printf.sprintf "  %%%s = bitcast %s %s to %s" dst t v t
-            else if t = "i32" then Printf.sprintf "  %%%s = add nsw i32 %s, 0" dst v
+            else if t = "i64" then Printf.sprintf "  %%%s = add i64 %s, 0" dst v
             else if t = "i1" then Printf.sprintf "  %%%s = xor i1 %s, false" dst v
             else if t = "double" then
               Printf.sprintf "  %%%s = fadd double %s, 0.0" dst v
@@ -535,8 +539,8 @@ let phi_incoming_val (h : (string, ty) H.t) (exp_ty : ty) (op : operand) :
     if not (ty_equal_ll got_const exp_ty) then ty_err ()
   in
   match op with
-  | ConstI32 n ->
-      check_exp_const I32;
+  | ConstI64 n ->
+      check_exp_const I64;
       string_of_int n
   | ConstI1 b ->
       check_exp_const I1;
@@ -650,12 +654,20 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
       | Binop (b, o1, o2) ->
           let t1, v1 = emit_operand ctx h o1 in
           let t2, v2 = emit_operand ctx h o2 in
-          if t1 <> "i32" || t2 <> "i32" then
-            failwith "llvm_emit: binop expects i32";
-          lines :=
-            !lines
-            @ [ Printf.sprintf "  %%%s = %s i32 %s, %s" dst (ibin_ll b) v1 v2 ];
-          H.replace h dst I32
+          if t1 <> "i64" || t2 <> "i64" then
+            failwith "llvm_emit: binop expects i64";
+          (match b with
+          | Div | Mod ->
+              (* Checked in the runtime: division by zero is a run-time error. *)
+              let fn = if b = Div then "ls_idiv" else "ls_imod" in
+              lines :=
+                !lines
+                @ [ Printf.sprintf "  %%%s = call i64 @%s(i64 %s, i64 %s)" dst fn v1 v2 ]
+          | _ ->
+              lines :=
+                !lines
+                @ [ Printf.sprintf "  %%%s = %s i64 %s, %s" dst (ibin_ll b) v1 v2 ]);
+          H.replace h dst I64
       | ICmp (c, o1, o2) ->
           let t1, v1 = emit_operand ctx h o1 in
           let t2, v2 = emit_operand ctx h o2 in
@@ -671,8 +683,8 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
             H.replace h dst I1)
           else
             let ty_s =
-              if t1 = t2 && (t1 = "i32" || t1 = "i1" || t1 = "i8") then t1
-              else failwith "llvm_emit: icmp expects matching i32, i1, i8, or i8* operands"
+              if t1 = t2 && (t1 = "i64" || t1 = "i32" || t1 = "i1" || t1 = "i8") then t1
+              else failwith "llvm_emit: icmp expects matching i64, i1, i8, or i8* operands"
             in
             lines :=
               !lines
@@ -695,12 +707,12 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
               match args with
               | [ a ] ->
                   let ta, va = emit_operand ctx h a in
-                  if ta <> "i32" then failwith "llvm_emit: int_to_str expects i32";
+                  if ta <> "i64" then failwith "llvm_emit: int_to_str expects i64";
                   let c = callee_ll "int_to_str" in
                   lines :=
                     !lines
                     @ [
-                        Printf.sprintf "  %%%s = call i8* @%s(i32 %s)" dst c va;
+                        Printf.sprintf "  %%%s = call i8* @%s(i64 %s)" dst c va;
                       ];
                   H.replace h dst String
               | _ -> failwith "llvm_emit: int_to_str arity")
@@ -749,12 +761,14 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
                   let aa = i8star_arg a in
                   let ab = i8star_arg b in
                   let c = callee_ll "strcmp" in
+                  let raw = dst ^ "_c32" in
                   lines :=
                     !lines
                     @ [
-                        Printf.sprintf "  %%%s = call i32 @%s(%s, %s)" dst c aa ab;
+                        Printf.sprintf "  %%%s = call i32 @%s(%s, %s)" raw c aa ab;
+                        Printf.sprintf "  %%%s = sext i32 %%%s to i64" dst raw;
                       ];
-                  H.replace h dst I32
+                  H.replace h dst I64
               | _ -> failwith "llvm_emit: strcmp arity")
           | "float_eq" -> (
               match args with
@@ -763,27 +777,29 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
                   let tb, vb = emit_operand ctx h b in
                   if ta <> "double" || tb <> "double" then
                     failwith "llvm_emit: float_eq expects two doubles";
+                  let raw = dst ^ "_c32" in
                   lines :=
                     !lines
                     @ [
                         Printf.sprintf
-                          "  %%%s = call i32 @ls_float_eq(double %s, double %s)" dst
+                          "  %%%s = call i32 @ls_float_eq(double %s, double %s)" raw
                           va vb;
+                        Printf.sprintf "  %%%s = sext i32 %%%s to i64" dst raw;
                       ];
-                  H.replace h dst I32
+                  H.replace h dst I64
               | _ -> failwith "llvm_emit: float_eq arity")
           | "ordering_int32" -> (
               match args with
               | [ a; b ] ->
                   let ta, va = emit_operand ctx h a in
                   let tb, vb = emit_operand ctx h b in
-                  if ta <> "i32" || tb <> "i32" then
-                    failwith "llvm_emit: ordering_int32 expects i32";
+                  if ta <> "i64" || tb <> "i64" then
+                    failwith "llvm_emit: ordering_int32 expects i64";
                   lines :=
                     !lines
                     @ [
                         Printf.sprintf
-                          "  %%%s = call i8* @ls_ordering_int32(i32 %s, i32 %s)" dst va
+                          "  %%%s = call i8* @ls_ordering_int32(i64 %s, i64 %s)" dst va
                           vb;
                       ];
                   H.replace h dst RawPtr
@@ -793,13 +809,13 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
               | [ a; b ] ->
                   let ta, va = emit_operand ctx h a in
                   let tb, vb = emit_operand ctx h b in
-                  if ta <> "i32" || tb <> "i32" then
-                    failwith "llvm_emit: ordering_char expects i32";
+                  if ta <> "i64" || tb <> "i64" then
+                    failwith "llvm_emit: ordering_char expects i64";
                   lines :=
                     !lines
                     @ [
                         Printf.sprintf
-                          "  %%%s = call i8* @ls_ordering_char(i32 %s, i32 %s)" dst va vb;
+                          "  %%%s = call i8* @ls_ordering_char(i64 %s, i64 %s)" dst va vb;
                       ];
                   H.replace h dst RawPtr
               | _ -> failwith "llvm_emit: ordering_char arity")
@@ -872,12 +888,12 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
               | [ tag; pl ] ->
                   let tt, tv = emit_operand ctx h tag in
                   let pt, pv = emit_operand ctx h pl in
-                  if tt <> "i32" || pt <> "i8*" then
-                    failwith "llvm_emit: ls_variant_mk(i32, i8*)";
+                  if tt <> "i64" || pt <> "i8*" then
+                    failwith "llvm_emit: ls_variant_mk(i64, i8*)";
                   lines :=
                     !lines
                     @ [
-                        Printf.sprintf "  %%%s = call i8* @ls_variant_mk(i32 %s, i8* %s)"
+                        Printf.sprintf "  %%%s = call i8* @ls_variant_mk(i64 %s, i8* %s)"
                           dst tv pv;
                       ];
                   H.replace h dst RawPtr
@@ -890,10 +906,10 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
                   lines :=
                     !lines
                     @ [
-                        Printf.sprintf "  %%%s = call i32 @ls_variant_tag(i8* %s)" dst
+                        Printf.sprintf "  %%%s = call i64 @ls_variant_tag(i8* %s)" dst
                           vv;
                       ];
-                  H.replace h dst I32
+                  H.replace h dst I64
               | _ -> failwith "llvm_emit: ls_variant_tag arity")
           | "ls_variant_payload" -> (
               match args with
@@ -1229,14 +1245,14 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
           ];
       let bp = dst ^ "_bptr" in
       (match elem_ty with
-      | I32 ->
+      | I64 ->
           let got_ll, vv = emit_operand ctx h op in
-          if got_ll <> "i32" then failwith "llvm_emit: HeapBox i32";
+          if got_ll <> "i64" then failwith "llvm_emit: HeapBox i64";
           lines :=
             !lines
             @ [
-                Printf.sprintf "  %%%s = bitcast i8* %%%s to i32*" bp dst;
-                Printf.sprintf "  store i32 %s, i32* %%%s" vv bp;
+                Printf.sprintf "  %%%s = bitcast i8* %%%s to i64*" bp dst;
+                Printf.sprintf "  store i64 %s, i64* %%%s" vv bp;
               ]
       | I1 ->
           let got_ll, vv = emit_operand ctx h op in
@@ -1316,14 +1332,14 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
               ];
           let bp = dst ^ "_uptr" in
           (match elem_ty with
-          | I32 ->
+          | I64 ->
               lines :=
                 !lines
                 @ [
-                    Printf.sprintf "  %%%s = bitcast i8* %%%s to i32*" bp psafe;
-                    Printf.sprintf "  %%%s = load i32, i32* %%%s" dst bp;
+                    Printf.sprintf "  %%%s = bitcast i8* %%%s to i64*" bp psafe;
+                    Printf.sprintf "  %%%s = load i64, i64* %%%s" dst bp;
                   ];
-              H.replace h dst I32
+              H.replace h dst I64
           | I1 ->
               let wl = dst ^ "_wi" in
               lines :=
@@ -1372,15 +1388,15 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
               H.replace h dst elem_ty
           | Unit -> assert false))
   | VariantMk (tag, payload_op) ->
-      let tag_op = ConstI32 tag in
+      let tag_op = ConstI64 tag in
       let tt, tv = emit_operand ctx h tag_op in
       let pt, pv = emit_operand ctx h payload_op in
-      if tt <> "i32" || pt <> "i8*" then
+      if tt <> "i64" || pt <> "i8*" then
         failwith "llvm_emit: VariantMk";
       lines :=
         !lines
         @ [
-            Printf.sprintf "  %%%s = call i8* @ls_variant_mk(i32 %s, i8* %s)" dst
+            Printf.sprintf "  %%%s = call i8* @ls_variant_mk(i64 %s, i8* %s)" dst
               tv pv;
           ];
       H.replace h dst RawPtr
@@ -1389,8 +1405,8 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
       if vt <> "i8*" then failwith "llvm_emit: VariantTag";
       lines :=
         !lines
-        @ [ Printf.sprintf "  %%%s = call i32 @ls_variant_tag(i8* %s)" dst vv ];
-      H.replace h dst I32
+        @ [ Printf.sprintf "  %%%s = call i64 @ls_variant_tag(i8* %s)" dst vv ];
+      H.replace h dst I64
   | VariantPayload vop ->
       let vt, vv = emit_operand ctx h vop in
       if vt <> "i8*" then failwith "llvm_emit: VariantPayload";
@@ -1465,9 +1481,9 @@ let emit_term (ctx : emit_ctx) (h : (string, ty) H.t)
         else
           failwith "llvm_emit: main must return i32 for C ABI (extend zext)"
     | false, Unit, None -> lines := !lines @ [ "  ret void" ]
-    | false, I32, Some o ->
+    | false, I64, Some o ->
         let _ty, v = emit_operand ctx h o in
-        lines := !lines @ [ Printf.sprintf "  ret i32 %s" v ]
+        lines := !lines @ [ Printf.sprintf "  ret i64 %s" v ]
     | false, I1, Some o ->
         let _ty, v = emit_operand ctx h o in
         lines := !lines @ [ Printf.sprintf "  ret i1 %s" v ]
