@@ -244,11 +244,18 @@
     empty = []
   end
 
+  // [show [1, 2, 3]] is "[1, 2, 3]". Written with self-recursion only:
+  // [show t] is "[e2, e3]", whose leading "[" is replaced by "e1, ".
   impl Show for List<a> requires Show<a> where
     show x =
       case x do
       | [] -> "[]"
-      | h :: t -> "[" ^ (show h) ^ ", " ^ (show t) ^ "]"
+      | h :: t ->
+          case t do
+          | [] -> "[" ^ show h ^ "]"
+          | _ ->
+              let rest = show t in
+              "[" ^ show h ^ ", " ^ str_slice rest 1 (str_length rest)
   end
   
   // Option
