@@ -121,6 +121,8 @@ let trait_errors =
       "let f o = case o do | Some (x : Int) -> x | None -> 0\nlet () = println (f (Some \"s\"))";
     bad ~mentions:[ "refers to itself" ] "a record type in a type rec group cannot refer to itself"
       "type rec Tree = { label: Int, kids: List<Tree> }";
+    bad ~mentions:[ "type parameter" ] "impl for a type applied to too many arguments"
+      "type R<e, a> = | Ok of a | Err of e\nimpl Functor for R<Int, Int> where\n  fmap f r = r\nend";
     bad "impl of unknown trait" "impl Nope for Int where\n  f x = x\nend";
     bad "impl missing method"
       "trait T<a> where\n  val f : a -> Int\n  val g : a -> Int\nend\nimpl T for Int where\n  f x = x\nend";

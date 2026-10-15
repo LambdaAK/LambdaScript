@@ -1500,10 +1500,17 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
               else (last_type_clash := Some (t1, t2); raise TypeFailure)
           | TCtorApp (w, as1), CTypeApp (n, as2)
           | CTypeApp (n, as2), TCtorApp (w, as1) ->
-              if List.length as1 = List.length as2 then
+              let k = List.length as2 - List.length as1 in
+              if k = 0 then
                 let arg_equations = List.combine as1 as2 in
                 reduce_eq_acc acc
                   (((TypeVar w, TypeName n) :: arg_equations) @ c')
+              else if k > 0 then
+                (* [f<a>] against [Result<e, a>]: [f] is [Result<e>]. *)
+                let pre = List.filteri (fun i _ -> i < k) as2 in
+                let post = List.filteri (fun i _ -> i >= k) as2 in
+                reduce_eq_acc acc
+                  (((TypeVar w, CTypeApp (n, pre)) :: List.combine as1 post) @ c')
               else (last_type_clash := Some (t1, t2); raise TypeFailure)
           (* Recursive sum types like [type rec List<a> = ...] are μ-types
              (FixedPoint) in the environment, while class method signatures use
@@ -1664,6 +1671,7 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
       let- resolved_args = aux [] args in
       match head_resolved with
       | TypeName n -> return (CTypeApp (n, resolved_args))
+      | CTypeApp (n, pre) -> return (CTypeApp (n, pre @ resolved_args))
       | CListType _ -> (
           match resolved_args with
           | [ elem ] -> return (CListType elem)

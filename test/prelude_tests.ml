@@ -186,6 +186,9 @@ let builtin_tests =
     ok "open record rows shared by a local let rec and its enclosing function"
       "let rec fold f z xs = case xs do | [] -> z | x :: t -> fold f (f z x) t\nlet min_by key xs = case xs do | [] -> None | x :: rest -> Some (fold (fn best -> fn y -> if key y < key best then y else best) x rest)\nlet np key jobs =\n  let rec go t pending acc = case pending do | [] -> acc | _ -> (case min_by key pending do | Some j -> go (t + j.b) [] (j.a :: acc) | None -> acc)\n  in go 0 jobs []\nlet () = println (np (fn j -> j.a) [{ n: 1, a: 5, b: 7, c: 3 }, { n: 2, a: 4, b: 1, c: 0 }])"
       "[4]\n";
+    ok "Functor, Applicative and Monad for a partially applied type"
+      "type Result<e, a> = | Ok of a | Err of e\n\nimpl Functor for Result<e> where\n  fmap f r = case r do | Ok v -> Ok (f v) | Err e -> Err e\nend\n\nimpl Applicative for Result<e> where\n  pure x = Ok x,\n  ap rf rx = case rf do | Ok f -> fmap f rx | Err e -> Err e\nend\n\nimpl Monad for Result<e> where\n  bind r f = case r do | Ok v -> f v | Err e -> Err e\nend\n\nlet safe_div a b = if b == 0 then Err \"division by zero\" else Ok (a / b)\nlet calc a b c = bind (safe_div a b) (fn x -> bind (safe_div x c) (fn y -> pure (x + y)))\nlet double fa = fmap (fn x -> x * 2) fa\nlet show_r r = case r do | Ok v -> \"Ok \" ^ show v | Err e -> \"Err \" ^ e\n\nlet () = println (show_r (calc 100 5 2), show_r (calc 1 0 2), show_r (double (Ok 21)))\nlet () = println (double (Some 4))"
+      "(Ok 30, Err division by zero, Ok 42)\nSome 8\n";
     ok "str_to_int" "let () = println [str_to_int \"123\", str_to_int \"-45\", str_to_int \"4x\", str_to_int \"\", str_to_int \"-\"]" "[Some 123, Some -45, None, None, None]\n";
     ok "sqrt exp log" (ps "float_to_str (sqrt 16.0) ^ \" \" ^ float_to_str (exp 0.0) ^ \" \" ^ float_to_str (log 1.0) ^ \" \" ^ float_to_str (log (exp 2.0))") "4.0 1.0 0.0 2.0\n";
     ok "float_to_str: integral values keep their digits"
