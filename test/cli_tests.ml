@@ -306,9 +306,37 @@ let dump_ir_tests =
     clean_error "dump_min_ir: missing file" "dump_min_ir" [ "/nonexistent/p.forge" ];
   ]
 
+(* examples/ml: a small machine-learning library (matrices, regression,
+   kernels, Adam) and four experiments. Both back ends must print
+   examples/ml/main.out. *)
+let ml_example_tests =
+  let dir () = Filename.concat (repo ()) "examples/ml" in
+  let expected () = read_file (Filename.concat (dir ()) "main.out") in
+  [
+    ( "interpreter" >:: fun _ ->
+      let r = run_process ~timeout:180.0 ~cwd:(repo ()) (exe "interpreter") [ Filename.concat (dir ()) "main.forge" ] in
+      assert_equal ~printer:string_of_status (Exited 0) r.status;
+      assert_equal ~printer:(fun s -> s) "" r.err;
+      assert_equal ~printer:(fun s -> s) (expected ()) r.out );
+    ( "native" >:: fun _ ->
+      with_tmpdir @@ fun tmp ->
+      Array.iter
+        (fun f ->
+          if Filename.check_suffix f ".forge" then
+            write_file (Filename.concat tmp f) (read_file (Filename.concat (dir ()) f)))
+        (Sys.readdir (dir ()));
+      let out = Filename.concat tmp "main.exe" in
+      let c = run_process ~timeout:120.0 ~cwd:(repo ()) (exe "compile_forge") [ Filename.concat tmp "main.forge"; out ] in
+      assert_equal ~printer:string_of_status ~msg:(describe c) (Exited 0) c.status;
+      let r = run_process ~timeout:60.0 out [] in
+      assert_equal ~printer:string_of_status (Exited 0) r.status;
+      assert_equal ~printer:(fun s -> s) (expected ()) r.out );
+  ]
+
 let suite =
   "cli"
   >::: [
+         "ml example" >::: ml_example_tests;
          "interpreter" >::: interpreter_tests;
          "ambiguity" >::: ambiguity_tests;
          "compile_forge" >::: compiler_tests;

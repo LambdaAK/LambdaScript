@@ -1,0 +1,25 @@
+1. Linear regression: house prices from size, rooms and age
+  true weights [bias, size, rooms, age]     [40.000, 1.800, 12.000, -0.900]
+  closed form (normal equations)            [43.751, 1.779, 10.874, -0.778]
+    test RMSE                               8.18
+    test R^2                                0.9935
+  Adam, 2000 steps (in original units)      [43.751, 1.779, 10.874, -0.778]
+    test RMSE                               8.18
+    test R^2                                0.9935
+
+2. Logistic regression: two Gaussian blobs
+  weights [bias, x, y]                      [0.028, 3.007, 2.587]
+  train accuracy                            95.0%
+  test accuracy                             97.0%
+
+3. Kernel logistic regression: XOR
+  linear logistic, test accuracy            47.5%
+  RBF kernel (gamma 2), train accuracy      100.0%
+  RBF kernel (gamma 2), test accuracy       97.5%
+  polynomial kernel (degree 2), test acc.   97.5%
+
+4. Kernel ridge regression: y = x^3 - 2x + noise
+  linear regression, test R^2               0.0569
+  RBF kernel ridge, test R^2                0.9783
+    test RMSE (noise sd 0.2)                0.183
+  polynomial kernel ridge (degree 3), R^2   0.9783
