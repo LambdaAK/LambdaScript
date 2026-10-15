@@ -201,6 +201,9 @@ let module_tests =
     ok "qualified constructors in patterns"
       "mod Geo where\n  type Shape = | Sq of Int | Ci of Int\n  mod Inner where\n    type T = | X | Y\n  end\nend\nlet area s = case s do | Geo.Sq w -> w * w | Geo.Ci r -> 3 * r * r\nlet t x = case x do | Geo.Inner.X -> 1 | Geo.Inner.Y -> 2\nlet () = println (area (Geo.Sq 3), area (Geo.Ci 2), t Geo.Inner.Y)"
       "(9, 12, 2)\n";
+    ok "shadowed globals across many definitions"
+      "let x = 1\nlet f () = x\nlet d0 = 0\nlet d1 = 1\nlet d2 = 2\nlet d3 = 3\nlet d4 = 4\nlet d5 = 5\nlet d6 = 6\nlet d7 = 7\nlet d8 = 8\nlet d9 = 9\nlet d10 = 10\nlet d11 = 11\nlet d12 = 12\nlet d13 = 13\nlet d14 = 14\nlet d15 = 15\nlet d16 = 16\nlet d17 = 17\nlet d18 = 18\nlet d19 = 19\nlet d20 = 20\nlet d21 = 21\nlet d22 = 22\nlet d23 = 23\nlet d24 = 24\nlet d25 = 25\nlet d26 = 26\nlet d27 = 27\nlet d28 = 28\nlet d29 = 29\nlet d30 = 30\nlet d31 = 31\nlet d32 = 32\nlet d33 = 33\nlet d34 = 34\nlet d35 = 35\nlet d36 = 36\nlet d37 = 37\nlet d38 = 38\nlet d39 = 39\nlet x = 2\nlet g () = x\nlet d0 = 0\nlet d1 = 1\nlet d2 = 2\nlet d3 = 3\nlet d4 = 4\nlet d5 = 5\nlet d6 = 6\nlet d7 = 7\nlet d8 = 8\nlet d9 = 9\nlet d10 = 10\nlet d11 = 11\nlet d12 = 12\nlet d13 = 13\nlet d14 = 14\nlet d15 = 15\nlet d16 = 16\nlet d17 = 17\nlet d18 = 18\nlet d19 = 19\nlet d20 = 20\nlet d21 = 21\nlet d22 = 22\nlet d23 = 23\nlet d24 = 24\nlet d25 = 25\nlet d26 = 26\nlet d27 = 27\nlet d28 = 28\nlet d29 = 29\nlet d30 = 30\nlet d31 = 31\nlet d32 = 32\nlet d33 = 33\nlet d34 = 34\nlet d35 = 35\nlet d36 = 36\nlet d37 = 37\nlet d38 = 38\nlet d39 = 39\nlet some = Some\nlet () = println (f (), g (), x, some 3, d39)"
+      "(1, 2, 2, Some 3, 39)\n";
     ok "impl for a named record type"
       "type P = { x: Int, y: Int }\nimpl Show for P where\n  show p = \"P(\" ^ int_to_str p.x ^ \")\"\nend\nlet p : P = { x: 1, y: 2 }\nlet () = print_string (show p)"
       "P(1)\n";

@@ -24,17 +24,21 @@ let interpret (filename : string) =
                 (new_bindings @ static_env) (new_type_env @ type_env) defn
             in
             (new_bindings @ static_env, new_type_env @ type_env, new_ctor_env @ ctor_env, defn :: acc)
-        | Typecheck.Error e -> Diag.die (Diag.type_error_message e))
+        | Typecheck.Error e -> Diag.die (Compile_pipeline.defn_type_error fr defn e))
       (static_env, type_env, [], [])
-      condensed_program
+      fr.condensed
   in
+  (* Index the environment every few definitions (see [Ceval.index_env]). *)
   ignore
     (List.fold_left
-       (fun dynamic_env defn ->
+       (fun (dynamic_env, n) defn ->
          match Ceval.eval_defn defn dynamic_env with
-         | Ceval.Ok bindings -> bindings @ dynamic_env
+         | Ceval.Ok bindings ->
+             let env = bindings @ dynamic_env in
+             ((if n mod 16 = 15 then Ceval.index_env env else env), n + 1)
          | Ceval.Error e -> Diag.die (Diag.runtime_error_message e))
-       dynamic_env (List.rev elaborated))
+       (Ceval.index_env dynamic_env, 0)
+       (List.rev elaborated))
 
 let () =
   if Array.length Sys.argv <> 2 then (

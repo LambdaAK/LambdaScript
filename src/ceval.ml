@@ -125,6 +125,7 @@ and string_of_value = function
         List.map (fun (name, v) -> name ^ ": " ^ string_of_value v) fields
       in
       "{" ^ String.concat ", " field_strs ^ "}"
+  | EnvIndex _ -> "<environment>"
   | VariantValue (cons_name, None) -> cons_name
   | VariantValue (cons_name, Some payload) ->
       let payload_str = string_of_value payload in
@@ -332,7 +333,7 @@ let rec mono_type_of_value (v : value) : mono_type option =
   | RecursiveFunctionClosure _
   | BuiltInFunction _
   | TypeClassMethod _
-  | TypeClassMethodPending _ -> None
+  | TypeClassMethodPending _ | EnvIndex _ -> None
 
 (** Declaration index of every constructor seen so far (filled when sum types
     are evaluated): constructors compare in declaration order, as in OCaml and
@@ -435,9 +436,33 @@ let register_global_dicts (new_env : env) (old_env : env) : unit =
   in
   go new_env
 
+(** An environment is a list, most recent binding first. Every so often the
+    interpreter adds an index entry holding all the bindings after it, so that
+    looking up a global (a built-in, a prelude function or constructor) does
+    not walk the whole list. *)
+let index_key = "\000index"
+
+let rec env_lookup (s : string) (env : env) : value option =
+  match env with
+  | [] -> None
+  | (_, EnvIndex t) :: _ -> Hashtbl.find_opt t s
+  | (k, v) :: rest -> if String.equal k s then Some v else env_lookup s rest
+
+let index_env (env : env) : env =
+  let t = Hashtbl.create 1024 in
+  let rec fill = function
+    | [] -> ()
+    | (_, EnvIndex t0) :: _ -> Hashtbl.iter (fun k v -> if not (Hashtbl.mem t k) then Hashtbl.replace t k v) t0
+    | (k, v) :: rest ->
+        if not (Hashtbl.mem t k) then Hashtbl.replace t k v;
+        fill rest
+  in
+  fill env;
+  (index_key, EnvIndex t) :: env
+
 (** A dictionary by name: the environment's binding, else the registry. *)
 let lookup_dict (env : env) (name : string) : value option =
-  match List.assoc_opt name env with
+  match env_lookup name env with
   | Some v -> Some v
   | None -> Hashtbl.find_opt global_dicts name
 
@@ -457,7 +482,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
   | EUnit -> UnitValue |> return
   | EId (s, _) -> (
       (* Check if this is a nullary constructor (VariantValue) *)
-      match List.assoc_opt s env with
+      match env_lookup s env with
       | Some (VariantValue (cons_name, None)) ->
           VariantValue (cons_name, None) |> return
       | Some v -> v |> return
@@ -1206,7 +1231,7 @@ and eval_defn_core (d : c_defn) (env : env) : env eval_result =
         List.iter (backpatch_recursive_closures new_bindings) vs
     | IntegerValue _ | FloatValue _ | StringValue _ | BooleanValue _
     | CharValue _ | UnitValue | FunctionClosure _ | BuiltInFunction _
-    | TypeClassMethod _ | TypeClassMethodPending _ | VariantValue _ -> ()
+    | TypeClassMethod _ | TypeClassMethodPending _ | VariantValue _ | EnvIndex _ -> ()
   in
   match d with
   | CDefn (pat, _, _, body, _, _) -> (

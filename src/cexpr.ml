@@ -171,6 +171,9 @@ and value =
   | TypeClassMethodPending of string * string * value list
   | VariantValue of string * value option
   | RecordValue of (string * value) list
+  | EnvIndex of (string, value) Hashtbl.t
+      (** Not a value: an entry of an environment holding every binding after
+          it (see [Ceval.index_env]). *)
 (* Constructor name and optional payload value *)
 
 and builtin_function =
