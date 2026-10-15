@@ -549,6 +549,38 @@ let forge_dict_resolves_for_class ~(static_env : static_env)
         | _ -> false)
       static_env
 
+(** Can a predicate [class_name tau] (with type variables in [tau]) ever be
+    satisfied? Only the head type constructor matters: e.g. there is no
+    [Show] instance for any function type, whatever its argument types. *)
+let instance_head_possible ~(static_env : static_env) ~(class_name : string)
+    (tau : mono_type) : bool =
+  let prefix = "__forge_dict_" ^ class_name ^ "_" in
+  let slug_prefix =
+    match tau with
+    | FunctionType _ -> Some "fn"
+    | VectorType _ -> Some "vec"
+    | RecordType _ -> Some "record"
+    | _ -> None
+  in
+  match slug_prefix with
+  | None ->
+      (* Lists, ADTs, …: defer to the usual candidate filter. *)
+      (match tau with
+      | TypeVar _ | TCtorApp _ -> true
+      | _ ->
+          List.exists
+            (fun (name, _) ->
+              String.starts_with ~prefix name
+              && dict_candidate_matches_tau ~dict_name:name ~class_name tau)
+            static_env)
+  | Some sp ->
+      List.exists
+        (fun (name, _) ->
+          match forge_dict_slug ~class_name name with
+          | Some sfx -> String.starts_with ~prefix:sp sfx
+          | None -> false)
+        static_env
+
 (** [generate env e] performs type inference on the expression [e] in the static
     environment [env].
 
@@ -1735,7 +1767,13 @@ and generalize ?(class_preds : class_equations = [])
         match acc with
         | Error _ as e -> e
         | Ok () ->
-            if get_type_vars tau <> [] then Ok ()
+            if get_type_vars tau <> [] then
+              if instance_head_possible ~static_env:env ~class_name:c tau then Ok ()
+              else
+                Error
+                  (OtherError
+                     ("No instance `" ^ c ^ "` for type "
+                    ^ string_of_mono_type (Typefixer.fix_type tau)))
             else if
               forge_dict_resolves_for_class ~static_env:env ~class_name:c tau
             then Ok ()
