@@ -68,6 +68,10 @@ let interpreter_tests =
     ( "interpreter: file without trailing newline" >:: fun _ ->
       let src = "let () = print_string \"x\"" in
       assert_runs ~expected:"x\n" "no newline" src (interp src) );
+    ( "interpreter: nothing runs when a later definition has a type error" >:: fun _ ->
+      let r = interp "let () = print_string \"too early\"\nlet bad = 1 + \"x\"" in
+      assert_equal ~printer:string_of_status (Exited 1) r.status;
+      assert_equal ~printer:(Printf.sprintf "%S") "" r.out );
     ( "interpreter: output is flushed before a runtime error" >:: fun _ ->
       let src = "let () = print \"partial\"\nlet x = 1 / 0" in
       let r = interp src in
