@@ -4,12 +4,14 @@
 The reference implementation of Forge is written in OCaml and built with
 Dune. It provides an interpreter, an interactive REPL, a native compiler and a
 handful of developer tools. Native compilation needs Clang, which links the
-generated code with a small C runtime.
+generated code with a small C runtime, and the Boehm garbage collector
+(\texttt{bdw-gc}), which manages the memory of compiled programs.
 
 \section{Installing}
 
 \paragraph{From source} Forge needs OCaml 5.1 or later, Dune, the
-\texttt{ounit2} test library and Clang.\index{installation}
+\texttt{ounit2} test library, Clang and the Boehm garbage collector
+(\texttt{brew install bdw-gc} or \texttt{apt install libgc-dev}).\index{installation}
 
 \begin{shellpanel}
 \begin{lstlisting}

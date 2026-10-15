@@ -126,6 +126,29 @@ and min_ir_of_file_exn ~prelude (src_path : string) : (Min_ir.prog, string) resu
               Error ("the native compiler does not support this program yet: " ^ msg)
           | prog -> Ok prog))
 
+(** Compiler and linker flags for the Boehm garbage collector used by the
+    runtime: [FORGE_GC_FLAGS] if set, else [pkg-config bdw-gc], else the
+    Homebrew locations, else plain [-lgc]. *)
+let gc_flags : string Lazy.t =
+  lazy
+    (match Sys.getenv_opt "FORGE_GC_FLAGS" with
+    | Some f -> f
+    | None -> (
+        let from_pkg_config =
+          try
+            let ic = Unix.open_process_in "pkg-config --cflags --libs bdw-gc 2>/dev/null" in
+            let line = try String.trim (input_line ic) with End_of_file -> "" in
+            match Unix.close_process_in ic with Unix.WEXITED 0 when line <> "" -> Some line | _ -> None
+          with _ -> None
+        in
+        match from_pkg_config with
+        | Some f -> f
+        | None -> (
+            let prefixes = [ "/opt/homebrew/opt/bdw-gc"; "/usr/local/opt/bdw-gc" ] in
+            match List.find_opt (fun d -> Sys.file_exists (Filename.concat d "include/gc.h")) prefixes with
+            | Some d -> Printf.sprintf "-I%s/include -L%s/lib -lgc" d d
+            | None -> "-lgc")))
+
 (** Compile [src_path] to the executable [out_path]: writes [.mir], [.ll] and
     [.s] next to the source, then links with the C runtime using clang. *)
 let compile ?(quiet = false) ?(prelude = true) (src_path : string) (out_path : string) :
@@ -155,8 +178,9 @@ let compile ?(quiet = false) ?(prelude = true) (src_path : string) (out_path : s
         else
           let rt = runtime_c_path () in
           let cmd_exe =
-            Printf.sprintf "clang -O1 -g -Wno-override-module -o %s %s %s -lm"
+            Printf.sprintf "clang -O1 -g -Wno-override-module -o %s %s %s %s -lm"
               (Filename.quote out_path) (Filename.quote ll_path) (Filename.quote rt)
+              (Lazy.force gc_flags)
           in
           let code_exe = Sys.command cmd_exe in
           if code_exe <> 0 then

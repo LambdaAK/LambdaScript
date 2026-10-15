@@ -306,6 +306,32 @@ let dump_ir_tests =
     clean_error "dump_min_ir: missing file" "dump_min_ir" [ "/nonexistent/p.forge" ];
   ]
 
+(* Native programs collect garbage: this one allocates 50 million list cells
+   (about 1.6 GB) but keeps at most 1,000 alive at a time. *)
+let gc_tests =
+  [
+    ( "native: memory is reclaimed" >:: fun _ ->
+      with_tmpdir @@ fun dir ->
+      let src = Filename.concat dir "churn.forge" in
+      write_file src
+        "let rec build n acc = if n == 0 then acc else build (n - 1) (n :: acc)\n\
+         let rec sum xs acc = case xs do | [] -> acc | h :: t -> sum t (acc + h)\n\
+         let rec go k total = if k == 0 then total else go (k - 1) (total + sum (build 1000 []) 0)\n\
+         let () = println (go 50000 0)\n";
+      let out = Filename.concat dir "churn" in
+      let c = run_process ~timeout:120.0 ~cwd:(repo ()) (exe "compile_forge") [ src; out ] in
+      assert_equal ~printer:string_of_status ~msg:(describe c) (Exited 0) c.status;
+      let env = Array.append [| "FORGE_RUNTIME_STATS=1" |] (Unix.environment ()) in
+      let r = run_process ~timeout:120.0 ~env out [] in
+      assert_equal ~printer:string_of_status (Exited 0) r.status;
+      assert_equal ~printer:(fun s -> s) "25025000000\n" r.out;
+      let kb =
+        try Scanf.sscanf (String.sub r.err (String.index r.err '=' + 1) (String.length r.err - String.index r.err '=' - 1)) " %d" (fun k -> k)
+        with _ -> assert_failure ("no memory report on stderr: " ^ r.err)
+      in
+      if kb > 200_000 then assert_failure (Printf.sprintf "peak memory %d KB (limit 200 MB)" kb) );
+  ]
+
 (* examples/ml: a small machine-learning library (matrices, regression,
    kernels, Adam) and four experiments. Both back ends must print
    examples/ml/main.out. *)
@@ -337,6 +363,7 @@ let suite =
   "cli"
   >::: [
          "ml example" >::: ml_example_tests;
+         "garbage collection" >::: gc_tests;
          "interpreter" >::: interpreter_tests;
          "ambiguity" >::: ambiguity_tests;
          "compile_forge" >::: compiler_tests;

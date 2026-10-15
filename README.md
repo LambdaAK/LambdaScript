@@ -789,12 +789,12 @@ If you publish this image (for example `ghcr.io/<owner>/forge:latest`), replace 
 
 #### 1) Install toolchain
 
-Forge needs **OCaml**, **Dune**, **OPAM**, and **Clang**.
+Forge needs **OCaml**, **Dune**, **OPAM**, **Clang**, and the **Boehm garbage collector** (`bdw-gc`, used by natively compiled programs).
 
 macOS (Homebrew):
 ```bash
 brew install opam
-brew install llvm clang
+brew install llvm clang bdw-gc
 opam init -a --disable-sandboxing
 eval "$(opam env)"
 opam switch create 5.1.1
@@ -805,7 +805,7 @@ opam install dune ounit2
 Ubuntu / Debian:
 ```bash
 sudo apt update
-sudo apt install -y opam m4 pkg-config libgmp-dev clang
+sudo apt install -y opam m4 pkg-config libgmp-dev clang libgc-dev
 opam init -a
 eval "$(opam env)"
 opam switch create 5.1.1
@@ -878,7 +878,7 @@ Source files use `.forge`.
 
 ## Native compilation
 
-The compiler parses and typechecks a Forge source file, lowers it to **Min IR** (`.mir`), emits **LLVM IR** (`.ll`), runs **Clang** to produce assembly (`.s`) and a **linked executable**. The C runtime in `runtime/ls_runtime.c` provides memory and runtime glue for the generated code.
+The compiler parses and typechecks a Forge source file, lowers it to **Min IR** (`.mir`), emits **LLVM IR** (`.ll`), runs **Clang** to produce assembly (`.s`) and a **linked executable**. The C runtime in `runtime/ls_runtime.c` provides memory management (the Boehm–Demers–Weiser conservative garbage collector, found with `pkg-config bdw-gc`; set `FORGE_GC_FLAGS` to override the flags) and runtime glue for the generated code.
 
 From the repository root:
 
