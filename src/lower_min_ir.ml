@@ -2240,7 +2240,13 @@ and lower_expr_val_as_call_arg ?(callee_fn_expr : c_expr option) (arg : c_expr)
     (expect : ty) (env : env) (ctx : fn_ctx) (static_env : static_env)
     (type_env : Typecheck.type_env) (shadows : S.t) : operand * ty =
   match arg with
-  | EId (x, _) when is_poly_static x static_env ->
+  | EId (x, _)
+    when is_poly_static x static_env
+         && (not (S.mem x shadows))
+         && not (List.mem_assoc x env) ->
+      (* A polymorphic top-level name passed as an argument (not a local or
+         parameter that happens to have the same name, e.g. the prelude's
+         [(>>=) x f = bind x f] when the program defines its own [f]). *)
       let m_expect =
         match callee_fn_expr with
         | Some e_fn -> (
