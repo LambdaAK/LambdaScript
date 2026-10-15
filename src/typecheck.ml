@@ -298,9 +298,24 @@ and string_of_mono_type (t : mono_type) : string =
   | FixedPoint (name, body) -> "μ" ^ name ^ ". " ^ string_of_mono_type body
   | RecordType fields ->
       let field_strs =
-        List.map (fun (name, t) -> name ^ ": " ^ string_of_mono_type t) fields
+        (* Open records ({x: a | r}) are displayed by their known fields. *)
+        List.filter_map
+          (fun (name, t) ->
+            if name = row_field then None else Some (name ^ ": " ^ string_of_mono_type t))
+          fields
       in
       "{" ^ String.concat ", " field_strs ^ "}"
+
+(** An open record type with the given known fields (and a fresh row). *)
+let open_record (fields : (string * mono_type) list) : mono_type =
+  RecordType (fields @ [ (row_field, fresh_type_var ()) ])
+
+(** Splice solved rows: [{x: a | {y: b | r}}] becomes [{x: a, y: b | r}]. *)
+let rec flatten_record_fields (fields : (string * mono_type) list) :
+    (string * mono_type) list =
+  match split_record fields with
+  | explicit, Some (RecordType inner) -> explicit @ flatten_record_fields inner
+  | _ -> fields
 
 (** Renames [TypeVar] / [TCtorApp] heads to [$Canon0], [$Canon1], … in
     deterministic traversal order so alpha-equivalent instantiations share one
@@ -604,7 +619,7 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
             let- field_type, field_equations, _ =
               generate env type_env field_expr
             in
-            let minimal_record = RecordType [ (field_name, field_type) ] in
+            let minimal_record = open_record [ (field_name, field_type) ] in
             let equation = (record_type, minimal_record) in
             process_updates ((equation :: field_equations) @ acc_equations) rest
       in
@@ -621,7 +636,7 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
           match List.assoc_opt field_name fields with
           | None ->
               let field_type = fresh_type_var () in
-              let minimal_record = RecordType [ (field_name, field_type) ] in
+              let minimal_record = open_record [ (field_name, field_type) ] in
               return
                 ( field_type,
                   (record_type, minimal_record) :: record_equations,
@@ -631,7 +646,7 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
               return (ft', record_equations, []))
       | _ ->
           let field_type = fresh_type_var () in
-          let minimal_record = RecordType [ (field_name, field_type) ] in
+          let minimal_record = open_record [ (field_name, field_type) ] in
           let equation = (record_type, minimal_record) in
           return (field_type, equation :: record_equations, []))
   | EBlock [] -> return (UnitType, [], [])
@@ -1187,7 +1202,7 @@ and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
       let types, envs, eqs =
         split3 (List.map (fun (_, p) -> type_of_pat env type_env p) field_pats)
       in
-      ( RecordType (List.map2 (fun nm ty -> (nm, ty)) names types),
+      ( open_record (List.map2 (fun nm ty -> (nm, ty)) names types),
         List.flatten envs,
         List.flatten eqs )
   | CIntPat _ -> (IntType, [], [])
@@ -1257,58 +1272,6 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
               in
               let new_remaining = substitute hi (TypeVar lo) c' in
               reduce_eq_acc ((TypeVar hi, TypeVar lo) :: acc) new_remaining
-          | TypeVar id, RecordType fields2 when not (inside t1 t2) ->
-              (* Special handling for type variables unified with records *)
-              let rec collect_record_constraints acc_records remaining =
-                match remaining with
-                | [] -> (List.rev acc_records, [])
-                | (TypeVar id2, RecordType fields) :: rest when id = id2 ->
-                    collect_record_constraints (fields :: acc_records) rest
-                | other :: rest ->
-                    let records, others =
-                      collect_record_constraints acc_records rest
-                    in
-                    (records, other :: others)
-              in
-              let other_records, other_constraints =
-                collect_record_constraints [ fields2 ] c'
-              in
-              let all_fields = List.flatten other_records in
-              let rec merge_fields acc_fields extra_eqs = function
-                | [] -> (List.rev acc_fields, extra_eqs)
-                | (name, typ) :: rest -> (
-                    match List.assoc_opt name acc_fields with
-                    | Some existing_typ ->
-                        let representative, other =
-                          match (existing_typ, typ) with
-                          | TypeVar _, _ -> (existing_typ, typ)
-                          | _, TypeVar _ -> (typ, existing_typ)
-                          | _ -> (existing_typ, typ)
-                        in
-                        let acc_fields_updated =
-                          if representative = existing_typ then acc_fields
-                          else
-                            List.map
-                              (fun (n, t) ->
-                                if n = name then (n, representative) else (n, t))
-                              acc_fields
-                        in
-                        merge_fields acc_fields_updated
-                          ((representative, other) :: extra_eqs)
-                          rest
-                    | None ->
-                        merge_fields ((name, typ) :: acc_fields) extra_eqs rest)
-              in
-              let unique_fields, field_equations =
-                merge_fields [] [] all_fields
-              in
-              let merged_record = RecordType unique_fields in
-              (* OPTIMIZATION: Only substitute in remaining constraints, not in
-                 acc *)
-              let new_remaining =
-                field_equations @ substitute id merged_record other_constraints
-              in
-              reduce_eq_acc ((t1, merged_record) :: acc) new_remaining
           | TypeVar id, _ when not (inside t1 t2) ->
               (* OPTIMIZATION: Only substitute in remaining constraints, not in
                  acc. The accumulated equations will be processed by get_type
@@ -1385,26 +1348,42 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
           | CTypeApp (name1, _), TypeName name2 ->
               if name1 = name2 then reduce_eq_acc acc c' else (last_type_clash := Some (t1, t2); raise TypeFailure)
           | RecordType fields1, RecordType fields2 ->
-              let rec unify_common_fields acc_fields remaining1 remaining2 =
-                match remaining1 with
-                | [] -> (List.rev acc_fields, [], remaining2)
-                | (name1, type1) :: rest1 -> (
-                    match List.assoc_opt name1 remaining2 with
-                    | Some type2 ->
-                        let remaining2' =
-                          List.filter (fun (n, _) -> n <> name1) remaining2
-                        in
-                        unify_common_fields
-                          ((type1, type2) :: acc_fields)
-                          rest1 remaining2'
-                    | None ->
-                        let eqs, extra1, extra2 =
-                          unify_common_fields acc_fields rest1 remaining2
-                        in
-                        (eqs, (name1, type1) :: extra1, extra2))
+              (* Row unification. A record is closed (exactly its fields) or
+                 open ([$row] = a type variable standing for the other
+                 fields). *)
+              let ex1, row1 = split_record (flatten_record_fields fields1) in
+              let ex2, row2 = split_record (flatten_record_fields fields2) in
+              let common =
+                List.filter_map
+                  (fun (n, ty1) ->
+                    match List.assoc_opt n ex2 with
+                    | Some ty2 -> Some (ty1, ty2)
+                    | None -> None)
+                  ex1
               in
-              let common_eqs, _, _ = unify_common_fields [] fields1 fields2 in
-              reduce_eq_acc acc (common_eqs @ c')
+              let only1 = List.filter (fun (n, _) -> not (List.mem_assoc n ex2)) ex1 in
+              let only2 = List.filter (fun (n, _) -> not (List.mem_assoc n ex1)) ex2 in
+              let clash () =
+                last_type_clash := Some (t1, t2);
+                raise TypeFailure
+              in
+              let row_eqs =
+                match (row1, row2) with
+                | None, None -> if only1 = [] && only2 = [] then [] else clash ()
+                | Some r1, None ->
+                    if only1 <> [] then clash () else [ (r1, RecordType only2) ]
+                | None, Some r2 ->
+                    if only2 <> [] then clash () else [ (r2, RecordType only1) ]
+                | Some r1, Some r2 ->
+                    if r1 = r2 then if only1 = [] && only2 = [] then [] else clash ()
+                    else
+                      let r3 = fresh_type_var () in
+                      [
+                        (r1, RecordType (only2 @ [ (row_field, r3) ]));
+                        (r2, RecordType (only1 @ [ (row_field, r3) ]));
+                      ]
+              in
+              reduce_eq_acc acc (common @ row_eqs @ c')
           | _ -> (last_type_clash := Some (t1, t2); raise TypeFailure))
   in
   reduce_eq_acc [] c
@@ -1507,9 +1486,9 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
       let- body_type = get_type body subs type_env in
       return (FixedPoint (name, body_type))
   | RecordType fields ->
-      (* Apply substitution to each field type *)
+      (* Apply substitution to each field type (and splice solved rows) *)
       let rec aux acc = function
-        | [] -> return (RecordType (List.rev acc))
+        | [] -> return (RecordType (flatten_record_fields (List.rev acc)))
         | (field_name, field_type) :: rest ->
             let- new_field_type = get_type field_type subs type_env in
             aux ((field_name, new_field_type) :: acc) rest
@@ -1612,7 +1591,8 @@ and substitute (var_id : string) (t : mono_type) (equations : type_equations) :
     | FixedPoint (name, body) -> FixedPoint (name, substitute_in_type body)
     | RecordType fields ->
         RecordType
-          (List.map (fun (name, t) -> (name, substitute_in_type t)) fields)
+          (flatten_record_fields
+             (List.map (fun (name, t) -> (name, substitute_in_type t)) fields))
   in
   match equations with
   | [] -> []

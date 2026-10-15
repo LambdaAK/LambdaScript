@@ -29,7 +29,11 @@ let rec string_of_mono_type : mono_type -> string = function
   | FixedPoint (_, body) -> string_of_mono_type body
   | RecordType fields ->
       let field_strs =
-        List.map (fun (name, t) -> name ^ ": " ^ string_of_mono_type t) fields
+        (* Open records ({x: a | r}) are displayed by their known fields. *)
+        List.filter_map
+          (fun (name, t) ->
+            if name = Cexpr.row_field then None else Some (name ^ ": " ^ string_of_mono_type t))
+          fields
       in
       "{" ^ String.concat ", " field_strs ^ "}"
 
@@ -122,8 +126,10 @@ let string_of_c_type (ct : c_type) : string =
     | FixedPoint (_, body) -> string_of_mono_for_display body
     | RecordType fields ->
         let field_strs =
-          List.map
-            (fun (name, t) -> name ^ ": " ^ string_of_mono_for_display t)
+          List.filter_map
+            (fun (name, t) ->
+              if name = Cexpr.row_field then None
+              else Some (name ^ ": " ^ string_of_mono_for_display t))
             fields
         in
         "{" ^ String.concat ", " field_strs ^ "}"
