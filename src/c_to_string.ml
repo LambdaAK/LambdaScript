@@ -223,30 +223,9 @@ let rec string_of_expr : c_expr -> string = function
   | EId (id, _) -> id
   | ENil -> "[]"
   | EBlock parts ->
-      let defns, e =
-        match parts with
-        | [] -> ([], EUnit)
-        | _ ->
-            let rev = List.rev parts in
-            let e = List.hd rev in
-            let defns = List.rev (List.tl rev) in
-            let defns =
-              List.filter_map
-                (function
-                  | Defn d -> Some d
-                  | Expr _ -> None)
-                defns
-            in
-            let e =
-              match e with
-              | Expr e -> e
-              | Defn _ -> EUnit
-            in
-            (defns, e)
-      in
-      "{\n"
-      ^ String.concat "\n" (List.map string_of_defn defns)
-      ^ "\n" ^ string_of_expr e ^ "\n}"
+      let part = function Defn d -> string_of_defn d | Expr e -> string_of_expr e in
+      let shown = if parts = [] then [ string_of_expr EUnit ] else List.map part parts in
+      "{\n" ^ String.concat "\n" shown ^ "\n}"
   | EFunction (pat, t_opt, body) ->
       "fn " ^ string_of_pat pat
       ^ format_type_annotation t_opt

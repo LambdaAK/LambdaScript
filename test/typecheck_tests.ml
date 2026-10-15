@@ -117,6 +117,7 @@ let literal_types =
     t_type "comprehension pair" "[(x, y) | x <- [1], y <- [\"a\"]]" "List<(Int, String)>";
     t_type "block" "{ let a = 1; a }" "Int";
     t_type "unit block" "{ }" "Unit";
+    t_type "statement of any type" "{ 1 + 1; \"x\" }" "String";
     t_type "if" "if true then 1 else 2" "Int";
     t_type "concat" "\"a\" ^ \"b\"" "String";
     t_type "comparison" "1 < 2" "Bool";
@@ -259,6 +260,8 @@ let definition_types =
 let rejection_tests =
   [
     t_reject "int plus bool" "1 + true";
+    t_reject "ill-typed statement in a block" "{ 1 + true; 2 }";
+    t_reject "ill-typed statement after a local definition" "{ let x = 1; x ^ \"a\"; x }";
     t_reject "string concat int" "\"a\" ^ 1";
     t_reject "non-bool condition" "if 1 then 2 else 3";
     t_reject "branch mismatch" "if true then 1 else \"a\"";

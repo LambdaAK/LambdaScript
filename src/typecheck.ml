@@ -728,8 +728,11 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
                   process_defns (new_bindings @ acc_env) acc_equations
                     (new_type_env @ acc_type_env)
                     rest
-              | Expr _ :: rest ->
-                  process_defns acc_env acc_equations acc_type_env rest
+              | Expr ex :: rest ->
+                  (* A statement may have any type, but it must be
+                     well-typed. *)
+                  let- _, ex_equations, _ = generate acc_env acc_type_env ex in
+                  process_defns acc_env (acc_equations @ ex_equations) acc_type_env rest
             in
             process_defns env [] type_env other_parts
           in
