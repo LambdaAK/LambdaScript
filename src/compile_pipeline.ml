@@ -96,6 +96,34 @@ let defn_line (fr : front) (d : Cexpr.c_defn) : int option =
         | [] -> None)
     | _ -> None
   in
+  (* Else the first identifier of the body (for [let () = ...]). *)
+  let rec first_pos (e : Cexpr.c_expr) : int option =
+    let open Cexpr in
+    let first l = List.find_map first_pos l in
+    match e with
+    | EId (_, Some (lo, _)) -> Some lo
+    | EFunction (_, _, b) -> first_pos b
+    | EBind (_, _, a, b, _) | EBindRec (_, _, a, b, _) | EApp (a, b) | EBop (_, a, b)
+    | EListEnumeration (a, b) ->
+        first [ a; b ]
+    | ETernary (a, b, c) -> first [ a; b; c ]
+    | ESwitch (a, brs) -> first (a :: List.map snd brs)
+    | EVector es -> first es
+    | ERecordLit fs -> first (List.map snd fs)
+    | EFieldAccess (a, _) -> first_pos a
+    | EBlock parts -> List.find_map (function Expr x -> first_pos x | Defn _ -> None) parts
+    | _ -> None
+  in
+  let body_line () =
+    match d with
+    | Cexpr.CDefn (_, _, _, body, _, _) | Cexpr.CDefnRec (_, _, _, body, _, _) -> (
+        match first_pos body with
+        | Some lo when lo >= fr.delta && lo <= String.length fr.source ->
+            Some (Diag.lines_in_prefix fr.source lo + 1 - fr.prefix_lines)
+        | _ -> None)
+    | _ -> None
+  in
+  let impl_line () = match impl_line () with Some l -> Some l | None -> body_line () in
   match Stdlib.Option.bind pat first_id with
   | None -> impl_line ()
   | Some p -> (

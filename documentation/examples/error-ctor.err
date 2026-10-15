@@ -1,1 +1,1 @@
-error: type error: Unknown constructor in pattern: C
+error: error-ctor.forge:2: type error in `f`: Unknown constructor in pattern: C

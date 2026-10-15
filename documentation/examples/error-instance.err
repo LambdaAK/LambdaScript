@@ -1,1 +1,1 @@
-error: type error: No instance `Show` for type (a -> a)
+error: error-instance.forge:1: type error: No instance `Show` for type (a -> a)
