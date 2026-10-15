@@ -1,0 +1,7 @@
+let s = "functional"
+let () = println (str_length s)
+let () = print_string (str_concat "fun" "ction")
+let () = print_string (str_slice s 3 4)
+let () = println (string_to_list "abc")
+let () = println (list_length (list_of_string "four"))
+let () = print_string (char_to_str 'z' ^ int_to_str 99)

@@ -1,0 +1,3 @@
+// Every top-level item is a definition; `let () = e` runs `e` for its effect.
+let greeting = "Hello"
+let () = print_string (greeting ^ ", Forge!")

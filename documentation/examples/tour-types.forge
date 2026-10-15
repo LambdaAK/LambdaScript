@@ -1,0 +1,15 @@
+type Shape =
+  | Circle of Int
+  | Rect of (Int, Int)
+
+let area s =
+  case s do
+  | Circle r -> 3 * r * r
+  | Rect (w, h) -> w * h
+
+let shapes = [Circle 2, Rect (3, 4)]
+let () = println (map area shapes)
+
+// Records are structural; a function can accept any record with a field `name`.
+let greet person = "Hi " ^ person.name
+let () = print_string (greet { name: "Ada", born: 1815 })

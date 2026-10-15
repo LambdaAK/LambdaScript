@@ -9,6 +9,8 @@ let built_ins : (string * value * c_type) list =
     ("int_to_str", BuiltInFunction IntToString, Mono (IntType => StringType));
     ("int_to_float", BuiltInFunction IntToFloat, Mono (IntType => FloatType));
     ("float_to_int", BuiltInFunction FloatToInt, Mono (FloatType => IntType));
+    ("float_to_str", BuiltInFunction FloatToString, Mono (FloatType => StringType));
+    ("char_to_str", BuiltInFunction CharToString, Mono (CharType => StringType));
     ( "string_to_list",
       BuiltInFunction StringToList,
       Mono (StringType => CListType CharType) );
@@ -138,6 +140,8 @@ filter|}
     (">=", {|fn a -> fn b -> a >= b|});
     ("==", {|fn a -> fn b -> a == b|});
     ("!=", {|fn a -> fn b -> if a == b then false else true|});
+    ("<>", {|fn a -> fn b -> if a == b then false else true|});
+    ("^", {|fn a -> fn b -> a ^ b|});
     ("&&", {|fn a -> fn b -> a && b|});
     ("||", {|fn a -> fn b -> a || b|});
     ( "list_length",

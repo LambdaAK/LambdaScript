@@ -1,0 +1,21 @@
+// Modules: namespaced helpers, types and qualified access.
+mod Money where
+  type Cents = Int
+  let dollars n = n * 100
+  let format c = int_to_str (c / 100) ^ "." ^ (if c % 100 < 10 then "0" else "") ^ int_to_str (c % 100)
+end
+
+mod Account where
+  type T = { owner: String, balance: Int }
+  let open_account name = { owner: name, balance: 0 }
+  let deposit amount acct = { acct with balance = acct.balance + amount }
+  let withdraw amount acct =
+    if amount > acct.balance then None else Some { acct with balance = acct.balance - amount }
+end
+
+use Money
+
+let a = Account.deposit (dollars 12) (Account.open_account "ann")
+let () = print_string (format a.balance)
+let () = print_string (case Account.withdraw 505 a do | Some b -> format b.balance | None -> "insufficient")
+let () = print_string (case Account.withdraw (dollars 20) a do | Some b -> format b.balance | None -> "insufficient")

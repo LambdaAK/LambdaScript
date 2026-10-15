@@ -1,0 +1,31 @@
+// String processing: splitting into words, counting and reversing.
+let is_space c = c == ' '
+
+let rec chars_to_string cs =
+  case cs do
+  | [] -> ""
+  | c :: rest -> chars_to_string rest
+
+let rec take_word cs acc =
+  case cs do
+  | [] -> (acc, [])
+  | c :: rest -> if is_space c then (acc, rest) else take_word rest (acc + 1)
+
+let rec count_words cs =
+  case cs do
+  | [] -> 0
+  | c :: rest ->
+      if is_space c then count_words rest
+      else case take_word cs 0 do | (_, remaining) -> 1 + count_words remaining
+
+let rec reverse xs acc = case xs do | [] -> acc | h :: t -> reverse t (h :: acc)
+
+let rec repeat s n = if n <= 0 then "" else s ^ repeat s (n - 1)
+
+let text = "the quick  brown fox jumps over the lazy dog"
+let () = println (count_words (string_to_list text))
+let () = println (str_length text)
+let () = println (list_length (reverse (string_to_list text) []))
+let () = print_string (repeat "ab" 5)
+let () = print_string (str_slice text 4 5)
+let () = println (filter is_space (string_to_list text) == filter (fn c -> c == ' ') (string_to_list text))

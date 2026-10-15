@@ -1,0 +1,80 @@
+\chapter{Traits}
+\label{ch:traits}
+\index{traits}\index{type classes|see{traits}}
+
+A \emph{trait} names a set of operations --- its \emph{methods} --- that a
+type may support; an \emph{instance} provides them for a particular type.
+Traits are Forge's type classes: a function that calls a method works for
+every type with an instance, and the right implementation is chosen from the
+types, at compile time.
+
+\section{Declaring a trait}
+\index{trait@\texttt{trait}}\index{inter@\texttt{inter}}
+
+\begin{center}
+\fc|trait Name<a> requires Other<a> where val m : T ... let m x = ... end|
+\end{center}
+
+Each method is declared with \fc|val| and a type that mentions the trait's
+parameter. A method can have a \emph{default} definition, written with
+\fc|let| after its \fc|val|; instances may omit it. \fc|requires| lists
+superclasses: \fc|trait Ord<a> requires Eq<a>| means that a type can only be
+ordered if it can be compared for equality. A trait's parameter can be a
+type constructor, written \fc|f<_>|: \fc|trait Functor<f<_>>| is implemented
+by \fc|List| and \fc|Option|, not by \fc|List<Int>|.
+
+The keyword \fc|inter| introduces the same thing with braces:
+\fc|inter Describe <a> { val describe : a -> String }|.
+
+\section{Implementing a trait}
+\index{impl@\texttt{impl}}
+\fc|impl Trait for Type where ... end| gives one equation per method, without
+\fc|let|, separated by commas; an equation can use the method's parameters as
+patterns, like a function definition. The type can be concrete (\fc|Int|), a
+type constructor applied to variables (\fc|List<a>|, \fc|Option<a>|), or, for
+a higher-kinded trait, a type constructor alone (\fc|Option|, \fc|[u]|).
+An instance can require other instances of its type's parameters:
+\fc|impl Show for List<a> requires Show<a>|. Traits must be declared before
+their instances.
+
+\forgeexample{traits-basics}
+
+\forgeexample{traits-requires}
+
+\section{Using traits}
+\index{constrained functions}
+Calling a method requires an instance for the type at which it is called;
+otherwise the program is rejected with \textit{No instance}. A function that
+calls a method on a value of unknown type becomes \emph{constrained}: its
+type is \fc|Render a => List<a> -> List<String>|, and every call needs an
+instance for the type it uses. A constraint can also be written explicitly,
+before the parameters:
+
+\forgeexample{traits-explicit}
+
+Higher-kinded traits work the same way:
+
+\forgeexample{traits-hkt}
+
+\begin{notebox}[Ambiguity]
+When nothing in a program determines the type at which a method is used ---
+\fc|println (pure 7)| does not say which \fc|Applicative| \fc|pure| belongs
+to --- the program is ambiguous. The native compiler rejects it; the
+interpreter stops when the value is needed. An annotation resolves it:
+\fc|let seven : Option<Int> = pure 7|.
+\end{notebox}
+
+\section{Equality and ordering}
+The operators \fc|==|, \fc|<| and friends are structural and do not use the
+\fc|Eq| and \fc|Ord| traits (Section~\ref{sec:operators}). The traits' methods
+are available as functions: \fc|(==)|, \fc|compare|, and the defaults of
+\fc|Ord| (\fc|(<)| and the others, defined from \fc|compare|). An instance of
+\fc|Eq| or \fc|Ord| for a user type therefore affects \fc|compare| and the
+method values, not the operators.
+
+\section{How traits are implemented}
+The interpreter passes \emph{dictionaries} --- records of method
+implementations --- to constrained functions at run time. The native
+compiler resolves every dictionary statically and makes one copy of a
+constrained function per instance it is used with
+(Section~\ref{sec:impl-traits}).

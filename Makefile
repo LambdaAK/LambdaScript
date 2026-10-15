@@ -1,9 +1,10 @@
 build:
 	dune build
 
+# Run a program with the interpreter: make run [FILE=path] (default: programs/minimal.forge).
 run:
 	dune build bin/interpreter.exe
-	dune exec ./bin/interpreter.exe "./programs/test.txt"
+	dune exec ./bin/interpreter.exe "$(or $(FILE),programs/minimal.forge)"
 
 suite:
 	dune build test/test.exe
@@ -29,10 +30,6 @@ repl-with-file:
 	@if [ -z "$(FILE)" ]; then echo "Usage: make repl-with-file FILE=path  (or: make repl FILE=path)"; exit 1; fi
 	dune exec ./bin/repl.exe "$(FILE)"
 
-repl-test:
-	dune build bin/repl.exe
-	dune exec ./bin/repl.exe "./programs/test.txt"
-
 old_repl:
 	dune build bin/old_repl.exe
 	dune exec ./bin/old_repl.exe
@@ -54,7 +51,9 @@ typecheck:
 	dune build bin/typecheck_tester.exe
 	dune exec ./bin/typecheck_tester.exe
 
+# Print the parse tree of a file: make parsetest FILE=path/to/file.forge
 parsetest:
+	@if [ -z "$(FILE)" ]; then echo "Usage: make parsetest FILE=path/to/file.forge"; exit 1; fi
 	dune build bin/parse_file.exe
 	dune exec ./bin/parse_file.exe "$(FILE)"
 
@@ -71,12 +70,13 @@ compile-forge:
 	dune build bin/compile_forge.exe
 	@if [ -n "$(OUT)" ]; then dune exec ./bin/compile_forge.exe "$(FILE)" "$(OUT)"; else dune exec ./bin/compile_forge.exe "$(FILE)"; fi
 
-paper:
-	cd paper && pdflatex conference_101719.tex
-	cd paper && pdflatex conference_101719.tex
+# The reference manual (documentation/Forge.pdf); needs a LaTeX distribution
+# with latexmk. Its examples are checked by test/manual_tests.ml.
+docs:
+	cd documentation && latexmk -pdf -interaction=nonstopmode -halt-on-error Forge.tex
 
-paper-clean:
-	cd paper && rm -f *.aux *.log *.out *.bbl *.blg *.toc *.lof *.lot
+docs-clean:
+	cd documentation && latexmk -C Forge.tex
 
-paper-open:
-	open paper/conference_101719.pdf
+docs-open:
+	open documentation/Forge.pdf

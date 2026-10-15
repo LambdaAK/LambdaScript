@@ -3,7 +3,7 @@
     Intended pipeline (later): [Cexpr] or surface AST -> [Min_ir] -> LLVM IR.
 
     Scope of this IR (intentionally tiny):
-    - Types [i32], [i1], [string], [unit], homogeneous [list] (opaque [i8*] in
+    - Types [i64] (Int and Char), [i1], [string], [unit], homogeneous [list] (opaque [i8*] in
       LLVM: cons nodes via [ls_malloc], see list struct layout in codegen).
     - [string] is an opaque value (LLVM will use something like [i8*] + runtime).
     - Local bindings via [Assign]; every intermediate has a name (LLVM-friendly)
@@ -17,7 +17,7 @@
     GC/free, tags beyond this, varargs, exceptions. *)
 
 type ty =
-  | I32
+  | I64
   | I1
   | F64
   | String
@@ -41,7 +41,7 @@ type icmp = Eq | Ne | Ult | Slt | Sle | Sge
 (** Values that can flow through SSA edges (constants or locals). *)
 type operand =
   | Local of string
-  | ConstI32 of int
+  | ConstI64 of int
   | ConstI1 of bool
   | ConstF64 of float
   (* UTF-8 string literal; lowering from [EString]. Codegen links to runtime. *)
@@ -94,6 +94,8 @@ type rhs =
   | VariantTag of operand
   (** Untyped payload pointer from a variant ([i8*] → [i8*]). *)
   | VariantPayload of operand
+  (** Value of a module-level global (a top-level [let] value). *)
+  | GlobalLoad of string * ty
 
 type instr =
   | Assign of string * rhs
@@ -104,6 +106,9 @@ type instr =
      {!runtime_void_symbols}. *)
   | VoidCall of string * operand list
   | VoidIndirectCall of operand * ty list * operand list
+  (** Initialise a module-level global (top-level values are globals so that
+      every function can read them). *)
+  | GlobalStore of string * ty * operand
 
 type term =
   | Ret of operand option (* [None] = return void / unit *)
@@ -137,6 +142,20 @@ let runtime_void_symbols = [ "print"; "print_string" ]
     [Assign (tmp, Call ("str_concat", \[s1; s2\]))]. *)
 let runtime_string_symbols = [ "int_to_str"; "str_concat"; "strcmp" ]
 
+(** Runtime functions callable with [Call (name, args)] / [VoidCall], with
+    their Min IR signatures (see [runtime/ls_runtime.c]). *)
+let runtime_externs : (string * (ty list * ty)) list =
+  [
+    ("ls_str_length", ([ String ], I64));
+    ("ls_str_slice", ([ String; I64; I64 ], String));
+    ("ls_string_to_list", ([ String ], List I64));
+    ("ls_int_to_float", ([ I64 ], F64));
+    ("ls_float_to_int", ([ F64 ], I64));
+    ("ls_float_to_str", ([ F64 ], String));
+    ("ls_char_to_str", ([ I64 ], String));
+    ("ls_ordering_of_cmp", ([ I64 ], RawPtr));
+  ]
+
 (* ----- helpers for well-formedness checks later ----- *)
 
 let block_map (f : func_def) : (string, block) Hashtbl.t =
@@ -150,7 +169,7 @@ let labels_of_func (f : func_def) : string list = List.map fst f.blocks
 (* ----- pretty-print (debug / incremental testing) ----- *)
 
 let rec string_of_ty = function
-  | I32 -> "i32"
+  | I64 -> "i64"
   | I1 -> "i1"
   | F64 -> "f64"
   | String -> "string"
@@ -199,7 +218,7 @@ let escape_string s =
 
 let string_of_operand = function
   | Local x -> "%" ^ x
-  | ConstI32 n -> string_of_int n
+  | ConstI64 n -> string_of_int n
   | ConstI1 b -> if b then "true" else "false"
   | ConstF64 f -> Printf.sprintf "%.17g" f
   | ConstStr s -> Printf.sprintf "\"%s\"" (escape_string s)
@@ -266,6 +285,7 @@ let string_of_rhs = function
   | VariantTag o -> Printf.sprintf "variant_tag %s" (string_of_operand o)
   | VariantPayload o ->
       Printf.sprintf "variant_payload %s" (string_of_operand o)
+  | GlobalLoad (g, t) -> Printf.sprintf "global_load %s @%s" (string_of_ty t) g
 
 let string_of_instr = function
   | Assign (dst, rhs) -> Printf.sprintf "  %s = %s" dst (string_of_rhs rhs)
@@ -276,6 +296,8 @@ let string_of_instr = function
       let args_s = String.concat ", " (List.map string_of_operand args) in
       Printf.sprintf "  void indirect %s(%s)"
         (string_of_operand c) args_s
+  | GlobalStore (g, t, o) ->
+      Printf.sprintf "  global_store %s @%s, %s" (string_of_ty t) g (string_of_operand o)
   | Phi (dst, t, incomings) ->
       let parts =
         String.concat ", "

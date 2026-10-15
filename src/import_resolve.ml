@@ -1,6 +1,4 @@
 open Expr
-open Lex
-open Parser.ProgramParser
 
 let path_is_abs (p : string) : bool =
   String.length p > 0 && p.[0] = '/'
@@ -58,18 +56,7 @@ let read_file (path : string) : string =
   In_channel.with_open_bin path In_channel.input_all
 
 let parse_program_exn ~(path : string) (source : string) : defn list =
-  let tokens =
-    lex (source |> String.to_seq |> List.of_seq)
-    |> List.map (fun t -> t.token_type)
-  in
-  match program_parser tokens with
-  | Some (program, []) -> program
-  | Some (_, rem) ->
-      failwith
-        (Printf.sprintf
-           "forge: parse failed for import %s (%d trailing tokens)" path
-           (List.length rem))
-  | None -> failwith ("forge: parse failed for import " ^ path)
+  Diag.parse_file_source ~file:path source
 
 type resolver_state = {
   visiting : (string, unit) Hashtbl.t;
@@ -91,8 +78,12 @@ let resolve_program ?root_file ~(base_dir : string) (program : defn list) :
   let base_dir = absolute_path base_dir in
   let st = make_state () in
   let root_file = option_map absolute_path root_file in
+  (* The root file is "being visited" for the whole resolution, so a file
+     importing itself (directly or through others) is reported as a cycle. *)
   (match root_file with
-  | Some p -> Hashtbl.replace st.emitted p ()
+  | Some p ->
+      Hashtbl.replace st.emitted p ();
+      Hashtbl.replace st.visiting p ()
   | None -> ());
   let rec resolve_file (path : string) : defn list =
     match Hashtbl.find_opt st.cache path with

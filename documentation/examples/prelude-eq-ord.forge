@@ -1,0 +1,9 @@
+// The comparison operators are structural and work on any type except
+// functions; the Eq and Ord traits expose the same comparisons as methods.
+let () = println ((2, "b") > (2, "a"))
+let () = println ([1, 2] < [1, 2, 3])
+let () = println (compare 3 7)
+let () = println (compare "b" "a")
+let () = println ((==) 'x' 'x')
+let () = println ((!=) true false)
+let () = println (map (compare 2) [1, 2, 3])

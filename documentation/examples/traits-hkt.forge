@@ -1,0 +1,11 @@
+// A higher-kinded trait: the prelude's Functor, for a user type.
+type Pair<a> = | Pair of (a, a)
+
+impl Functor for Pair where
+  fmap f p = case p do | Pair (x, y) -> Pair (f x, f y)
+end
+
+let sum_pair p = case p do | Pair (x, y) -> x + y
+
+let () = println (sum_pair (fmap (fn x -> x * 10) (Pair (1, 2))))
+let () = println (fmap (fn x -> x + 1) (Some 41))

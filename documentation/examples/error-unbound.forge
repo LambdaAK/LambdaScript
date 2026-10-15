@@ -1,0 +1,1 @@
+let () = println (lenght [1, 2])

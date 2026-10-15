@@ -1,0 +1,12 @@
+type Point = { x: Int, y: Int }
+
+let p : Point = { x: 1, y: 2 }
+let moved = { p with x = p.x + 10 }
+
+// Record patterns may name some of the fields; `{ x, y }` binds them by name.
+let on_diagonal r = case r do | { x, y } -> x == y
+let name_of user = case user do | { name: "root" } -> "administrator" | { name } -> name
+
+let () = println (moved.x, moved.y)
+let () = println (on_diagonal { x: 3, y: 3 })
+let () = print_string (name_of { name: "ada", id: 7 })

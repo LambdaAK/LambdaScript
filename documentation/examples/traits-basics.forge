@@ -1,0 +1,18 @@
+// A trait with a default method; instances may override it.
+trait Size<a> where
+  val size : a -> Int
+  val is_empty : a -> Bool
+  let is_empty x = size x == 0
+end
+
+impl Size for String where
+  size s = str_length s
+end
+
+// An instance for every list, whatever its elements.
+impl Size for List<a> where
+  size xs = list_length xs
+end
+
+let () = println (size "hello", is_empty "")
+let () = println (size [1, 2, 3], is_empty [true])

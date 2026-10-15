@@ -178,6 +178,88 @@ let string_of_token_type : token_type -> string = function
   | Dollar -> "<dollar>"
 [@@coverage off]
 
+(** Source-like rendering of a token, for diagnostics ("near `let`"). *)
+let source_of_token_type : token_type -> string = function
+  | Integer n -> string_of_int n
+  | FloatToken f -> string_of_float f
+  | Boolean b -> string_of_bool b
+  | CharToken c -> "'" ^ Char.escaped c ^ "'"
+  | StringToken s -> "\"" ^ String.escaped s ^ "\""
+  | Unit -> "()"
+  | Id s -> s
+  | Assign -> ":="
+  | Fn -> "fn"
+  | For -> "for"
+  | Arrow -> "->"
+  | If -> "if"
+  | Then -> "then"
+  | Else -> "else"
+  | LParen -> "("
+  | RParen -> ")"
+  | Colon -> ":"
+  | SwitchArrow -> "=>"
+  | Pipe -> "|"
+  | Pipeline -> "|>"
+  | Switch -> "switch"
+  | Case -> "case"
+  | Do -> "do"
+  | Plus -> "+"
+  | Minus -> "-"
+  | Times -> "*"
+  | Divide -> "/"
+  | Mod -> "%"
+  | Opposite -> "~-"
+  | LT -> "<"
+  | GT -> ">"
+  | LE -> "<="
+  | GE -> ">="
+  | EQ -> "=="
+  | NE -> "!="
+  | AND -> "&&"
+  | OR -> "||"
+  | IntegerType -> "Int"
+  | BooleanType -> "Bool"
+  | StringType -> "String"
+  | CharType -> "Char"
+  | UnitType -> "Unit"
+  | FloatType -> "Float"
+  | LBracket -> "["
+  | RBracket -> "]"
+  | In -> "in"
+  | BindArrow -> "<-"
+  | LBrace -> "{"
+  | RBrace -> "}"
+  | Let -> "let"
+  | Rec -> "rec"
+  | And -> "and"
+  | Comma -> ","
+  | WildcardPattern -> "_"
+  | ConsToken -> "::"
+  | Semicolon -> ";"
+  | Enum -> "..."
+  | Equals -> "="
+  | Relop s | Addop s | Mulop s | Logop s -> s
+  | Type -> "type"
+  | LAngle -> "<"
+  | RAngle -> ">"
+  | Of -> "of"
+  | Dot -> "."
+  | With -> "with"
+  | Inter -> "inter"
+  | Trait -> "trait"
+  | Impl -> "impl"
+  | Val -> "val"
+  | Where -> "where"
+  | End -> "end"
+  | Requires -> "requires"
+  | ModKw -> "mod"
+  | Use -> "use"
+  | Import -> "import"
+  | MacroRules -> "macro_rules"
+  | Bang -> "!"
+  | Dollar -> "$"
+[@@coverage off]
+
 let string_of_token : token -> string =
  fun { token_type; _ } -> string_of_token_type token_type
 
@@ -191,6 +273,13 @@ let take (n : int) (lst : char list) : char list =
 let list_of_string (s : string) = s |> String.to_seq |> List.of_seq
 
 exception LexFailure
+
+(** Raised for malformed input: message and 1-based line number. *)
+exception Lex_error of string * int
+
+let line_of_lex_error = ref 1
+
+let lex_error (msg : string) = raise (Lex_error (msg, !line_of_lex_error))
 
 let is_num : char -> bool = function
   | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' -> true
@@ -395,14 +484,24 @@ let is_num_or_dot : char -> bool = function
   | '.' -> true
   | c -> is_num c
 
+let int_of_literal (acc : string) : int =
+  match int_of_string_opt acc with
+  | Some n -> n
+  | None -> lex_error ("integer literal " ^ acc ^ " is too large")
+
+let float_of_literal (acc : string) : float =
+  match float_of_string_opt acc with
+  | Some f -> f
+  | None -> lex_error ("malformed number " ^ acc)
+
 let rec lex_num (lst : char list) (acc : string) : token * char list =
   match lst with
   | '.' :: '.' :: _ ->
       (* stop before .. so the ... enum operator is not consumed into this token *)
       if String.contains acc '.' then
-        ( { token_type = FloatToken (float_of_string acc); line = 0; byte_start = 0; byte_end = 0 }, lst )
+        ( { token_type = FloatToken (float_of_literal acc); line = 0; byte_start = 0; byte_end = 0 }, lst )
       else
-        ( { token_type = Integer (int_of_string acc); line = 0; byte_start = 0; byte_end = 0 }, lst )
+        ( { token_type = Integer (int_of_literal acc); line = 0; byte_start = 0; byte_end = 0 }, lst )
   | n :: t when is_num_or_dot n ->
       let n_string : string = string_of_char n in
       lex_num t (acc ^ n_string)
@@ -410,7 +509,7 @@ let rec lex_num (lst : char list) (acc : string) : token * char list =
       (* if theres a ., it's an int if there is not a ., it's a float *)
       if String.contains acc '.' then
         ( {
-            token_type = FloatToken (float_of_string acc);
+            token_type = FloatToken (float_of_literal acc);
             line = 0;
             byte_start = 0;
             byte_end = 0;
@@ -418,31 +517,41 @@ let rec lex_num (lst : char list) (acc : string) : token * char list =
           lst )
       else
         ( {
-            token_type = Integer (int_of_string acc);
+            token_type = Integer (int_of_literal acc);
             line = 0;
             byte_start = 0;
             byte_end = 0;
           },
           lst )
 
-let rec lex_string (lst : char list) (acc : string) : token * char list =
-  match lst with
-  | '"' :: t ->
-      ({ token_type = StringToken acc; line = 0; byte_start = 0; byte_end = 0 }, t)
-  | '\\' :: '"' :: t -> lex_string t (acc ^ "\"")
-  | c :: t ->
-      let char_string : string = string_of_char c in
-
-      lex_string t (acc ^ char_string)
-  | [] -> failwith "expected closing double quote in lexing string"
-
 let decode_char_escape = function
   | '\\' -> '\\'
   | '\'' -> '\''
+  | '"' -> '"'
   | 'n' -> '\n'
   | 't' -> '\t'
   | 'r' -> '\r'
+  | '0' -> '\000'
   | c -> c
+
+(* Body of a string literal after the opening quote. Recognised escapes are
+   backslash followed by n, t, r, 0, backslash, double quote or single quote;
+   any other backslash sequence is kept as the two characters. *)
+let lex_string (lst : char list) (_acc : string) : token * char list =
+  let buf = Buffer.create 16 in
+  let rec go = function
+    | '"' :: t ->
+        ( { token_type = StringToken (Buffer.contents buf); line = 0; byte_start = 0; byte_end = 0 },
+          t )
+    | '\\' :: (('\\' | '"' | '\'' | 'n' | 't' | 'r' | '0') as e) :: t ->
+        Buffer.add_char buf (decode_char_escape e);
+        go t
+    | c :: t ->
+        Buffer.add_char buf c;
+        go t
+    | [] -> lex_error "unterminated string literal (missing closing \")"
+  in
+  go lst
 
 let lex_char_literal (lst : char list) : token * char list =
   match lst with
@@ -458,7 +567,7 @@ let lex_char_literal (lst : char list) : token * char list =
   | c :: '\'' :: rest ->
       ( { token_type = CharToken c; line = 0; byte_start = 0; byte_end = 0 },
         rest )
-  | _ -> failwith "expected closing single quote in lexing char"
+  | _ -> lex_error "malformed character literal (expected 'c' or an escape like '\\n')"
 
 let rec lex_id (lst : char list) (acc : string) : token * char list =
   (* the first char has to be a letter the following characters can be letters,
@@ -539,164 +648,120 @@ let try_single_char_token lst tokens =
 let rec skip_single_line_comment (lst : char list) : char list =
   match lst with
   | [] -> []
-  | '\n' :: t -> '\n' :: t  (* Keep the newline for line counting *)
+  | '\n' :: _ as rest -> rest  (* Keep the newline for line counting *)
   | _ :: t -> skip_single_line_comment t
 
 (* Skip multi-line comment (/* comment */)
    Returns (remaining_chars, newline_count) *)
 let rec skip_multi_line_comment (lst : char list) (newlines : int) : char list * int =
   match lst with
-  | [] -> failwith "Unclosed multi-line comment"
+  | [] -> lex_error "unterminated block comment (missing */)"
   | '*' :: '/' :: t -> (t, newlines)  (* End of multi-line comment *)
   | '\n' :: t -> skip_multi_line_comment t (newlines + 1)
   | _ :: t -> skip_multi_line_comment t newlines
 
+(** Number of characters between [lst] and its suffix [rest]. Every sub-lexer
+    returns a physical tail of its input, so this walks only the consumed
+    prefix (linear overall); it falls back to comparing lengths otherwise. *)
+let consumed (lst : char list) (rest : char list) : int =
+  let rec go l n =
+    if l == rest then Some n
+    else match l with [] -> None | _ :: t -> go t (n + 1)
+  in
+  match go lst 0 with
+  | Some n -> n
+  | None -> List.length lst - List.length rest
+
 let lex (lst : char list) : token list =
   let line_number : int ref = ref 1 in
   let byte_offset : int ref = ref 0 in
-  let bump_chars (chars : char list) : unit =
-    List.iter
-      (fun c ->
-        (if c = '\n' then line_number := !line_number + 1);
-        byte_offset := !byte_offset + 1)
-      chars
+  line_of_lex_error := 1;
+  let bump_chars (chars : char list) (n : int) : unit =
+    let rec go l k =
+      if k > 0 then
+        match l with
+        | c :: t ->
+            if c = '\n' then incr line_number;
+            incr byte_offset;
+            go t (k - 1)
+        | [] -> ()
+    in
+    go chars n;
+    line_of_lex_error := !line_number
   in
-  let rec lex (lst : char list) : token list =
+  (* Emit a token for the characters between [lst] and [rest], then continue.
+     The token (and its line) is built before lexing the rest of the input. *)
+  let rec emit (lst : char list) (rest : char list) (tt : token_type) : token list =
+    let start = !byte_offset and line = !line_number in
+    bump_chars lst (consumed lst rest);
+    let tok = { token_type = tt; line; byte_start = start; byte_end = !byte_offset } in
+    tok :: lex rest
+  and skip (lst : char list) (rest : char list) : token list =
+    bump_chars lst (consumed lst rest);
+    lex rest
+  and lex (lst : char list) : token list =
+    line_of_lex_error := !line_number;
     (* Check for keywords first *)
     match find_leading_keyword_if_it_exists lst keywords with
-    | Some token_type, remainder ->
-        let start = !byte_offset in
-        let n = List.length lst - List.length remainder in
-        bump_chars (take n lst);
-        let end_ = !byte_offset in
-        make_token !line_number ~start ~end_ token_type :: lex remainder
+    | Some token_type, remainder -> emit lst remainder token_type
     | _ -> (
         (* Try multi-character sequences first *)
         match try_multi_char_sequence lst multi_char_sequences with
-        | Some (token_type, remaining) ->
-            let start = !byte_offset in
-            let n = List.length lst - List.length remaining in
-            bump_chars (take n lst);
-            let end_ = !byte_offset in
-            make_token !line_number ~start ~end_ token_type :: lex remaining
+        | Some (token_type, remaining) -> emit lst remaining token_type
         | None -> (
             match lst with
             | [] -> []
-            (* Whitespace *)
-            | ' ' :: t ->
-                bump_chars [ ' ' ];
-                lex t
-            | '\t' :: t ->
-                bump_chars [ '\t' ];
-                lex t
-            | '\n' :: t ->
-                bump_chars [ '\n' ];
-                lex t
-            (* Left parenthesis *)
-            | '(' :: rest ->
-                let start = !byte_offset in
-                bump_chars [ '(' ];
-                let end_ = !byte_offset in
-                emit_token !line_number ~start ~end_ LParen rest lex
+            (* Whitespace (including the CR of CRLF line endings) *)
+            | (' ' | '\t' | '\n' | '\r') :: t -> skip lst t
+            | '(' :: rest -> emit lst rest LParen
             (* Char literals: 'x' or '\n' etc. (type variables are plain ids: a, b, …) *)
-            | '\'' :: tokens_after_single_quote -> (
-                match tokens_after_single_quote with
-                | c :: '\'' :: rest ->
-                    let start = !byte_offset in
-                    let n = List.length lst - List.length rest in
-                    bump_chars (take n lst);
-                    let end_ = !byte_offset in
-                    make_token !line_number ~start ~end_ (CharToken c) :: lex rest
+            | '\'' :: after_quote -> (
+                match after_quote with
                 | '\\' :: _ ->
-                    let start = !byte_offset in
-                    let char_token, remainder = lex_char_literal tokens_after_single_quote in
-                    let n_consumed =
-                      1
-                      + (List.length tokens_after_single_quote - List.length remainder)
-                    in
-                    bump_chars (take n_consumed lst);
-                    let end_ = !byte_offset in
-                    let tt = char_token.token_type in
-                    make_token !line_number ~start ~end_ tt :: lex remainder
+                    let char_token, remainder = lex_char_literal after_quote in
+                    emit lst remainder char_token.token_type
+                | c :: '\'' :: rest -> emit lst rest (CharToken c)
                 | _ ->
-                    failwith
-                      "Lex error: expected character literal 'c' or escape after single quote")
+                    lex_error
+                      "malformed character literal (expected 'c' or an escape like '\\n')")
             (* String literals *)
-            | '"' :: c :: t ->
-                if c = '"' then (
-                  let start = !byte_offset in
-                  bump_chars (take 2 lst);
-                  let end_ = !byte_offset in
-                  emit_token !line_number ~start ~end_ (StringToken "") t lex)
-                else
-                  let start = !byte_offset in
-                  let new_token, remainder = lex_string (c :: t) "" in
-                  let n = List.length lst - List.length remainder in
-                  bump_chars (take n lst);
-                  let end_ = !byte_offset in
-                  let tt = new_token.token_type in
-                  make_token !line_number ~start ~end_ tt :: lex remainder
+            | '"' :: t ->
+                let new_token, remainder = lex_string t "" in
+                emit lst remainder new_token.token_type
             (* Comments and operators starting with / need special handling *)
             (* Check for // comment, but only if not followed by more operator chars *)
             | '/' :: '/' :: c :: _ when is_bop_prefix c ->
                 (* This is an operator like ///, not a comment *)
-                let start = !byte_offset in
                 let bop, chars_after = lex_bop lst in
-                let n = List.length lst - List.length chars_after in
-                bump_chars (take n lst);
-                let end_ = !byte_offset in
-                make_token !line_number ~start ~end_ bop :: lex chars_after
-            | '/' :: '/' :: t ->
-                (* This is a comment — consume // and body up to newline *)
-                let rest = skip_single_line_comment t in
-                let n = List.length lst - List.length rest in
-                bump_chars (take n lst);
-                lex rest
+                emit lst chars_after bop
+            | '/' :: '/' :: t -> skip lst (skip_single_line_comment t)
             (* Multi-line comment: /* */ *)
             | '/' :: '*' :: t ->
                 let remaining, _newlines = skip_multi_line_comment t 0 in
-                let n = List.length lst - List.length remaining in
-                bump_chars (take n lst);
-                lex remaining
+                skip lst remaining
             (* Operators (including binary operators) *)
             | h :: _ when is_bop_prefix h ->
-                let start = !byte_offset in
                 let bop, chars_after = lex_bop lst in
-                let n = List.length lst - List.length chars_after in
-                bump_chars (take n lst);
-                let end_ = !byte_offset in
-                make_token !line_number ~start ~end_ bop :: lex chars_after
+                emit lst chars_after bop
             (* Numbers (including floats) - only start with digits, not dots *)
             | n :: _ when is_num n ->
-                let start = !byte_offset in
                 let num_token, tail = lex_num lst "" in
-                let n = List.length lst - List.length tail in
-                bump_chars (take n lst);
-                let end_ = !byte_offset in
-                let tt = num_token.token_type in
-                make_token !line_number ~start ~end_ tt :: lex tail
-            (* Identifiers (also handles keywords, but those are checked
-               earlier) *)
+                emit lst tail num_token.token_type
+            (* Identifiers (keywords were checked earlier) *)
             | c :: _ when is_letter c ->
-                let start = !byte_offset in
                 let id_token, tail = lex_id lst "" in
-                let n = List.length lst - List.length tail in
-                bump_chars (take n lst);
-                let end_ = !byte_offset in
-                let tt = id_token.token_type in
-                make_token !line_number ~start ~end_ tt :: lex tail
+                emit lst tail id_token.token_type
             (* Try single-character tokens *)
-            | _ -> (
+            | c :: _ -> (
                 match try_single_char_token lst single_char_tokens with
-                | Some (token_type, remaining) ->
-                    let start = !byte_offset in
-                    let n = List.length lst - List.length remaining in
-                    bump_chars (take n lst);
-                    let end_ = !byte_offset in
-                    emit_token !line_number ~start ~end_ token_type remaining lex
-                | None -> failwith "no token matched")))
+                | Some (token_type, remaining) -> emit lst remaining token_type
+                | None ->
+                    let shown =
+                      if Char.code c >= 32 && Char.code c < 127 then Printf.sprintf "'%c'" c
+                      else Printf.sprintf "byte 0x%02X" (Char.code c)
+                    in
+                    lex_error ("unexpected character " ^ shown))))
   in
-
   lex lst
 
 let rec remove_line_numbers (tokens : token list) : token_type list =

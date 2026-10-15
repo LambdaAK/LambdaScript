@@ -1,0 +1,21 @@
+macro_rules! square where
+  ($e:expr) => $e * $e
+end
+
+// Arms are tried in order.
+macro_rules! max_of where
+  ($x:expr) => $x;
+  ($x:expr, $y:expr) => if $x > $y then $x else $y
+end
+
+// Repetition: $( ... ),* matches comma-separated fragments.
+macro_rules! sum where
+  ($($x:expr),*) => reduce_left (+) 0 [$($x),*]
+end
+
+let () = println (square!(1 + 2))
+let () = println (max_of!(7) + max_of!(3, 9))
+let () = println (sum!(1, 2, 3, 4))
+let () = println (count_args!(a, b, c))
+let () = println (vec![1, 2, 3])
+let () = print_string (concat!("forge", "-", "lang"))

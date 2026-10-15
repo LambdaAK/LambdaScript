@@ -265,3 +265,14 @@ let dict_resolution_arg_index (mty : mono_type) (written_class_var : string) :
         else scan (i + 1) rest
   in
   scan 0 dom
+
+(** Whether [t] mentions no type variable. *)
+let rec mono_is_ground (t : mono_type) : bool =
+  match t with
+  | TypeVar _ | TCtorApp _ -> false
+  | IntType | BoolType | StringType | CharType | UnitType | FloatType | TypeName _ -> true
+  | CTypeApp (_, ts) | VectorType ts -> List.for_all mono_is_ground ts
+  | CListType t -> mono_is_ground t
+  | FunctionType (a, b) -> mono_is_ground a && mono_is_ground b
+  | RecordType fs -> List.for_all (fun (_, t) -> mono_is_ground t) fs
+  | FixedPoint (_, t) -> mono_is_ground t

@@ -1,8 +1,14 @@
+// A user-defined option type (shadowing the prelude's) and its map.
 type Option<a> =
   | None
   | Some of a
 
 let map f o =
-  switch o =>
+  case o do
   | None -> None
   | Some v -> Some (f v)
+
+let () =
+  case map (fn x -> x * 2) (Some 21) do
+  | Some v -> println v
+  | None -> print_string "none"

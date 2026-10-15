@@ -1,0 +1,1 @@
+error: type error: No instance `Show` for type (a -> a)

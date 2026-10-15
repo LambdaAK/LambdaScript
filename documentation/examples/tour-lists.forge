@@ -1,0 +1,11 @@
+let evens = [x | x <- [1...10], x % 2 == 0]
+let total = reduce_left (fn acc -> fn x -> acc + x) 0 evens
+
+let rec length xs =
+  case xs do
+  | [] -> 0
+  | _ :: rest -> 1 + length rest
+
+let () = println evens
+let () = println total
+let () = println (length ["a", "b", "c"])

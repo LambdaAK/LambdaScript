@@ -1,0 +1,4 @@
+// Imports are resolved relative to the importing file.
+import "import-lib.forge"
+
+let () = println (clamp 0 10 42)

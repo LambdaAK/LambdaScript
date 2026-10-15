@@ -1,0 +1,13 @@
+// Functor, Applicative, Monad and Alternative for Option.
+let half n = if n % 2 == 0 then Some (n / 2) else None
+
+let () = println (fmap (fn x -> x + 1) (Some 1))
+// pure alone does not say which Applicative: the annotation does.
+let seven : Option<Int> = pure 7
+let () = println seven
+let () = println (ap (Some (fn x -> x * 3)) (Some 4))
+let () = println (bind (Some 8) half)
+let () = println (Some 20 >>= half >>= half)
+let () = println (Some 6 >>= half >>= half)
+let () = println (None <|> Some 1)
+let () = println (aempty <|> (Some 2 <|> Some 3))

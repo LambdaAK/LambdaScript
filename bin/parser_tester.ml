@@ -62,11 +62,10 @@ let rec parser_tester () =
         print_error
           ("Parsing succeeded but there were leftover tokens: "
           ^ String.concat " " (List.map string_of_token_type remaining_tokens))
-      else
-        (* parsing succeeded *)
+      else (
         print_separator ();
-      print_ast ast;
-      print_separator ();
+        print_ast ast;
+        print_separator ());
       parser_tester ()
 
 let run_parser_tester () =
@@ -78,4 +77,5 @@ let run_parser_tester () =
 
   parser_tester ()
 
-let () = run_parser_tester ()
+(* End of input (Ctrl-D) ends the session. *)
+let () = try run_parser_tester () with End_of_file -> print_newline ()

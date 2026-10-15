@@ -1,0 +1,10 @@
+let xs = [4, 8, 15, 16, 23, 42]
+let () = println (list_length xs)
+let () = println (list_head xs, list_tail [1, 2, 3])
+let () = println (list_nth xs 2)
+let () = println (map (fn x -> x / 2) xs)
+let () = println (filter (fn x -> x % 2 == 1) xs)
+let () = println (reduce_left (fn acc -> fn x -> acc - x) 100 [1, 2, 3])
+let () = println (reduce_right (fn x -> fn acc -> x :: acc) [1, 2, 3] [])
+let () = println (tuple_fst (1, "a"), tuple_snd (1, "a"))
+let () = println (not true)

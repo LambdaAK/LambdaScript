@@ -1,0 +1,137 @@
+\chapter{Error messages}
+\label{ch:diagnostics}
+\index{error messages}\index{warnings}
+
+Every message is printed on standard error. An \texttt{error:} stops the
+program with exit status~1 (output printed so far is kept); a
+\texttt{warning:} does not. Messages for a file name the file, and for
+lexical and syntax errors the line, as \textit{file}\texttt{:}\textit{line}.
+Both back ends report the same errors; the native compiler reports static
+errors at compile time and run-time errors when the executable runs.
+
+\section{Lexical errors}
+
+\begin{center}\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Message} & \textbf{Cause} \\
+\midrule
+\tc{unexpected character 'c'} & a character that begins no token, such as \tc{@} or \tc{&} alone \\
+\tc{unterminated string literal} & a string without its closing quote \\
+\tc{malformed character literal} & \tc{'ab'}, \tc{''} or an unknown escape \\
+\tc{unterminated block comment} & a \tc{/*} without \tc{*/} \\
+\tc{integer literal n is too large} & a literal that does not fit (\S\ref{sec:int-width}) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\forgeexample*{error-lex}
+
+\section{Syntax errors}
+
+\begin{center}\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Message} & \textbf{Cause} \\
+\midrule
+\tc{syntax error near `t`} & the parser could not continue at token \tc{t}; the line is that of the token \\
+\tc{unexpected end of input} & the file ends in the middle of a definition \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\forgeexample*{error-syntax}
+
+\section{Imports, modules, traits and macros}
+
+\begin{center}\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Message} & \textbf{Cause} \\
+\midrule
+\tc{import not found: f} & no file \tc{f} next to the importing file \\
+\tc{import cycle detected at f} & files that import each other \\
+\tc{duplicate inter/trait: T} & a trait declared twice \\
+\tc{impl missing method: m} & an \tc{impl} without method \tc{m} (and \tc{m} has no default) \\
+\tc{impl has unknown method: m} & an \tc{impl} defining a method that its trait does not declare \\
+\tc{duplicate method in impl} & a method defined twice in one \tc{impl} \\
+\tc{duplicate impl of T for X} & two \tc{impl}s of a trait for the same type \\
+\tc{unknown macro m!} & invocation of a macro that is not defined \\
+\tc{no matching arm for macro m!} & no rule of the macro accepts the arguments \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\forgeexample*{error-impl}
+
+\section{Type errors}
+
+Type errors start with \texttt{type error:}. A mismatch names the two types
+that could not be made equal and, on the next line, the definition (as the
+type checker sees it, with operators as applications) in which it was found.
+
+\begin{center}\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Message} & \textbf{Cause} \\
+\midrule
+\tc{Unbound variable: x} & \tc{x} is not defined (or not yet: definitions are in order) \\
+\tc{Unknown type: T} & an annotation names an undeclared type \\
+\tc{Unknown constructor in pattern: C} & a pattern uses an undeclared constructor \\
+\tc{... cannot match A with B} & a value of type \tc{B} is used where \tc{A} is needed \\
+\tc{No instance `C` for type T} & a trait method or constrained function used at a type without an \tc{impl} \\
+\tc{the variable `x` is bound twice in the same pattern} & a pattern that binds a name twice \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\paragraph{Ambiguous types} When a trait method is used at a type that
+nothing in the program determines --- \fc|show empty|, where \fc|empty|
+could be the empty string, list or option --- no instance can be chosen.
+The interpreter reports \texttt{runtime error: ambiguous type: cannot tell
+which `Show` instance `show` should use here} when the method is called;
+the native compiler rejects the program (\texttt{the type at which `Monoid`
+is used is ambiguous here}). An annotation resolves it:
+\fc|let e : String = empty|, then \fc|show e|.
+
+\forgeexample*{error-type}
+
+\forgeexample*{error-unbound}
+
+\forgeexample*{error-ctor}
+
+\forgeexample*{error-instance}
+
+\section{Run-time errors}
+
+Run-time errors start with \texttt{runtime error:}.
+
+\begin{center}\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Message} & \textbf{Cause} \\
+\midrule
+\tc{division by zero} & \tc{/} or \tc{\%} with a zero divisor \\
+\tc{no pattern matched} & no arm of a \tc{case}, or a refutable \tc{let} or parameter pattern, matched; \tc{list_head}, \tc{list_tail} and \tc{list_nth} outside the list \\
+\tc{cannot compare functions} & \tc{==} or \tc{<} on functions \\
+\tc{stack overflow} & recursion too deep (interpreter) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\forgeexample{error-division}
+
+\section{Warnings}
+
+\begin{center}\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Message} & \textbf{Cause} \\
+\midrule
+\tc{in `f`: this case is not exhaustive: `v` is not matched} & a \tc{case} in definition \tc{f} has no arm for value \tc{v} \\
+\tc{in `f`: redundant case arm: `p` can never match} & an arm that the arms before it cover \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent Section~\ref{sec:exhaustiveness} shows both.

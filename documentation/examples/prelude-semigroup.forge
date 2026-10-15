@@ -1,0 +1,9 @@
+// Semigroup: mappend and (++); Monoid: empty.
+let () = print_string ("for" ++ "ge")
+let () = println ([1, 2] ++ [3])
+let () = println (mappend None (Some 5))
+let () = println (mappend (Some 1) (Some 2))
+
+let rec concat_all xs = case xs do | [] -> empty | h :: t -> h ++ concat_all t
+let () = print_string (concat_all ["a", "b", "c"])
+let () = println (concat_all [[1], [2, 3], []])

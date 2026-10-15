@@ -1,0 +1,41 @@
+// Quicksort and merge sort over Int lists.
+let rec append xs ys =
+  case xs do
+  | [] -> ys
+  | h :: t -> h :: append t ys
+
+let rec quicksort xs =
+  case xs do
+  | [] -> []
+  | pivot :: rest ->
+      let smaller = filter (fn x -> x < pivot) rest in
+      let larger = filter (fn x -> x >= pivot) rest in
+      append (quicksort smaller) (pivot :: quicksort larger)
+
+let rec split xs =
+  case xs do
+  | [] -> ([], [])
+  | x :: [] -> ([x], [])
+  | x :: y :: rest ->
+      case split rest do
+      | (a, b) -> (x :: a, y :: b)
+
+let rec merge xs ys =
+  case (xs, ys) do
+  | ([], _) -> ys
+  | (_, []) -> xs
+  | (x :: xt, y :: yt) -> if x <= y then x :: merge xt ys else y :: merge xs yt
+
+let rec merge_sort xs =
+  case xs do
+  | [] -> []
+  | _ :: [] -> xs
+  | _ ->
+      case split xs do
+      | (a, b) -> merge (merge_sort a) (merge_sort b)
+
+let data = [38, 27, 43, 3, 9, 82, 10, 3, ~-5, 0, 100, 42]
+let () = println (quicksort data)
+let () = println (merge_sort data)
+let () = println (quicksort data == merge_sort data)
+let () = println (quicksort [])

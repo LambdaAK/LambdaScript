@@ -1,0 +1,18 @@
+// `requires` on an instance: lists of showable things are showable.
+trait Render<a> where
+  val render : a -> String
+end
+
+impl Render for Int where
+  render n = "#" ^ int_to_str n
+end
+
+impl Render for List<a> requires Render<a> where
+  render xs = case xs do | [] -> "." | h :: t -> render h ^ " " ^ render t
+end
+
+// A function constrained by a trait works for every instance.
+let render_all xs = map render xs
+
+let () = print_string (render [1, 2, 3])
+let () = println (render_all [[1], [2, 3]])

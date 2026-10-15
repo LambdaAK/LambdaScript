@@ -1,6 +1,6 @@
-(* Mutually Recursive Types Examples *)
+// Mutually Recursive Types Examples
 
-(* Example 1: Even and Odd natural numbers *)
+// Example 1: Even and Odd natural numbers
 type rec Even = | Zero | SuccE of Odd
 and Odd = | SuccO of Even
 
@@ -13,9 +13,9 @@ and odd_to_int = fn o ->
   | SuccO e -> 1 + even_to_int e
 
 let four = SuccE (SuccO (SuccE (SuccO Zero)))
-let result1 = even_to_int four  (* Should be 4 *)
+let result1 = even_to_int four  // Should be 4
 
-(* Example 2: Tree and Forest *)
+// Example 2: Tree and Forest
 type rec Tree<a> = | Leaf of a | Node of (a, Forest<a>)
 and Forest<a> = | Empty | Trees of (Tree<a>, Forest<a>)
 
@@ -29,12 +29,12 @@ and sum_forest = fn f ->
   | Trees (t, rest) -> sum_tree t + sum_forest rest
 
 let tree = Node (1, Trees (Leaf 2, Trees (Leaf 3, Empty)))
-let result2 = sum_tree tree  (* Should be 6 *)
+let result2 = sum_tree tree  // Should be 6
 
-(* Example 3: Circular type references *)
-type rec A = | AVal of int | ToB of B
-and B = | BVal of int | ToC of C
-and C = | CVal of int | ToA of A
+// Example 3: Circular type references
+type rec A = | AVal of Int | ToB of B
+and B = | BVal of Int | ToC of C
+and C = | CVal of Int | ToA of A
 
 let rec get_value = fn a ->
   case a do
@@ -47,9 +47,9 @@ let rec get_value = fn a ->
       | CVal z -> z
       | ToA a2 -> get_value a2
 
-let result3 = get_value (ToB (ToC (ToA (AVal 42))))  (* Should be 42 *)
+let result3 = get_value (ToB (ToC (ToA (AVal 42))))  // Should be 42
 
-(* Example 4: Rose trees *)
+// Example 4: Rose trees
 type rec Rose<a> = | RNode of (a, RoseList<a>)
 and RoseList<a> = | RNil | RCons of (Rose<a>, RoseList<a>)
 
@@ -62,4 +62,6 @@ and count_list = fn rl ->
   | RCons (r, rest) -> count_rose r + count_list rest
 
 let rose = RNode (1, RCons (RNode (2, RNil), RCons (RNode (3, RNil), RNil)))
-let result4 = count_rose rose  (* Should be 3 *)
+let result4 = count_rose rose  // Should be 3
+
+let () = println [result1, result2, result3, result4]

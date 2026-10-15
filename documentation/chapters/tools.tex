@@ -1,0 +1,135 @@
+\chapter{Installation and tools}
+\label{ch:tools}
+
+The reference implementation of Forge is written in OCaml and built with
+Dune. It provides an interpreter, an interactive REPL, a native compiler and a
+handful of developer tools. Native compilation needs Clang, which links the
+generated code with a small C runtime.
+
+\section{Installing}
+
+\paragraph{From source} Forge needs OCaml 5.1 or later, Dune, the
+\texttt{ounit2} test library and Clang.\index{installation}
+
+\begin{shellpanel}
+\begin{lstlisting}
+$ opam switch create 5.1.1 && eval "$(opam env)"
+$ opam install dune ounit2
+$ git clone https://github.com/LambdaAK/Forge && cd Forge
+$ make
+\end{lstlisting}
+\end{shellpanel}
+
+\paragraph{With Docker} The repository's \texttt{Dockerfile} builds an
+image with the interpreter, the REPL and the compiler, so nothing but Docker
+is needed:\index{Docker}
+
+\begin{shellpanel}
+\begin{lstlisting}
+$ docker build -t forge:local .
+$ docker run --rm forge:local run /opt/forge/programs/minimal.forge
+3
+$ docker run --rm -it forge:local repl
+$ docker run --rm -v "$PWD":/work -w /work forge:local compile /work/hello.forge
+$ docker run --rm -v "$PWD":/work -w /work forge:local /work/a.out
+Hello, World!
+\end{lstlisting}
+\end{shellpanel}
+
+\section{The tools}
+
+All executables are built under \texttt{\_build/default/bin} and can be run
+with \texttt{dune exec}. They look for the standard prelude
+(\texttt{prelude/prelude.forge}) and the C runtime
+(\texttt{runtime/ls\_runtime.c}) by searching upwards from the current
+directory; set \texttt{FORGE\_ROOT} to the checkout when running them from
+elsewhere.
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Executable} & \textbf{Purpose} \\
+\midrule
+\texttt{interpreter} \textit{file} & Run a program with the interpreter.\index{interpreter} \\
+\texttt{repl} [\textit{file}] & Interactive session; an optional file is loaded first.\index{REPL} \\
+\texttt{compile\_forge} \textit{file} [\textit{out}] & Compile to a native executable (default \texttt{a.out}); also writes the intermediate \texttt{.mir}, \texttt{.ll} and \texttt{.s} files next to the source.\index{native compiler} \\
+\texttt{dump\_min\_ir} \textit{file} & Print the program in the compiler's intermediate representation, Min IR. \\
+\texttt{parse\_file} \textit{file} & Print the parse tree. \\
+\texttt{forge\_hover} \textit{file prelude line col} & Type at a position, for editor integration (reads the buffer on standard input). \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The \texttt{Makefile} wraps the common tasks:
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Target} & \textbf{Effect} \\
+\midrule
+\texttt{make} & Build everything. \\
+\texttt{make run FILE=}\textit{f} & Run \textit{f} with the interpreter. \\
+\texttt{make repl [FILE=}\textit{f}\texttt{]} & Start the REPL. \\
+\texttt{make compile-forge FILE=}\textit{f} \texttt{[OUT=}\textit{exe}\texttt{]} & Native compilation. \\
+\texttt{make dump-ir FILE=}\textit{f} & Show the Min IR of a program. \\
+\texttt{make suite} / \texttt{make compiler-suite} & The main test suite / every test suite. \\
+\texttt{make docs} & Build this manual (\texttt{documentation/Forge.pdf}). \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{The REPL}
+\label{sec:repl}
+
+The REPL reads a definition or an expression, terminated by \texttt{;;},
+and prints its value and type. Commands start with a colon:
+\texttt{:type} \textit{expr} shows a type without evaluating,
+\texttt{:env} lists the bindings, \texttt{:history} the inputs so far,
+\texttt{:help} the commands and \texttt{:quit} leaves.
+
+\begin{shellpanel}
+\begin{lstlisting}
+$ dune exec ./bin/repl.exe
+λ> let square x = x * x;;
+Name : square
+function : Int -> Int
+λ> square 12;;
+144 : Int
+λ> :type map
+Type: (b -> a) -> List<b> -> List<a>
+λ> [x | x <- [1...4], x > 2];;
+[3, 4] : List<Int>
+\end{lstlisting}
+\end{shellpanel}
+
+\section{Diagnostics}
+\label{sec:diagnostics}
+
+Errors are printed on standard error as \texttt{error:} followed by the
+message, and the program stops with exit status~1; the program's own output
+up to that point is kept. Syntax errors give the file and line. Warnings ---
+for instance about a \fc|case| that does not cover every value --- are printed
+as \texttt{warning:} and do not stop the program.
+Appendix~\ref{ch:diagnostics} lists the messages.
+
+\begin{center}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Exit status} & \textbf{Meaning} \\
+\midrule
+0 & success \\
+1 & a lexical, syntax, type or run-time error \\
+2 & wrong command-line usage \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Editor support}
+
+The \texttt{vscode-forge} directory contains a Visual Studio Code extension
+with syntax highlighting and type-on-hover (it runs \texttt{forge\_hover}).
+Build it with \texttt{npm ci --prefix vscode-forge \&\& npm --prefix
+vscode-forge run compile}.

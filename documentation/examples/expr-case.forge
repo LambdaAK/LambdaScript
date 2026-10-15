@@ -1,0 +1,21 @@
+let describe n =
+  case n do
+  | 0 -> "zero"
+  | 1 -> "one"
+  | n -> if n < 0 then "negative" else "many"
+
+let first_two xs =
+  case xs do
+  | a :: b :: _ -> (a, b)
+  | _ -> (0, 0)
+
+let classify p =
+  case p do
+  | (0, 0) -> "origin"
+  | (0, _) -> "on the y axis"
+  | (_, 0) -> "on the x axis"
+  | _ -> "elsewhere"
+
+let () = print_string (describe (-3))
+let () = println (first_two [7, 8, 9])
+let () = print_string (classify (0, 5))

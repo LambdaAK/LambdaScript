@@ -130,4 +130,5 @@ let run_repl () =
   let type_env = [] in
   run_repl_loop static_env dynamic_env type_env
 
-let () = run_repl ()
+(* End of input (Ctrl-D) ends the session. *)
+let () = try run_repl () with End_of_file -> print_newline ()

@@ -1,0 +1,14 @@
+// Parameters can be patterns and carry annotations.
+let swap (a, b) = (b, a)
+let scale (k : Int) (x : Int) : Int = k * x
+
+let compose f g = fn x -> f (g x)
+let add_then_double = compose (scale 2) (fn x -> x + 3)
+
+// Operators are functions too.
+let sum = reduce_left (+) 0 [1, 2, 3, 4]
+
+let () = println (swap (1, "a"))
+let () = println (add_then_double 4)
+let () = println sum
+let () = println (map ((*) 10) [1, 2, 3])

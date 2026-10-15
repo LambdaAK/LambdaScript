@@ -1,0 +1,24 @@
+// A functional queue (two lists) driving a small simulation.
+type Queue = { front: List<Int>, back: List<Int> }
+
+let empty_q = { front: [], back: [] }
+let rec rev xs acc = case xs do | [] -> acc | h :: t -> rev t (h :: acc)
+let push x q = { q with back = x :: q.back }
+let pop q =
+  case q.front do
+  | h :: t -> Some (h, { q with front = t })
+  | [] ->
+      case rev q.back [] do
+      | [] -> None
+      | h :: t -> Some (h, { front: t, back: [] })
+
+let rec drain q acc =
+  case pop q do
+  | None -> rev acc []
+  | Some (x, q2) -> drain q2 (x :: acc)
+
+let q = push 4 (push 3 (push 2 (push 1 empty_q)))
+let () = println (drain q [])
+let q2 = case pop q do | Some (_, rest) -> push 5 rest | None -> q
+let () = println (drain q2 [])
+let () = println (drain empty_q [])

@@ -1,0 +1,8 @@
+// x |> f is f x: data flows left to right.
+let result =
+  [1...10]
+  |> filter (fn x -> x % 3 == 0)
+  |> map (fn x -> x * x)
+  |> reduce_left (+) 0
+
+let () = println result

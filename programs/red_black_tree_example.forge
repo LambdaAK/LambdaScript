@@ -5,7 +5,7 @@ type rec RBTree<a> =
   | Node of (Color, a, RBTree<a>, RBTree<a>)
 
 let rec contains x tree =
-  switch tree =>
+  case tree do
   | Leaf -> false
   | Node (_, y, left, right) ->
       if x == y then true
@@ -13,12 +13,12 @@ let rec contains x tree =
       else contains x right
 
 let rec size tree =
-  switch tree =>
+  case tree do
   | Leaf -> 0
   | Node (_, _, left, right) -> 1 + size left + size right
 
 let rec height tree =
-  switch tree =>
+  case tree do
   | Leaf -> 0
   | Node (_, _, left, right) ->
       let left_h = height left in
@@ -26,19 +26,19 @@ let rec height tree =
       1 + (if left_h > right_h then left_h else right_h)
 
 let rec minimum tree =
-  switch tree =>
+  case tree do
   | Leaf -> 0
   | Node (_, x, Leaf, _) -> x
   | Node (_, _, left, _) -> minimum left
 
 let rec maximum tree =
-  switch tree =>
+  case tree do
   | Leaf -> 0
   | Node (_, x, _, Leaf) -> x
   | Node (_, _, _, right) -> maximum right
 
 let balance tree =
-  switch tree =>
+  case tree do
   | Node (Black, z, Node (Red, y, Node (Red, x, a, b), c), d) ->
       Node (Red, y, Node (Black, x, a, b), Node (Black, z, c, d))
   | Node (Black, z, Node (Red, x, a, Node (Red, y, b, c)), d) ->
@@ -50,7 +50,7 @@ let balance tree =
   | _ -> tree
 
 let rec insert_aux x tree =
-  switch tree =>
+  case tree do
   | Leaf -> Node (Red, x, Leaf, Leaf)
   | Node (color, y, left, right) ->
       if x < y then
@@ -61,7 +61,7 @@ let rec insert_aux x tree =
         tree
 
 let make_black tree =
-  switch tree =>
+  case tree do
   | Leaf -> Leaf
   | Node (_, x, left, right) -> Node (Black, x, left, right)
 

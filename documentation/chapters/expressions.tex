@@ -1,0 +1,146 @@
+\chapter{Expressions and definitions}
+\label{ch:expressions}
+
+\section{Programs}
+\index{program}
+A program is a sequence of top-level items: definitions (\fc|let|,
+\fc|let rec|), type declarations (\fc|type|), traits and instances
+(\fc|trait|, \fc|impl|), modules (\fc|mod|, \fc|use|), imports and macros.
+Items are processed in order, and each can use what the items before it
+define. Expressions appear inside definitions; to run an expression for its
+effect, bind it to the unit pattern: \fc|let () = ...|.
+
+\section{Definitions}
+\label{sec:let}
+\index{let@\texttt{let}}\index{let rec@\texttt{let rec}}
+
+\fc|let x = e| binds the value of \fc|e| to \fc|x|. A definition with
+parameters, \fc|let f x y = e|, is shorthand for
+\fc|let f = fn x -> fn y -> e|. The left-hand side can be any pattern
+(Chapter~\ref{ch:patterns}): \fc|let (q, r) = (7 / 2, 7 % 2)|.
+\fc|let rec| makes the name visible in its own definition, and \fc|and|
+joins mutually recursive definitions.
+
+Inside an expression, \fc|let p = e1 in e2| binds \fc|p| for \fc|e2| only.
+Definitions are \emph{polymorphic}: a name bound by \fc|let| can be used at
+several types (Section~\ref{sec:inference}).
+
+\forgeexample{expr-let}
+
+\section{Functions}
+\label{sec:functions}
+\index{functions}
+
+\fc|fn p -> e| is a function of one argument; \fc|fn x -> fn y -> e| a
+curried function of two. Application is juxtaposition, \fc|f x y|, and
+associates to the left. A parameter is a pattern, and parameters and results
+may carry type annotations: \fc|fn (x : Int) : Int -> x + 1|, or in a
+definition \fc|let scale (k : Int) (x : Int) : Int = k * x|. Functions are
+closures: they capture the variables in scope where they are created.
+
+Every binary operator is also a function, written in parentheses:
+\fc|(+)|, \fc|(::)|, \fc|(^)|; \fc|(*) 10| is the function that multiplies
+by ten.
+
+\forgeexample{expr-functions}
+
+\section{Conditionals and logic}
+\index{if@\texttt{if}}
+
+\fc|if c then a else b| requires \fc|c : Bool| and gives \fc|a| and \fc|b|
+the same type; there is no \fc|if| without \fc|else|. \fc|&&| and \fc!||!
+evaluate their right operand only when needed, and \fc|not| negates.
+
+\section{Pattern matching with \texttt{case}}
+\index{case@\texttt{case}}
+\fc@case e do |@ \textit{p}$_1$ \fc@->@ \textit{e}$_1$ \fc@| ...@ evaluates
+\fc|e| and the first arm whose pattern matches. If no arm matches, the
+program stops with the run-time error \textit{no pattern matched}; the
+compiler warns when that can happen (Section~\ref{sec:exhaustiveness}).
+
+\forgeexample{expr-case}
+
+\section{Operators}
+\label{sec:operators}
+\index{operators!precedence}
+
+Table~\ref{tab:precedence} lists the operators from the loosest to the
+tightest binding. A custom operator takes the precedence and associativity
+of the fixed operators that share its first character.
+
+\begin{table}[ht]
+\centering\small
+\caption{Operator precedence, loosest first.}
+\label{tab:precedence}
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Operators} & \textbf{Associativity} & \textbf{Meaning} \\
+\midrule
+\tc{|>} & left & pipeline: \tc{x |> f} is \tc{f x} \\
+\tc{::} & right & cons \\
+\tc{||} & right & or (short-circuit) \\
+\texttt{\&\&} & right & and (short-circuit) \\
+\tc{== != <> < > <= >=} & left & comparison; custom operators starting with \tc{<}, \tc{>}, \tc{=} or \tc{!} \\
+\tc{+ - ^} & left & addition, subtraction, string concatenation; custom operators starting with \tc{+}, \tc{-} or \tc{^} \\
+\tc{* / \%} & left & multiplication, division, remainder; custom operators starting with \tc{*}, \tc{/} or \tc{\%} \\
+application \tc{f x} & left & \\
+\tc{-e}, \tc{e.field} & & negation, field access \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Arithmetic} \fc|+ - * / %| work on \fc|Int|; division truncates
+toward zero, \fc|%| has the sign of its left operand, and dividing by zero is
+a run-time error.\label{sec:int-width}\index{integers!width}
+Integers wrap around on overflow. Their width is not yet the same in the two
+back ends: 63 bits in the interpreter, 64 bits in native code, so results
+that overflow 63 bits differ (an open question of the implementation).
+
+\paragraph{Comparison} \fc|==|, \fc|!=| (also written \fc|<>|), \fc|<|,
+\fc|>|, \fc|<=| and \fc|>=| are \emph{structural} and work on values of any
+type except functions: numbers and characters by value, strings
+lexicographically, lists and tuples element by element, records field by
+field, and values of a sum type first by constructor, in declaration order,
+then by payload. Comparing functions is a run-time error.
+
+\paragraph{Strings} \fc|^| concatenates two strings.
+
+\forgeexample{expr-operators}
+
+\section{Lists}
+\index{lists}\index{comprehensions}
+A list is written \fc|[1, 2, 3]| or built with \fc|::|; \fc|[]| is the
+empty list. \fc|[a...b]| is the list of the integers from \fc|a| to \fc|b|
+(empty if \fc|a > b|). A \emph{comprehension}
+\fc@[e | p <- xs, cond, q <- ys]@ evaluates \fc|e| for every combination of
+generators, from left to right; a generator's pattern may be refutable, and
+the elements it does not match are skipped; a condition keeps the
+combinations for which it holds.
+
+\forgeexample{expr-lists}
+
+\section{Tuples and records}
+\index{tuples}\index{records}
+A tuple groups values of possibly different types: \fc|(1, "a", true)|. A
+record names its fields: \fc|{ x: 1, y: 2 }|. \fc|r.x| reads a field and
+\fc|{ r with x = 5 }| is a copy of \fc|r| with a new value for \fc|x|. Record
+types are structural (Section~\ref{sec:records}); a record type can be
+named with \fc|type|, which is optional.
+
+\forgeexample{expr-records}
+
+\section{Blocks}
+\index{blocks}
+A block \fc|{ s1; s2; ...; e }| is a sequence of local definitions and
+statements, separated by semicolons. A definition scopes over the rest of
+the block, a statement is evaluated for its effect, and the block's value is
+that of its last part (\fc|()| if that is a definition).
+
+\forgeexample{expr-blocks}
+
+\section{Pipelines}
+\index{pipeline}
+\fc!x |> f! applies \fc|f| to \fc|x|. Chains of transformations read from
+left to right:
+
+\forgeexample{expr-pipeline}

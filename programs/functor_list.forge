@@ -1,7 +1,4 @@
-inter Functor<f> {
-  val fmap : (a -> b) -> f<a> -> f<b>
-}
-
+// The prelude's Functor trait implemented for built-in lists.
 impl Functor for [u] where
   fmap g xs =
     case xs do
@@ -9,4 +6,4 @@ impl Functor for [u] where
     | h :: t -> g h :: fmap g t
 end
 
-let () = println (int_to_str (case fmap (fn x -> x + 1) [1; 2; 3] do | h :: _ -> h | [] -> 0))
+let () = println (fmap (fn x -> x + 1) [1, 2, 3])

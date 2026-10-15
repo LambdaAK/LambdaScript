@@ -1,8 +1,8 @@
-let () = println "Testing simple type"
+let () = print_string "Testing simple type"
 
 type MyInt = Int
 
-let () = println "Simple type works!"
+let () = print_string "Simple type works!"
 
-let x [MyInt] = 42
-let () = println (int_to_str x)
+let x : MyInt = 42
+let () = println x

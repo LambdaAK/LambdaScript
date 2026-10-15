@@ -180,6 +180,8 @@ and builtin_function =
   | StringToInt
   | IntToFloat
   | FloatToInt
+  | FloatToString
+  | CharToString
   | StringToList
   | Map
   | Filter
@@ -201,13 +203,17 @@ and env = (string * value) list
 type static_env = (string * c_type) list
 type c_program = c_defn list
 
-(** Deterministic field order for record layout (native codegen uses a tuple in
-    this order). *)
-let record_fields_sorted (fields : (string * 'a) list) : (string * 'a) list =
-  List.sort (fun (a, _) (b, _) -> String.compare a b) fields
+(** Record types are rows: a [RecordType] whose field list contains the
+    pseudo-field [row_field] (bound to a type variable, or to another record
+    type once solved) is {e open} — it has at least the listed fields. Record
+    literals and annotations are closed; field access, record update and
+    record patterns produce open records. *)
+let row_field = "$row"
 
-let record_field_sets_equal (a : string list) (b : string list) : bool =
-  List.sort String.compare a = List.sort String.compare b
+(** Explicit fields and the row variable/extension of a record type. *)
+let split_record (fields : (string * 'a) list) : (string * 'a) list * 'a option =
+  ( List.filter (fun (n, _) -> n <> row_field) fields,
+    List.assoc_opt row_field fields )
 
 let ( => ) (t1 : mono_type) (t2 : mono_type) : mono_type = FunctionType (t1, t2)
 let counter : int ref = ref 0
@@ -339,7 +345,11 @@ let rec string_of_mono_type : mono_type -> string = function
   | FixedPoint (_, body) -> string_of_mono_type body
   | RecordType fields ->
       let field_strs =
-        List.map (fun (name, t) -> name ^ ": " ^ string_of_mono_type t) fields
+        (* Open records ({x: a | r}) are displayed by their known fields. *)
+        List.filter_map
+          (fun (name, t) ->
+            if name = "$row" then None else Some (name ^ ": " ^ string_of_mono_type t))
+          fields
       in
       "{" ^ String.concat ", " field_strs ^ "}"
 

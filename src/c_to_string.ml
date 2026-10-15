@@ -29,7 +29,11 @@ let rec string_of_mono_type : mono_type -> string = function
   | FixedPoint (_, body) -> string_of_mono_type body
   | RecordType fields ->
       let field_strs =
-        List.map (fun (name, t) -> name ^ ": " ^ string_of_mono_type t) fields
+        (* Open records ({x: a | r}) are displayed by their known fields. *)
+        List.filter_map
+          (fun (name, t) ->
+            if name = Cexpr.row_field then None else Some (name ^ ": " ^ string_of_mono_type t))
+          fields
       in
       "{" ^ String.concat ", " field_strs ^ "}"
 
@@ -122,8 +126,10 @@ let string_of_c_type (ct : c_type) : string =
     | FixedPoint (_, body) -> string_of_mono_for_display body
     | RecordType fields ->
         let field_strs =
-          List.map
-            (fun (name, t) -> name ^ ": " ^ string_of_mono_for_display t)
+          List.filter_map
+            (fun (name, t) ->
+              if name = Cexpr.row_field then None
+              else Some (name ^ ": " ^ string_of_mono_for_display t))
             fields
         in
         "{" ^ String.concat ", " field_strs ^ "}"
@@ -184,7 +190,7 @@ let string_of_c_type (ct : c_type) : string =
     empty string if None. *)
 let format_type_annotation (t_opt : c_type option) : string =
   match t_opt with
-  | Some t -> " : " ^ string_of_type t
+  | Some t -> " : " ^ string_of_c_type t
   | None -> ""
 
 let rec string_of_pat : c_pat -> string = function
@@ -217,30 +223,9 @@ let rec string_of_expr : c_expr -> string = function
   | EId (id, _) -> id
   | ENil -> "[]"
   | EBlock parts ->
-      let defns, e =
-        match parts with
-        | [] -> ([], EUnit)
-        | _ ->
-            let rev = List.rev parts in
-            let e = List.hd rev in
-            let defns = List.rev (List.tl rev) in
-            let defns =
-              List.filter_map
-                (function
-                  | Defn d -> Some d
-                  | Expr _ -> None)
-                defns
-            in
-            let e =
-              match e with
-              | Expr e -> e
-              | Defn _ -> EUnit
-            in
-            (defns, e)
-      in
-      "{\n"
-      ^ String.concat "\n" (List.map string_of_defn defns)
-      ^ "\n" ^ string_of_expr e ^ "\n}"
+      let part = function Defn d -> string_of_defn d | Expr e -> string_of_expr e in
+      let shown = if parts = [] then [ string_of_expr EUnit ] else List.map part parts in
+      "{\n" ^ String.concat "\n" shown ^ "\n}"
   | EFunction (pat, t_opt, body) ->
       "fn " ^ string_of_pat pat
       ^ format_type_annotation t_opt
@@ -321,12 +306,12 @@ and string_of_defn : c_defn -> string = function
   | CDefn (pat, _cs, t_opt, e, return_type_opt, _) ->
       let type_annot =
         match t_opt with
-        | Some t -> " : " ^ string_of_type t
+        | Some t -> " : " ^ string_of_c_type t
         | None -> ""
       in
       let return_annot =
         match return_type_opt with
-        | Some t -> " : " ^ string_of_type t
+        | Some t -> " : " ^ string_of_c_type t
         | None -> ""
       in
       "let " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = "
@@ -334,12 +319,12 @@ and string_of_defn : c_defn -> string = function
   | CDefnRec (pat, _cs, t_opt, e, return_type_opt, _) ->
       let type_annot =
         match t_opt with
-        | Some t -> " : " ^ string_of_type t
+        | Some t -> " : " ^ string_of_c_type t
         | None -> ""
       in
       let return_annot =
         match return_type_opt with
-        | Some t -> " : " ^ string_of_type t
+        | Some t -> " : " ^ string_of_c_type t
         | None -> ""
       in
       "let rec " ^ string_of_pat pat ^ type_annot ^ return_annot ^ " = "
@@ -350,7 +335,7 @@ and string_of_defn : c_defn -> string = function
           (fun (pat, _cs, t_opt, e, _, _) ->
             let type_annot =
               match t_opt with
-              | Some t -> " : " ^ string_of_type t
+              | Some t -> " : " ^ string_of_c_type t
               | None -> ""
             in
             string_of_pat pat ^ type_annot ^ " = " ^ string_of_expr e)

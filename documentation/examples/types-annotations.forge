@@ -1,0 +1,9 @@
+type Pair<a> = (a, a)
+
+let origin : Pair<Int> = (0, 0)
+let length (s : String) : Int = str_length s
+let twice (f : a -> a) (x : a) : a = f (f x)
+
+let () = println origin
+let () = println (length "Forge")
+let () = println (twice (fn s -> s ^ "!") "hey")

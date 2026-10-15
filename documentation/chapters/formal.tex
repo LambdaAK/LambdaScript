@@ -1,0 +1,249 @@
+\chapter{Formal definition}
+\label{ch:formal}
+
+This chapter defines Forge's syntax, its static semantics (which programs
+are well typed) and its dynamic semantics (what they compute). The
+definitions describe the core language that the front end produces: blocks
+are already nested \fc|let|s, a function with several parameters is a chain
+of one-parameter functions, operators are applications, and macros, modules
+and imports have been expanded.
+
+\section{Syntax}
+\label{sec:grammar}
+\index{grammar}
+
+The grammar is written in EBNF: \nt{x} is a non-terminal, $[\,x\,]$ is
+optional, $\{\,x\,\}$ repeats zero or more times, and terminals are set in
+typewriter type.
+
+\subsection*{Programs and items}
+\begin{ebnf}
+\prodn{program}{$\{$ \nt{item} $\}$}
+\prodn{item}{\kw{let} \nt{binding}}
+\alt{\kw{let rec} \nt{binding} $\{$ \kw{and} \nt{binding} $\}$}
+\alt{\kw{type} $[$\kw{rec}$]$ \nt{typedecl} $\{$ \kw{and} \nt{typedecl} $\}$}
+\alt{\nt{trait} $|$ \nt{impl}}
+\alt{\kw{mod} \nt{Name} \kw{where} $\{$ \nt{item} $\}$ \kw{end}}
+\alt{\kw{use} \nt{path} $|$ \kw{import} \nt{string}}
+\alt{\kw{macro\_rules!} \nt{name} \kw{where} \nt{arm} $\{$ \tk{;} \nt{arm} $\}$ \kw{end}}
+\prodn{binding}{\nt{pattern} $[$\tk{:} \nt{type}$]$ \tk{=} \nt{expr}}
+\alt{\nt{name} $[$\tk{[} \nt{constraint} $\{$\tk{,} \nt{constraint}$\}$ \tk{]}$]$ $\{$ \nt{param} $\}$ $[$\tk{:} \nt{type}$]$ \tk{=} \nt{expr}}
+\prodn{param}{\nt{subpattern} $|$ \tk{(} \nt{pattern} \tk{:} \nt{type} \tk{)}}
+\prodn{typedecl}{\nt{Name} $[$\tk{<} \nt{tyvar} $\{$\tk{,} \nt{tyvar}$\}$ \tk{>}$]$ \tk{=} ( \nt{type} $|$ \nt{ctor} $\{$ \nt{ctor} $\}$ )}
+\prodn{ctor}{\tk{|} \nt{Name} $[$ \kw{of} \nt{type} $]$}
+\prodn{trait}{\kw{trait} \nt{Name} \tk{<} \nt{tparam} \tk{>} $[$\kw{requires} \nt{constraints}$]$ \kw{where} $\{$ \nt{titem} $\}$ \kw{end}}
+\alt{\kw{inter} \nt{Name} \tk{<} \nt{tparam} \tk{>} \tk{\{} $\{$ \nt{titem} $\}$ \tk{\}}}
+\prodn{tparam}{\nt{tyvar} $|$ \nt{tyvar} \tk{<\_>}}
+\prodn{titem}{\kw{val} \nt{name} \tk{:} \nt{type} $|$ \kw{let} \nt{name} $\{$ \nt{param} $\}$ \tk{=} \nt{expr}}
+\prodn{impl}{\kw{impl} \nt{Name} \kw{for} \nt{type} $[$\kw{requires} \nt{constraints}$]$ \kw{where} \nt{method} $\{$ \tk{,} \nt{method} $\}$ \kw{end}}
+\prodn{method}{\nt{name} $\{$ \nt{param} $\}$ \tk{=} \nt{expr}}
+\prodn{constraints}{\nt{Name}\tk{<}\nt{type}\tk{>} $\{$ \tk{,} \nt{Name}\tk{<}\nt{type}\tk{>} $\}$}
+\end{ebnf}
+
+\subsection*{Expressions}
+\begin{ebnf}
+\prodn{expr}{\kw{fn} \nt{param} $[$\tk{:} \nt{type}$]$ \tk{->} \nt{expr}}
+\alt{\kw{if} \nt{expr} \kw{then} \nt{expr} \kw{else} \nt{expr}}
+\alt{\kw{let} \nt{binding} \kw{in} \nt{expr} $|$ \kw{let rec} \nt{binding} $\{$\kw{and} \nt{binding}$\}$ \kw{in} \nt{expr}}
+\alt{\kw{case} \nt{expr} \kw{do} \tk{|} \nt{pattern} \tk{->} \nt{expr} $\{$ \tk{|} \nt{pattern} \tk{->} \nt{expr} $\}$}
+\alt{\nt{pipe}}
+\prodn{pipe}{\nt{cons} $\{$ \tk{|>} \nt{cons} $\}$}
+\prodn{cons}{\nt{or} $[$ \tk{::} \nt{cons} $]$}
+\prodn{or}{\nt{and} $[$ \tk{||} \nt{or} $]$}
+\prodn{and}{\nt{rel} $[$ \tk{\&\&} \nt{and} $]$}
+\prodn{rel}{\nt{rel} \nt{relop} \nt{add} $|$ \nt{add}}
+\prodn{add}{\nt{add} \nt{addop} \nt{mul} $|$ \nt{mul}}
+\prodn{mul}{\nt{mul} \nt{mulop} \nt{app} $|$ \nt{app}}
+\prodn{app}{\nt{app} \nt{factor} $|$ \nt{factor}}
+\prodn{factor}{\nt{literal} $|$ \nt{name} $|$ \nt{path} $|$ \tk{-} \nt{factor} $|$ \nt{factor} \tk{.} \nt{name}}
+\alt{\tk{(} \nt{expr} \tk{)} $|$ \tk{(} \nt{expr} \tk{,} \nt{expr} $\{$\tk{,} \nt{expr}$\}$ \tk{)} $|$ \tk{(} \nt{operator} \tk{)}}
+\alt{\tk{[} $[$\nt{expr} $\{$\tk{,} \nt{expr}$\}]$ \tk{]} $|$ \tk{[} \nt{expr} \tk{...} \nt{expr} \tk{]}}
+\alt{\tk{[} \nt{expr} \tk{|} \nt{gen} $\{$\tk{,} \nt{gen}$\}$ \tk{]}}
+\alt{\tk{\{} \nt{name} \tk{:} \nt{expr} $\{$\tk{,} \ldots$\}$ \tk{\}} $|$ \tk{\{} \nt{expr} \kw{with} \nt{name} \tk{=} \nt{expr} $\{$\tk{,} \ldots$\}$ \tk{\}}}
+\alt{\tk{\{} \nt{stmt} $\{$ \tk{;} \nt{stmt} $\}$ \tk{\}} $|$ \nt{name}\tk{!(} \nt{tokens} \tk{)} $|$ \nt{name}\tk{![} \nt{tokens} \tk{]} $|$ \nt{name}\tk{!\{} \nt{tokens} \tk{\}}}
+\prodn{gen}{\nt{pattern} \tk{<-} \nt{expr} $|$ \nt{expr}}
+\prodn{stmt}{\kw{let} \nt{binding} $|$ \kw{let rec} \nt{binding} $|$ \nt{expr}}
+\end{ebnf}
+\noindent where \nt{relop} is \tk{== != <> < > <= >=} or a custom operator
+starting with \tk{< > = !}, \nt{addop} is \tk{+ - \^} or a custom operator
+starting with one of them, and \nt{mulop} is \tk{* / \%} or a custom operator
+starting with one of them.
+
+\subsection*{Patterns and types}
+\begin{ebnf}
+\prodn{pattern}{\nt{subpattern} $[$ \tk{::} \nt{pattern} $]$}
+\prodn{subpattern}{\nt{name} $|$ \tk{\_} $|$ \nt{literal} $|$ \tk{-}\nt{int} $|$ \tk{()} $|$ \tk{[]}}
+\alt{\tk{(} \nt{pattern} $\{$\tk{,} \nt{pattern}$\}$ \tk{)} $|$ \tk{\{} \nt{name} $[$\tk{:} \nt{pattern}$]$ $\{$\tk{,} \ldots$\}$ \tk{\}}}
+\alt{\nt{Name} $[$ \nt{subpattern} $]$}
+\prodn{type}{\nt{tfactor} $[$ \tk{->} \nt{type} $]$}
+\prodn{tfactor}{\tk{Int} $|$ \tk{Float} $|$ \tk{Bool} $|$ \tk{Char} $|$ \tk{String} $|$ \tk{Unit} $|$ \nt{tyvar}}
+\alt{\nt{Name} $[$\tk{<} \nt{type} $\{$\tk{,} \nt{type}$\}$ \tk{>}$]$ $|$ \tk{[} \nt{type} \tk{]} $|$ \tk{(} \nt{type} $\{$\tk{,} \nt{type}$\}$ \tk{)}}
+\alt{\tk{\{} \nt{name} \tk{:} \nt{type} $\{$\tk{,} \ldots$\}$ \tk{\}}}
+\end{ebnf}
+
+\section{Static semantics}
+\label{sec:static-semantics}
+\index{typing rules}
+
+\paragraph{Types and schemes} Monotypes $\tau$ and type schemes $\sigma$ are
+\[
+\begin{array}{rcl}
+\tau & ::= & \alpha \mid \ty{Int} \mid \ty{Float} \mid \ty{Bool} \mid \ty{Char} \mid \ty{String} \mid \ty{Unit}
+  \mid \tau_1 \to \tau_2 \mid \ty{List}\,\tau \mid \tau_1 \times\dots\times \tau_n \\
+ & \mid & T\,\tau_1\dots\tau_n \mid \{\ell_1:\tau_1,\dots,\ell_n:\tau_n \mid \rho\} \mid \{\ell_1:\tau_1,\dots,\ell_n:\tau_n\} \\
+\sigma & ::= & \forall \alpha_1\dots\alpha_n.\; P \Rightarrow \tau \qquad\qquad P ::= C_1\,\tau_1, \dots, C_k\,\tau_k
+\end{array}
+\]
+where $\rho$ is a \emph{row variable} standing for the remaining fields of
+an open record, and $P$ is a set of trait predicates. An environment
+$\Gamma$ maps names to schemes; the set $\mathcal{I}$ of instances maps
+each $C\,\tau$ that holds to the instance that proves it. $\Gamma \vdash e :
+\tau$ reads ``$e$ has type $\tau$ in $\Gamma$'', and
+$\Gamma \vdash p : \tau \Rightarrow \Gamma'$ ``pattern $p$ matches values of
+type $\tau$, binding $\Gamma'$''. $\mathrm{gen}_\Gamma(\tau)$ quantifies
+the type variables of $\tau$ (and of its predicates) that are not free in
+$\Gamma$; $\tau \preceq \sigma$ says that $\tau$ is an instance of $\sigma$
+whose predicates are all in $\mathcal{I}$ or among the predicates assumed
+for the current definition.
+
+\paragraph{Expressions}
+\ruleblock{
+\infrule{Var}{x : \sigma \in \Gamma \qquad \tau \preceq \sigma}{\Gamma \vdash x : \tau}
+\qquad
+\infrule{Lit}{}{\Gamma \vdash 42 : \ty{Int} \quad \Gamma \vdash \texttt{"s"} : \ty{String} \quad \dots}
+\\[14pt]
+\infrule{Fn}{\Gamma \vdash p : \tau_1 \Rightarrow \Gamma' \qquad \Gamma, \Gamma' \vdash e : \tau_2}{\Gamma \vdash \kw{fn}\ p \to e : \tau_1 \to \tau_2}
+\qquad
+\infrule{App}{\Gamma \vdash e_1 : \tau_1 \to \tau_2 \qquad \Gamma \vdash e_2 : \tau_1}{\Gamma \vdash e_1\ e_2 : \tau_2}
+\\[14pt]
+\infrule{Let}{\Gamma \vdash e_1 : \tau_1 \qquad \Gamma \vdash p : \tau_1 \Rightarrow \{x_i : \tau_i\} \qquad \Gamma, \{x_i : \mathrm{gen}_\Gamma(\tau_i)\} \vdash e_2 : \tau}{\Gamma \vdash \kw{let}\ p = e_1\ \kw{in}\ e_2 : \tau}
+\\[14pt]
+\infrule{LetRec}{\Gamma, \{f_i : \tau_i\} \vdash e_i : \tau_i \quad (1 \le i \le n) \qquad \Gamma, \{f_i : \mathrm{gen}_\Gamma(\tau_i)\} \vdash e : \tau}{\Gamma \vdash \kw{let rec}\ f_1 = e_1\ \kw{and}\ \dots\ \kw{and}\ f_n = e_n\ \kw{in}\ e : \tau}
+\\[14pt]
+\infrule{If}{\Gamma \vdash e_1 : \ty{Bool} \qquad \Gamma \vdash e_2 : \tau \qquad \Gamma \vdash e_3 : \tau}{\Gamma \vdash \kw{if}\ e_1\ \kw{then}\ e_2\ \kw{else}\ e_3 : \tau}
+\qquad
+\infrule{Case}{\Gamma \vdash e : \tau \qquad \Gamma \vdash p_i : \tau \Rightarrow \Gamma_i \qquad \Gamma, \Gamma_i \vdash e_i : \tau'}{\Gamma \vdash \kw{case}\ e\ \kw{do}\ \mid p_i \to e_i : \tau'}
+\\[14pt]
+\infrule{Arith}{\Gamma \vdash e_1 : \ty{Int} \qquad \Gamma \vdash e_2 : \ty{Int}}{\Gamma \vdash e_1 \oplus e_2 : \ty{Int}}
+\quad
+\infrule{Compare}{\Gamma \vdash e_1 : \tau \qquad \Gamma \vdash e_2 : \tau}{\Gamma \vdash e_1 \lessgtr e_2 : \ty{Bool}}
+\quad
+\infrule{Concat}{\Gamma \vdash e_i : \ty{String}}{\Gamma \vdash e_1 \mathbin{\hat{}} e_2 : \ty{String}}
+\\[14pt]
+\infrule{Nil}{}{\Gamma \vdash [\,] : \ty{List}\,\tau}
+\quad
+\infrule{Cons}{\Gamma \vdash e_1 : \tau \qquad \Gamma \vdash e_2 : \ty{List}\,\tau}{\Gamma \vdash e_1 :: e_2 : \ty{List}\,\tau}
+\quad
+\infrule{Range}{\Gamma \vdash e_i : \ty{Int}}{\Gamma \vdash [e_1 \ldots e_2] : \ty{List}\,\ty{Int}}
+\\[14pt]
+\infrule{Comp}{\Gamma \vdash e_1 : \ty{List}\,\tau_1 \qquad \Gamma \vdash p : \tau_1 \Rightarrow \Gamma' \qquad \Gamma, \Gamma' \vdash [e \mid \overline{g}] : \ty{List}\,\tau}{\Gamma \vdash [e \mid p \leftarrow e_1, \overline{g}] : \ty{List}\,\tau}
+\quad
+\infrule{Guard}{\Gamma \vdash c : \ty{Bool} \qquad \Gamma \vdash [e \mid \overline{g}] : \ty{List}\,\tau}{\Gamma \vdash [e \mid c, \overline{g}] : \ty{List}\,\tau}
+\\[14pt]
+\infrule{Tuple}{\Gamma \vdash e_i : \tau_i}{\Gamma \vdash (e_1, \dots, e_n) : \tau_1 \times \dots \times \tau_n}
+\quad
+\infrule{Record}{\Gamma \vdash e_i : \tau_i}{\Gamma \vdash \{\ell_i : e_i\} : \{\ell_i : \tau_i\}}
+\\[14pt]
+\infrule{Field}{\Gamma \vdash e : \{\ell : \tau \mid \rho\}}{\Gamma \vdash e.\ell : \tau}
+\quad
+\infrule{Update}{\Gamma \vdash e : \{\ell_i : \tau_i \mid \rho\} \qquad \Gamma \vdash e_i : \tau_i}{\Gamma \vdash \{e\ \kw{with}\ \ell_i = e_i\} : \{\ell_i : \tau_i \mid \rho\}}
+}
+
+\noindent A closed record type $\{\overline{\ell:\tau}\}$ unifies with an
+open one $\{\overline{\ell':\tau'} \mid \rho\}$ when every $\ell'$ is among
+the $\ell$, and then $\rho$ stands for the remaining fields; two open record
+types share a fresh row. \textsc{Compare} applies to every type except
+function types: comparing functions is a run-time error.
+
+\paragraph{Patterns}
+\ruleblock{
+\infrule{PVar}{}{\Gamma \vdash x : \tau \Rightarrow \{x : \tau\}}
+\quad
+\infrule{PWild}{}{\Gamma \vdash \_ : \tau \Rightarrow \emptyset}
+\quad
+\infrule{PLit}{\Gamma \vdash \ell : \tau}{\Gamma \vdash \ell : \tau \Rightarrow \emptyset}
+\\[14pt]
+\infrule{PCons}{\Gamma \vdash p_1 : \tau \Rightarrow \Gamma_1 \qquad \Gamma \vdash p_2 : \ty{List}\,\tau \Rightarrow \Gamma_2}{\Gamma \vdash p_1 :: p_2 : \ty{List}\,\tau \Rightarrow \Gamma_1 \uplus \Gamma_2}
+\quad
+\infrule{PTuple}{\Gamma \vdash p_i : \tau_i \Rightarrow \Gamma_i}{\Gamma \vdash (p_1,\dots,p_n) : \tau_1 \times\dots\times \tau_n \Rightarrow \biguplus \Gamma_i}
+\\[14pt]
+\infrule{PCtor}{C : \forall \overline{\alpha}.\, \tau' \to T\,\overline{\alpha} \in \Gamma \qquad \Gamma \vdash p : \tau'[\overline{\tau}/\overline{\alpha}] \Rightarrow \Gamma'}{\Gamma \vdash C\ p : T\,\overline{\tau} \Rightarrow \Gamma'}
+\quad
+\infrule{PRecord}{\Gamma \vdash p_i : \tau_i \Rightarrow \Gamma_i}{\Gamma \vdash \{\ell_i : p_i\} : \{\ell_i : \tau_i \mid \rho\} \Rightarrow \biguplus \Gamma_i}
+}
+\noindent $\uplus$ is disjoint union: a variable may be bound only once in a
+pattern.
+
+\paragraph{Traits} A trait declaration $\kw{trait}\ C\langle\alpha\rangle\
+\kw{where}\ \kw{val}\ m : \tau\ \kw{end}$ adds $m : \forall \alpha\,
+\overline{\beta}.\; C\,\alpha \Rightarrow \tau$ to $\Gamma$, where
+$\overline{\beta}$ are the other variables of $\tau$. An instance
+$\kw{impl}\ C\ \kw{for}\ \tau_0\ \kw{requires}\ P\ \kw{where}\ \dots$ is
+checked by typing each method's equation at $\tau[\tau_0/\alpha]$ assuming $P$,
+and adds the rule ``$P$ implies $C\,\tau_0$'' to $\mathcal{I}$. A top-level
+definition whose type keeps predicates on its own type variables is
+generalised with them; a predicate on a type without variables must follow
+from $\mathcal{I}$, or the program is rejected (\textit{No instance}).
+
+\section{Dynamic semantics}
+\label{sec:dynamic-semantics}
+\index{evaluation rules}
+
+Evaluation is strict and goes from left to right. Values are
+\[
+\begin{aligned}
+v ::={}& n \mid f \mid c \mid s \mid \kw{true} \mid \kw{false} \mid () \mid [\,] \mid v_1 :: v_2 \mid (v_1,\dots,v_n) \mid \{\ell_i = v_i\} \\
+  \mid{}& C \mid C\,v \mid \langle \rho, p, e \rangle \mid \langle \rho, f, p, e \rangle^{\mathrm{rec}}
+\end{aligned}
+\]
+the last two being closures and recursive closures. $\rho \vdash e \Downarrow v$
+reads ``in environment $\rho$, $e$ evaluates to $v$'';
+$\mathrm{match}(p, v) = \rho'$ is the environment that pattern $p$ binds when it
+matches $v$, and is undefined otherwise.
+
+\ruleblock{
+\infrule{EVar}{\rho(x) = v}{\rho \vdash x \Downarrow v}
+\quad
+\infrule{EFn}{}{\rho \vdash \kw{fn}\ p \to e \Downarrow \langle \rho, p, e \rangle}
+\\[14pt]
+\infrule{EApp}{\rho \vdash e_1 \Downarrow \langle \rho', p, e \rangle \qquad \rho \vdash e_2 \Downarrow v_2 \qquad \rho', \mathrm{match}(p, v_2) \vdash e \Downarrow v}{\rho \vdash e_1\ e_2 \Downarrow v}
+\\[14pt]
+\infrule{EAppRec}{\rho \vdash e_1 \Downarrow c = \langle \rho', f, p, e \rangle^{\mathrm{rec}} \qquad \rho \vdash e_2 \Downarrow v_2 \\ \rho', f \mapsto c, \mathrm{match}(p, v_2) \vdash e \Downarrow v}{\rho \vdash e_1\ e_2 \Downarrow v}
+\\[14pt]
+\infrule{ELet}{\rho \vdash e_1 \Downarrow v_1 \qquad \rho, \mathrm{match}(p, v_1) \vdash e_2 \Downarrow v}{\rho \vdash \kw{let}\ p = e_1\ \kw{in}\ e_2 \Downarrow v}
+\quad
+\infrule{ELetRec}{\rho, f \mapsto \langle \rho, f, p, e_1 \rangle^{\mathrm{rec}} \vdash e_2 \Downarrow v}{\rho \vdash \kw{let rec}\ f = \kw{fn}\ p \to e_1\ \kw{in}\ e_2 \Downarrow v}
+\\[14pt]
+\infrule{EIfT}{\rho \vdash e_1 \Downarrow \kw{true} \qquad \rho \vdash e_2 \Downarrow v}{\rho \vdash \kw{if}\ e_1\ \kw{then}\ e_2\ \kw{else}\ e_3 \Downarrow v}
+\quad
+\infrule{EIfF}{\rho \vdash e_1 \Downarrow \kw{false} \qquad \rho \vdash e_3 \Downarrow v}{\rho \vdash \kw{if}\ e_1\ \kw{then}\ e_2\ \kw{else}\ e_3 \Downarrow v}
+\\[14pt]
+\infrule{ECase}{\rho \vdash e \Downarrow v \qquad \mathrm{match}(p_j, v) = \rho_j \qquad \forall i < j.\ \mathrm{match}(p_i, v)\ \text{undefined} \\ \rho, \rho_j \vdash e_j \Downarrow v'}{\rho \vdash \kw{case}\ e\ \kw{do}\ \mid p_1 \to e_1 \dots \mid p_n \to e_n \Downarrow v'}
+\\[14pt]
+\infrule{EAndF}{\rho \vdash e_1 \Downarrow \kw{false}}{\rho \vdash e_1 \mathbin{\&\&} e_2 \Downarrow \kw{false}}
+\quad
+\infrule{EAndT}{\rho \vdash e_1 \Downarrow \kw{true} \qquad \rho \vdash e_2 \Downarrow v}{\rho \vdash e_1 \mathbin{\&\&} e_2 \Downarrow v}
+\\[14pt]
+\infrule{EDiv}{\rho \vdash e_1 \Downarrow n_1 \qquad \rho \vdash e_2 \Downarrow n_2 \qquad n_2 \ne 0}{\rho \vdash e_1 / e_2 \Downarrow \mathrm{trunc}(n_1 / n_2)}
+\\[14pt]
+\infrule{ERange}{\rho \vdash e_1 \Downarrow a \qquad \rho \vdash e_2 \Downarrow b}{\rho \vdash [e_1 \ldots e_2] \Downarrow [a, a+1, \dots, b]}
+\quad
+\infrule{ECmp}{\rho \vdash e_1 \Downarrow v_1 \qquad \rho \vdash e_2 \Downarrow v_2}{\rho \vdash e_1 < e_2 \Downarrow \mathrm{compare}(v_1, v_2) < 0}
+\\[14pt]
+\infrule{EComp}{\rho \vdash e_1 \Downarrow [v_1, \dots, v_k] \\ \rho, \mathrm{match}(p, v_i) \vdash [e \mid \overline{g}] \Downarrow \ell_i \ \text{for each $v_i$ that $p$ matches}}{\rho \vdash [e \mid p \leftarrow e_1, \overline{g}] \Downarrow \ell_{i_1} \mathbin{++} \dots \mathbin{++} \ell_{i_m}}
+}
+
+\noindent $\mathrm{compare}$ is the structural order of
+Section~\ref{sec:operators}: by value for numbers and characters,
+lexicographic for strings, lists and tuples, field by field (in name order)
+for records, by constructor declaration order and then payload for sum types,
+and undefined (a run-time error) for functions. A guard $c$ in a comprehension
+keeps the current combination when $c \Downarrow \kw{true}$. When no rule
+applies --- division by zero, a failed \fc|case| or refutable \fc|let|, a
+comparison of functions --- evaluation stops with a run-time error.
+
+A program evaluates its items in order: \fc|let p = e| evaluates $e$ in the
+environment of the previous items and extends it with $\mathrm{match}(p, v)$.
+Trait methods evaluate to the implementation of the instance chosen by the
+types (\S\ref{sec:impl-traits}); the semantics above apply to the program
+after that choice.

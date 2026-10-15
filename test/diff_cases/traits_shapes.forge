@@ -1,0 +1,31 @@
+// User-defined traits with several instances and constrained helpers.
+trait Area<a> where
+  val area : a -> Int
+  val name : a -> String
+end
+
+type Square = | Square of Int
+type Rect = | Rect of (Int, Int)
+
+impl Area for Square where
+  area s = case s do | Square w -> w * w,
+  name s = "square"
+end
+
+impl Area for Rect where
+  area r = case r do | Rect (w, h) -> w * h,
+  name r = "rect"
+end
+
+let describe [Area a] (x : a) = name x ^ " with area " ^ int_to_str (area x)
+
+let () = print_string (describe (Square 4))
+let () = print_string (describe (Rect (2, 9)))
+let () = println (area (Square 3) + area (Rect (1, 1)))
+
+impl Show for Square where
+  show s = case s do | Square w -> "Square " ^ int_to_str w
+end
+
+let () = println (Square 7)
+let () = println [Square 1, Square 2]

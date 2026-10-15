@@ -1,0 +1,71 @@
+\chapter{Lexical structure}
+\label{ch:lexical}
+
+A Forge source file is a sequence of ASCII characters, read as tokens
+separated by whitespace (spaces, tabs, line feeds and carriage returns) and
+comments.
+
+\section{Comments}
+\index{comments}
+A comment is either a line comment, from \fc|//| to the end of the line, or
+a block comment between \fc|/*| and \fc|*/|. Block comments do not nest.
+
+\section{Identifiers and keywords}
+\index{identifiers}
+An identifier starts with a letter or an underscore, followed by letters,
+digits and underscores: \fc|x|, \fc|list_length|, \fc|_tmp2|. Identifiers that
+start with an upper-case letter name constructors (\fc|Some|, \fc|Node|),
+types (\fc|Option|) and modules (\fc|Geometry|). A qualified name
+\fc|M.x| refers to \fc|x| inside module \fc|M| (Section~\ref{sec:modules}).
+Identifiers beginning with two underscores are used internally and should be
+avoided.
+
+The following words are reserved (Appendix~\ref{ch:keywords} explains each):
+
+\begin{center}
+\small\ttfamily
+\begin{tabular}{@{}llllllll@{}}
+and & case & do & else & end & enum & false & fn \\
+for & if & impl & import & in & inter & let & macro\_rules \\
+mod & of & rec & requires & switch & then & trait & true \\
+type & use & val & where & with & & & \\
+\end{tabular}
+\end{center}
+
+\noindent The type names \fc|Int|, \fc|Float|, \fc|Bool|, \fc|Char|,
+\fc|String| and \fc|Unit| are also keywords. The lower-case spellings
+\texttt{int}, \texttt{float}, \texttt{bool}, \texttt{char}, \texttt{string}
+and \texttt{unit} are accepted in types as synonyms.
+
+\section{Literals}
+\index{literals}
+
+\begin{description}[style=nextline,leftmargin=2em,font=\normalfont\sffamily\bfseries]
+  \item[Integers] A sequence of decimal digits: \fc|0|, \fc|42|. A literal must fit
+    in a machine integer (\S\ref{sec:int-width}); \fc|-17| is the negation of
+    \fc|17|.
+  \item[Floats] Digits, a dot and optional digits: \fc|3.14|, \fc|5.|. There is no
+    exponent notation.
+  \item[Characters] A single character or an escape between single quotes:
+    \fc|'a'|, \fc|'\n'|, \fc|'\''|.
+  \item[Strings] Characters and escapes between double quotes:
+    \fc|"line\n"|. A line break inside the quotes is part of the string.
+  \item[Booleans and unit] \fc|true|, \fc|false| and \fc|()|.
+\end{description}
+
+The escapes are \verb|\n| (line feed), \verb|\t| (tab), \verb|\r| (carriage
+return), \verb|\0| (NUL), \verb|\\|, \verb|\"| and \verb|\'|; any other
+backslash sequence is an error.
+
+\forgeexample{lex-literals}
+
+\section{Operators and punctuation}
+\index{operators}
+The fixed operators and punctuation are
+\fc@+ - * / % ^ :: == != <> < > <= >= && || |> -> <- = | , ; : . ...@
+and the brackets \texttt{( ) [ ] \{ \}}.
+Any other sequence of the characters \fc@+ - * / % < > = ^ ! |@ that
+starts with one of \fc@+ - * / % < > = ^ !@ is a \emph{custom operator},
+which a program defines like a function, \fc|let (+++) a b = ...|; its
+precedence is that of its first character (Section~\ref{sec:operators}).
+The characters \fc|&| and \fc!|! begin only the fixed operators.

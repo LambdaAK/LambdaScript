@@ -1,0 +1,258 @@
+% forge-manual.sty -- the look of the Forge reference manual.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{forge-manual}[2026/10/15 Forge reference manual style]
+
+% ---------------------------------------------------------------- fonts ----
+\RequirePackage[T1]{fontenc}
+\RequirePackage[utf8]{inputenc}
+\RequirePackage{lmodern}               % text and maths
+\RequirePackage[scaled=0.90]{helvet}   % headings
+\RequirePackage{textcomp}
+% Inconsolata for code, loaded without its package (which needs upquote).
+\renewcommand{\ttdefault}{zi4}
+\RequirePackage[protrusion=true,expansion=true]{microtype}
+\linespread{1.06}
+
+% --------------------------------------------------------------- layout ----
+\RequirePackage[a4paper,top=2.6cm,bottom=2.8cm,left=2.9cm,right=2.9cm,headheight=14pt]{geometry}
+\RequirePackage{amsmath,amssymb}
+\RequirePackage{xcolor}
+\RequirePackage{graphicx}
+\RequirePackage{booktabs,tabularx,array,multicol}
+\RequirePackage{enumitem}
+\RequirePackage{etoolbox}
+\setlist{itemsep=2pt,topsep=4pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt}
+\setlength{\emergencystretch}{2em}
+\raggedbottom
+
+% -------------------------------------------------------------- palette ----
+\definecolor{ForgeEmber}{HTML}{D2501E}   % the glow of the forge
+\definecolor{ForgeCoal}{HTML}{1C252E}    % deep slate
+\definecolor{ForgeSteel}{HTML}{2D5C88}   % tempered steel
+\definecolor{ForgeAsh}{HTML}{6A7380}     % ash grey
+\definecolor{ForgeSand}{HTML}{FAF5EE}    % code paper
+\definecolor{ForgeMoss}{HTML}{3D7A57}    % comments, tips
+\definecolor{ForgeBrass}{HTML}{9A6A12}   % string literals
+\definecolor{ForgeFog}{HTML}{EEF2F6}     % output panels
+\definecolor{ForgeRust}{HTML}{A33A1B}    % warnings
+
+% ------------------------------------------------------------- headings ----
+\RequirePackage{titlesec}
+\titleformat{\chapter}[display]
+  {\sffamily\color{ForgeCoal}}
+  {\begin{tikzpicture}[baseline]
+     \fill[ForgeEmber] (0,0) rectangle (1.25,1.25);
+     \node[text=white,font=\sffamily\bfseries\fontsize{30}{30}\selectfont] at (0.625,0.625) {\thechapter};
+   \end{tikzpicture}}
+  {14pt}
+  {\fontsize{26}{30}\selectfont\bfseries}
+  [{\color{ForgeEmber}\vspace{4pt}\titlerule[1.2pt]}]
+\titleformat{name=\chapter,numberless}[display]
+  {\sffamily\color{ForgeCoal}}{}{0pt}
+  {\fontsize{26}{30}\selectfont\bfseries}
+  [{\color{ForgeEmber}\vspace{4pt}\titlerule[1.2pt]}]
+\titlespacing*{\chapter}{0pt}{-10pt}{26pt}
+\titleformat{\section}
+  {\sffamily\Large\bfseries\color{ForgeCoal}}
+  {\textcolor{ForgeEmber}{\thesection}}{0.8em}{}
+\titleformat{\subsection}
+  {\sffamily\large\bfseries\color{ForgeCoal}}
+  {\textcolor{ForgeEmber}{\thesubsection}}{0.8em}{}
+\titleformat{\subsubsection}
+  {\sffamily\normalsize\bfseries\color{ForgeSteel}}{}{0em}{}
+\titleformat{\paragraph}[runin]
+  {\sffamily\normalsize\bfseries\color{ForgeCoal}}{}{0em}{}[.]
+\titlespacing*{\paragraph}{0pt}{8pt plus 2pt}{0.7em}
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{1}
+
+% ---------------------------------------------------------------- pages ----
+\RequirePackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\chaptermark}[1]{\markboth{#1}{}}
+\fancyhead[L]{\sffamily\small\color{ForgeAsh}\leftmark}
+\fancyhead[R]{\sffamily\small\color{ForgeAsh}Forge Reference Manual}
+\fancyfoot[C]{\sffamily\small\color{ForgeAsh}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{{\color{ForgeAsh!40}\hrule width\headwidth height\headrulewidth}}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\sffamily\small\color{ForgeAsh}\thepage}\renewcommand{\headrulewidth}{0pt}}
+
+% ----------------------------------------------------- table of contents ----
+\RequirePackage{titletoc}
+\titlecontents{chapter}[0pt]
+  {\addvspace{8pt}\sffamily\bfseries\color{ForgeCoal}}
+  {\contentslabel[\textcolor{ForgeEmber}{\thecontentslabel}]{1.8em}}{}
+  {\hfill\contentspage}
+\titlecontents{section}[1.8em]
+  {\sffamily\small}
+  {\contentslabel{2.4em}}{}
+  {\titlerule*[0.7pc]{.}\contentspage}
+
+% --------------------------------------------------------------- tikz ------
+\RequirePackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,fit,calc,backgrounds}
+\tikzset{
+  stage/.style={draw=ForgeCoal!70,fill=white,rounded corners=3pt,minimum height=8mm,
+    minimum width=24mm,font=\sffamily\small,align=center,line width=0.6pt},
+  data/.style={font=\sffamily\scriptsize\itshape,text=ForgeAsh},
+  flow/.style={-{Stealth[length=2.2mm]},line width=0.7pt,color=ForgeCoal!80},
+  hot/.style={fill=ForgeEmber!12,draw=ForgeEmber},
+  cool/.style={fill=ForgeSteel!10,draw=ForgeSteel},
+}
+
+% ------------------------------------------------------------ listings -----
+\RequirePackage{listings}
+\lstdefinelanguage{Forge}{
+  morekeywords=[1]{let,rec,and,in,fn,if,then,else,case,do,of,type,val,with,
+    trait,inter,impl,where,end,requires,mod,use,import,macro_rules,for,switch,enum},
+  morekeywords=[2]{Int,Bool,String,Char,Unit,Float,List,Option,Ordering},
+  morekeywords=[3]{true,false,Some,None,LT,EQ,GT},
+  sensitive=true,
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]",
+  literate=
+    {->}{{$\rightarrow$}}2
+    {<-}{{$\leftarrow$}}2
+    {\\n}{{\textbackslash n}}2
+}
+\lstdefinestyle{forge}{
+  language=Forge,
+  basicstyle=\ttfamily\small\color{ForgeCoal},
+  keywordstyle=[1]\color{ForgeEmber}\bfseries,
+  keywordstyle=[2]\color{ForgeSteel},
+  keywordstyle=[3]\color{ForgeSteel},
+  commentstyle=\color{ForgeMoss},
+  stringstyle=\color{ForgeBrass},
+  columns=fullflexible,keepspaces=true,
+  showstringspaces=false,
+  upquote=true,
+  tabsize=2,
+  breaklines=true,
+  aboveskip=0pt,belowskip=0pt,
+  xleftmargin=0pt,
+}
+\lstdefinelanguage{plaintext}{}
+\lstdefinestyle{plainout}{
+  language=plaintext,
+  basicstyle=\ttfamily\small\color{ForgeCoal},
+  columns=fullflexible,keepspaces=true,showstringspaces=false,upquote=true,
+  breaklines=true,aboveskip=0pt,belowskip=0pt,
+  literate={->}{{->}}2,
+}
+\lstdefinestyle{shell}{
+  language=plaintext,
+  basicstyle=\ttfamily\small\color{ForgeCoal},
+  columns=fullflexible,keepspaces=true,showstringspaces=false,upquote=true,
+  breaklines=true,aboveskip=0pt,belowskip=0pt,
+  extendedchars=true,literate={λ}{{$\lambda$}}1,
+}
+\lstset{style=forge}
+% Inline code: \fc|let x = 1| in running text; \tc{...} where verbatim is
+% not allowed (tables, macro arguments).
+\newcommand{\fc}{\lstinline[style=forge,basicstyle=\ttfamily\color{ForgeCoal}]}
+% (\tc{\%} is a percent sign: % would start a comment before \tc sees it.)
+\newcommand{\tc}[1]{\texttt{\color{ForgeCoal}\expandafter\forge@untex\expandafter{\detokenize{#1}}}}
+% Remove the backslash that \detokenize leaves in front of \%.
+\begingroup\catcode`\%=12 \catcode`\|=0 \catcode`\\=12
+|gdef|forge@untex#1{|forge@untexA#1\%|forge@end}
+|gdef|forge@untexA#1\%#2|forge@end{#1|ifx|relax#2|relax|else%|forge@untexA#2|forge@end|fi}
+|endgroup
+
+% ------------------------------------------------------------ callouts -----
+% Boxes are built with framed, so that they break across pages and may hold
+% verbatim material (listings).
+\RequirePackage{framed}
+\setlength{\OuterFrameSep}{0pt}   % spacing around boxes is set by each box
+\newlength{\forgepad}\setlength{\forgepad}{6pt}
+% A box with a coloured bar on the left: {bar colour}{background}{title}.
+\newenvironment{forgebarbox}[3]{%
+  \def\FrameCommand{{\color{#1}\vrule width 3pt}\fboxsep=\forgepad\colorbox{#2}}%
+  \par\addvspace{6pt}%
+  \MakeFramed{\advance\hsize-\width\FrameRestore}%
+  \noindent{\sffamily\bfseries\small\color{#1}#3}\enspace\ignorespaces}%
+  {\endMakeFramed\par\addvspace{6pt}}
+\newenvironment{notebox}[1][Note]{\begin{forgebarbox}{ForgeSteel}{ForgeSteel!5}{#1}}{\end{forgebarbox}}
+\newenvironment{tipbox}[1][Tip]{\begin{forgebarbox}{ForgeMoss}{ForgeMoss!6}{#1}}{\end{forgebarbox}}
+\newenvironment{warnbox}[1][Caution]{\begin{forgebarbox}{ForgeRust}{ForgeEmber!6}{#1}}{\end{forgebarbox}}
+
+% ------------------------------------------------------------ examples -----
+% \forgeexample{name}: the tested program documentation/examples/name.forge,
+% then its standard output (name.out) and, if any, the diagnostics on
+% standard error (name.err). See test/manual_tests.ml.
+%
+% A panel: {frame colour}{background}{label colour}{label}. Panels do not
+% break across pages (the longest example is about a third of a page).
+\newsavebox{\forge@box}
+\newlength{\forge@inner}
+\newenvironment{forgepanel}[4]{%
+  \par\noindent
+  \setlength{\forge@inner}{\linewidth}%
+  \addtolength{\forge@inner}{-2\forgepad}\addtolength{\forge@inner}{-1pt}%
+  \def\forge@frame{#1}\def\forge@bg{#2}%
+  \begin{lrbox}{\forge@box}\begin{minipage}{\forge@inner}%
+  \noindent\hfill{\sffamily\scriptsize\bfseries\color{#3}#4}\par\nointerlineskip\vspace{1pt}}%
+  {\end{minipage}\end{lrbox}%
+  {\fboxrule=0.5pt\fboxsep=\forgepad\fcolorbox{\forge@frame}{\forge@bg}{\usebox{\forge@box}}}\par}
+\newenvironment{codepanel}[1]{\par\addvspace{8pt}\begin{forgepanel}{ForgeCoal!25}{ForgeSand}{ForgeAsh}{#1}}{\end{forgepanel}}
+\newenvironment{outpanel}[1]{\par\nobreak\vspace{2pt}\begin{forgepanel}{ForgeSteel!35}{ForgeFog}{ForgeSteel}{#1}}{\end{forgepanel}}
+\newenvironment{errpanel}[1]{\par\nobreak\vspace{2pt}\begin{forgepanel}{ForgeRust!45}{ForgeEmber!5}{ForgeRust}{#1}}{\end{forgepanel}}
+
+\newcommand{\examplesdir}{examples}
+% \forgeexample{name}; \forgeexample*{name} when the program prints nothing.
+\NewDocumentCommand{\forgeexample}{sm}{%
+  \par\addvspace{4pt}%
+  \begin{codepanel}{#2.forge}%
+    \lstinputlisting[style=forge]{\examplesdir/#2.forge}%
+  \end{codepanel}%
+  \IfBooleanTF{#1}{}{%
+  \begin{outpanel}{output}%
+    \lstinputlisting[style=plainout]{\examplesdir/#2.out}%
+  \end{outpanel}}%
+  \IfFileExists{\examplesdir/#2.err}{%
+  \begin{errpanel}{standard error}%
+    \lstinputlisting[style=plainout]{\examplesdir/#2.err}%
+  \end{errpanel}}{}%
+  \par\addvspace{8pt}%
+}
+
+% A shell session or other non-Forge text.
+\lstnewenvironment{shellcode}{\lstset{style=shell}\begingroup}{\endgroup}
+\newenvironment{shellpanel}{\begin{codepanel}{shell}\lstset{style=shell}}{\end{codepanel}\par\addvspace{6pt}}
+
+% ------------------------------------------------------- inference rules ---
+% \infrule{Name}{premise \\ premise}{conclusion}
+\newcommand{\rulename}[1]{\textsc{\small #1}}
+\newcommand{\infrule}[3]{%
+  \ensuremath{\dfrac{\begin{array}{@{}c@{}}#2\end{array}}{#3}\;\rulename{#1}}}
+\newcommand{\ruleblock}[1]{\par\smallskip\begin{center}\renewcommand{\arraystretch}{1.25}#1\end{center}\par\smallskip}
+\newcommand{\ty}[1]{\mathsf{#1}}
+\newcommand{\kw}[1]{\textbf{\texttt{\color{ForgeEmber}#1}}}
+\newcommand{\nt}[1]{\ensuremath{\langle}\textit{#1}\ensuremath{\rangle}}
+\newcommand{\tk}[1]{\texttt{\color{ForgeCoal}#1}}
+
+% ------------------------------------------------------------- grammar -----
+\newenvironment{ebnf}{%
+  \par\smallskip
+  \def\FrameCommand{\fboxrule=0.5pt\fboxsep=\forgepad\fcolorbox{ForgeCoal!20}{white}}%
+  \MakeFramed{\advance\hsize-\width\FrameRestore}%
+  \small\renewcommand{\arraystretch}{1.15}\noindent
+  \tabularx{\linewidth}{@{}r@{\hspace{0.6em}}c@{\hspace{0.6em}}>{\raggedright\arraybackslash\hangindent=1.5em}X@{}}}
+  {\endtabularx\endMakeFramed\par\smallskip}
+\newcommand{\prodn}[2]{\nt{#1} & ::= & #2 \\}
+\newcommand{\alt}[1]{ & $|$ & #1 \\}
+
+% -------------------------------------------------------------- index ------
+\RequirePackage{makeidx}
+\makeindex
+\newcommand{\idx}[1]{#1\index{#1}}
+\newcommand{\cidx}[1]{\fc|#1|\index{#1@\texttt{#1}}}
+
+% ------------------------------------------------------------ hyperref -----
+\RequirePackage[hidelinks]{hyperref}
+\hypersetup{colorlinks=true,linkcolor=ForgeSteel,urlcolor=ForgeSteel,citecolor=ForgeSteel,
+  pdftitle={Forge Reference Manual},pdfauthor={The Forge project}}
+\endinput

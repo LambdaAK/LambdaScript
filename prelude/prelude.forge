@@ -210,6 +210,10 @@
   
   // Float
   
+  impl Show for Float where
+    show x = float_to_str x
+  end
+  
   impl Eq for Float where
     (==) x y = float_eq x y
   end
@@ -219,6 +223,10 @@
   end
   
   // Char
+  
+  impl Show for Char where
+    show c = char_to_str c
+  end
   
   impl Eq for Char where
     (==) x y = char_eq x y
@@ -244,11 +252,28 @@
     empty = []
   end
 
+  // [show [1, 2, 3]] is "[1, 2, 3]". Written with self-recursion only:
+  // [show t] is "[e2, e3]", whose leading "[" is replaced by "e1, ".
   impl Show for List<a> requires Show<a> where
     show x =
       case x do
       | [] -> "[]"
-      | h :: t -> "[" ^ (show h) ^ ", " ^ (show t) ^ "]"
+      | h :: t ->
+          case t do
+          | [] -> "[" ^ show h ^ "]"
+          | _ ->
+              let rest = show t in
+              "[" ^ show h ^ ", " ^ str_slice rest 1 (str_length rest)
+  end
+  
+  // Tuples: [show (1, true)] is "(1, true)".
+  
+  impl Show for (a, b) requires Show<a>, Show<b> where
+    show p = case p do | (x, y) -> "(" ^ show x ^ ", " ^ show y ^ ")"
+  end
+  
+  impl Show for (a, b, c) requires Show<a>, Show<b>, Show<c> where
+    show p = case p do | (x, y, z) -> "(" ^ show x ^ ", " ^ show y ^ ", " ^ show z ^ ")"
   end
   
   // Option
@@ -296,6 +321,10 @@
   
   impl Monoid for Option<a> where
     empty = None
+  end
+  
+  impl Show for Option<a> requires Show<a> where
+    show o = case o do | None -> "None" | Some x -> "Some " ^ show x
   end
   
   let println x = print_string (show x)

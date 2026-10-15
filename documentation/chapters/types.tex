@@ -1,0 +1,88 @@
+\chapter{Types}
+\label{ch:types}
+\index{types}
+
+Every expression has a type, and a program is only run once all its types
+check. Types are inferred: annotations are optional, and when present they
+are checked against the inferred type.
+
+\section{The types}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Type} & \textbf{Values} \\
+\midrule
+\tc{Int} & machine integers (\S\ref{sec:int-width}) \\
+\tc{Float} & double-precision floating point numbers \\
+\tc{Bool} & \tc{true}, \tc{false} \\
+\tc{Char} & single characters \\
+\tc{String} & immutable strings \\
+\tc{Unit} & the single value \tc{()} \\
+\tc{a -> b} & functions from \tc{a} to \tc{b}; \tc{->} associates to the right \\
+\tc{List<a>} (or \tc{[a]}) & lists whose elements have type \tc{a} \\
+\tc{(a, b, c)} & tuples \\
+\tc{{ x: Int, y: Int }} & records \\
+\tc{Option<a>}, \tc{Ordering}, \dots & sum types, declared with \tc{type} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent Lower-case letters in a type --- \fc|a|, \fc|b| --- are \emph{type
+variables}: \fc|a -> a| is the type of a function that returns a value of the
+same type as its argument, whatever that type is.
+
+\section{Type declarations}
+\label{sec:adts}
+\index{sum types}\index{type@\texttt{type}}
+
+\fc@type Name<a, b> = | C1 of T1 | C2 | ...@ declares a \emph{sum type}: a
+value is one of the constructors, with a payload of the given type or none.
+A constructor with a payload is a function: \fc|Some : a -> Option<a>|; a
+constructor with several fields takes a tuple, \fc|Node (l, v, r)|.
+A type that refers to itself is declared with \fc|type rec|, and several
+types that refer to each other with \fc|type rec ... and ...|.
+\fc|type Name = T|, where \fc|T| is not a list of constructors, declares an
+\emph{alias}.
+
+\forgeexample{types-adts}
+
+\forgeexample{types-mutual}
+
+\section{Annotations}
+\index{annotations}
+A pattern, a parameter or a result can be annotated: \fc|(x : Int)|,
+\fc|let f (x : Int) : String = ...|, \fc|let origin : Pair<Int> = (0, 0)|.
+Type variables in an annotation stand for any type that makes the program
+check, so \fc|(f : a -> a)| merely says that \fc|f| returns what it takes.
+
+\forgeexample{types-annotations}
+
+\section{Records}
+\label{sec:records}
+\index{records!row polymorphism}
+Record types are \emph{structural}: two records with the same fields have the
+same type, whether or not the type has a name. A function that uses some
+fields of a record accepts every record that has them --- its inferred type
+has a \emph{row variable} standing for ``the other fields''. A record
+literal, on the other hand, has exactly its fields, so a field that does not
+exist is a type error.
+
+\forgeexample{types-rows}
+
+\section{Type inference and polymorphism}
+\label{sec:inference}
+\index{type inference}\index{polymorphism}
+
+Forge infers types with the Hindley--Milner algorithm, extended with records
+and traits. A name bound by \fc|let| (at top level or locally) gets the most
+general type that fits its definition, and each use of the name can
+instantiate its type variables differently. Lambda-bound names (function
+parameters) are not generalised: a parameter has one type inside its
+function.
+
+\forgeexample{types-poly}
+
+Section~\ref{sec:static-semantics} gives the typing rules, and
+Section~\ref{sec:impl-inference} describes the algorithm.

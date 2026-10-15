@@ -1,0 +1,2 @@
+warning: in `next`: this case is not exhaustive: `Green` is not matched
+warning: in `is_red`: redundant case arm: `Amber` can never match

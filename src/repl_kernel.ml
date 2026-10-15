@@ -167,7 +167,9 @@ let eval_user_input (static_env : static_env) (dynamic_env : env) (type_env : TC
     | _ -> (
         match expr_or_defn_parser tokens with
         | None -> fail "Parsing failed"
-        | Some (Expr expr, _) -> (
+        | Some (_, (tok :: _)) ->
+            fail ("Parsing failed: syntax error near `" ^ Lex.source_of_token_type tok ^ "`")
+        | Some (Expr expr, []) -> (
             let prelude =
               match !prelude_defns_for_condense with
               | None -> []
@@ -191,7 +193,7 @@ let eval_user_input (static_env : static_env) (dynamic_env : env) (type_env : TC
                       dynamic_env,
                       type_env )
                 | Error e -> fail (string_of_eval_error e)))
-        | Some (Definition defn, _) -> (
+        | Some (Definition defn, []) -> (
             let defs =
               try resolve_program ~base_dir:(Sys.getcwd ()) [ defn ]
               with Failure msg -> failwith msg

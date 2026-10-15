@@ -1,0 +1,24 @@
+// Foldable and Bifunctor have no instances in the prelude; a program
+// provides them for its own types.
+type rec Tree<a> = | Leaf | Node of (Tree<a>, a, Tree<a>)
+
+impl Foldable for Tree where
+  fold_left f z t = case t do
+    | Leaf -> z
+    | Node (l, v, r) -> fold_left f (f (fold_left f z l) v) r,
+  fold_right f z t = case t do
+    | Leaf -> z
+    | Node (l, v, r) -> fold_right f (f v (fold_right f z r)) l
+end
+
+type Pair<a, b> = | Pair of (a, b)
+
+impl Bifunctor for Pair where
+  bimap f g p = case p do | Pair (a, b) -> Pair (f a, g b)
+end
+
+let t = Node (Node (Leaf, 1, Leaf), 2, Node (Leaf, 3, Leaf))
+let () = println (fold_left (fn acc -> fn x -> acc + x) 0 t)
+let () = println (fold_right (fn x -> fn acc -> x :: acc) [] t)
+let p = bimap int_to_str not (Pair (7, true))
+let () = println (case p do | Pair (s, b) -> (s, b))

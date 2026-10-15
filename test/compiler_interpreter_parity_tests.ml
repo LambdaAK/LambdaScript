@@ -183,27 +183,14 @@ let compile_and_capture_stdout ?(prelude = true) (src_path : string)
   | Error msg -> assert_failure ("compile failed: " ^ msg)
   | Ok () -> run_exe_capture_stdout out_path
 
+(* Every compiler fixture runs through both back ends (differential testing):
+   the interpreter must reproduce the fixture's expected output, and the native
+   executable must print exactly what the interpreter printed. *)
 let parity_case_files =
-  [
-    "regression_elab_scope_shadow_x.forge";
-    "regression_top_level_let_rec_non_function.forge";
-    "regression_top_level_let_rec_wildcard_non_function.forge";
-    "show_linkedlist_recursive_dispatch.forge";
-    "show_linkedlist_recursive_dispatch_deep.forge";
-    "typeclass_recursive_method_indirect_self_call.forge";
-    "typeclass_recursive_method_shadowing.forge";
-    "typeclass_constrained_helper_dispatch.forge";
-    "typeclass_haskell_core.forge";
-    "typeclass_operator_method_alias.forge";
-    "typeclass_show_empty_list_dispatch.forge";
-    "real_budget_ledger_monthly_report.forge";
-    "real_customer_tiers.forge";
-    "real_inventory_planner.forge";
-    "real_project_scheduler.forge";
-    "real_route_planner.forge";
-    "real_sales_funnel.forge";
-    "real_sensor_alerts.forge";
-  ]
+  Sys.readdir (compiler_cases_dir ())
+  |> Array.to_list
+  |> List.filter (fun f -> Filename.check_suffix f ".forge")
+  |> List.sort String.compare
 
 let test_one case_name =
   Filename.remove_extension case_name >:: fun _ ->
@@ -228,8 +215,36 @@ let test_one case_name =
     ~msg:(case_name ^ ": compiler output should match interpreter output")
     interpreter_stdout compiled_stdout
 
+(* Example programs and the differential corpus run through the real
+   executables (with the prelude, as a user would run them): stdout and exit
+   status must agree. *)
+let program_files () =
+  let root = Forge_test_util.repo () in
+  let in_dir d =
+    let dir = Filename.concat root d in
+    if Sys.file_exists dir then
+      Sys.readdir dir |> Array.to_list
+      |> List.filter (fun f -> Filename.check_suffix f ".forge")
+      |> List.sort String.compare
+      |> List.map (fun f -> Filename.concat d f)
+    else []
+  in
+  in_dir "programs" @ in_dir "examples" @ in_dir "test/diff_cases"
+
+let test_program rel =
+  rel >:: fun _ ->
+  let src = Forge_test_util.read_file (Filename.concat (Forge_test_util.repo ()) rel) in
+  let ri = Forge_test_util.interp src in
+  (match ri.status with
+  | Forge_test_util.Exited 0 -> ()
+  | _ -> assert_failure (rel ^ ": interpreter failed: " ^ Forge_test_util.describe ri));
+  Forge_test_util.assert_both rel src
+
 let suite =
   "compiler_interpreter_parity"
-  >::: List.map test_one parity_case_files
+  >::: [
+         "compiler_cases" >::: List.map test_one parity_case_files;
+         "programs" >::: List.map test_program (program_files ());
+       ]
 
 let () = run_test_tt_main suite

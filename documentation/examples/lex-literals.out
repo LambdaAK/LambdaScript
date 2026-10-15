@@ -1,0 +1,6 @@
+[42, -17, 0]
+[3.0, 0.1, -2.5]
+[a, Z, ']
+tab:	quote:" backslash:\ newline below
+end
+(true, ())

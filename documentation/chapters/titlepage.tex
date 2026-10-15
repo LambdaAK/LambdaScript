@@ -1,0 +1,42 @@
+% Title page: an ember-lit anvil of type-checked code.
+\begin{titlepage}
+\begin{tikzpicture}[remember picture,overlay]
+  % background
+  \fill[ForgeCoal] (current page.south west) rectangle (current page.north east);
+  % ember glow
+  \foreach \r/\o in {9/0.04,7/0.06,5.2/0.09,3.6/0.13,2.2/0.2}{
+    \fill[ForgeEmber,opacity=\o] ($(current page.south east)+(-3.2,4.6)$) circle (\r cm);
+  }
+  % sparks
+  \foreach \x/\y/\s in {-2.0/7.4/0.07,-4.1/8.9/0.05,-1.2/9.8/0.04,-5.3/6.1/0.06,-3.0/10.9/0.035,
+                        -6.4/8.0/0.03,-0.8/6.0/0.05,-2.6/12.2/0.03,-4.8/11.4/0.04}{
+    \fill[ForgeEmber!70!yellow] ($(current page.south east)+(\x,\y)$) circle (\s);
+  }
+  % a column of code, fading into the dark
+  \node[anchor=north west,text=white,opacity=0.10,font=\ttfamily\small,align=left]
+    at ($(current page.north west)+(2.0,-3.2)$) {%
+      let rec map f xs =\\
+      \quad case xs do\\
+      \quad | [] -> []\\
+      \quad | h :: t -> f h :: map f t\\[4pt]
+      trait Show<a> where\\
+      \quad val show : a -> String\\
+      end\\[4pt]
+      impl Show for List<a> requires Show<a> where\\
+      \quad show x = ...\\
+      end};
+  % title block
+  \node[anchor=west,text=white,font=\sffamily\bfseries\fontsize{72}{72}\selectfont]
+    (title) at ($(current page.west)+(2.0,2.2)$) {Forge};
+  \fill[ForgeEmber] ($(title.south west)+(0.15,-0.25)$) rectangle ++(5.2,0.16);
+  \node[anchor=north west,text=white,font=\sffamily\Large]
+    at ($(title.south west)+(0.1,-0.75)$) {The Language Reference Manual};
+  \node[anchor=north west,text=white!70,font=\sffamily\normalsize,align=left]
+    at ($(title.south west)+(0.1,-1.65)$)
+    {A statically typed functional language\\
+     with type inference, traits, macros and a native compiler};
+  \node[anchor=south west,text=white!55,font=\sffamily\small,align=left]
+    at ($(current page.south west)+(2.0,2.0)$)
+    {Interpreter, REPL and LLVM back end\\ \today};
+\end{tikzpicture}
+\end{titlepage}

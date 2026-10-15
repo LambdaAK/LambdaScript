@@ -169,6 +169,8 @@ and condense_sub_pat : sub_pat -> c_pat = function
       | Some _ -> ignore (pop_id_pos s));
       CIdPat s
   | NilPat -> CNilPat
+  (* [(p)] is grouping, not a one-element tuple (there are none). *)
+  | VectorPat [ p ] -> condense_pat p
   | VectorPat pats -> CVectorPat (List.map condense_pat pats)
   | RecordPat fields ->
       CRecordPat (List.map (fun (name, p) -> (name, condense_pat p)) fields)
@@ -190,6 +192,30 @@ and condense_sub_pat : sub_pat -> c_pat = function
         | Some p -> Some (condense_pat p)
       in
       CVariantPat (name, payload_c_pat_opt)
+
+(** A block [{ s1; ...; sn }] is a chain of local definitions and statements:
+    [let p = e] scopes over the rest of the block, a statement is evaluated
+    for its effect ([let _ = e in ...]), and the block's value is that of its
+    last part ([()] if that is a definition). Blocks that declare types keep
+    their block form. *)
+let rec block_to_lets (parts : c_expr_or_c_defn list) : c_expr =
+  let is_value_part = function
+    | Expr _ | Defn (CDefn _ | CDefnRec _ | CDefnMutRec _) -> true
+    | Defn _ -> false
+  in
+  if not (List.for_all is_value_part parts) then EBlock parts
+  else
+    match parts with
+    | [] -> EUnit
+    | [ Expr e ] -> e
+    | Expr e :: rest -> EBind (CWildcardPat, None, e, block_to_lets rest, None)
+    | Defn (CDefn (p, _, ann, e1, rt, _)) :: rest -> EBind (p, ann, e1, block_to_lets rest, rt)
+    | Defn (CDefnRec (p, _, ann, e1, rt, _)) :: rest ->
+        EBindRec (p, ann, e1, block_to_lets rest, rt)
+    | Defn (CDefnMutRec ds) :: rest ->
+        EBindMutRec
+          (List.map (fun (p, _, ann, e1, rt, n) -> (p, ann, e1, rt, n)) ds, block_to_lets rest)
+    | Defn _ :: _ -> EBlock parts
 
 let rec condense_defn : defn -> c_defn = function
   | Defn
@@ -442,7 +468,7 @@ and condense_expr : expr -> c_expr = function
             (fun (pat, expr) -> (condense_pat pat, condense_expr expr))
             branches )
   | Block parts ->
-      EBlock
+      block_to_lets
         (List.map
            (function
              | Definition d -> Defn (condense_defn d)
@@ -520,7 +546,12 @@ and condense_factor : factor -> c_expr = function
   | FloatFactor f -> EFloat f
   | Id s -> eid_from_source s
   | ParenFactor expr -> condense_expr expr
-  | Opposite factor -> EBop (CMinus, EInt 0, condense_factor factor)
+  | Opposite factor -> (
+      (* Negative literals are constants; other operands become [0 - e]. *)
+      match condense_factor factor with
+      | EInt i -> EInt (-i)
+      | EFloat f -> EFloat (-.f)
+      | e -> EBop (CMinus, EInt 0, e))
   | Vector expressions -> EVector (List.map condense_expr expressions)
   | Nil -> ENil
   | ListSugar e_list ->
@@ -934,6 +965,7 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
         let decl =
           CClassDecl (name, params, declared_triples, default_lets)
         in
+        register_class_methods name (List.map (fun (m, _, _) -> m) declared_triples);
         let entry = { params; param_arities; declared_triples; impl_spec } in
         after_top_level_defn ();
         walk ((name, entry) :: classes) seen_ctors seen_instances (decl :: acc)
@@ -1061,17 +1093,24 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                     ERecordLit
                       (List.map (fun (m, intid) -> (m, eid_none intid)) internals)
                   in
+                  (* A method of an instance on a ground type has exactly the
+                     instance's method type (without it, a recursive method
+                     would be generalised over the instance type's parts). *)
+                  let ground_ann m =
+                    let mt = List.assoc m fields in
+                    if Type_arity.mono_is_ground mt then Some (Mono mt) else None
+                  in
                   let bind_chain ordered =
                     List.fold_right
                       (fun (m, e) acc ->
                         let intid = internal_tc_id dispatch_d m in
                         if expr_refs_c_id intid e then
-                          EBindRec (CIdPat intid, None, e, acc, None)
+                          EBindRec (CIdPat intid, ground_ann m, e, acc, None)
                         else
                           match e with
                           | EFunction _ ->
-                              EBindRec (CIdPat intid, None, e, acc, None)
-                          | _ -> EBind (CIdPat intid, None, e, acc, None))
+                              EBindRec (CIdPat intid, ground_ann m, e, acc, None)
+                          | _ -> EBind (CIdPat intid, ground_ann m, e, acc, None))
                       ordered record
                   in
                   match topo_dict_methods ~dispatch_d names condensed with
@@ -1102,12 +1141,19 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                       let key = dispatch_d ^ "#" ^ slug in
                       if List.mem key seen_acc then
                         failwith
-                          ("forge: duplicate impl dict for " ^ dispatch_d
-                         ^ " at type " ^ slug);
+                          ("forge: duplicate impl of " ^ dispatch_d ^ " for "
+                         ^ string_of_mono_type inst_mono);
                       let dict_name =
                         dict_for_instance ~class_name:dispatch_d inst_mono
                       in
                       let body = build_dict_expr dispatch_d field_types in
+                      register_instance
+                        {
+                          inst_class = dispatch_d;
+                          inst_head = inst_mono;
+                          inst_dict = dict_name;
+                          inst_requires = requires_mono;
+                        };
                       let cdefn =
                         CDefn
                           ( CIdPat dict_name,

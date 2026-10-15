@@ -70,6 +70,22 @@ let unwrap_eval_result (result : 'a eval_result) : 'a =
 (** [string_of_env env] converts an environment to a string representation.
     @param env The environment to convert
     @return A string representation of the environment *)
+
+(** [float_to_str]: the shortest [%g] form that reads back as the same float,
+    with [.0] added to integral values ([3.0], [0.1], [1e+100], [nan]); the
+    native runtime's [ls_float_to_str] prints the same strings. *)
+let string_of_forge_float (f : float) : string =
+  if Float.is_nan f then "nan"
+  else if f = Float.infinity then "inf"
+  else if f = Float.neg_infinity then "-inf"
+  else
+    let rec shortest p =
+      let s = Printf.sprintf "%.*g" p f in
+      if p >= 17 || float_of_string s = f then s else shortest (p + 1)
+    in
+    let s = shortest 1 in
+    if String.exists (fun c -> c = '.' || c = 'e') s then s else s ^ ".0"
+
 let rec string_of_env (env : env) =
   List.fold_left
     (fun acc (id, v) -> acc ^ "(" ^ id ^ ", " ^ string_of_value v ^ ") ")
@@ -314,6 +330,60 @@ let rec mono_type_of_value (v : value) : mono_type option =
   | TypeClassMethod _
   | TypeClassMethodPending _ -> None
 
+(** Declaration index of every constructor seen so far (filled when sum types
+    are evaluated): constructors compare in declaration order, as in OCaml and
+    in native code. *)
+let ctor_order : (string, int) Hashtbl.t = Hashtbl.create 64
+
+exception Compare_functions
+
+(** Structural comparison used by [==], [!=], [<], [<=], [>], [>=]:
+    lexicographic on tuples, lists and records (fields in name order);
+    constructors by declaration order, then payload. Comparing functions is
+    an error (as in OCaml). *)
+let rec compare_values (a : value) (b : value) : int =
+  match (a, b) with
+  | IntegerValue x, IntegerValue y -> compare x y
+  | FloatValue x, FloatValue y -> compare x y
+  | StringValue x, StringValue y -> compare x y
+  | CharValue x, CharValue y -> compare x y
+  | BooleanValue x, BooleanValue y -> compare x y
+  | UnitValue, UnitValue -> 0
+  | VectorValue xs, VectorValue ys | ListValue xs, ListValue ys -> compare_value_lists xs ys
+  | RecordValue fs, RecordValue gs ->
+      let sorted l = List.map snd (List.sort (fun (x, _) (y, _) -> String.compare x y) l) in
+      compare_value_lists (sorted fs) (sorted gs)
+  | VariantValue (c1, p1), VariantValue (c2, p2) -> (
+      let c =
+        match (Hashtbl.find_opt ctor_order c1, Hashtbl.find_opt ctor_order c2) with
+        | Some i1, Some i2 -> compare i1 i2
+        | _ -> String.compare c1 c2
+      in
+      if c <> 0 then c
+      else
+        match (p1, p2) with
+        | Some x, Some y -> compare_values x y
+        | None, None -> 0
+        | None, Some _ -> -1
+        | Some _, None -> 1)
+  | ( ( FunctionClosure _ | RecursiveFunctionClosure _ | BuiltInFunction _
+      | TypeClassMethod _ | TypeClassMethodPending _ ),
+      _ )
+  | ( _,
+      ( FunctionClosure _ | RecursiveFunctionClosure _ | BuiltInFunction _
+      | TypeClassMethod _ | TypeClassMethodPending _ ) ) ->
+      raise Compare_functions
+  | _ -> compare a b
+
+and compare_value_lists (xs : value list) (ys : value list) : int =
+  match (xs, ys) with
+  | [], [] -> 0
+  | [], _ -> -1
+  | _, [] -> 1
+  | x :: xt, y :: yt ->
+      let c = compare_values x y in
+      if c <> 0 then c else compare_value_lists xt yt
+
 let resolve_tc_method_value (_env : env) (v : value) : value =
   (* Keep overloaded methods symbolic until we see call arguments. Eagerly
      picking an arbitrary dictionary here breaks higher-order uses (e.g.
@@ -324,16 +394,65 @@ let is_dict_binding_name (name : string) : bool =
   String.starts_with ~prefix:"__forge_dict_" name
   || String.starts_with ~prefix:"__dict_" name
 
+(** Make the garbage collector suit the evaluator. Evaluation recurses on
+    the OCaml stack, and every minor collection scans the whole stack, so with
+    the default minor heap (256k words) a recursion a million calls deep
+    spends most of its time collecting, and the cost grows with the square of
+    the depth. A 64 MB minor heap makes collections rare. Left alone when
+    [OCAMLRUNPARAM] is set. *)
+let tune_gc () : unit =
+  if Sys.getenv_opt "OCAMLRUNPARAM" = None then
+    Gc.set { (Gc.get ()) with minor_heap_size = 8 * 1024 * 1024 }
+
+(** The dictionary bindings of [caller_env] that [closure_env] lacks, put in
+    front of [closure_env].
+
+    Bindings in the longest tail the two environments share (physically) are
+    in [closure_env] already, so only the bindings of [caller_env] above that
+    tail need to be examined: usually a few locals, instead of the whole
+    prelude on every call. *)
 let merge_closure_env_with_caller_dicts (closure_env : env) (caller_env : env) :
     env =
-  let has_name name env = List.exists (fun (n, _) -> n = name) env in
-  let extra_dicts =
-    List.filter
-      (fun (name, _) ->
-        is_dict_binding_name name && not (has_name name closure_env))
-      caller_env
-  in
-  extra_dicts @ closure_env
+  if caller_env == closure_env then closure_env
+  else
+    let rec drop n l =
+      if n <= 0 then l else match l with [] -> [] | _ :: t -> drop (n - 1) t
+    in
+    (* Any shared tail gives the same result (the bindings in it are in
+       [closure_env]); a longer one is faster. Usually one of the first tails
+       of [closure_env] is near the top of [caller_env] (a call from the
+       closure's own body, or from the scope that defined it), so look there
+       first, and compare the aligned lists otherwise. *)
+    let rec near_top c l d =
+      l == c || (d > 0 && match l with [] -> false | _ :: t -> near_top c t (d - 1))
+    in
+    let rec quick c k =
+      if near_top c caller_env 8 then Some c
+      else if k = 0 then None
+      else match c with [] -> None | _ :: t -> quick t (k - 1)
+    in
+    let shared =
+      match quick closure_env 8 with
+      | Some c -> c
+      | None ->
+          let lc = List.length closure_env and lk = List.length caller_env in
+          let rec shared_tail c k =
+            if c == k then c
+            else match (c, k) with _ :: ct, _ :: kt -> shared_tail ct kt | _ -> []
+          in
+          shared_tail (drop (lc - lk) closure_env) (drop (lk - lc) caller_env)
+    in
+    let has_name name env = List.exists (fun (n, _) -> n = name) env in
+    let rec extra l =
+      if l == shared then []
+      else
+        match l with
+        | [] -> []
+        | ((name, _) as b) :: t ->
+            if is_dict_binding_name name && not (has_name name closure_env) then b :: extra t
+            else extra t
+    in
+    match extra caller_env with [] -> closure_env | extra_dicts -> extra_dicts @ closure_env
 
 (** [eval_c_expr ce env] evaluates a condensed expression [ce] in the context of
     environment [env].
@@ -412,7 +531,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       in
 
       match find_bindings_and_body_if_possible branches v with
-      | None -> Error (OtherError "no pattern matched in switch")
+      | None -> Error (OtherError "no pattern matched")
       | Some (bindings, e) -> eval_c_expr e (bindings @ env))
   | ETernary (e1, e2, e3) -> (
       let* v1 : value = eval_c_expr e1 env in
@@ -484,7 +603,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
             bind_pat pattern v1_rec
           in
           match recursive_bindings_option with
-          | None -> Error (OtherError "no pattern matched in let rec")
+          | None -> Error (OtherError "no pattern matched")
           | Some recursive_bindings ->
               env_ref := recursive_bindings @ env;
               eval_c_expr e2 (recursive_bindings @ env))
@@ -492,7 +611,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
           (* evaluate a regular let expression *)
           let new_bindings_option : env option = bind_pat pattern v1_rec in
           match new_bindings_option with
-          | None -> Error (OtherError "no pattern matched in let rec")
+          | None -> Error (OtherError "no pattern matched")
           | Some new_bindings -> eval_c_expr e2 (new_bindings @ env)))
   | EBindMutRec (bindings, body) ->
       (* For mutually recursive bindings: 1. Evaluate all bodies to get closures
@@ -518,7 +637,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
               match bind_pat pat value_rec with
               | None ->
                   Error
-                    (OtherError "no pattern matched in mutually recursive let")
+                    (OtherError "no pattern matched")
               | Some new_bindings ->
                   process_bindings ((new_bindings, env_ref_opt) :: acc) rest)
         in
@@ -637,6 +756,36 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
   let method_for_dict (dict_name : string) : value option =
     match List.assoc_opt dict_name env with
     | Some (RecordValue fields) -> List.assoc_opt method_name fields
+    | Some ((FunctionClosure _ | RecursiveFunctionClosure _) as dict_fn) -> (
+        (* An instance with [requires] clauses is a function of the required
+           dictionaries; at run time, give it dispatching dictionaries. *)
+        let requires =
+          match
+            List.find_opt
+              (fun i -> String.equal i.inst_dict dict_name)
+              !Forge_class_util.instances
+          with
+          | Some i -> List.filter (fun (_, t) -> match t with TypeVar _ -> true | _ -> false) i.inst_requires
+          | None -> []
+        in
+        let dynamic_dict (cls : string) : value =
+          let methods =
+            match List.assoc_opt cls !Forge_class_util.class_methods with
+            | Some ms -> ms
+            | None -> []
+          in
+          RecordValue (List.map (fun m -> (m, TypeClassMethod (cls, m))) methods)
+        in
+        let rec apply_all fn = function
+          | [] -> Some fn
+          | (cls, _) :: rest -> (
+              match apply_function_value env fn (dynamic_dict cls) with
+              | Ok fn' -> apply_all fn' rest
+              | Error _ -> None)
+        in
+        match apply_all dict_fn requires with
+        | Some (RecordValue fields) -> List.assoc_opt method_name fields
+        | _ -> None)
     | _ -> None
   in
   let forge_dict_slug ~(class_name : string) (dict_name : string) :
@@ -768,6 +917,16 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
   | Some result -> result
   | None -> return (TypeClassMethodPending (cls_name, method_name, args))
 
+(** A trait method whose instance nothing determined (e.g. [pure 7] printed
+    without saying which [Applicative]) reached an operation that needs its
+    value. *)
+and ambiguous_method (cls : string) (m : string) : value eval_result =
+  Error
+    (OtherError
+       (Printf.sprintf
+          "ambiguous type: cannot tell which `%s` instance `%s` should use here (add a type annotation)"
+          cls m))
+
 and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   match (f, v) with
   | Println, StringValue s ->
@@ -779,6 +938,8 @@ and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   | IntToString, IntegerValue i -> StringValue (string_of_int i) |> return
   | IntToFloat, IntegerValue i -> FloatValue (float_of_int i) |> return
   | FloatToInt, FloatValue f -> IntegerValue (int_of_float f) |> return
+  | FloatToString, FloatValue f -> StringValue (string_of_forge_float f) |> return
+  | CharToString, CharValue c -> StringValue (String.make 1 c) |> return
   | StringToList, StringValue s ->
       let char_list =
         s |> String.to_seq |> List.of_seq |> List.map (fun c -> CharValue c)
@@ -809,6 +970,7 @@ and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   | StrSlice, _ -> Error (OtherError "str_slice: expected string")
   | StrSlicePartial1 _, _ -> Error (OtherError "str_slice: expected int")
   | StrSlicePartial2 _, _ -> Error (OtherError "str_slice: expected int")
+  | _, (TypeClassMethod (cls, m) | TypeClassMethodPending (cls, m, _)) -> ambiguous_method cls m
   | _ -> Error (OtherError "eval_builtin: unimplemented")
 
 and generate_envs_from_generators generators env : env list eval_result =
@@ -863,12 +1025,19 @@ and eval_bop (op : c_bop) (e1 : c_expr) (e2 : c_expr) (env : env) :
           else IntegerValue (a mod b) |> return
       | CConcat, StringValue s1, StringValue s2 ->
           StringValue (s1 ^ s2) |> return
-      | CEQ, a, b -> BooleanValue (a = b) |> return
-      | CNE, a, b -> BooleanValue (a <> b) |> return
-      | CLT, a, b -> BooleanValue (compare a b < 0) |> return
-      | CLE, a, b -> BooleanValue (compare a b <= 0) |> return
-      | CGT, a, b -> BooleanValue (compare a b > 0) |> return
-      | CGE, a, b -> BooleanValue (compare a b >= 0) |> return
+      | (CEQ | CNE | CLT | CLE | CGT | CGE), a, b -> (
+          match compare_values a b with
+          | exception Compare_functions -> Error (OtherError "cannot compare functions")
+          | c ->
+              BooleanValue
+                (match op with
+                | CEQ -> c = 0
+                | CNE -> c <> 0
+                | CLT -> c < 0
+                | CLE -> c <= 0
+                | CGT -> c > 0
+                | _ -> c >= 0)
+              |> return)
       | CCons, v, ListValue vs -> ListValue (v :: vs) |> return
       | _ -> Error (OtherError "eval_bop: unimplemented"))
 
@@ -1030,7 +1199,7 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       let* value = eval_c_expr body env in
       (* Try to bind the pattern to the value *)
       match bind_pat pat value with
-      | None -> Error (OtherError "eval_defn: pattern match failed")
+      | None -> Error (OtherError "no pattern matched")
       | Some new_bindings ->
           List.iter
             (fun (_, v) -> backpatch_recursive_closures new_bindings v)
@@ -1049,7 +1218,7 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       in
       (* Try to bind the pattern to the recursive value *)
       match bind_pat pat value_rec with
-      | None -> Error (OtherError "eval_defn: pattern match failed")
+      | None -> Error (OtherError "no pattern matched")
       | Some new_bindings ->
           (* If it's a recursive function, backpatch the environment *)
           (match value_rec with
@@ -1082,7 +1251,7 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
               | None ->
                   Error
                     (OtherError
-                       "eval_defn: pattern match failed in mutual recursion")
+                       "no pattern matched")
               | Some new_bindings ->
                   process_defns ((new_bindings, env_ref_opt) :: acc) rest)
         in
@@ -1109,9 +1278,12 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       match params with
       | [ _ ] ->
           let bindings =
-            List.map
+            List.concat_map
               (fun (mname, _, dispatch_cls) ->
-                (mname, TypeClassMethod (dispatch_cls, mname)))
+                [
+                  (mname, TypeClassMethod (dispatch_cls, mname));
+                  (method_alias dispatch_cls mname, TypeClassMethod (dispatch_cls, mname));
+                ])
               methods
           in
           return bindings
@@ -1120,6 +1292,7 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       (* doesn't do anything *)
       return []
   | CSumType (_type_name, _type_params, constructors) ->
+      List.iteri (fun i (c, _) -> Hashtbl.replace ctor_order c i) constructors;
       (* Create constructor functions in the dynamic environment *)
       (* Each constructor is a function that creates a VariantValue *)
       (* For constructors with payload: function that takes payload and returns VariantValue *)
@@ -1149,6 +1322,7 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       in
       return constructor_bindings
   | CSumTypeRec (_type_name, _type_params, constructors) ->
+      List.iteri (fun i (c, _) -> Hashtbl.replace ctor_order c i) constructors;
       (* Recursive sum types work the same way at runtime as regular sum types.
          The recursion is handled at the type level via FixedPoint. Constructors
          implicitly perform the "fold" operation, and pattern matching performs
@@ -1170,6 +1344,10 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       in
       return constructor_bindings
   | CSumTypeRecMutRec types ->
+      List.iter
+        (fun (_, _, constructors) ->
+          List.iteri (fun i (c, _) -> Hashtbl.replace ctor_order c i) constructors)
+        types;
       (* Mutually recursive sum types work the same way at runtime as regular
          recursive sum types. Create constructor bindings for all types. *)
       let all_constructor_bindings =
