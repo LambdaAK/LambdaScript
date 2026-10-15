@@ -314,6 +314,60 @@ let rec mono_type_of_value (v : value) : mono_type option =
   | TypeClassMethod _
   | TypeClassMethodPending _ -> None
 
+(** Declaration index of every constructor seen so far (filled when sum types
+    are evaluated): constructors compare in declaration order, as in OCaml and
+    in native code. *)
+let ctor_order : (string, int) Hashtbl.t = Hashtbl.create 64
+
+exception Compare_functions
+
+(** Structural comparison used by [==], [!=], [<], [<=], [>], [>=]:
+    lexicographic on tuples, lists and records (fields in name order);
+    constructors by declaration order, then payload. Comparing functions is
+    an error (as in OCaml). *)
+let rec compare_values (a : value) (b : value) : int =
+  match (a, b) with
+  | IntegerValue x, IntegerValue y -> compare x y
+  | FloatValue x, FloatValue y -> compare x y
+  | StringValue x, StringValue y -> compare x y
+  | CharValue x, CharValue y -> compare x y
+  | BooleanValue x, BooleanValue y -> compare x y
+  | UnitValue, UnitValue -> 0
+  | VectorValue xs, VectorValue ys | ListValue xs, ListValue ys -> compare_value_lists xs ys
+  | RecordValue fs, RecordValue gs ->
+      let sorted l = List.map snd (List.sort (fun (x, _) (y, _) -> String.compare x y) l) in
+      compare_value_lists (sorted fs) (sorted gs)
+  | VariantValue (c1, p1), VariantValue (c2, p2) -> (
+      let c =
+        match (Hashtbl.find_opt ctor_order c1, Hashtbl.find_opt ctor_order c2) with
+        | Some i1, Some i2 -> compare i1 i2
+        | _ -> String.compare c1 c2
+      in
+      if c <> 0 then c
+      else
+        match (p1, p2) with
+        | Some x, Some y -> compare_values x y
+        | None, None -> 0
+        | None, Some _ -> -1
+        | Some _, None -> 1)
+  | ( ( FunctionClosure _ | RecursiveFunctionClosure _ | BuiltInFunction _
+      | TypeClassMethod _ | TypeClassMethodPending _ ),
+      _ )
+  | ( _,
+      ( FunctionClosure _ | RecursiveFunctionClosure _ | BuiltInFunction _
+      | TypeClassMethod _ | TypeClassMethodPending _ ) ) ->
+      raise Compare_functions
+  | _ -> compare a b
+
+and compare_value_lists (xs : value list) (ys : value list) : int =
+  match (xs, ys) with
+  | [], [] -> 0
+  | [], _ -> -1
+  | _, [] -> 1
+  | x :: xt, y :: yt ->
+      let c = compare_values x y in
+      if c <> 0 then c else compare_value_lists xt yt
+
 let resolve_tc_method_value (_env : env) (v : value) : value =
   (* Keep overloaded methods symbolic until we see call arguments. Eagerly
      picking an arbitrary dictionary here breaks higher-order uses (e.g.
@@ -893,12 +947,19 @@ and eval_bop (op : c_bop) (e1 : c_expr) (e2 : c_expr) (env : env) :
           else IntegerValue (a mod b) |> return
       | CConcat, StringValue s1, StringValue s2 ->
           StringValue (s1 ^ s2) |> return
-      | CEQ, a, b -> BooleanValue (a = b) |> return
-      | CNE, a, b -> BooleanValue (a <> b) |> return
-      | CLT, a, b -> BooleanValue (compare a b < 0) |> return
-      | CLE, a, b -> BooleanValue (compare a b <= 0) |> return
-      | CGT, a, b -> BooleanValue (compare a b > 0) |> return
-      | CGE, a, b -> BooleanValue (compare a b >= 0) |> return
+      | (CEQ | CNE | CLT | CLE | CGT | CGE), a, b -> (
+          match compare_values a b with
+          | exception Compare_functions -> Error (OtherError "cannot compare functions")
+          | c ->
+              BooleanValue
+                (match op with
+                | CEQ -> c = 0
+                | CNE -> c <> 0
+                | CLT -> c < 0
+                | CLE -> c <= 0
+                | CGT -> c > 0
+                | _ -> c >= 0)
+              |> return)
       | CCons, v, ListValue vs -> ListValue (v :: vs) |> return
       | _ -> Error (OtherError "eval_bop: unimplemented"))
 
@@ -1153,6 +1214,7 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       (* doesn't do anything *)
       return []
   | CSumType (_type_name, _type_params, constructors) ->
+      List.iteri (fun i (c, _) -> Hashtbl.replace ctor_order c i) constructors;
       (* Create constructor functions in the dynamic environment *)
       (* Each constructor is a function that creates a VariantValue *)
       (* For constructors with payload: function that takes payload and returns VariantValue *)
@@ -1182,6 +1244,7 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       in
       return constructor_bindings
   | CSumTypeRec (_type_name, _type_params, constructors) ->
+      List.iteri (fun i (c, _) -> Hashtbl.replace ctor_order c i) constructors;
       (* Recursive sum types work the same way at runtime as regular sum types.
          The recursion is handled at the type level via FixedPoint. Constructors
          implicitly perform the "fold" operation, and pattern matching performs
@@ -1203,6 +1266,10 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       in
       return constructor_bindings
   | CSumTypeRecMutRec types ->
+      List.iter
+        (fun (_, _, constructors) ->
+          List.iteri (fun i (c, _) -> Hashtbl.replace ctor_order c i) constructors)
+        types;
       (* Mutually recursive sum types work the same way at runtime as regular
          recursive sum types. Create constructor bindings for all types. *)
       let all_constructor_bindings =

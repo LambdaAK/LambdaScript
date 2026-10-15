@@ -346,6 +346,8 @@ let runtime_declarations : string =
    declare void @ls_abort()\n\
    declare i8* @ls_int_to_str(i64)\n\
    declare i64 @ls_idiv(i64, i64)\n\
+   declare i64 @ls_cmp_float(double, double)\n\
+   declare void @ls_compare_functions()\n\
    declare i64 @ls_imod(i64, i64)\n\
    declare i8* @ls_str_concat(i8*, i8*)\n\
    declare i32 @strcmp(i8*, i8*)\n\
@@ -384,6 +386,11 @@ let emit_global_string ctx (dst : string) (s : string) : string =
     "  %%%s = getelementptr inbounds [%d x i8], [%d x i8]* @%s, i64 0, i64 0"
     dst n n gname
 
+(** LLVM only accepts exactly representable decimal float literals (1.25 but
+    not 0.1), so doubles are always written in hexadecimal bit form. *)
+let llvm_double_literal (f : float) : string =
+  Printf.sprintf "0x%016LX" (Int64.bits_of_float f)
+
 let operand_min_ty (h : (string, ty) H.t) : operand -> ty = function
   | ConstI64 _ -> I64
   | ConstI1 _ -> I1
@@ -402,7 +409,7 @@ let emit_operand (ctx : emit_ctx) (h : (string, ty) H.t) (op : operand) :
   match op with
   | ConstI64 n -> ("i64", string_of_int n)
   | ConstI1 b -> ("i1", if b then "true" else "false")
-  | ConstF64 f -> ("double", Printf.sprintf "double %.17g" f)
+  | ConstF64 f -> ("double", llvm_double_literal f)
   | ConstStr _ -> failwith "llvm_emit: ConstStr must use Copy/global"
   | ConstUnit -> ("i8", "0")
   | FnAddr (name, ps, r) ->
@@ -547,7 +554,7 @@ let phi_incoming_val (h : (string, ty) H.t) (exp_ty : ty) (op : operand) :
       if b then "true" else "false"
   | ConstF64 f ->
       check_exp_const F64;
-      Printf.sprintf "double %.17g" f
+      llvm_double_literal f
   | Local x -> (
       (* Merge blocks may be emitted before all predecessors in block order;
          the local may not be in [h] yet. LLVM phis only reference values from
@@ -607,6 +614,8 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
               let c = callee_ll "abort" in
               lines := !lines @ [ Printf.sprintf "  call void @%s()" c ]
           | _ -> failwith "llvm_emit: abort takes no arguments")
+      | "ls_compare_functions" ->
+          lines := !lines @ [ "  call void @ls_compare_functions()" ]
       | _ ->
           let fd = H.find fn_sigs name in
           if fd.ret <> Unit then
@@ -770,6 +779,18 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
                       ];
                   H.replace h dst I64
               | _ -> failwith "llvm_emit: strcmp arity")
+          | "ls_cmp_float" -> (
+              match args with
+              | [ a; b ] ->
+                  let ta, va = emit_operand ctx h a in
+                  let tb, vb = emit_operand ctx h b in
+                  if ta <> "double" || tb <> "double" then
+                    failwith "llvm_emit: ls_cmp_float expects two doubles";
+                  lines :=
+                    !lines
+                    @ [ Printf.sprintf "  %%%s = call i64 @ls_cmp_float(double %s, double %s)" dst va vb ];
+                  H.replace h dst I64
+              | _ -> failwith "llvm_emit: ls_cmp_float arity")
           | "float_eq" -> (
               match args with
               | [ a; b ] ->

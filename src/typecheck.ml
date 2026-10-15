@@ -315,6 +315,7 @@ and string_of_mono_type (t : mono_type) : string =
       "(" ^ String.concat ", " types_str ^ ")"
   | CListType et -> "[" ^ string_of_mono_type et ^ "]"
   | TypeName v -> v
+  | CTypeApp (name, []) -> name
   | CTypeApp (name, args) ->
       let args_str = List.map string_of_mono_type args in
       name ^ "<" ^ String.concat ", " args_str ^ ">"

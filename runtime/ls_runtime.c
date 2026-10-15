@@ -108,6 +108,12 @@ char *ls_int_to_str(int64_t x) {
 
 /* --- Forge Eq / Ord builtins (native compiler) --- */
 
+/** Three-way comparison of floats (structural ==, <, … on Float). */
+int64_t ls_cmp_float(double a, double b) { return (a < b) ? -1 : (a > b) ? 1 : 0; }
+
+/** Comparing function values is a run-time error (as in the interpreter). */
+void ls_compare_functions(void) { ls_runtime_error("cannot compare functions"); }
+
 int32_t ls_float_eq(double a, double b) { return (a == b) ? 1 : 0; }
 
 void *ls_ordering_int32(int64_t a, int64_t b) {

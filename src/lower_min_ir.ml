@@ -2218,6 +2218,203 @@ let static_env_for_switch_branch_pat (static_env : static_env)
                 | _ -> [])))
     | _ -> []
 
+(* -------------------------------------------------------------------------- *)
+(* Structural comparison                                                       *)
+(* -------------------------------------------------------------------------- *)
+
+(** Comparison functions generated for the types compared in the program
+    ([__forge_cmp_N : t -> t -> Int], result < 0, = 0 or > 0). Structural
+    like the interpreter: lexicographic on tuples/records (fields in name
+    order)/lists, constructors in declaration order then payloads; comparing
+    functions is a run-time error. *)
+let cmp_cache : (string, string) Hashtbl.t = Hashtbl.create 16
+
+let generated_funcs : func_def list ref = ref []
+
+(** Constructors (name, payload mono) of the sum type [m], in declaration
+    order, or [None] if [m] is not a known sum type. *)
+let constructors_of_sum_mono (m : mono_type) : (string * mono_type option) list option =
+  match as_ctype_app_args m with
+  | None -> None
+  | Some (tname, _) -> (
+      match List.find_opt (fun (n, _, _) -> n = tname) !lowering_ctor_env with
+      | Some (_, _, ctors) ->
+          Some
+            (List.map
+               (fun (c, p) ->
+                 match p with
+                 | None -> (c, None)
+                 | Some _ -> (c, payload_mono_for_variant_constructor m c))
+               ctors)
+      | None -> None)
+
+let rec comparator_for (m : mono_type) : string =
+  let t = mono_to_min m in
+  let key = string_of_mono_type m ^ "|" ^ string_of_ty t in
+  match Hashtbl.find_opt cmp_cache key with
+  | Some f -> f
+  | None ->
+      let name = "__forge_cmp_" ^ string_of_int (Hashtbl.length cmp_cache) in
+      Hashtbl.add cmp_cache key name;
+      let ctx = create_fn_ctx () in
+      let a = fresh_param () and b = fresh_param () in
+      let r = emit_compare ctx ~self:name m t (Local a) (Local b) in
+      close_block ctx (Ret (Some r));
+      generated_funcs :=
+        { name; params = [ (a, t); (b, t) ]; ret = I64; entry = "entry"; blocks = blocks_assoc ctx }
+        :: !generated_funcs;
+      name
+
+(** [if cond then x else y] on Int operands, as a phi. *)
+and emit_select (ctx : fn_ctx) (cond : operand) (x : unit -> operand) (y : unit -> operand) :
+    operand =
+  let l_t = fresh_lbl ctx "cmp_t" and l_f = fresh_lbl ctx "cmp_f" and l_m = fresh_lbl ctx "cmp_m" in
+  close_block ctx (BrCond (cond, l_t, l_f));
+  open_block ctx l_t;
+  let vx = x () in
+  let l_t_exit = ctx.cur_label in
+  close_block ctx (Br l_m);
+  open_block ctx l_f;
+  let vy = y () in
+  let l_f_exit = ctx.cur_label in
+  close_block ctx (Br l_m);
+  open_block ctx l_m;
+  let res = fresh () in
+  emit_instr ctx (Phi (res, I64, [ (l_t_exit, vx); (l_f_exit, vy) ]));
+  Local res
+
+(** Three-way comparison of two Int operands. *)
+and emit_compare_ints (ctx : fn_ctx) (oa : operand) (ob : operand) : operand =
+  let lt = fresh () in
+  emit_instr ctx (Assign (lt, ICmp (Slt, oa, ob)));
+  emit_select ctx (Local lt)
+    (fun () -> ConstI64 (-1))
+    (fun () ->
+      let gt = fresh () in
+      emit_instr ctx (Assign (gt, ICmp (Slt, ob, oa)));
+      emit_select ctx (Local gt) (fun () -> ConstI64 1) (fun () -> ConstI64 0))
+
+(** Lexicographic combination: if [first] is non-zero it is the result,
+    otherwise [rest ()]. *)
+and emit_then_compare (ctx : fn_ctx) (first : operand) (rest : unit -> operand) : operand =
+  let z = fresh () in
+  emit_instr ctx (Assign (z, ICmp (Eq, first, ConstI64 0)));
+  emit_select ctx (Local z) rest (fun () -> first)
+
+and emit_compare (ctx : fn_ctx) ~(self : string) (m : mono_type) (t : ty) (oa : operand)
+    (ob : operand) : operand =
+  match t with
+  | I64 -> emit_compare_ints ctx oa ob
+  | Unit -> ConstI64 0
+  | String ->
+      let c = fresh () in
+      emit_instr ctx (Assign (c, Call ("strcmp", [ oa; ob ])));
+      Local c
+  | F64 ->
+      let c = fresh () in
+      emit_instr ctx (Assign (c, Call ("ls_cmp_float", [ oa; ob ])));
+      Local c
+  | I1 ->
+      (* false < true *)
+      let to_int o = emit_select ctx o (fun () -> ConstI64 1) (fun () -> ConstI64 0) in
+      let ia = to_int oa in
+      let ib = to_int ob in
+      emit_compare_ints ctx ia ib
+  | Tuple elem_tys ->
+      let ms =
+        match m with
+        | VectorType ms -> ms
+        | RecordType fields -> List.map snd (Cexpr.record_fields_sorted fields)
+        | _ -> List.map min_ty_to_mono elem_tys
+      in
+      let rec go i = function
+        | [] -> ConstI64 0
+        | (fm, ft) :: rest ->
+            let pa = fresh () and pb = fresh () in
+            emit_instr ctx (Assign (pa, TupleProj { tup = oa; index = i; elem_tys }));
+            emit_instr ctx (Assign (pb, TupleProj { tup = ob; index = i; elem_tys }));
+            let c = emit_compare_value ctx fm ft (Local pa) (Local pb) in
+            if rest = [] then c else emit_then_compare ctx c (fun () -> go (i + 1) rest)
+      in
+      go 0 (List.combine ms elem_tys)
+  | List elem_ty ->
+      let em =
+        match m with
+        | CListType e -> e
+        | CTypeApp (_, [ e ]) -> e
+        | FixedPoint (_, CTypeApp (_, [ e ])) -> e
+        | _ -> min_ty_to_mono elem_ty
+      in
+      let na = fresh () in
+      emit_instr ctx (Assign (na, ICmp (Eq, oa, RawNull)));
+      emit_select ctx (Local na)
+        (fun () ->
+          let nb = fresh () in
+          emit_instr ctx (Assign (nb, ICmp (Eq, ob, RawNull)));
+          emit_select ctx (Local nb) (fun () -> ConstI64 0) (fun () -> ConstI64 (-1)))
+        (fun () ->
+          let nb = fresh () in
+          emit_instr ctx (Assign (nb, ICmp (Eq, ob, RawNull)));
+          emit_select ctx (Local nb)
+            (fun () -> ConstI64 1)
+            (fun () ->
+              let ha = fresh () and hb = fresh () in
+              emit_instr ctx (Assign (ha, ListHead { elem_ty; lst = oa }));
+              emit_instr ctx (Assign (hb, ListHead { elem_ty; lst = ob }));
+              let c = emit_compare_value ctx em elem_ty (Local ha) (Local hb) in
+              emit_then_compare ctx c (fun () ->
+                  let ta = fresh () and tb = fresh () in
+                  emit_instr ctx (Assign (ta, ListTail { elem_ty; lst = oa }));
+                  emit_instr ctx (Assign (tb, ListTail { elem_ty; lst = ob }));
+                  let r = fresh () in
+                  emit_instr ctx (Assign (r, Call (self, [ Local ta; Local tb ])));
+                  Local r)))
+  | RawPtr -> (
+      match constructors_of_sum_mono m with
+      | None -> unsupported ("cannot compare values of type " ^ string_of_mono_type m)
+      | Some ctors ->
+          let tga = fresh () and tgb = fresh () in
+          emit_instr ctx (Assign (tga, VariantTag oa));
+          emit_instr ctx (Assign (tgb, VariantTag ob));
+          let c = emit_compare_ints ctx (Local tga) (Local tgb) in
+          emit_then_compare ctx c (fun () ->
+              (* Same constructor: compare payloads (if any). *)
+              let rec go tag = function
+                | [] -> ConstI64 0
+                | (_, None) :: rest -> go (tag + 1) rest
+                | (_, Some pm) :: rest ->
+                    let is_tag = fresh () in
+                    emit_instr ctx (Assign (is_tag, ICmp (Eq, Local tga, ConstI64 tag)));
+                    emit_select ctx (Local is_tag)
+                      (fun () ->
+                        let pt = mono_to_min pm in
+                        let ra = fresh () and rb = fresh () in
+                        emit_instr ctx (Assign (ra, VariantPayload oa));
+                        emit_instr ctx (Assign (rb, VariantPayload ob));
+                        let ua = fresh () and ub = fresh () in
+                        emit_instr ctx (Assign (ua, HeapUnbox (pt, Local ra)));
+                        emit_instr ctx (Assign (ub, HeapUnbox (pt, Local rb)));
+                        emit_compare_value ctx pm pt (Local ua) (Local ub))
+                      (fun () -> go (tag + 1) rest)
+              in
+              go 0 ctors))
+  | Fun _ | Clos _ ->
+      emit_instr ctx (VoidCall ("ls_compare_functions", []));
+      ConstI64 0
+
+(** Compare two values of type [m] (Min IR type [t]): primitives inline,
+    anything else through its generated comparison function. *)
+and emit_compare_value (ctx : fn_ctx) (m : mono_type) (t : ty) (oa : operand) (ob : operand) :
+    operand =
+  match t with
+  | I64 | Unit | String | F64 | I1 | Fun _ | Clos _ ->
+      emit_compare ctx ~self:"" m t oa ob
+  | Tuple _ | List _ | RawPtr ->
+      let f = comparator_for m in
+      let r = fresh () in
+      emit_instr ctx (Assign (r, Call (f, [ oa; ob ])));
+      Local r
+
 let rec lower_expr_val (e : c_expr) (env : env) (ctx : fn_ctx)
     (static_env : static_env) (type_env : Typecheck.type_env) (shadows : S.t) :
     operand * ty =
@@ -2731,6 +2928,13 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
       let c = fresh () in
       emit_instr ctx (Assign (c, ICmp (Eq, o_s, ConstI64 k)));
       (env, Local c)
+  | CCharPat ch ->
+      if t_s <> I64 then
+        unsupported
+          "native pattern match: character literal pattern expects char scrutinee";
+      let c = fresh () in
+      emit_instr ctx (Assign (c, ICmp (Eq, o_s, ConstI64 (Char.code ch))));
+      (env, Local c)
   | CBoolPat b ->
       if t_s <> I1 then
         unsupported
@@ -2854,8 +3058,6 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
           unsupported
             "variant pattern requires a sum-type scrutinee in native \
              compilation")
-  | CCharPat _ ->
-      unsupported "this pattern is not supported for native compilation"
   | CRecordPat _ ->
       unsupported
         "internal: record pattern should have been desugared to a tuple"
@@ -3770,33 +3972,41 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           emit_instr ctx (Assign (t, Binop (b, o1, o2)));
           LVal (Local t, I64)
       | None -> (
-          match map_cmp op with
-          | Some c ->
+          match op with
+          | CEQ | CNE | CLT | CLE | CGT | CGE -> (
               let o1, t1 =
                 lower_expr_val e1 env ctx static_env type_env shadows
               in
               let o2, t2 =
                 lower_expr_val e2 env ctx static_env type_env shadows
               in
-              if t1 <> I64 || t2 <> I64 then
-                unsupported "Integer comparison expects i32 operands";
+              if not (ty_equal t1 t2) then
+                unsupported "comparison operands have different native types";
+              (* Ints compare directly; other types through a three-way
+                 structural comparison c, then [c op 0]. *)
+              let lhs, rhs =
+                if t1 = I64 then (o1, o2)
+                else
+                  let m =
+                    let se = static_env_for_mono_call static_env env in
+                    match Typecheck.type_of_c_expr se type_env e1 with
+                    | Ok ct -> static_mono_for_native ct
+                    | Error _ -> min_ty_to_mono t1
+                    | exception _ -> min_ty_to_mono t1
+                  in
+                  (emit_compare_value ctx m t1 o1 o2, ConstI64 0)
+              in
               let t = fresh () in
-              emit_instr ctx (Assign (t, ICmp (c, o1, o2)));
-              LVal (Local t, I1)
-          | None -> (
+              (match op with
+              | CEQ -> emit_instr ctx (Assign (t, ICmp (Eq, lhs, rhs)))
+              | CNE -> emit_instr ctx (Assign (t, ICmp (Ne, lhs, rhs)))
+              | CLT -> emit_instr ctx (Assign (t, ICmp (Slt, lhs, rhs)))
+              | CLE -> emit_instr ctx (Assign (t, ICmp (Sle, lhs, rhs)))
+              | CGT -> emit_instr ctx (Assign (t, ICmp (Slt, rhs, lhs)))
+              | _ -> emit_instr ctx (Assign (t, ICmp (Sge, lhs, rhs))));
+              LVal (Local t, I1))
+          | _ -> (
               match op with
-              | CGT ->
-                  let o1, t1 =
-                    lower_expr_val e1 env ctx static_env type_env shadows
-                  in
-                  let o2, t2 =
-                    lower_expr_val e2 env ctx static_env type_env shadows
-                  in
-                  if t1 <> I64 || t2 <> I64 then
-                    unsupported "Integer comparison expects i32 operands";
-                  let t = fresh () in
-                  emit_instr ctx (Assign (t, ICmp (Slt, o2, o1)));
-                  LVal (Local t, I1)
               | CAnd ->
                   let o1, t1 =
                     lower_expr_val e1 env ctx static_env type_env shadows
@@ -4786,6 +4996,8 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
     (prog, string) result =
   try
     reset_fresh ();
+    Hashtbl.reset cmp_cache;
+    generated_funcs := [];
     lowering_type_env := type_env;
     lowering_ctor_env := ctor_env;
     let defs = eta_expand_program static_env defs in
@@ -5150,7 +5362,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
     in
     Ok
       {
-        funcs = !user_funs @ ctx_main.nested_funcs @ [ main_fn ];
+        funcs = !user_funs @ ctx_main.nested_funcs @ List.rev !generated_funcs @ [ main_fn ];
         entry = Some "main";
       }
   with Unsupported msg -> Error msg
