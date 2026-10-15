@@ -8,7 +8,7 @@
       (warnings, or the error that stops the program); when one of them is an
       [error:], the program must fail with status 1, otherwise succeed. For a
       native compilation error, the lines must appear in the compiler's
-      output.
+      output. File paths in messages are compared without their directory.
 
     The manual includes these files verbatim, so what it shows is what is
     tested. *)
@@ -20,6 +20,21 @@ let examples_dir () = Filename.concat (repo ()) "documentation/examples"
 
 let lines_of (s : string) : string list =
   List.filter (fun l -> String.trim l <> "") (String.split_on_char '\n' s)
+
+(** [strip_dir dir s] removes the directory [dir] from the file paths in [s],
+    so that messages read [file.forge:2: ...] whichever copy was run. *)
+let strip_dir (dir : string) (s : string) : string =
+  let prefix = dir ^ "/" in
+  let n = String.length prefix in
+  let b = Buffer.create (String.length s) in
+  let i = ref 0 in
+  while !i < String.length s do
+    if !i + n <= String.length s && String.sub s !i n = prefix then i := !i + n
+    else (
+      Buffer.add_char b s.[!i];
+      incr i)
+  done;
+  Buffer.contents b
 
 let check_stderr name (expected : string list) (stderr : string) =
   List.iter
@@ -44,7 +59,7 @@ let test_example (file : string) : test =
   let r = run_process ~cwd:(repo ()) (bin_exe "interpreter") [ path ] in
   assert_equal ~printer:string_of_status ~msg:(base ^ ": interpreter exit status") expected_status r.status;
   assert_equal ~printer:(fun s -> s) ~msg:(base ^ ": interpreter output") expected_out r.out;
-  check_stderr (base ^ " (interpreter)") expected_err r.err;
+  check_stderr (base ^ " (interpreter)") expected_err (strip_dir (examples_dir ()) r.err);
   (* Native compiler, on a copy (it writes its intermediate files next to the
      source; the copies of the other examples serve imports). *)
   with_tmpdir @@ fun dir ->
@@ -62,11 +77,11 @@ let test_example (file : string) : test =
       let n = run_process exe [] in
       assert_equal ~printer:string_of_status ~msg:(base ^ ": native exit status") expected_status n.status;
       assert_equal ~printer:(fun s -> s) ~msg:(base ^ ": native output") expected_out n.out;
-      check_stderr (base ^ " (native)") expected_err (c.out ^ c.err ^ n.err)
+      check_stderr (base ^ " (native)") expected_err (strip_dir dir (c.out ^ c.err ^ n.err))
   | _ ->
       if not fails then assert_failure (base ^ ": native compilation failed:\n" ^ describe c);
       assert_equal ~printer:(fun s -> s) ~msg:(base ^ ": output before a compile error") "" expected_out;
-      check_stderr (base ^ " (native compiler)") expected_err (c.out ^ c.err)
+      check_stderr (base ^ " (native compiler)") expected_err (strip_dir dir (c.out ^ c.err))
 
 let suite =
   let files =
