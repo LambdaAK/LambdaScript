@@ -848,55 +848,27 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
     | None -> return []
   in
   let new_constraint = (t_pat, t1) in
-  (* Check if we're inside a recursive function (indicated by a function with a
-     TypeVar in the environment, which means it's being defined) *)
-  let is_inside_rec_function =
-    List.exists
-      (fun (_, t) ->
-        match t with
-        | Mono (TypeVar _) -> true
-        | _ -> false)
-      env
+  let local_constraints =
+    pat_constraints @ annotation_constraints @ return_type_constraints
+    @ (new_constraint :: c1)
   in
-  (* If inside a recursive function, don't generalize - just use the type
-     directly to preserve type variable unification *)
-  (* TODO: check if this logic is sound Make sure that we should be not
-     generalizing here in this case *)
-  if is_inside_rec_function then
-    (* Don't generalize - use the type directly *)
-    let- t2, c2, _ =
-      match pat_env with
-      | [] ->
-          (* e.g. [let () = e1 in e2]: no identifiers bound; do not call
-             [List.hd] *)
-          generate env type_env e2
-      | _ -> generate ((fst (List.hd pat_env), Mono t1) :: env) type_env e2
+  (* Let-polymorphism: generalise the type of every variable bound by the
+     pattern (not only the first one, and not the type of the whole
+     right-hand side). Type variables that occur in the environment — e.g.
+     the parameter of an enclosing lambda, or the not-yet-generalised name of
+     an enclosing [let rec] — are kept monomorphic by [generalize]. *)
+  let- pattern_bindings =
+    let rec gen acc = function
+      | [] -> return (List.rev acc)
+      | (x, sch) :: rest ->
+          let tx = match sch with Mono t -> t | other -> instantiate other in
+          let- g = generalize ~class_preds:p1 local_constraints env type_env tx in
+          gen ((x, g) :: acc) rest
     in
-    return
-      ( t2,
-        pat_constraints @ annotation_constraints @ return_type_constraints
-        @ (new_constraint :: c1) @ c2,
-        [] )
-  else
-    (* Generalize the type of e1 before using it in e2 *)
-    let- generalized_type =
-      generalize ~class_preds:p1
-        (return_type_constraints @ (new_constraint :: c1))
-        env type_env t1
-    in
-    let- t2, c2, _ =
-      match pat_env with
-      | [] -> generate env type_env e2
-      | _ ->
-          generate
-            ((fst (List.hd pat_env), generalized_type) :: env)
-            type_env e2
-    in
-    return
-      ( t2,
-        pat_constraints @ annotation_constraints @ return_type_constraints
-        @ (new_constraint :: c1) @ c2,
-        [] )
+    gen [] pat_env
+  in
+  let- t2, c2, _ = generate (pattern_bindings @ env) type_env e2 in
+  return (t2, local_constraints @ c2, [])
 
 (** [generate_e_bind_rec env pat e1 e2] generates type constraints for recursive
     let bindings.
@@ -2775,9 +2747,9 @@ and simplify_mono_type (t : mono_type) (type_env : type_env) :
           | "Char" | "char" -> return CharType
           | "Unit" | "unit" -> return UnitType
           | _ ->
-              (* If not found, treat it as a type variable (could be a type
-                 parameter) *)
-              return (TypeVar v)))
+              (* Type parameters are written in lowercase and parsed as type
+                 variables, so an unknown capitalised name is an error. *)
+              Error (OtherError ("Unknown type: " ^ v))))
   | TCtorApp (w, args) ->
       let rec eval_args acc = function
         | [] -> return (List.rev acc)
