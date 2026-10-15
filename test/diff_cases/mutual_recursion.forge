@@ -1,0 +1,24 @@
+// Mutually recursive functions and types.
+let rec is_even n = if n == 0 then true else is_odd (n - 1)
+and is_odd n = if n == 0 then false else is_even (n - 1)
+
+type rec Forest =
+  | Empty
+  | Trees of (Tree, Forest)
+and Tree =
+  | Node of (Int, Forest)
+
+let rec forest_sum f =
+  case f do
+  | Empty -> 0
+  | Trees (t, rest) -> tree_sum t + forest_sum rest
+and tree_sum t =
+  case t do
+  | Node (v, children) -> v + forest_sum children
+
+let leaf v = Node (v, Empty)
+let sample = Node (1, Trees (leaf 2, Trees (Node (3, Trees (leaf 4, Empty)), Empty)))
+
+let () = println (map is_even [0, 1, 2, 7, 10])
+let () = println (is_odd 777)
+let () = println (tree_sum sample)

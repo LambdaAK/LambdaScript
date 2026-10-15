@@ -1,0 +1,31 @@
+// Data processing over records: grouping, totals and formatting.
+type Order = { id: Int, customer: String, amount: Int, paid: Bool }
+
+let orders = [
+  { id: 1, customer: "ann", amount: 120, paid: true },
+  { id: 2, customer: "bob", amount: 75, paid: false },
+  { id: 3, customer: "ann", amount: 30, paid: false },
+  { id: 4, customer: "cid", amount: 200, paid: true },
+  { id: 5, customer: "bob", amount: 15, paid: true }
+]
+
+let total_for name =
+  reduce_left (fn acc -> fn o -> if o.customer == name then acc + o.amount else acc) 0 orders
+
+let unpaid = filter (fn o -> not o.paid) orders
+let mark_paid o = { o with paid = true }
+let settled = map mark_paid unpaid
+
+let describe o =
+  "#" ^ int_to_str o.id ^ " " ^ o.customer ^ " " ^ int_to_str o.amount ^ (if o.paid then " paid" else " due")
+
+let rec print_all xs =
+  case xs do
+  | [] -> ()
+  | o :: rest -> { print_string (describe o); print_all rest }
+
+let () = print_all orders
+let () = println (map total_for ["ann", "bob", "cid", "dan"])
+let () = println (list_length unpaid)
+let () = print_all settled
+let () = println (reduce_left (fn acc -> fn o -> acc + o.amount) 0 settled)

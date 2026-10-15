@@ -1,0 +1,48 @@
+// A tiny expression language: evaluation, simplification and printing.
+type rec Expr =
+  | Num of Int
+  | Var of String
+  | Add of (Expr, Expr)
+  | Mul of (Expr, Expr)
+  | Neg of Expr
+
+let rec lookup env name =
+  case env do
+  | [] -> 0
+  | (k, v) :: rest -> if k == name then v else lookup rest name
+
+let rec eval env e =
+  case e do
+  | Num n -> n
+  | Var x -> lookup env x
+  | Add (a, b) -> eval env a + eval env b
+  | Mul (a, b) -> eval env a * eval env b
+  | Neg a -> 0 - eval env a
+
+let rec simplify e =
+  case e do
+  | Add (Num 0, b) -> simplify b
+  | Add (a, Num 0) -> simplify a
+  | Mul (Num 1, b) -> simplify b
+  | Mul (a, Num 1) -> simplify a
+  | Mul (Num 0, _) -> Num 0
+  | Add (a, b) -> Add (simplify a, simplify b)
+  | Mul (a, b) -> Mul (simplify a, simplify b)
+  | Neg (Neg a) -> simplify a
+  | Neg a -> Neg (simplify a)
+  | other -> other
+
+let rec render e =
+  case e do
+  | Num n -> int_to_str n
+  | Var x -> x
+  | Add (a, b) -> "(" ^ render a ^ " + " ^ render b ^ ")"
+  | Mul (a, b) -> render a ^ " * " ^ render b
+  | Neg a -> "-" ^ render a
+
+let e = Add (Mul (Num 1, Var "x"), Add (Num 0, Mul (Var "y", Neg (Neg (Num 3)))))
+let env = [("x", 4), ("y", 5)]
+let () = print_string (render e)
+let () = print_string (render (simplify e))
+let () = println (eval env e)
+let () = println (eval env (simplify e) == eval env e)

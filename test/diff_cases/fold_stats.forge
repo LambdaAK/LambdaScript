@@ -1,0 +1,20 @@
+// Statistics with folds over lists of Ints.
+let sum xs = reduce_left (+) 0 xs
+let product xs = reduce_left (*) 1 xs
+let maximum xs = case xs do | [] -> 0 | h :: t -> reduce_left (fn a -> fn b -> if a > b then a else b) h t
+let minimum xs = case xs do | [] -> 0 | h :: t -> reduce_left (fn a -> fn b -> if a < b then a else b) h t
+let mean xs = if list_length xs == 0 then 0 else sum xs / list_length xs
+let squares xs = [x * x | x <- xs]
+let evens xs = filter (fn x -> x % 2 == 0) xs
+let range a b = [a...b]
+
+let data = [4, 8, 15, 16, 23, 42]
+let () = println (sum data)
+let () = println (product data)
+let () = println (maximum data)
+let () = println (minimum data)
+let () = println (mean data)
+let () = println (squares (evens data))
+let () = println (sum (range 1 100))
+let () = println (product (range 1 15))
+let () = println (reduce_right (fn x -> fn acc -> acc * 2 + x) data 0)

@@ -56,3 +56,6 @@ documentation/*.fls
 documentation/*.fdb_latexmk
 documentation/*.synctex.gz
 documentation/*.pdf
+
+# Audit working notes (not part of the project)
+/audit/

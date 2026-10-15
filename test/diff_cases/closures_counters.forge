@@ -1,0 +1,24 @@
+// Higher-order functions, currying and closures.
+let compose f g = fn x -> f (g x)
+let rec iterate n f x = if n == 0 then x else iterate (n - 1) f (f x)
+let adder n = fn x -> x + n
+let multiplier n = fn x -> x * n
+let pipeline = [adder 3, multiplier 2, adder ~-1, multiplier 10]
+let run_all fs x = reduce_left (fn acc -> fn f -> f acc) x fs
+
+let () = println (run_all pipeline 1)
+let () = println ((compose (adder 1) (multiplier 3)) 5)
+let () = println (iterate 10 (multiplier 2) 1)
+let () = println (map (fn f -> f 10) pipeline)
+
+let make_counter start step =
+  let next = fn n -> start + step * n in
+  (next 0, next 1, next 2)
+
+let () = println (tuple_fst (make_counter 100 7))
+let twice f = compose f f
+let () = println ((twice (twice (adder 5))) 0)
+let curry f = fn a -> fn b -> f (a, b)
+let uncurry f = fn p -> case p do | (a, b) -> f a b
+let () = println ((curry (fn p -> case p do | (a, b) -> a * b)) 6 7)
+let () = println ((uncurry (fn a -> fn b -> a - b)) (10, 4))

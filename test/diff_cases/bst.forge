@@ -1,0 +1,38 @@
+// A binary search tree with insert, membership, traversal and height.
+type rec Tree<a> =
+  | Leaf
+  | Node of (Tree<a>, a, Tree<a>)
+
+let rec insert x t =
+  case t do
+  | Leaf -> Node (Leaf, x, Leaf)
+  | Node (l, v, r) ->
+      if x < v then Node (insert x l, v, r)
+      else if x > v then Node (l, v, insert x r)
+      else t
+
+let rec member x t =
+  case t do
+  | Leaf -> false
+  | Node (l, v, r) -> if x == v then true else if x < v then member x l else member x r
+
+let rec to_list t =
+  case t do
+  | Leaf -> []
+  | Node (l, v, r) -> to_list l ++ (v :: to_list r)
+
+let rec height t =
+  case t do
+  | Leaf -> 0
+  | Node (l, _, r) ->
+      let hl = height l in
+      let hr = height r in
+      1 + (if hl > hr then hl else hr)
+
+let tree = reduce_left (fn acc -> fn x -> insert x acc) Leaf [50, 30, 70, 20, 40, 60, 80, 30]
+let () = println (to_list tree)
+let () = println (height tree)
+let () = println (member 60 tree)
+let () = println (member 65 tree)
+let words = reduce_left (fn acc -> fn x -> insert x acc) Leaf ["pear", "apple", "fig", "banana"]
+let () = println (to_list words)

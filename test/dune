@@ -15,10 +15,16 @@
 (test
  (name compiler_interpreter_parity_tests)
  (modules compiler_interpreter_parity_tests)
- (libraries Language ounit2 unix)
- (deps (source_tree compiler_cases))
+ (libraries Language ounit2 unix forge_test_util)
+ (deps
+  (source_tree compiler_cases)
+  (source_tree diff_cases)
+  (source_tree ../programs)
+  (source_tree ../examples)
+  ../bin/interpreter.exe
+  ../bin/compile_forge.exe)
  (action
-  (chdir %{workspace_root} (run %{test}))))
+  (chdir %{workspace_root} (run %{test} -runner processes -shards 12))))
 
 (test
  (name hover_ident_tests)
@@ -92,3 +98,45 @@
  (modules regression_bug_tests)
  (libraries Language ounit2)
  (action (chdir %{workspace_root} (run %{test}))))
+
+; ---------------------------------------------------------------------------
+; Bug-hunting suites (see audit notes). Shared helpers live in
+; forge_test_util.ml; programs run through the real executables with timeouts.
+
+(library
+ (name forge_test_util)
+ (modules forge_test_util)
+ (libraries Language ounit2 unix))
+
+(tests
+ (names
+  lexer_tests
+  parser_tests
+  typecheck_tests
+  eval_tests
+  exhaustiveness_tests
+  features_tests
+  prelude_tests
+  cli_tests
+  fuzz_tests)
+ (modules
+  lexer_tests
+  parser_tests
+  typecheck_tests
+  eval_tests
+  exhaustiveness_tests
+  features_tests
+  prelude_tests
+  cli_tests
+  fuzz_tests)
+ (libraries Language ounit2 unix forge_test_util)
+ (deps
+  ../bin/interpreter.exe
+  ../bin/compile_forge.exe
+  ../bin/repl.exe
+  ../bin/forge_hover.exe
+  ../bin/dump_min_ir.exe
+  (source_tree ../prelude)
+  (source_tree ../runtime))
+ (action
+  (chdir %{workspace_root} (run %{test} -runner processes -shards 12))))

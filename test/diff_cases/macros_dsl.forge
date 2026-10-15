@@ -1,0 +1,18 @@
+// macro_rules! for small syntactic abstractions.
+macro_rules! square where
+  ($x:expr) => ($x) * ($x)
+end
+
+macro_rules! max_of where
+  ($a:expr) => $a;
+  ($a:expr, $($rest:expr),+) => (let m = max_of!($($rest),+) in if $a > m then $a else m)
+end
+
+macro_rules! list_of where
+  ($($x:expr),*) => [$($x),*]
+end
+
+let () = println (square!(3 + 4))
+let () = println (max_of!(3, 9, 2, 7))
+let () = println (list_of!(1, 2, 3))
+let () = println (count_args!(a, b, c, d))
