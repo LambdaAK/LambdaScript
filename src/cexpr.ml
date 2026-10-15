@@ -193,6 +193,9 @@ and builtin_function =
   | FloatOp of string
   | FloatOpPartial of string * float
   | FloatMath of string
+  | CharToInt
+  | IntToChar
+  | ListToString
   | StrSlice
   | StrSlicePartial1 of string
   | StrSlicePartial2 of string * int

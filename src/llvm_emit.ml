@@ -369,6 +369,8 @@ let runtime_declarations : string =
    declare i8* @ls_string_to_list(i8*)\n\
    declare double @ls_int_to_float(i64)\n\
    declare double @ls_fadd(double, double)\n\
+   declare i64 @ls_int_to_char(i64)\n\
+   declare i8* @ls_list_to_string(i8*)\n\
    declare double @ls_fsub(double, double)\n\
    declare double @ls_fmul(double, double)\n\
    declare double @ls_fdiv(double, double)\n\

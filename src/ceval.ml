@@ -930,6 +930,12 @@ and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   | FloatToInt, FloatValue f -> IntegerValue (int_of_float f) |> return
   | FloatToString, FloatValue f -> StringValue (string_of_forge_float f) |> return
   | CharToString, CharValue c -> StringValue (String.make 1 c) |> return
+  | CharToInt, CharValue c -> IntegerValue (Char.code c) |> return
+  | IntToChar, IntegerValue i ->
+      if i < 0 || i > 255 then Error (OtherError "int_to_char: character code out of range")
+      else CharValue (Char.chr i) |> return
+  | ListToString, ListValue cs ->
+      StringValue (String.of_seq (List.to_seq (List.map (function CharValue c -> c | _ -> '?') cs))) |> return
   | StringToList, StringValue s ->
       let char_list =
         s |> String.to_seq |> List.of_seq |> List.map (fun c -> CharValue c)

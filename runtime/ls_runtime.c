@@ -236,6 +236,26 @@ void *ls_string_to_list(const char *s) {
   return head;
 }
 
+/** [string_of_list]: the string of a list of characters. */
+char *ls_list_to_string(ls_char_cell *l) {
+  int64_t n = 0;
+  for (ls_char_cell *c = l; c; c = c->tail)
+    n++;
+  char *p = GC_MALLOC_ATOMIC((size_t)n + 1);
+  int64_t i = 0;
+  for (ls_char_cell *c = l; c; c = c->tail)
+    p[i++] = (char)c->head;
+  p[n] = 0;
+  return p;
+}
+
+/** [int_to_char]: a character code (0 to 255) as a character. */
+int64_t ls_int_to_char(int64_t x) {
+  if (x < 0 || x > 255)
+    ls_runtime_error("int_to_char: character code out of range");
+  return x;
+}
+
 double ls_int_to_float(int64_t x) { return (double)x; }
 
 /* Float arithmetic ([+.] [-.] [*.] [/.]) and [sqrt], [exp], [log]: IEEE

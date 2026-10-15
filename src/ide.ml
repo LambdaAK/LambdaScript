@@ -147,6 +147,9 @@ let builtin_docs =
     ("sqrt", "Square root.");
     ("exp", "Exponential.");
     ("log", "Natural logarithm.");
+    ("char_to_int", "The code of a character (0 to 255).");
+    ("int_to_char", "The character with a code; a run-time error outside 0 to 255.");
+    ("string_of_list", "The string of a list of characters.");
     ("+.", "Float addition.");
     ("-.", "Float subtraction.");
     ("*.", "Float multiplication.");

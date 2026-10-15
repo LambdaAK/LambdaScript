@@ -125,6 +125,9 @@ both parameters of a two-parameter type.
 \sig{float_to_int}{Float -> Int} Truncates toward zero.
 \sig{float_to_str}{Float -> String} The shortest form that reads back.
 \sig{sqrt, exp, log}{Float -> Float} Square root, exponential and natural logarithm.
+\sig{char_to_int}{Char -> Int} The code of a character (0 to 255).
+\sig{int_to_char}{Int -> Char} The character with a code; a run-time error outside 0 to 255.
+\sig{str_to_int}{String -> Option<Int>} The integer written in a string (an optional \tc{-}, then digits), or \tc{None}.
 \sig{char_to_str}{Char -> String} A one-character string.
 \end{siglist}
 \forgeexample{builtins-numbers}
@@ -138,6 +141,7 @@ the substring of length \tc{len} from position \tc{start} (counting from 0),
 clamped to the string.
 \sig{string_to_list, list_of_string}{String -> List<Char>} The characters
 of a string.
+\sig{string_of_list}{List<Char> -> String} The string of a list of characters.
 \end{siglist}
 \forgeexample{builtins-strings}
 

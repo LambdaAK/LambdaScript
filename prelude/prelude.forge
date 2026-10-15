@@ -328,3 +328,17 @@
   end
   
   let println x = print_string (show x)
+  // The integer written in s: an optional minus sign, then decimal digits.
+  // None if s is anything else.
+  let str_to_int s =
+    let rec digits cs acc =
+      case cs do
+      | [] -> Some acc
+      | c :: rest ->
+          if c >= '0' && c <= '9' then digits rest (acc * 10 + (char_to_int c - 48)) else None
+    in
+    case string_to_list s do
+    | [] -> None
+    | '-' :: [] -> None
+    | '-' :: cs -> (case digits cs 0 do | Some n -> Some (0 - n) | None -> None)
+    | cs -> digits cs 0

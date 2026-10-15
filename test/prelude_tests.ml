@@ -163,6 +163,9 @@ let builtin_tests =
     ok "float arithmetic operators" (ps "float_to_str (1.5 +. 2.25) ^ \" \" ^ float_to_str (1.0 -. 4.0) ^ \" \" ^ float_to_str (2.5 *. 4.0) ^ \" \" ^ float_to_str (1.0 /. 8.0)") "3.75 -3.0 10.0 0.125\n";
     ok "float operators: precedence like + and *" (ps "float_to_str (3.0 *. 2.0 -. 1.0 /. 4.0 +. 1.0)") "6.75\n";
     ok "float operators as values" "let () = println (reduce_left (+.) 0.0 [0.5, 1.5, 2.0], map ((*.) 2.0) [1.0, 3.0])" "(4.0, [2.0, 6.0])\n";
+    ok "char_to_int and int_to_char" "let () = println (char_to_int (int_to_char 65), int_to_char 97, char_to_int 'z')" "(65, a, 122)\n";
+    ok "string_of_list inverts string_to_list" "let () = print_string (string_of_list (string_to_list \"forge\") ^ string_of_list [])" "forge\n";
+    ok "str_to_int" "let () = println [str_to_int \"123\", str_to_int \"-45\", str_to_int \"4x\", str_to_int \"\", str_to_int \"-\"]" "[Some 123, Some -45, None, None, None]\n";
     ok "sqrt exp log" (ps "float_to_str (sqrt 16.0) ^ \" \" ^ float_to_str (exp 0.0) ^ \" \" ^ float_to_str (log 1.0) ^ \" \" ^ float_to_str (log (exp 2.0))") "4.0 1.0 0.0 2.0\n";
     ok "float_to_str: integral values keep their digits"
       (ps "float_to_str (-10.0) ^ \" \" ^ float_to_str 123.0 ^ \" \" ^ float_to_str 1000000000000000.0 ^ \" \" ^ float_to_str 99.5")

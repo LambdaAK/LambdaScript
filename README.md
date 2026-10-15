@@ -298,6 +298,7 @@ Supports comprehensive pattern matching including:
 - `float_to_int : float -> int` (truncates toward zero)
 - `float_to_str : float -> string` (shortest form that reads back: `0.1`, `3.0`)
 - `sqrt`, `exp`, `log : float -> float`
+- `char_to_int : char -> int`, `int_to_char : int -> char` (codes 0–255), `string_of_list : [char] -> string`, `str_to_int : string -> Option<int>`
 - `char_to_str : char -> string`
 - `string_to_list : string -> [char]` (also `list_of_string`)
 
