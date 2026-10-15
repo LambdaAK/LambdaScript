@@ -1385,6 +1385,11 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
   (* Optimized version: instead of substituting through all accumulated
      equations on every step, we just accumulate the equations and defer
      substitution. This changes O(n²) behavior to O(n). *)
+  (* Variables already bound in [acc]: an equation produced later (say by
+     decomposing two type-constructor applications) may mention one of them,
+     and must then be about its binding — binding it a second time would
+     silently drop a constraint. *)
+  let bound : (string, mono_type) Hashtbl.t = Hashtbl.create 64 in
   let rec reduce_eq_acc (acc : type_equations) (c : type_equations) :
       type_equations =
     match c with
@@ -1393,6 +1398,10 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
         if t1 = t2 then reduce_eq_acc acc c'
         else
           match (t1, t2) with
+          | TypeVar id, _ when Hashtbl.mem bound id ->
+              reduce_eq_acc acc ((Hashtbl.find bound id, t2) :: c')
+          | _, TypeVar id when Hashtbl.mem bound id ->
+              reduce_eq_acc acc ((t1, Hashtbl.find bound id) :: c')
           | TypeVar id, TypeVar id2 when id <> id2 ->
               (* Orient [TypeVar]–[TypeVar] edges so the substitution graph is
                  acyclic: always map the lexicographically larger metavariable to
@@ -1403,12 +1412,14 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
                 if String.compare id id2 > 0 then (id, id2) else (id2, id)
               in
               let new_remaining = substitute hi (TypeVar lo) c' in
+              Hashtbl.replace bound hi (TypeVar lo);
               reduce_eq_acc ((TypeVar hi, TypeVar lo) :: acc) new_remaining
           | TypeVar id, _ when not (inside t1 t2) ->
               (* OPTIMIZATION: Only substitute in remaining constraints, not in
                  acc. The accumulated equations will be processed by get_type
                  which follows chains. *)
               let new_remaining = substitute id t2 c' in
+              Hashtbl.replace bound id t2;
               reduce_eq_acc ((t1, t2) :: acc) new_remaining
           | _, TypeVar _ -> reduce_eq_acc acc ((t2, t1) :: c')
           | FunctionType (i1, o1), FunctionType (i2, o2) ->

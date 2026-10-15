@@ -120,6 +120,7 @@ let literal_types =
     t_type "statement of any type" "{ 1 + 1; \"x\" }" "String";
     t_type "field of a record literal" "fn x -> {fa: x}.fa" "a -> a";
     t_type "record field in a comprehension" "[{fa: x}.fa | x <- [1]]" "List<Int>";
+    t_type "nested higher-kinded method calls share their instance" "aempty <|> (Some 2 <|> Some 3)" "Option<Int>";
     t_type "if" "if true then 1 else 2" "Int";
     t_type "concat" "\"a\" ^ \"b\"" "String";
     t_type "comparison" "1 < 2" "Bool";
