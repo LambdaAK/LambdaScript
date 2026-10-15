@@ -11,8 +11,29 @@ let bad ?(mentions = []) name src = name >:: fun _ -> assert_clean_error ~mentio
 
 let size_trait = "trait Size<a> where\n  val size : a -> Int\nend\n"
 
+let pretty_trait =
+  "trait Pretty<a> where\n  val pretty : a -> String\nend\nimpl Pretty for Int where\n  pretty n = int_to_str n\nend\nimpl Pretty for String where\n  pretty s = s\nend\nimpl Pretty for List<a> requires Pretty<a> where\n  pretty xs = case xs do | [] -> \".\" | h :: t -> pretty h ^ \";\" ^ pretty t\nend\n"
+
 let trait_tests =
   [
+    ok "parametric instance used at several element types" (pretty_trait
+     ^ "let () = println (pretty [1, 2])\nlet () = println (pretty [\"a\", \"b\"])\nlet () = println (pretty [[1], [2, 3]])")
+      "1;2;.\na;b;.\n1;.;2;3;.;.\n";
+    ok "constrained function passed a parametric instance" (pretty_trait
+     ^ "let twice x = pretty x ^ pretty x\nlet () = println (twice [\"x\"])")
+      "x;.x;.\n";
+    ok "constrained local function used at two types" (pretty_trait
+     ^ "let f u = let p x = pretty x in p 1 ^ p \"a\"\nlet () = println (f ())")
+      "1a\n";
+    ok "recursive method of an instance on a ground type"
+      "trait Join<a> where\n  val join : a -> a -> a\nend\nimpl Join for List<Int> where\n  join xs ys = case xs do | [] -> ys | h :: t -> h :: join t ys\nend\nlet () = println (join [1, 2] [3])"
+      "[1, 2, 3]\n";
+    ok "instance on a recursive type calls itself"
+      "type rec Chain<a> = | End | Link of (a, Chain<a>)\nimpl Show for Chain<a> requires Show<a> where\n  show c = case c do | End -> \"end\" | Link (x, rest) -> show x ^ \" > \" ^ show rest\nend\nlet () = println (Link (1, Link (2, End)))"
+      "1 > 2 > end\n";
+    ok "show of lists of strings and of an empty list"
+      "let () = println [\"a\", \"b\"]\nlet () = println (show [])"
+      "[a, b]\n[]\n";
     ok "simple trait and impl"
       (size_trait ^ "impl Size for String where\n  size s = str_length s\nend\nlet () = println (size \"abcd\")")
       "4\n";

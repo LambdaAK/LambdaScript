@@ -1069,17 +1069,24 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                     ERecordLit
                       (List.map (fun (m, intid) -> (m, eid_none intid)) internals)
                   in
+                  (* A method of an instance on a ground type has exactly the
+                     instance's method type (without it, a recursive method
+                     would be generalised over the instance type's parts). *)
+                  let ground_ann m =
+                    let mt = List.assoc m fields in
+                    if Type_arity.mono_is_ground mt then Some (Mono mt) else None
+                  in
                   let bind_chain ordered =
                     List.fold_right
                       (fun (m, e) acc ->
                         let intid = internal_tc_id dispatch_d m in
                         if expr_refs_c_id intid e then
-                          EBindRec (CIdPat intid, None, e, acc, None)
+                          EBindRec (CIdPat intid, ground_ann m, e, acc, None)
                         else
                           match e with
                           | EFunction _ ->
-                              EBindRec (CIdPat intid, None, e, acc, None)
-                          | _ -> EBind (CIdPat intid, None, e, acc, None))
+                              EBindRec (CIdPat intid, ground_ann m, e, acc, None)
+                          | _ -> EBind (CIdPat intid, ground_ann m, e, acc, None))
                       ordered record
                   in
                   match topo_dict_methods ~dispatch_d names condensed with

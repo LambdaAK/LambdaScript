@@ -69,7 +69,8 @@ let rec typecheck_and_elaborate_defns static_env type_env ctor_env
           let type_env' = new_type_env @ type_env in
           let ctor_env' = new_ctor_env @ ctor_env in
           let elaborated_defn =
-            Typecheck.elaborate_defn static_env' type_env' defn
+            Typecheck.elaborate_defn ~rewrite_constrained_calls:true static_env' type_env'
+              defn
           in
           typecheck_and_elaborate_defns static_env' type_env' ctor_env'
             (elaborated_defn :: acc) rest
@@ -122,10 +123,20 @@ and min_ir_of_file_exn ~prelude (src_path : string) : (Min_ir.prog, string) resu
   let static_env = build_full_static_env () in
   match typecheck_and_elaborate_defns static_env [] [] [] condensed_program with
   | Error _ as e -> e
-  | Ok (condensed_program, (static_env, type_env, ctor_env)) -> (
-      match Lower_min_ir.lower_c_program condensed_program static_env type_env ctor_env with
-      | Error msg -> Error ("the native compiler does not support this program yet: " ^ msg)
-      | Ok prog -> Ok prog)
+  | Ok (elaborated, _) -> (
+      (* Dictionaries are resolved statically, and the class-free program is
+         type-checked again for the lowering. *)
+      match Specialize.program elaborated with
+      | exception Specialize.Unsupported msg ->
+          Error ("the native compiler does not support this program yet: " ^ msg)
+      | specialized -> (
+          match typecheck_defns (build_full_static_env ()) [] [] specialized with
+          | Error e ->
+              Error ("internal compiler error: the specialised program does not type-check: " ^ e)
+          | Ok (static_env, type_env, ctor_env) -> (
+              match Lower_min_ir.lower_c_program specialized static_env type_env ctor_env with
+              | Error msg -> Error ("the native compiler does not support this program yet: " ^ msg)
+              | Ok prog -> Ok prog)))
 
 (** Compile [src_path] to the executable [out_path]: writes [.mir], [.ll] and
     [.s] next to the source, then links with the C runtime using clang. *)

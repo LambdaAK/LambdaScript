@@ -638,8 +638,8 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
   | EApp (e1, e2) -> generate_e_app env type_env e1 e2
   | EBind (pat, cto, e1, e2, return_type) ->
       generate_e_bind ~node:e env type_env pat cto e1 e2 return_type
-  | EBindRec (pat, _, e1, e2, return_type) ->
-      generate_e_bind_rec ~node:e env type_env pat e1 e2 return_type
+  | EBindRec (pat, cto, e1, e2, return_type) ->
+      generate_e_bind_rec ~node:e ?annotation:cto env type_env pat e1 e2 return_type
   | EBindMutRec (bindings, body) ->
       generate_e_bind_mut_rec ~node:e env type_env bindings body
   | ETernary (e1, e2, e3) -> generate_e_ternary env type_env e1 e2 e3
@@ -961,7 +961,7 @@ and generate_e_bind ?(node : c_expr = EUnit) (env : static_env) (type_env : type
     @return
       A pair containing the type of e2 and constraints for the recursive binding
 *)
-and generate_e_bind_rec ?(node : c_expr = EUnit) (env : static_env) (type_env : type_env) (pat : c_pat)
+and generate_e_bind_rec ?(node : c_expr = EUnit) ?annotation (env : static_env) (type_env : type_env) (pat : c_pat)
     (e1 : c_expr) (e2 : c_expr) (return_type : c_type option) :
     (mono_type * type_equations * type_env) type_check_result =
   let- function_id =
@@ -1006,6 +1006,14 @@ and generate_e_bind_rec ?(node : c_expr = EUnit) (env : static_env) (type_env : 
         return [ (actual_return_type, simplified_t) ]
     | None -> return []
   in
+  let- annotation_constraints =
+    match annotation with
+    | Some t ->
+        let- simplified_t = instantiate_and_simplify t type_env in
+        return [ (t1, simplified_t) ]
+    | None -> return []
+  in
+  let return_type_constraints = annotation_constraints @ return_type_constraints in
   let constraints_for_generalize =
     match new_constraint_opt with
     | Some eq -> return_type_constraints @ (eq :: c1)
@@ -3415,14 +3423,20 @@ and elaborate_defn_legacy ?(rewrite_constrained_calls = false)
 
 let dict_param_counter = ref 0
 
+(** The instance dictionary whose body is being elaborated. *)
+let defining_dict : string option ref = ref None
+
 let fresh_dict_param (cls : string) : string =
   incr dict_param_counter;
   Printf.sprintf "__dict_%s_%d" cls !dict_param_counter
 
-let normalize_inst_ty (t : mono_type) : mono_type =
+let rec normalize_inst_ty (t : mono_type) : mono_type =
   match t with
-  | FixedPoint (n, CTypeApp (n', args)) when String.equal n n' -> CTypeApp (n, args)
-  | FixedPoint (n, _) -> CTypeApp (n, [])
+  | FixedPoint (n, b) -> (
+      (* Recursive types may be wrapped more than once. *)
+      match normalize_inst_ty b with
+      | CTypeApp (n', args) when String.equal n n' -> CTypeApp (n, args)
+      | _ -> CTypeApp (n, []))
   | _ -> t
 
 (** Match an instance head (with [$written(a)] pattern variables) against a
@@ -3669,6 +3683,11 @@ let elaborate_defn_with_evidence (static_env : static_env) (type_env : type_env)
                         match
                           resolve_dictionary ~static_env ~scope (cls, resolve_ty ty)
                         with
+                        | Some (EId (dn, _)) when Some dn = !defining_dict ->
+                            (* A method of the (parameterless) dictionary being
+                               defined calls itself: refer to its local
+                               definition, the dictionary is not bound yet. *)
+                            EId (Condense.internal_tc_id cls x, None)
                         | Some de -> EFieldAccess (de, x)
                         | None -> EId (method_alias cls x, None))
                     | _ ->
@@ -3826,7 +3845,11 @@ let elaborate_defn_with_evidence (static_env : static_env) (type_env : type_env)
           in
           match d with
           | CDefn ((CIdPat name as p), cs, a, body, r, n) ->
-              let has_params, body' = elab_binding ~is_rec:false p body in
+              defining_dict := if is_dict name then Some name else None;
+              let has_params, body' =
+                Fun.protect ~finally:(fun () -> defining_dict := None) (fun () ->
+                    elab_binding ~is_rec:false p body)
+              in
               if is_dict name && has_params then CDefnRec (p, cs, a, body', r, n)
               else CDefn (p, cs, a, body', r, n)
           | CDefn (p, cs, a, body, r, n) -> CDefn (p, cs, a, elab [] [] body, r, n)
