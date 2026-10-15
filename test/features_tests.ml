@@ -121,7 +121,7 @@ let trait_errors =
     bad "impl missing method"
       "trait T<a> where\n  val f : a -> Int\n  val g : a -> Int\nend\nimpl T for Int where\n  f x = x\nend";
     bad "impl unknown method" (size_trait ^ "impl Size for Int where\n  size n = n,\n  extra n = n\nend");
-    bad "overlapping impls" (size_trait ^ "impl Size for Int where\n  size n = n\nend\nimpl Size for Int where\n  size n = 0\nend");
+    bad ~mentions:[ "duplicate impl of Size for Int" ] "overlapping impls" (size_trait ^ "impl Size for Int where\n  size n = n\nend\nimpl Size for Int where\n  size n = 0\nend");
     bad "impl method with wrong type" (size_trait ^ "impl Size for Int where\n  size n = \"no\"\nend");
     bad "duplicate trait" (size_trait ^ size_trait);
     bad "trait without type parameter" "trait T where\n  val f : Int\nend";

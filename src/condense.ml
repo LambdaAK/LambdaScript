@@ -1141,8 +1141,8 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                       let key = dispatch_d ^ "#" ^ slug in
                       if List.mem key seen_acc then
                         failwith
-                          ("forge: duplicate impl dict for " ^ dispatch_d
-                         ^ " at type " ^ slug);
+                          ("forge: duplicate impl of " ^ dispatch_d ^ " for "
+                         ^ string_of_mono_type inst_mono);
                       let dict_name =
                         dict_for_instance ~class_name:dispatch_d inst_mono
                       in
