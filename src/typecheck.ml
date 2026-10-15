@@ -1315,7 +1315,22 @@ and generate_e_switch (env : static_env) (type_env : type_env) (e1 : c_expr)
       c1 @ List.flatten branch_constraints,
       [] )
 
+(** The type of pattern [pat], its variables and their types, and the
+    equations it implies. A variable may be bound only once in a pattern. *)
 and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
+    mono_type * static_env * type_equations =
+  let ((_, pat_env, _) as result) = type_of_pat_parts env type_env pat in
+  let rec check_unique seen = function
+    | [] -> ()
+    | (x, _) :: rest ->
+        if x <> "_" && List.mem x seen then
+          raise (Pattern_error ("the variable `" ^ x ^ "` is bound twice in the same pattern"))
+        else check_unique (x :: seen) rest
+  in
+  check_unique [] pat_env;
+  result
+
+and type_of_pat_parts (env : static_env) (type_env : type_env) (pat : c_pat) :
     mono_type * static_env * type_equations =
   match pat with
   | CIdPat id ->

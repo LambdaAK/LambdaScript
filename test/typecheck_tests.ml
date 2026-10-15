@@ -263,6 +263,8 @@ let definition_types =
 let rejection_tests =
   [
     t_reject "int plus bool" "1 + true";
+    t_reject "variable bound twice in a case pattern" "fn p -> case p do | (x, x) -> x";
+    t_reject "variable bound twice in a parameter" "fn (a, a) -> a";
     t_reject "field of a record literal keeps its type" "((fn x -> {fa: x}.fa) 1) ^ \"s\"";
     t_reject "ill-typed statement in a block" "{ 1 + true; 2 }";
     t_reject "block-local definition constrains a parameter" "(fn x -> { let y = x + 1; y }) \"s\"";
