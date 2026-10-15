@@ -843,11 +843,42 @@ let merge_inherited_specs
       else item :: a)
     acc more
 
+(** Type aliases seen so far ([type P = { x: Int }], [type Pair<a> = (a, a)]):
+    name -> parameters and body. *)
+let type_aliases : (string * (string list * mono_type)) list ref = ref []
+
+(** [m] with the aliases expanded, for instance heads and trait method
+    signatures (record types are structural: [impl Show for P] is an
+    instance for P's record type). *)
+let rec expand_aliases (m : mono_type) : mono_type =
+  let e = expand_aliases in
+  match m with
+  | TypeName n | CTypeApp (n, []) -> (
+      match List.assoc_opt n !type_aliases with Some ([], body) -> e body | _ -> m)
+  | CTypeApp (n, args) -> (
+      let args = List.map e args in
+      match List.assoc_opt n !type_aliases with
+      | Some (params, body) when List.length params = List.length args ->
+          let body =
+            List.fold_left2
+              (fun acc p a -> substitute_mono acc ("$written(" ^ p ^ ")") a)
+              body params args
+          in
+          e body
+      | _ -> CTypeApp (n, args))
+  | FunctionType (a, b) -> FunctionType (e a, e b)
+  | VectorType ts -> VectorType (List.map e ts)
+  | CListType t -> CListType (e t)
+  | RecordType fs -> RecordType (List.map (fun (n, t) -> (n, e t)) fs)
+  | TCtorApp (w, args) -> TCtorApp (w, List.map e args)
+  | _ -> m
+
 (** Expand [inter] / [impl] into [CClassDecl] plus dictionary [let]s.
     Definitions must appear in order: each [impl] references an [inter] defined
     earlier in the same file. *)
 let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
     (defns : defn list) : c_defn list =
+  type_aliases := [];
   let defns = expand_program defns in
   user_region_byte_lo :=
     ( match user_id_byte_min_after_prelude with
@@ -937,7 +968,7 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                ^ "' has no matching val in this trait"))
           lets_map;
         let methods_mono_raw_own =
-          List.map (fun (m, ct) -> (m, condense_compound_type ct)) own_vals
+          List.map (fun (m, ct) -> (m, expand_aliases (condense_compound_type ct))) own_vals
         in
         let inherited_types = List.map (fun (_, mt, _, _) -> mt) inherited in
         let param_arities_inferred =
@@ -999,7 +1030,7 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
         | Some entry -> (
             match entry.params with
             | [ p ] ->
-                let inst_mono = condense_compound_type inst_ct in
+                let inst_mono = expand_aliases (condense_compound_type inst_ct) in
                 let arity = List.assoc p entry.param_arities in
                 Type_arity.validate_impl_head ~class_name:cls
                   ~required_arity:arity ~seen_ctors inst_mono;
@@ -1203,6 +1234,9 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
         before_top_level_defn ();
         let seen_ctors' = record_ctor_arities seen_ctors d in
         let c = condense_defn d in
+        (match c with
+        | CTypeAlias (name, params, body) -> type_aliases := (name, (params, body)) :: !type_aliases
+        | _ -> ());
         after_top_level_defn ();
         walk classes seen_ctors' seen_instances (c :: acc) rest
   in

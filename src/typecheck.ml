@@ -610,6 +610,14 @@ let rec match_instance_head (sub : (string * mono_type) list) (pat : mono_type)
   | CListType p, CListType u -> match_instance_head sub p u
   | VectorType ps, VectorType ts -> fold2 ps ts
   | FunctionType (a, b), FunctionType (c, d) -> fold2 [ a; b ] [ c; d ]
+  | RecordType pfs, RecordType tfs ->
+      (* An instance for a record type: the same fields (an open record's
+         row variable aside), field by field. *)
+      let fields fs =
+        List.sort (fun (a, _) (b, _) -> compare a b) (List.filter (fun (n, _) -> n <> Cexpr.row_field) fs)
+      in
+      let pfs = fields pfs and tfs = fields tfs in
+      if List.map fst pfs = List.map fst tfs then fold2 (List.map snd pfs) (List.map snd tfs) else None
   | _ -> None
 
 let subst_instance_vars (sub : (string * mono_type) list) (t : mono_type) : mono_type =

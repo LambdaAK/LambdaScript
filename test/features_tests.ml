@@ -199,6 +199,12 @@ let module_tests =
     ok "qualified constructors in patterns"
       "mod Geo where\n  type Shape = | Sq of Int | Ci of Int\n  mod Inner where\n    type T = | X | Y\n  end\nend\nlet area s = case s do | Geo.Sq w -> w * w | Geo.Ci r -> 3 * r * r\nlet t x = case x do | Geo.Inner.X -> 1 | Geo.Inner.Y -> 2\nlet () = println (area (Geo.Sq 3), area (Geo.Ci 2), t Geo.Inner.Y)"
       "(9, 12, 2)\n";
+    ok "impl for a named record type"
+      "type P = { x: Int, y: Int }\nimpl Show for P where\n  show p = \"P(\" ^ int_to_str p.x ^ \")\"\nend\nlet p : P = { x: 1, y: 2 }\nlet () = print_string (show p)"
+      "P(1)\n";
+    ok "named record type in a trait signature"
+      "type P = { x: Int }\ntrait Get<m> where\n  val get : m -> P -> Int\nend\nimpl Get for Int where\n  get n p = n + p.x\nend\nlet () = println (get 1 { x: 2 })"
+      "3\n";
     ok "module shadows outer name" "let x = 100\nmod M where\n  let x = 1\n  let y = x + 1\nend\nlet () = println (M.y + x)" "102\n";
     ok "recursive function in module"
       "mod M where\n  let rec fact n = if n == 0 then 1 else n * fact (n - 1)\nend\nlet () = println (M.fact 5)" "120\n";
