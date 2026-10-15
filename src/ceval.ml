@@ -83,7 +83,11 @@ let string_of_forge_float (f : float) : string =
       let s = Printf.sprintf "%.*g" p f in
       if p >= 17 || float_of_string s = f then s else shortest (p + 1)
     in
-    let s = shortest 1 in
+    (* At least as many digits as the integer part has, so that -10.0 prints
+       as -10.0 and not -1e+01. *)
+    let rec int_digits a n = if a >= 10. then int_digits (a /. 10.) (n + 1) else n in
+    let a = Float.abs f in
+    let s = shortest (if a >= 1. && a < 1e16 then int_digits a 1 else 1) in
     if String.exists (fun c -> c = '.' || c = 'e') s then s else s ^ ".0"
 
 let rec string_of_env (env : env) =
@@ -946,6 +950,17 @@ and eval_builtin (f : builtin_function) (v : value) : value eval_result =
       in
       ListValue char_list |> return
   | StrLength, StringValue s -> IntegerValue (String.length s) |> return
+  | FloatOp op, FloatValue a -> BuiltInFunction (FloatOpPartial (op, a)) |> return
+  | FloatOpPartial (op, a), FloatValue b ->
+      FloatValue
+        (match op with
+        | "+." -> a +. b
+        | "-." -> a -. b
+        | "*." -> a *. b
+        | _ -> a /. b)
+      |> return
+  | FloatMath f, FloatValue x ->
+      FloatValue (match f with "sqrt" -> sqrt x | "exp" -> exp x | _ -> log x) |> return
   | StrConcat, StringValue s1 -> BuiltInFunction (StrConcatPartial s1) |> return
   | StrConcatPartial s1, StringValue s2 -> StringValue (s1 ^ s2) |> return
   | StrSlice, StringValue s -> BuiltInFunction (StrSlicePartial1 s) |> return

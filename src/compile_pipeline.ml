@@ -155,7 +155,7 @@ let compile ?(quiet = false) ?(prelude = true) (src_path : string) (out_path : s
         else
           let rt = runtime_c_path () in
           let cmd_exe =
-            Printf.sprintf "clang -O1 -g -Wno-override-module -o %s %s %s"
+            Printf.sprintf "clang -O1 -g -Wno-override-module -o %s %s %s -lm"
               (Filename.quote out_path) (Filename.quote ll_path) (Filename.quote rt)
           in
           let code_exe = Sys.command cmd_exe in

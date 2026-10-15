@@ -29,10 +29,12 @@ function, and \fc|(+) 1| adds one.
 \tc{<|>} & left & \tc{Alternative f => f<a> -> f<a> -> f<a>} & first success (prelude) \\
 \midrule
 \tc{+}, \tc{-} & left & \tc{Int -> Int -> Int} & addition, subtraction \\
+\tc{+.}, \tc{-.} & left & \tc{Float -> Float -> Float} & float addition, subtraction \\
 \tc{^} & left & \tc{String -> String -> String} & concatenation \\
 \tc{++} & left & \tc{Semigroup a => a -> a -> a} & \tc{mappend} (prelude) \\
 \midrule
 \tc{*}, \tc{/}, \tc{\%} & left & \tc{Int -> Int -> Int} & product, quotient, remainder \\
+\tc{*.}, \tc{/.} & left & \tc{Float -> Float -> Float} & float product, quotient \\
 \midrule
 \tc{f x} & left & & function application \\
 \midrule

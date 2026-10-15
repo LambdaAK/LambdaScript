@@ -262,7 +262,7 @@ end
 
 All operators can be used as first-class values by wrapping in parentheses: `(+)`, `(*)`, `(::)`, etc.
 
-**Arithmetic**: `+`, `-`, `*`, `/`, `%`
+**Arithmetic**: `+`, `-`, `*`, `/`, `%` on `Int`; `+.`, `-.`, `*.`, `/.` on `Float` (same precedence as `+` and `*`)
 
 **Strings**: `^` (concatenation)
 
@@ -297,6 +297,7 @@ Supports comprehensive pattern matching including:
 - `int_to_float : int -> float`
 - `float_to_int : float -> int` (truncates toward zero)
 - `float_to_str : float -> string` (shortest form that reads back: `0.1`, `3.0`)
+- `sqrt`, `exp`, `log : float -> float`
 - `char_to_str : char -> string`
 - `string_to_list : string -> [char]` (also `list_of_string`)
 

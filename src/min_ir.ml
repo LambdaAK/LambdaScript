@@ -150,6 +150,13 @@ let runtime_externs : (string * (ty list * ty)) list =
     ("ls_str_slice", ([ String; I64; I64 ], String));
     ("ls_string_to_list", ([ String ], List I64));
     ("ls_int_to_float", ([ I64 ], F64));
+    ("ls_fadd", ([ F64; F64 ], F64));
+    ("ls_fsub", ([ F64; F64 ], F64));
+    ("ls_fmul", ([ F64; F64 ], F64));
+    ("ls_fdiv", ([ F64; F64 ], F64));
+    ("ls_sqrt", ([ F64 ], F64));
+    ("ls_exp", ([ F64 ], F64));
+    ("ls_log", ([ F64 ], F64));
     ("ls_float_to_int", ([ F64 ], I64));
     ("ls_float_to_str", ([ F64 ], String));
     ("ls_char_to_str", ([ I64 ], String));
