@@ -171,6 +171,21 @@ let builtin_tests =
     ok "show for 4- and 5-tuples" "let () = println ((1, \"a\", 2.5, true), (1, 2, 3, 4, (5, 6)))" "((1, a, 2.5, true), (1, 2, 3, 4, (5, 6)))\n";
     ok "char_to_int and int_to_char" "let () = println (char_to_int (int_to_char 65), int_to_char 97, char_to_int 'z')" "(65, a, 122)\n";
     ok "string_of_list inverts string_to_list" "let () = print_string (string_of_list (string_to_list \"forge\") ^ string_of_list [])" "forge\n";
+    ok "constrained call in a local let under an annotation"
+      "let rec ins k xs = case xs do | [] -> [k] | x :: r -> (case compare k x do | GT -> x :: ins k r | _ -> k :: xs)\nlet h ks = case ks do | k :: _ -> ins k [] | [] -> []\nlet g (ks : List<Int>) = let r = h ks in r\nlet () = println (g [2, 1])"
+      "[2]\n";
+    ok "constrained call in a local let of a constrained function"
+      "let rec lookup k kvs = case kvs do | [] -> 0 | (k2, v) :: rest -> if k == k2 then v else lookup k rest\nlet exec m r = let x = lookup r m in x\ntype M = { env: List<(String, Int)>, n: Int }\nlet f (m : M) r = let m2 = { m with n = lookup r m.env } in m2.n\nlet () = println (exec [(1, 10), (2, 20)] 2, f { env: [(\"a\", 1)], n: 0 } \"a\")"
+      "(20, 1)\n";
+    ok "constrained statement in a block"
+      "let report x = print_string (show x)\nlet run xs = { report xs; print_string \"done\" }\nlet () = run 1\nlet () = run [true]"
+      "1\ndone\n[true]\ndone\n";
+    ok "local let in constrained recursion and recursive impl methods"
+      "type rec Tree<a> = | Leaf of a | Node of (Int, Tree<a>)\nlet rec render t = case t do | Leaf a -> show a | Node (_, l) -> let p = \"x\" in p ^ render l\nimpl Show for Tree<a> requires Show<a> where\n  show t = case t do\n    | Leaf a -> show a\n    | Node (n, l) -> let prefix = \"n\" in prefix ^ show l\nend\nlet () = println (render (Node (1, Leaf 1)), show (Node (1, Node (2, Leaf true))))"
+      "(x1, nntrue)\n";
+    ok "open record rows shared by a local let rec and its enclosing function"
+      "let rec fold f z xs = case xs do | [] -> z | x :: t -> fold f (f z x) t\nlet min_by key xs = case xs do | [] -> None | x :: rest -> Some (fold (fn best -> fn y -> if key y < key best then y else best) x rest)\nlet np key jobs =\n  let rec go t pending acc = case pending do | [] -> acc | _ -> (case min_by key pending do | Some j -> go (t + j.b) [] (j.a :: acc) | None -> acc)\n  in go 0 jobs []\nlet () = println (np (fn j -> j.a) [{ n: 1, a: 5, b: 7, c: 3 }, { n: 2, a: 4, b: 1, c: 0 }])"
+      "[4]\n";
     ok "str_to_int" "let () = println [str_to_int \"123\", str_to_int \"-45\", str_to_int \"4x\", str_to_int \"\", str_to_int \"-\"]" "[Some 123, Some -45, None, None, None]\n";
     ok "sqrt exp log" (ps "float_to_str (sqrt 16.0) ^ \" \" ^ float_to_str (exp 0.0) ^ \" \" ^ float_to_str (log 1.0) ^ \" \" ^ float_to_str (log (exp 2.0))") "4.0 1.0 0.0 2.0\n";
     ok "float_to_str: integral values keep their digits"
