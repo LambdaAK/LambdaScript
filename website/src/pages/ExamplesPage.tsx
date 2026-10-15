@@ -59,10 +59,6 @@ function ExamplesPage() {
   return (
     <DocsLayout>
       <div className="page-intro">
-        <div className="breadcrumb">
-          <Link to="/">Home</Link> / <Link to="/docs/">Docs</Link> /
-          Examples
-        </div>
         <h1 className="page-title">Examples</h1>
         <p className="lead">
           Copy these into <code className="inline-code">.forge</code> files and run
@@ -99,67 +95,69 @@ function ExamplesPage() {
         checkout and use <code className="inline-code">/work/programs/…</code> as
         in the table below.
       </p>
-      <table className="info-table">
-        <thead>
-          <tr>
-            <th>Program</th>
-            <th>Purpose</th>
-            <th>Run Command</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>
-              <code className="inline-code">programs/minimal.forge</code>
-            </td>
-            <td>Small baseline sanity program</td>
-            <td>
-              <code className="inline-code">
-                docker run --rm -v &quot;$PWD&quot;:/work -w /work forge:local run
-                /work/programs/minimal.forge
-              </code>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <code className="inline-code">programs/record_update.forge</code>
-            </td>
-            <td>Record access and immutable update</td>
-            <td>
-              <code className="inline-code">
-                docker run --rm -v &quot;$PWD&quot;:/work -w /work forge:local run
-                /work/programs/record_update.forge
-              </code>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <code className="inline-code">
-                programs/red_black_tree_example.forge
-              </code>
-            </td>
-            <td>Larger recursive ADT program</td>
-            <td>
-              <code className="inline-code">
-                docker run --rm -v &quot;$PWD&quot;:/work -w /work forge:local run
-                /work/programs/red_black_tree_example.forge
-              </code>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <code className="inline-code">programs/test.forge</code>
-            </td>
-            <td>Macro rules sample</td>
-            <td>
-              <code className="inline-code">
-                docker run --rm -v &quot;$PWD&quot;:/work -w /work forge:local run
-                /work/programs/test.forge
-              </code>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div className="table-scroll">
+        <table className="info-table">
+          <thead>
+            <tr>
+              <th>Program</th>
+              <th>Purpose</th>
+              <th>Run Command</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <code className="inline-code">programs/minimal.forge</code>
+              </td>
+              <td>Small baseline sanity program</td>
+              <td>
+                <code className="inline-code">
+                  docker run --rm -v &quot;$PWD&quot;:/work -w /work forge:local run
+                  /work/programs/minimal.forge
+                </code>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <code className="inline-code">programs/record_update.forge</code>
+              </td>
+              <td>Record access and immutable update</td>
+              <td>
+                <code className="inline-code">
+                  docker run --rm -v &quot;$PWD&quot;:/work -w /work forge:local run
+                  /work/programs/record_update.forge
+                </code>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <code className="inline-code">
+                  programs/red_black_tree_example.forge
+                </code>
+              </td>
+              <td>Larger recursive ADT program</td>
+              <td>
+                <code className="inline-code">
+                  docker run --rm -v &quot;$PWD&quot;:/work -w /work forge:local run
+                  /work/programs/red_black_tree_example.forge
+                </code>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <code className="inline-code">programs/test.forge</code>
+              </td>
+              <td>Macro rules sample</td>
+              <td>
+                <code className="inline-code">
+                  docker run --rm -v &quot;$PWD&quot;:/work -w /work forge:local run
+                  /work/programs/test.forge
+                </code>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <div className="callout">
         <strong>Tip:</strong> after the image exists, run{' '}

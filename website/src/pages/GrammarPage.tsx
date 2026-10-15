@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import CodeBlock from '../components/CodeBlock';
 import DocsLayout from '../components/DocsLayout';
 
@@ -100,10 +99,6 @@ function GrammarPage() {
   return (
     <DocsLayout>
       <div className="page-intro">
-        <div className="breadcrumb">
-          <Link to="/">Home</Link> / <Link to="/docs/">Docs</Link> /
-          Grammar
-        </div>
         <h1 className="page-title">Grammar (Practical EBNF)</h1>
         <p className="lead">
           This is a readable grammar guide for everyday use, aligned with the

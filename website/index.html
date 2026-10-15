@@ -3,33 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Forge | A Functional Language That Scales</title>
+    <title>Forge – a statically typed functional language</title>
     <meta
       name="description"
-      content="Forge is a statically typed functional language with Hindley-Milner type inference, Rust-style macros, traits/impls, modules, and an experimental native LLVM compiler." />
+      content="Forge is a small, statically typed functional language with Hindley–Milner type inference, traits, macros and modules. Programs run in an interpreter or compile to native code through LLVM." />
     <meta
       name="keywords"
-      content="Forge language, functional programming language, Hindley-Milner, macros, type inference, compiler, interpreter, traits, impls, modules" />
-    <meta name="theme-color" content="#232325" />
+      content="Forge language, functional programming language, Hindley-Milner, type inference, traits, macros, compiler, interpreter, LLVM, OCaml" />
+    <meta name="theme-color" content="#faf9f5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#262624" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
     <meta property="og:type" content="website" />
-    <meta
-      property="og:title"
-      content="Forge | A Functional Language That Scales" />
+    <meta property="og:title" content="Forge – a statically typed functional language" />
     <meta
       property="og:description"
-      content="Statically typed functional language with type inference, macros, traits/impls, modules, and an experimental native LLVM compiler." />
+      content="Hindley–Milner type inference, traits, macros and modules; an interpreter and a native compiler through LLVM." />
     <meta property="og:image" content="/og-image.svg" />
-    <meta property="og:image:alt" content="Forge programming language website preview" />
+    <meta property="og:image:alt" content="Forge: a statically typed functional language" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta
-      name="twitter:title"
-      content="Forge | A Functional Language That Scales" />
+    <meta name="twitter:title" content="Forge – a statically typed functional language" />
     <meta
       name="twitter:description"
-      content="Statically typed functional language with type inference, macros, traits/impls, modules, and an experimental native LLVM compiler." />
+      content="Hindley–Milner type inference, traits, macros and modules; an interpreter and a native compiler through LLVM." />
     <meta name="twitter:image" content="/og-image.svg" />
+
+    <script>
+      // Apply the saved theme before the first paint (light unless the visitor chose dark).
+      (function () {
+        try {
+          if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

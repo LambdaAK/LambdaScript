@@ -82,10 +82,6 @@ function LanguageFeaturesPage() {
   return (
     <DocsLayout>
       <div className="page-intro">
-        <div className="breadcrumb">
-          <Link to="/">Home</Link> / <Link to="/docs/">Docs</Link> /
-          Language Features
-        </div>
         <h1 className="page-title">Language Features</h1>
         <p className="lead">
           Forge is a statically typed functional language with both interpreter
@@ -174,71 +170,73 @@ function LanguageFeaturesPage() {
       <CodeBlock code={macroSnippet} />
 
       <h3>Macro Fragment Kinds</h3>
-      <table className="info-table">
-        <thead>
-          <tr>
-            <th>Kind</th>
-            <th>Meaning</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>
-              <code className="inline-code">expr</code>
-            </td>
-            <td>Expression</td>
-          </tr>
-          <tr>
-            <td>
-              <code className="inline-code">pat</code>
-            </td>
-            <td>Pattern</td>
-          </tr>
-          <tr>
-            <td>
-              <code className="inline-code">ty</code> /{' '}
-              <code className="inline-code">type</code>
-            </td>
-            <td>Type syntax</td>
-          </tr>
-          <tr>
-            <td>
-              <code className="inline-code">ident</code>
-            </td>
-            <td>Identifier token</td>
-          </tr>
-          <tr>
-            <td>
-              <code className="inline-code">item</code>
-            </td>
-            <td>Top-level item fragment</td>
-          </tr>
-          <tr>
-            <td>
-              <code className="inline-code">tt</code>
-            </td>
-            <td>Single token tree</td>
-          </tr>
-          <tr>
-            <td>
-              <code className="inline-code">literal</code>
-            </td>
-            <td>Literal token</td>
-          </tr>
-          <tr>
-            <td>
-              <code className="inline-code">path</code>
-            </td>
-            <td>Qualified path</td>
-          </tr>
-          <tr>
-            <td>
-              <code className="inline-code">block</code>
-            </td>
-            <td>Block expression group</td>
-          </tr>
-        </tbody>
-      </table>
+      <div className="table-scroll">
+        <table className="info-table">
+          <thead>
+            <tr>
+              <th>Kind</th>
+              <th>Meaning</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <code className="inline-code">expr</code>
+              </td>
+              <td>Expression</td>
+            </tr>
+            <tr>
+              <td>
+                <code className="inline-code">pat</code>
+              </td>
+              <td>Pattern</td>
+            </tr>
+            <tr>
+              <td>
+                <code className="inline-code">ty</code> /{' '}
+                <code className="inline-code">type</code>
+              </td>
+              <td>Type syntax</td>
+            </tr>
+            <tr>
+              <td>
+                <code className="inline-code">ident</code>
+              </td>
+              <td>Identifier token</td>
+            </tr>
+            <tr>
+              <td>
+                <code className="inline-code">item</code>
+              </td>
+              <td>Top-level item fragment</td>
+            </tr>
+            <tr>
+              <td>
+                <code className="inline-code">tt</code>
+              </td>
+              <td>Single token tree</td>
+            </tr>
+            <tr>
+              <td>
+                <code className="inline-code">literal</code>
+              </td>
+              <td>Literal token</td>
+            </tr>
+            <tr>
+              <td>
+                <code className="inline-code">path</code>
+              </td>
+              <td>Qualified path</td>
+            </tr>
+            <tr>
+              <td>
+                <code className="inline-code">block</code>
+              </td>
+              <td>Block expression group</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <h2>Built-in Macros</h2>
       <ul>

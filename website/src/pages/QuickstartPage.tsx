@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import CodeBlock from '../components/CodeBlock';
 import DocsLayout from '../components/DocsLayout';
 
@@ -26,10 +25,6 @@ function QuickstartPage() {
   return (
     <DocsLayout>
       <div className="page-intro">
-        <div className="breadcrumb">
-          <Link to="/">Home</Link> / <Link to="/docs/">Docs</Link> /
-          Quickstart
-        </div>
         <h1 className="page-title">Quickstart</h1>
         <p className="lead">
           Run Forge with Docker: clone the repository, build one image, then use
