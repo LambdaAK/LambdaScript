@@ -1001,10 +1001,20 @@ and materialize_clos_lower _env ctx (c : callable) : operand * ty =
 let lambda_captures (env : env) (ctx : fn_ctx) (fv : S.t) :
     (string * ty * operand) list =
   let names = List.sort String.compare (S.elements fv) in
-  List.map
+  (* Global functions (callables without captured or fixed arguments) and
+     dictionary getters are visible from every function: no capture. *)
+  let global_callable v =
+    match List.assoc_opt v env with
+    | Some (C c) -> c.cap_ops = [] && c.fixed = []
+    | Some (ForgeDict _) -> true
+    | _ -> false
+  in
+  List.filter_map
     (fun v ->
-      let t, op = capture_operand_for_var env ctx v in
-      (v, t, op))
+      if global_callable v then None
+      else
+        let t, op = capture_operand_for_var env ctx v in
+        Some (v, t, op))
     names
 
 (** After [n] curried arrow parameters, the monomorphic result type of the
@@ -2227,6 +2237,36 @@ let static_env_for_switch_branch_pat (static_env : static_env)
                 | _ -> [])))
     | _ -> []
 
+(** Top-level values are kept in module globals (see [GlobalStore]): main
+    computes them in program order; functions read them with [GlobalLoad].
+    Maps the [main]-local name of each top-level value to its global. *)
+let main_value_globals : (string, string) Hashtbl.t = Hashtbl.create 64
+
+let fresh_global (name : string) : string =
+  incr counter;
+  "__forge_g_" ^ sanitize_llvm_ident name ^ "_" ^ string_of_int !counter
+
+(** In a function body, replace bindings of free variables that refer to
+    [main]-local top-level values by loads of their globals (emitted at the
+    current point of [ctx]). *)
+let globals_to_loads (ctx : fn_ctx) (body : c_expr) (env : env) : env =
+  if Hashtbl.length main_value_globals = 0 then env
+  else
+    let fv = free_vars_cexpr body in
+    let seen = Hashtbl.create 16 in
+    List.map
+      (fun (name, b) ->
+        if Hashtbl.mem seen name then (name, b)
+        else (
+          Hashtbl.add seen name ();
+          match b with
+          | Val (Local l, t, m) when S.mem name fv && Hashtbl.mem main_value_globals l ->
+              let tmp = fresh () in
+              emit_instr ctx (Assign (tmp, GlobalLoad (Hashtbl.find main_value_globals l, t)));
+              (name, Val (Local tmp, t, m))
+          | _ -> (name, b)))
+      env
+
 (* -------------------------------------------------------------------------- *)
 (* Structural comparison                                                       *)
 (* -------------------------------------------------------------------------- *)
@@ -2722,14 +2762,14 @@ and emit_saturated_call ctx (c : callable) : expr_result =
         let ret_ty =
           match c.param_tys with
           | [ _; a1; a2 ]
-            when c.ret_ty = RawPtr && ty_equal a1 a2 && not (ty_equal a1 RawPtr)
+            when c.ret_ty = RawPtr && ty_equal a1 a2 && is_list_ty a1
             ->
               (* Class-method stubs map recursive sum types (e.g. [List]) to
                  [RawPtr] in {!mono_to_min}; [mappend]/[++] is [a -> a -> a] with
                  a leading dictionary slot. *)
               a1
           | [ a1; a2 ]
-            when c.ret_ty = RawPtr && ty_equal a1 a2 && not (ty_equal a1 RawPtr)
+            when c.ret_ty = RawPtr && ty_equal a1 a2 && is_list_ty a1
             ->
               (* Same shape without an explicit dict slot in the stub (e.g.
                  monomorphized [mappend] on lists). *)
@@ -3065,8 +3105,8 @@ and emit_native_pat_test (env : env) (ctx : fn_ctx) (o_s : operand) (t_s : ty)
                   (env', iand_operands ctx [ Local c_tag; c_sub ])))
       | _ ->
           unsupported
-            "variant pattern requires a sum-type scrutinee in native \
-             compilation")
+            ("variant pattern requires a sum-type scrutinee in native \
+             compilation (scrutinee type " ^ string_of_mono_type scrut_mono ^ ")"))
   | CRecordPat _ ->
       unsupported
         "internal: record pattern should have been desugared to a tuple"
@@ -4124,8 +4164,11 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
       match lower_expr e1 env ctx static_env type_env shadows with
       | LVal (o1, t1) ->
           let m1 = static_mono_for_native ct_rhs in
-          emit_instr ctx (Assign (x, Copy o1));
-          let env' = (x, Val (Local x, t1, Some m1)) :: env in
+          (* A fresh SSA name: the same source name can be bound several times
+             in one function (shadowing, or one [let] per branch). *)
+          let l = sanitize_llvm_ident x ^ "." ^ fresh () in
+          emit_instr ctx (Assign (l, Copy o1));
+          let env' = (x, Val (Local l, t1, Some m1)) :: env in
           lower_expr e2 env' ctx static_here type_env
             (shadow_add_pat (CIdPat x) shadows)
       | LPartial c ->
@@ -4310,6 +4353,12 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
                     base_stub with
                     cap_tys = List.map (fun (_, t, _) -> t) cap_entries;
                     cap_ops = List.map (fun (_, _, op) -> op) cap_entries;
+                    (* A one-parameter function with captures still needs its
+                       step function (see [lower_user_function]) to be used as
+                       a value. *)
+                    step_codes =
+                      (if base_stub.step_codes = [] then [ emit ^ "__ls_s0" ]
+                       else base_stub.step_codes);
                   }
               in
               let outer_env = (name, C stub) :: env in
@@ -4530,7 +4579,13 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
             param_pats anns static_here type_env
         in
         if cap_entries = [] then base
-        else { base with cap_tys = cap_tys_all; cap_ops = cap_ops_use }
+        else
+          {
+            base with
+            cap_tys = cap_tys_all;
+            cap_ops = cap_ops_use;
+            step_codes = (if base.step_codes = [] then [ emit ^ "__ls_s0" ] else base.step_codes);
+          }
       in
       (* Outer stubs: used in the body; cap_ops come from the outer env *)
       let outer_stubs =
@@ -4870,13 +4925,13 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
   let params = List.map fst param_names_and_frags in
   let env_params = List.concat (List.map snd param_names_and_frags) in
   let direct_params = cap_pairs @ List.combine params param_tys in
+  let ctx = create_fn_ctx () in
   let merged0 =
     env_params
     @ rec_self_entry
     @ List.map (fun (v, t) -> (v, Val (Local v, t, None))) cap_pairs
-    @ outer_env
+    @ globals_to_loads ctx inner outer_env
   in
-  let ctx = create_fn_ctx () in
   let tuple_checks =
     List.map
       (fun (pname, subs, etys, pm) -> (pname, Tuple etys, CVectorPat subs, pm))
@@ -5071,122 +5126,100 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
       build_mono_instance_env instances defs static_env type_env
     in
     let ctx_main = create_fn_ctx () in
-    let env_with_dicts =
-      List.fold_left
-        (fun env_acc defn ->
-          match defn with
-          | CDefn (CIdPat nm, _, _, body, _, _) ->
-              if not (is_forge_dict_name nm) then env_acc
-              else
-                let param_pats, _, _ = peel_efun [] [] body in
-                if param_pats <> [] then env_acc
-                else (
-                  let ctx_g = create_fn_ctx () in
-                  let g = forge_dict_getter_symbol nm in
-                  match
-                    lower_expr body env_acc ctx_g static_env type_env S.empty
-                  with
-                  | LVal (o, t) ->
-                      close_block ctx_g (Ret (Some o));
-                      let fn_def =
-                        {
-                          name = g;
-                          params = [];
-                          ret = t;
-                          entry = "entry";
-                          blocks = blocks_assoc ctx_g;
-                        }
-                      in
-                      user_funs :=
-                        !user_funs @ ctx_g.nested_funcs @ [ fn_def ];
-                      (nm, ForgeDict t) :: env_acc
-                  | LPartial _ ->
-                      unsupported
-                        "forge dictionary binding cannot be a partial application")
-          | CDefn _ -> env_acc
-          | CDefnRec _ | CDefnMutRec _ | CClassDecl _ | CTypeAlias _ | CSumType _
-          | CSumTypeRec _ | CSumTypeRecMutRec _ ->
-              env_acc)
-        env_mono defs
+    Hashtbl.reset main_value_globals;
+    (* Store a [main]-computed value in a global so functions can read it. *)
+    let globalize ?(hint = "v") (op : operand) (t : ty) : operand =
+      let l = fresh () in
+      emit_instr ctx_main (Assign (l, Copy op));
+      if t <> Unit then (
+        let g = fresh_global hint in
+        emit_instr ctx_main (GlobalStore (g, t, Local l));
+        Hashtbl.replace main_value_globals l g);
+      Local l
     in
-    List.iter
-      (fun (name, mono) ->
-        match find_cdefn_function name defs with
-        | None -> ()
-        | Some (param_pats, anns, inner) ->
-            let emit = mangle_poly_instance name mono in
-            let bound = List.concat (List.map pat_bound_simple param_pats) in
-            let fv0 = S.diff (free_vars_cexpr inner) (S.of_list bound) in
-            let fv =
-              S.filter
-                (fun v ->
-                  ((not (is_poly_static v static_env)) || is_forge_dict_name v)
-                  && not (is_native_builtin_name v))
-                fv0
-            in
-            let cap_entries = lambda_captures env_with_dicts ctx_main fv in
-            let fn, nested =
-              lower_user_function ~captures:cap_entries
-                ~scheme_key:(Some name) ~ty_key:emit ~emit param_pats anns inner
-                env_with_dicts
-                ((emit, Mono mono) :: static_env)
-                type_env S.empty
-            in
-            user_funs := !user_funs @ nested @ [ fn ])
-      instances;
+    (* Instance dictionaries are lowered when [walk] reaches them, with the
+       environment of that point (they may call earlier top-level functions);
+       polymorphic functions are lowered after [walk], per instance, with the
+       environment of their definition site. *)
+    let dict_bindings : env ref = ref [] in
+    let poly_snapshots : (string, env) Hashtbl.t = Hashtbl.create 16 in
+    let lower_dict_getter env nm body =
+      let ctx_g = create_fn_ctx () in
+      let g = forge_dict_getter_symbol nm in
+      let env_g = globals_to_loads ctx_g body (!dict_bindings @ env) in
+      match lower_expr body env_g ctx_g static_env type_env S.empty with
+      | LVal (o, t) ->
+          close_block ctx_g (Ret (Some o));
+          let fn_def = { name = g; params = []; ret = t; entry = "entry"; blocks = blocks_assoc ctx_g } in
+          user_funs := !user_funs @ ctx_g.nested_funcs @ [ fn_def ];
+          dict_bindings := (nm, ForgeDict t) :: !dict_bindings;
+          (nm, ForgeDict t) :: env
+      | LPartial _ -> unsupported "forge dictionary binding cannot be a partial application"
+    in
+    (* Instances of a polymorphic top-level value, computed in [main] where the
+       value is defined. *)
+    let lower_poly_value_instances env name =
+      List.fold_left
+        (fun env_acc (iname, mono) ->
+          if not (String.equal iname name) then env_acc
+          else
+            match find_cdefn_function name defs with
+            | Some _ -> env_acc
+            | None -> (
+                match find_cdefn_value_rhs name defs with
+                | None -> env_acc
+                | Some inner -> (
+                    let emit = mangle_poly_instance name mono in
+                    if List.mem_assoc emit env_acc then env_acc
+                    else
+                      let static_inst = replace_static_binding name (Mono mono) static_env in
+                      let t_expect = mono_to_min mono in
+                      let o, t =
+                        match lower_expr inner env_acc ctx_main static_inst type_env S.empty with
+                        | LPartial c -> materialize_clos_lower env_acc ctx_main c
+                        | LVal (o, t) -> (o, t)
+                      in
+                      if not (ty_equal t t_expect) then
+                        unsupported "Internal: monomorphized value type does not match key";
+                      let l = globalize ~hint:name o t in
+                      (emit, Val (l, t, Some mono)) :: env_acc)))
+        env instances
+    in
+    (* Polymorphic nullary constructors used as values ([None] at a call site)
+       need no definition. *)
     let env_with_values =
       List.fold_left
         (fun env_acc (name, mono) ->
-          match find_cdefn_function name defs with
-          | Some _ -> env_acc
-          | None -> (
-              match find_cdefn_value_rhs name defs with
-              | Some inner -> (
+          match (find_cdefn_function name defs, find_cdefn_value_rhs name defs) with
+          | None, None -> (
+              match find_constructor_index ctor_env name with
+              | Some (tag, _, None) ->
                   let emit = mangle_poly_instance name mono in
                   if List.mem_assoc emit env_acc then env_acc
                   else
-                    let static_inst =
-                      replace_static_binding name (Mono mono) static_env
-                    in
-                    match
-                      lower_expr inner env_acc ctx_main static_inst type_env
-                        S.empty
-                    with
-                    | LPartial c ->
-                        let o, t = materialize_clos_lower env_acc ctx_main c in
-                        let t_expect = mono_to_min mono in
-                        if not (ty_equal t t_expect) then
-                          unsupported
-                            "Internal: monomorphized value type does not match \
-                             key";
-                        emit_instr ctx_main (Assign (emit, Copy o));
-                        (emit, Val (Local emit, t, Some mono)) :: env_acc
-                    | LVal (o, t) ->
-                        let t_expect = mono_to_min mono in
-                        if not (ty_equal t t_expect) then
-                          unsupported
-                            "Internal: monomorphized value type does not match \
-                             key";
-                        emit_instr ctx_main (Assign (emit, Copy o));
-                        (emit, Val (Local emit, t, Some mono)) :: env_acc)
-              | None -> (
-                  (* Polymorphic nullary ctor as value ([None] at a call site):
-                     no [let None = …]; see poly_option_none_arg.forge in
-                     compiler_cases. *)
-                  match find_constructor_index ctor_env name with
-                  | Some (tag, _, None) ->
-                      let emit = mangle_poly_instance name mono in
-                      if List.mem_assoc emit env_acc then env_acc
-                      else
-                        let t_expect = mono_to_min mono in
-                        emit_instr ctx_main
-                          (Assign (emit, VariantMk (tag, RawNull)));
-                        (emit, Val (Local emit, t_expect, Some mono)) :: env_acc
-                  | _ -> env_acc)))
-        env_with_dicts instances
+                    let t_expect = mono_to_min mono in
+                    let v = fresh () in
+                    emit_instr ctx_main (Assign (v, VariantMk (tag, RawNull)));
+                    (emit, Val (globalize ~hint:name (Local v) t_expect, t_expect, Some mono))
+                    :: env_acc
+              | _ -> env_acc)
+          | _ -> env_acc)
+        env_mono instances
+    in
+    (* Bindings added by a top-level destructuring [let] become globals. *)
+    let globalize_new (before : env) (after : env) : env =
+      let n_new = List.length after - List.length before in
+      List.mapi
+        (fun idx (name, b) ->
+          if idx >= n_new then (name, b)
+          else
+            match b with
+            | Val (op, t, m) -> (name, Val (globalize ~hint:name op t, t, m))
+            | other -> (name, other))
+        after
     in
     let rec walk env = function
-      | [] -> ()
+      | [] -> env
       | ( CClassDecl _
         | CTypeAlias _
         | CSumType _
@@ -5203,7 +5236,9 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                      in the interpreter; lower it through the non-recursive
                      top-level path. *)
                   walk env (CDefn (pat, cs, ta, body, rt, n) :: rest)
-              | _ :: _ when is_poly_static name static_env -> walk env rest
+              | _ :: _ when is_poly_static name static_env ->
+                  Hashtbl.replace poly_snapshots name env;
+                  walk env rest
               | _ :: _ ->
                   let stub =
                     callable_stub ~scheme_key:name ~instance_key:name
@@ -5245,7 +5280,9 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
               (fun (name, _, _, _) -> is_poly_static name static_env)
               parsed
           in
-          if any_poly then walk env rest
+          if any_poly then (
+            List.iter (fun (name, _, _, _) -> Hashtbl.replace poly_snapshots name env) parsed;
+            walk env rest)
           else
             let stubs =
               List.map
@@ -5270,9 +5307,11 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
               List.fold_left (fun acc (n, c) -> (n, C c) :: acc) env stubs
             in
             walk env' rest
-      | CDefn (CIdPat name, _, _, _, _, _) :: rest
+      | CDefn (CIdPat name, _, _, body, _, _) :: rest
         when is_forge_dict_name name ->
-          walk env rest
+          let param_pats, _, _ = peel_efun [] [] body in
+          if param_pats <> [] then walk env rest
+          else walk (lower_dict_getter env name body) rest
       | CDefn (pat, _, _, body, _, _) :: rest -> (
           match pat with
           | CIdPat name -> (
@@ -5292,15 +5331,23 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                               ("top-level value: "
                               ^ Typecheck.string_of_type_check_error err)
                       in
-                      emit_instr ctx_main (Assign (name, Copy o));
+                      let l = globalize ~hint:name o t in
+                      let env' = (name, Val (l, t, Some m_rhs)) :: env in
                       let env' =
-                        (name, Val (Local name, t, Some m_rhs)) :: env
+                        if is_poly_static name static_env then
+                          lower_poly_value_instances env' name
+                        else env'
                       in
                       walk env' rest
                   | LPartial c ->
-                      let env' = (name, C c) :: env in
+                      (* A top-level partial application is a closure value. *)
+                      let o, t = materialize_clos_lower env ctx_main c in
+                      let l = globalize ~hint:name o t in
+                      let env' = (name, Val (l, t, None)) :: env in
                       walk env' rest)
-              | _ :: _ when is_poly_static name static_env -> walk env rest
+              | _ :: _ when is_poly_static name static_env ->
+                  Hashtbl.replace poly_snapshots name env;
+                  walk env rest
               | _ :: _ ->
                   let stub =
                     callable_stub ~scheme_key:name ~instance_key:name
@@ -5343,6 +5390,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                             emit_native_pat_test env ctx_main o (Tuple elem_tys)
                               m (CVectorPat subs)
                           in
+                          let env' = globalize_new env env' in
                           match cond with
                           | ConstI1 true -> walk env' rest
                           | _ ->
@@ -5383,6 +5431,7 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                             emit_native_pat_test env ctx_main o (Tuple elem_tys)
                               m (CRecordPat rsubs)
                           in
+                          let env' = globalize_new env env' in
                           match cond with
                           | ConstI1 true -> walk env' rest
                           | _ ->
@@ -5411,7 +5460,29 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
                 "Top-level let only supports identifier, unit, wildcard, \
                  tuple, or record patterns in Min_IR lowering")
     in
-    walk env_with_values defs;
+    let final_env = walk env_with_values defs in
+    (* Polymorphic functions, one function per instance, in the environment of
+       their definition (plus every dictionary and instance stub). *)
+    List.iter
+      (fun (name, mono) ->
+        match find_cdefn_function name defs with
+        | None -> ()
+        | Some (param_pats, anns, inner) ->
+            let emit = mangle_poly_instance name mono in
+            let base =
+              match Hashtbl.find_opt poly_snapshots name with
+              | Some e -> e
+              | None -> final_env
+            in
+            let env_i = !dict_bindings @ env_mono @ base in
+            let fn, nested =
+              lower_user_function ~scheme_key:(Some name) ~ty_key:emit ~emit param_pats
+                anns inner env_i
+                ((emit, Mono mono) :: static_env)
+                type_env S.empty
+            in
+            user_funs := !user_funs @ nested @ [ fn ])
+      instances;
     close_block ctx_main (Ret None);
     let main_fn : func_def =
       {

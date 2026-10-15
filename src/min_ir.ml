@@ -94,6 +94,8 @@ type rhs =
   | VariantTag of operand
   (** Untyped payload pointer from a variant ([i8*] → [i8*]). *)
   | VariantPayload of operand
+  (** Value of a module-level global (a top-level [let] value). *)
+  | GlobalLoad of string * ty
 
 type instr =
   | Assign of string * rhs
@@ -104,6 +106,9 @@ type instr =
      {!runtime_void_symbols}. *)
   | VoidCall of string * operand list
   | VoidIndirectCall of operand * ty list * operand list
+  (** Initialise a module-level global (top-level values are globals so that
+      every function can read them). *)
+  | GlobalStore of string * ty * operand
 
 type term =
   | Ret of operand option (* [None] = return void / unit *)
@@ -277,6 +282,7 @@ let string_of_rhs = function
   | VariantTag o -> Printf.sprintf "variant_tag %s" (string_of_operand o)
   | VariantPayload o ->
       Printf.sprintf "variant_payload %s" (string_of_operand o)
+  | GlobalLoad (g, t) -> Printf.sprintf "global_load %s @%s" (string_of_ty t) g
 
 let string_of_instr = function
   | Assign (dst, rhs) -> Printf.sprintf "  %s = %s" dst (string_of_rhs rhs)
@@ -287,6 +293,8 @@ let string_of_instr = function
       let args_s = String.concat ", " (List.map string_of_operand args) in
       Printf.sprintf "  void indirect %s(%s)"
         (string_of_operand c) args_s
+  | GlobalStore (g, t, o) ->
+      Printf.sprintf "  global_store %s @%s, %s" (string_of_ty t) g (string_of_operand o)
   | Phi (dst, t, incomings) ->
       let parts =
         String.concat ", "

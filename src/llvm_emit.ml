@@ -21,6 +21,8 @@ type emit_ctx = {
   mutable heap_unbox_dummies : (ty * string) list;
   (** Fresh SSA names for temps introduced while emitting call operands. *)
   mutable emit_aux_id : int;
+  (** Module-level globals (top-level values) already declared. *)
+  mutable globals : string list;
 }
 
 let ctx_create () =
@@ -35,6 +37,7 @@ let ctx_create () =
     list_sentinels = [];
     heap_unbox_dummies = [];
     emit_aux_id = 0;
+    globals = [];
   }
 
 let ensure_list_sentinel (ctx : emit_ctx) (struct_n : string) : string =
@@ -211,6 +214,20 @@ let llvm_value_ty_ctx (ctx : emit_ctx) (t : ty) : string =
   | RawPtr -> "i8*"
   | Clos _ -> "i8*"
   | t -> llvm_ll_ty_ctx ctx t
+
+(** Declare module global [g] of type [t] (once). *)
+let ensure_global (ctx : emit_ctx) (g : string) (t : ty) : string =
+  let ll = match t with Unit -> "i8" | t -> llvm_value_ty_ctx ctx t in
+  if not (List.mem g ctx.globals) then (
+    ctx.globals <- g :: ctx.globals;
+    let name =
+      if String.for_all (fun c -> c = '_' || c = '.' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) g
+      then g
+      else "\"" ^ g ^ "\""
+    in
+    ctx.prelude <-
+      Printf.sprintf "@%s = internal global %s zeroinitializer" name ll :: ctx.prelude);
+  ll
 
 let llvm_env_field_ll_ty (ctx : emit_ctx) (t : ty) : string =
   match t with
@@ -640,6 +657,24 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
             !lines
             @ [ Printf.sprintf "  call void @%s(%s)" (gsym name) (String.concat ", " parts) ]
       )
+  | GlobalStore (g, t, op) -> (
+      let ll = ensure_global ctx g t in
+      match t with
+      | Unit -> ()
+      | String -> (
+          match op with
+          | ConstStr str ->
+              let tmp = fresh_emit_aux ctx in
+              lines := !lines @ [ emit_global_string ctx tmp str ];
+              H.replace h tmp String;
+              lines := !lines @ [ Printf.sprintf "  store i8* %%%s, i8** @%s" tmp (gsym g) ]
+          | _ ->
+              let _, v = emit_operand ctx h op in
+              lines := !lines @ [ Printf.sprintf "  store i8* %s, i8** @%s" v (gsym g) ])
+      | _ ->
+          let got, v = emit_operand ctx h op in
+          if got <> ll then failwith ("llvm_emit: global store type mismatch for " ^ g);
+          lines := !lines @ [ Printf.sprintf "  store %s %s, %s* @%s" ll v ll (gsym g) ])
   | VoidIndirectCall (callee_op, ptys, args) ->
       let callee_ty = llvm_fun_ptr_ty_ctx ctx ptys Unit in
       let ct, cv = emit_operand ctx h callee_op in
@@ -1480,6 +1515,12 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
             Printf.sprintf "  %%%s = call i8* @ls_variant_payload(i8* %s)" dst vv;
           ];
       H.replace h dst RawPtr
+  | GlobalLoad (g, t) ->
+      let ll = ensure_global ctx g t in
+      (match t with
+      | Unit -> lines := !lines @ [ Printf.sprintf "  %%%s = add i8 0, 0" dst ]
+      | _ -> lines := !lines @ [ Printf.sprintf "  %%%s = load %s, %s* @%s" dst ll ll (gsym g) ]);
+      H.replace h dst t
   | MkClos { code; env_ptr; clo_ty } -> (
       match clo_ty with
       | Clos _ ->
