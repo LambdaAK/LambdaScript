@@ -371,6 +371,7 @@ let runtime_declarations : string =
    declare i64 @ls_float_to_int(double)\n\
    declare i8* @ls_float_to_str(double)\n\
    declare i8* @ls_char_to_str(i64)\n\
+   declare i8* @ls_ordering_of_cmp(i64)\n\
    declare void @ls_compare_functions()\n\
    declare i64 @ls_imod(i64, i64)\n\
    declare i8* @ls_str_concat(i8*, i8*)\n\
@@ -582,7 +583,7 @@ let emit_copy_dst (ctx : emit_ctx) (h : (string, ty) H.t)
           lines := !lines @ [ ins ];
           H.replace h dst ty)
 
-let phi_incoming_val (h : (string, ty) H.t) (exp_ty : ty) (op : operand) :
+let phi_incoming_val ctx (h : (string, ty) H.t) (exp_ty : ty) (op : operand) :
     string =
   let ty_err () =
     failwith
@@ -611,7 +612,8 @@ let phi_incoming_val (h : (string, ty) H.t) (exp_ty : ty) (op : operand) :
       | Some _ | None -> ());
       "%" ^ x
   | ConstStr _ ->
-      failwith "llvm_emit: phi cannot use string literal; materialize to a local"
+      check_exp_const String;
+      snd (emit_operand ctx h op)
   | ConstUnit -> failwith "llvm_emit: phi cannot use unit"
   | FnAddr _ ->
       failwith "llvm_emit: phi cannot use function address; materialize to a local"
@@ -619,7 +621,7 @@ let phi_incoming_val (h : (string, ty) H.t) (exp_ty : ty) (op : operand) :
       (match exp_ty with
       | RawPtr | Clos _ | List _ -> ()
       | _ -> failwith "llvm_emit: phi null only for rawptr, closure, or list type");
-      "i8* null"
+      "null"
 
 let emit_instr ctx (fn_sigs : (string, func_def) H.t)
     (h : (string, ty) H.t) (lines : string list ref) (instr : instr) : unit =
@@ -630,7 +632,7 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
         String.concat ", "
           (List.map
              (fun (lbl, op) ->
-               let v = phi_incoming_val h t op in
+               let v = phi_incoming_val ctx h t op in
                Printf.sprintf "[ %s, %%%s ]" v lbl)
              incomings)
       in
@@ -1166,7 +1168,7 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
               ];
           let head_ll = llvm_struct_elem_ty ctx elem_ty in
           let ht, hv = emit_operand ctx h head in
-          if ht <> head_ll then failwith "llvm_emit: list cons head type mismatch";
+          if ht <> head_ll then failwith ("llvm_emit: list cons head type mismatch (" ^ ht ^ " vs " ^ head_ll ^ " in " ^ dst ^ ")");
           let gh = dst ^ "_gh" in
           lines :=
             !lines

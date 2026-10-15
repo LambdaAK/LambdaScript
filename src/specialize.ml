@@ -175,6 +175,11 @@ let defn_names (d : c_defn) : string list =
 
 let rename_duplicates (defs : c_defn list) : c_defn list =
   let total = Hashtbl.create 64 in
+  (* Builtin primitives count as an earlier definition: a program that
+     redefines [print_string] still means the builtin before that point. *)
+  List.iter
+    (fun (n, v, _) -> match v with BuiltInFunction _ -> Hashtbl.replace total n 1 | _ -> ())
+    Env.built_ins;
   List.iter
     (fun d ->
       List.iter

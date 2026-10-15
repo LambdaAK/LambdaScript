@@ -123,6 +123,17 @@ and min_ir_of_file_exn ~prelude (src_path : string) : (Min_ir.prog, string) resu
   let static_env = build_full_static_env () in
   match typecheck_and_elaborate_defns static_env [] [] [] condensed_program with
   | Error _ as e -> e
+  | Ok (elaborated, _) when Sys.getenv_opt "FORGE_OLD_NATIVE" = None -> (
+      (* Dictionaries are resolved statically, every polymorphic definition is
+         copied per type, and the typed monomorphic program is lowered. *)
+      match Mono.program (Specialize.program (Mono.builtin_defns () @ elaborated)) with
+      | exception (Specialize.Unsupported msg | Mono.Unsupported msg) ->
+          Error ("the native compiler does not support this program yet: " ^ msg)
+      | typed -> (
+          match Lower_typed.program typed with
+          | exception Lower_typed.Unsupported msg ->
+              Error ("the native compiler does not support this program yet: " ^ msg)
+          | prog -> Ok prog))
   | Ok (elaborated, _) -> (
       (* Dictionaries are resolved statically, and the class-free program is
          type-checked again for the lowering. *)

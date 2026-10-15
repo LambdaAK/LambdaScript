@@ -153,6 +153,7 @@ let runtime_externs : (string * (ty list * ty)) list =
     ("ls_float_to_int", ([ F64 ], I64));
     ("ls_float_to_str", ([ F64 ], String));
     ("ls_char_to_str", ([ I64 ], String));
+    ("ls_ordering_of_cmp", ([ I64 ], RawPtr));
   ]
 
 (* ----- helpers for well-formedness checks later ----- *)

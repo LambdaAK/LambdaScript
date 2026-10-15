@@ -256,3 +256,8 @@ char *ls_char_to_str(int64_t c) {
   p[1] = '\0';
   return p;
 }
+
+/** Ordering (LT | EQ | GT) from a three-way comparison result. */
+void *ls_ordering_of_cmp(int64_t c) {
+  return ls_variant_mk(c < 0 ? 0 : (c > 0 ? 2 : 1), NULL);
+}

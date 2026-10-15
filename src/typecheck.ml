@@ -185,8 +185,26 @@ let log_occurrence (node : c_expr) (preds : (string * mono_type) list) : unit =
   if !evidence_logging && preds <> [] then
     evidence_occurrences := (node, preds) :: !evidence_occurrences
 
+(** {2 Types of every node}
+
+    While [type_logging] is set, the inferred (unsolved) type of every
+    expression node and the schemes of local bindings are recorded by
+    physical node; the native back end resolves them under the solution of
+    the enclosing top-level definition ({!last_defn_equations}). *)
+module NodeTbl = Hashtbl.Make (struct
+  type t = c_expr
+
+  let equal = ( == )
+  let hash = Hashtbl.hash
+end)
+
+let type_logging = ref false
+let node_types : mono_type NodeTbl.t = NodeTbl.create 1024
+let node_bindings : (string * c_type) list NodeTbl.t = NodeTbl.create 64
+
 let log_binding (node : c_expr) (binds : (string * c_type) list) : unit =
-  if !evidence_logging then evidence_bindings := (node, binds) :: !evidence_bindings
+  if !evidence_logging then evidence_bindings := (node, binds) :: !evidence_bindings;
+  if !type_logging then NodeTbl.replace node_bindings node binds
 
 let assert_distinct_record_field_names (names : string list) : unit =
   let sorted = List.sort String.compare names in
@@ -623,6 +641,12 @@ let instance_head_possible ~(static_env : static_env) ~(class_name : string)
       A pair [(t, constraints)] where [t] is the inferred type and [constraints]
       is the list of type equations *)
 let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
+    (mono_type * type_equations * type_env) type_check_result =
+  let r = generate_node env type_env e in
+  (if !type_logging then match r with Ok (t, _, _) -> NodeTbl.replace node_types e t | Error _ -> ());
+  r
+
+and generate_node (env : static_env) (type_env : type_env) (e : c_expr) :
     (mono_type * type_equations * type_env) type_check_result =
   match e with
   | EInt _ -> generate_e_int
