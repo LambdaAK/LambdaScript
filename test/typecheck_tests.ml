@@ -261,6 +261,8 @@ let rejection_tests =
   [
     t_reject "int plus bool" "1 + true";
     t_reject "ill-typed statement in a block" "{ 1 + true; 2 }";
+    t_reject "block-local definition constrains a parameter" "(fn x -> { let y = x + 1; y }) \"s\"";
+    t_reject "block-local definition constrains a function argument" "(fn x -> { let y = x ^ \"!\"; 0 }) 5";
     t_reject "ill-typed statement after a local definition" "{ let x = 1; x ^ \"a\"; x }";
     t_reject "string concat int" "\"a\" ^ 1";
     t_reject "non-bool condition" "if 1 then 2 else 3";

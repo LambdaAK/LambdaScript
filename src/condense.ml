@@ -193,6 +193,30 @@ and condense_sub_pat : sub_pat -> c_pat = function
       in
       CVariantPat (name, payload_c_pat_opt)
 
+(** A block [{ s1; ...; sn }] is a chain of local definitions and statements:
+    [let p = e] scopes over the rest of the block, a statement is evaluated
+    for its effect ([let _ = e in ...]), and the block's value is that of its
+    last part ([()] if that is a definition). Blocks that declare types keep
+    their block form. *)
+let rec block_to_lets (parts : c_expr_or_c_defn list) : c_expr =
+  let is_value_part = function
+    | Expr _ | Defn (CDefn _ | CDefnRec _ | CDefnMutRec _) -> true
+    | Defn _ -> false
+  in
+  if not (List.for_all is_value_part parts) then EBlock parts
+  else
+    match parts with
+    | [] -> EUnit
+    | [ Expr e ] -> e
+    | Expr e :: rest -> EBind (CWildcardPat, None, e, block_to_lets rest, None)
+    | Defn (CDefn (p, _, ann, e1, rt, _)) :: rest -> EBind (p, ann, e1, block_to_lets rest, rt)
+    | Defn (CDefnRec (p, _, ann, e1, rt, _)) :: rest ->
+        EBindRec (p, ann, e1, block_to_lets rest, rt)
+    | Defn (CDefnMutRec ds) :: rest ->
+        EBindMutRec
+          (List.map (fun (p, _, ann, e1, rt, n) -> (p, ann, e1, rt, n)) ds, block_to_lets rest)
+    | Defn _ :: _ -> EBlock parts
+
 let rec condense_defn : defn -> c_defn = function
   | Defn
       ( pattern,
@@ -444,7 +468,7 @@ and condense_expr : expr -> c_expr = function
             (fun (pat, expr) -> (condense_pat pat, condense_expr expr))
             branches )
   | Block parts ->
-      EBlock
+      block_to_lets
         (List.map
            (function
              | Definition d -> Defn (condense_defn d)
