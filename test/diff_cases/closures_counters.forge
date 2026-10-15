@@ -15,7 +15,7 @@ let make_counter start step =
   let next = fn n -> start + step * n in
   (next 0, next 1, next 2)
 
-let () = println (tuple_fst (make_counter 100 7))
+let () = println (case make_counter 100 7 do | (a, b, c) -> a + b + c)
 let twice f = compose f f
 let () = println ((twice (twice (adder 5))) 0)
 let curry f = fn a -> fn b -> f (a, b)

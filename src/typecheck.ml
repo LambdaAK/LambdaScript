@@ -1386,6 +1386,11 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
                 ((TypeVar w, TypeName name)
                 :: (body, CTypeApp (name, as1))
                 :: c')
+          | VectorType types1, VectorType types2
+            when List.length types1 <> List.length types2 ->
+              (* Report the whole tuples, not the leftover suffixes. *)
+              last_type_clash := Some (t1, t2);
+              raise TypeFailure
           | VectorType types1, VectorType types2 -> (
               match (types1, types2) with
               | type1 :: tail1, type2 :: tail2 ->

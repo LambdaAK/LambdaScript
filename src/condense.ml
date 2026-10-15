@@ -169,6 +169,8 @@ and condense_sub_pat : sub_pat -> c_pat = function
       | Some _ -> ignore (pop_id_pos s));
       CIdPat s
   | NilPat -> CNilPat
+  (* [(p)] is grouping, not a one-element tuple (there are none). *)
+  | VectorPat [ p ] -> condense_pat p
   | VectorPat pats -> CVectorPat (List.map condense_pat pats)
   | RecordPat fields ->
       CRecordPat (List.map (fun (name, p) -> (name, condense_pat p)) fields)
