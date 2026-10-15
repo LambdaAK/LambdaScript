@@ -1,0 +1,9 @@
+type Light = | Red | Amber | Green
+
+// Not exhaustive: Green is not handled. The program still runs.
+let next l = case l do | Red -> Green | Amber -> Red
+
+// The last arm can never match.
+let is_red l = case l do | Red -> true | _ -> false | Amber -> false
+
+let () = println (is_red (next Amber))

@@ -1,0 +1,9 @@
+// A custom operator gets the precedence of its first character:
+// + - ^ additive, * / % multiplicative, < > = ! comparison.
+let (+++) a b = a + b + b
+let (**) a b = a * a * b
+let (<=>) a b = compare a b
+
+let () = println (1 +++ 2 ** 3)
+let () = println (3 <=> 5)
+let () = println (1 <> 2)

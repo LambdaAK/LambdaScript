@@ -1,0 +1,11 @@
+let square x = x * x
+let rec factorial n = if n == 0 then 1 else n * factorial (n - 1)
+
+// Functions are curried: `add 1` is a function.
+let add x y = x + y
+let increment = add 1
+
+let () = println (square 12)
+let () = println (factorial 10)
+let () = println (increment 41)
+let () = println (map (fn x -> x * x) [1, 2, 3, 4])

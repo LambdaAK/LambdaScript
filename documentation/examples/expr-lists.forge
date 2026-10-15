@@ -1,0 +1,12 @@
+let xs = 1 :: 2 :: 3 :: []
+let ys = [1...5]
+
+// Generators bind patterns; elements a pattern does not match are skipped,
+// and a condition keeps only the elements for which it holds.
+let pairs = [(x, y) | x <- [1...3], y <- [x...3], x + y == 4]
+let firsts = [a | (a, true) <- [(1, true), (2, false), (3, true)]]
+
+let () = println (xs == [1, 2, 3])
+let () = println ys
+let () = println pairs
+let () = println firsts

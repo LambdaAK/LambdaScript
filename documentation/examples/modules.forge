@@ -1,0 +1,13 @@
+mod Geometry where
+  type Shape = | Square of Int | Circle of Int
+  let area s = case s do | Square w -> w * w | Circle r -> 3 * r * r
+  mod Units where
+    let scale = 100
+  end
+end
+
+let () = println (Geometry.area (Geometry.Square 4))
+let () = println Geometry.Units.scale
+
+use Geometry
+let () = println (area (Circle 2))

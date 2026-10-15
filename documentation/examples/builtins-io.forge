@@ -1,0 +1,4 @@
+// print writes a string as it is; print_string and println end the line.
+let () = print "no newline, "
+let () = print_string "then a line"
+let () = println 3

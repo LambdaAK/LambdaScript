@@ -1,0 +1,26 @@
+// A parameterised sum type and a recursive one.
+type Result<a, e> =
+  | Ok of a
+  | Err of e
+
+type rec Tree<a> =
+  | Leaf
+  | Node of (Tree<a>, a, Tree<a>)
+
+let safe_div a b = if b == 0 then Err "division by zero" else Ok (a / b)
+
+let rec insert x t =
+  case t do
+  | Leaf -> Node (Leaf, x, Leaf)
+  | Node (l, v, r) -> if x < v then Node (insert x l, v, r) else Node (l, v, insert x r)
+
+let rec to_list t =
+  case t do
+  | Leaf -> []
+  | Node (l, v, r) -> to_list l ++ [v] ++ to_list r
+
+let show_result r = case r do | Ok v -> int_to_str v | Err msg -> "error: " ^ msg
+
+let () = print_string (show_result (safe_div 10 2))
+let () = print_string (show_result (safe_div 1 0))
+let () = println (to_list (reduce_left (fn t -> fn x -> insert x t) Leaf [5, 2, 8, 1]))

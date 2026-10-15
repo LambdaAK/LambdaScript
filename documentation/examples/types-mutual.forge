@@ -1,0 +1,21 @@
+// Mutually recursive types are declared together with `and`.
+type rec Expr =
+  | Num of Int
+  | Add of (Expr, Expr)
+  | Block of Stmts
+and Stmts =
+  | Done
+  | Then of (Expr, Stmts)
+
+let rec eval e =
+  case e do
+  | Num n -> n
+  | Add (a, b) -> eval a + eval b
+  | Block s -> eval_last s
+and eval_last s =
+  case s do
+  | Done -> 0
+  | Then (e, Done) -> eval e
+  | Then (_, rest) -> eval_last rest
+
+let () = println (eval (Add (Num 1, Block (Then (Num 2, Then (Num 40, Done))))))

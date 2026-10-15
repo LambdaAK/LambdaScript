@@ -1,0 +1,12 @@
+let () = print_string (show 42)
+let () = print_string (show 2.5)
+let () = print_string (show true)
+let () = print_string (show 'c')
+let () = print_string (show "text")
+let () = print_string (show ())
+let () = print_string (show [1, 2, 3])
+let () = print_string (show (Some [1]))
+let () = print_string (show (1, "two", 'c'))
+let () = print_string (show GT)
+// println x is print_string (show x)
+let () = println [None, Some 2]

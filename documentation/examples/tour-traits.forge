@@ -1,0 +1,20 @@
+trait Describe<a> where
+  val describe : a -> String
+end
+
+impl Describe for Bool where
+  describe b = if b then "yes" else "no"
+end
+
+impl Describe for List<a> requires Describe<a> where
+  describe xs =
+    case xs do
+    | [] -> "nothing"
+    | x :: [] -> describe x
+    | x :: rest -> describe x ^ ", " ^ describe rest
+end
+
+// A function over any type with a `Describe` instance.
+let shout x = describe x ^ "!"
+
+let () = print_string (shout [true, false, true])

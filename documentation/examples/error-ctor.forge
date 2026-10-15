@@ -1,0 +1,2 @@
+type T = | A | B
+let f t = case t do | A -> 1 | C -> 2

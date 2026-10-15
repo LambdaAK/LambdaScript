@@ -1,0 +1,2 @@
+let label n = "item " ^ n
+let () = print_string (label 3)

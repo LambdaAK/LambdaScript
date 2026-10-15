@@ -1,0 +1,10 @@
+// A block is a sequence of definitions and statements; its value is the
+// value of its last expression.
+let report total =
+  {
+    let average = total / 4;
+    print_string "computing...";
+    average * 2
+  }
+
+let () = println (report 40)

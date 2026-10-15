@@ -1,0 +1,14 @@
+// let ... in scopes over one expression; definitions can be polymorphic.
+let pair =
+  let id x = x in
+  (id 1, id "one")
+
+let rec gcd a b = if b == 0 then a else gcd b (a % b)
+
+// Mutually recursive functions are introduced together with `and`.
+let rec is_even n = if n == 0 then true else is_odd (n - 1)
+and is_odd n = if n == 0 then false else is_even (n - 1)
+
+let () = println pair
+let () = println (gcd 84 36)
+let () = println (is_even 10, is_odd 7)

@@ -1,0 +1,2 @@
+warning: in `first`: this case is not exhaustive: `[]` is not matched
+error: runtime error: no pattern matched

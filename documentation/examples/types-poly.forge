@@ -1,0 +1,7 @@
+// Inferred types are as general as possible; each use instantiates them.
+let pick b x y = if b then x else y
+let rec len xs = case xs do | [] -> 0 | _ :: t -> 1 + len t
+
+let () = println (pick true 1 2)
+let () = println (pick false "a" "b")
+let () = println (len [1, 2, 3] + len ["x"])

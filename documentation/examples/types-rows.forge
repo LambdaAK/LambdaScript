@@ -1,0 +1,6 @@
+// A function on records needs only the fields it uses: `area` accepts any
+// record with numeric fields `w` and `h`.
+let area r = r.w * r.h
+
+let () = println (area { w: 3, h: 4 })
+let () = println (area { w: 2, h: 5, label: "door" })

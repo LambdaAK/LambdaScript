@@ -140,3 +140,17 @@
   (source_tree ../runtime))
  (action
   (chdir %{workspace_root} (run %{test} -runner processes -shards 12))))
+
+; The reference manual's examples (documentation/examples), in both back ends.
+(test
+ (name manual_tests)
+ (modules manual_tests)
+ (libraries Language ounit2 unix forge_test_util)
+ (deps
+  ../bin/interpreter.exe
+  ../bin/compile_forge.exe
+  (source_tree ../documentation/examples)
+  (source_tree ../prelude)
+  (source_tree ../runtime))
+ (action
+  (run %{test} -runner processes -shards 12)))

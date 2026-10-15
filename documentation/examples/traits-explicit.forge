@@ -1,0 +1,5 @@
+// A constraint can be written explicitly before the parameters.
+let describe [Show a] (x : a) = "<" ^ show x ^ ">"
+
+let () = print_string (describe 42)
+let () = print_string (describe [true, false])

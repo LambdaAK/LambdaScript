@@ -1,0 +1,5 @@
+let () = println [42, -17, 0]
+let () = println [3.0, 0.1, -2.5]
+let () = println ['a', 'Z', '\'']
+let () = print_string "tab:\tquote:\" backslash:\\ newline below\nend"
+let () = println (true, ())
