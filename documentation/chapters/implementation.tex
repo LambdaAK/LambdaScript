@@ -186,8 +186,11 @@ nodes:
 
 \paragraph{Code generation} \texttt{llvm\_emit.ml} prints Min IR as LLVM IR,
 and Clang compiles it and links it with the C runtime
-(\texttt{runtime/ls\_runtime.c}), which provides memory allocation, strings,
-the variant and closure layouts, and the run-time errors.
+(\texttt{runtime/ls\_runtime.c}), which provides strings, the variant and
+closure layouts and the run-time errors. Memory is managed by the
+Boehm--Demers--Weiser conservative garbage collector, which finds pointers on
+the stack, in registers and in global variables without help from the
+compiler; strings are allocated as pointer-free (``atomic'') blocks.
 Table~\ref{tab:repr} shows how values are represented.
 
 \begin{table}[ht]

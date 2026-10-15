@@ -1,5 +1,6 @@
 (library
  (name language)
  (public_name Language)
+ (libraries unix)
  (instrumentation
   (backend bisect_ppx)))

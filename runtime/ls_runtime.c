@@ -4,6 +4,33 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <sys/resource.h>
+#include <gc.h>
+
+/* Memory is managed by the Boehm-Demers-Weiser conservative garbage
+   collector: it finds pointers on the stack, in registers and in globals
+   without help from the compiler. Strings are allocated "atomic" (their
+   bytes are never scanned for pointers). */
+
+/** With FORGE_RUNTIME_STATS set, print the peak memory use on exit
+    (ru_maxrss is in bytes on macOS and in kilobytes on Linux). */
+static void ls_report_stats(void) {
+  struct rusage u;
+  if (getrusage(RUSAGE_SELF, &u) == 0) {
+#ifdef __APPLE__
+    long kb = (long)(u.ru_maxrss / 1024);
+#else
+    long kb = (long)u.ru_maxrss;
+#endif
+    fprintf(stderr, "forge: max_rss_kb=%ld\n", kb);
+  }
+}
+
+__attribute__((constructor)) static void ls_runtime_init(void) {
+  GC_INIT();
+  if (getenv("FORGE_RUNTIME_STATS"))
+    atexit(ls_report_stats);
+}
 
 /** Report a run-time error (like the interpreter: message on stderr, exit
     status 1) after flushing the program's output. */
@@ -52,7 +79,7 @@ void ls_println(const char *s) {
 void *ls_malloc(size_t n) {
   if (n == 0)
     n = 1;
-  return malloc(n);
+  return GC_MALLOC(n);
 }
 
 /** Tagged sum type: discriminant + optional heap payload pointer. */
@@ -62,7 +89,7 @@ typedef struct {
 } ls_variant;
 
 void *ls_variant_mk(int64_t tag, void *payload) {
-  ls_variant *p = (ls_variant *)malloc(sizeof(ls_variant));
+  ls_variant *p = (ls_variant *)GC_MALLOC(sizeof(ls_variant));
   if (!p)
     return NULL;
   p->tag = tag;
@@ -87,7 +114,7 @@ void *ls_mkclos(void *code, void *env) {
     void *code;
     void *env;
   };
-  struct ls_clos *p = (struct ls_clos *)malloc(sizeof(struct ls_clos));
+  struct ls_clos *p = (struct ls_clos *)GC_MALLOC(sizeof(struct ls_clos));
   if (!p)
     return NULL;
   p->code = code;
@@ -100,7 +127,7 @@ char *ls_int_to_str(int64_t x) {
   int n = snprintf(buf, sizeof buf, "%lld", (long long)x);
   if (n < 0 || n >= (int)sizeof buf)
     return NULL;
-  char *p = malloc((size_t)n + 1);
+  char *p = GC_MALLOC_ATOMIC((size_t)n + 1);
   if (!p)
     return NULL;
   memcpy(p, buf, (size_t)n + 1);
@@ -152,7 +179,7 @@ void *ls_ordering_float(double a, double b) {
 char *ls_str_concat(const char *a, const char *b) {
   size_t la = a ? strlen(a) : 0;
   size_t lb = b ? strlen(b) : 0;
-  char *p = malloc(la + lb + 1);
+  char *p = GC_MALLOC_ATOMIC(la + lb + 1);
   if (!p)
     return NULL;
   if (la)
@@ -179,7 +206,7 @@ char *ls_str_slice(const char *s, int64_t start, int64_t len) {
     len = 0;
   if (len > n - start)
     len = n - start;
-  char *p = malloc((size_t)len + 1);
+  char *p = GC_MALLOC_ATOMIC((size_t)len + 1);
   if (!p)
     return NULL;
   if (len > 0)
@@ -199,7 +226,7 @@ void *ls_string_to_list(const char *s) {
   ls_char_cell *head = NULL;
   int64_t n = s ? (int64_t)strlen(s) : 0;
   for (int64_t i = n - 1; i >= 0; i--) {
-    ls_char_cell *c = malloc(sizeof(ls_char_cell));
+    ls_char_cell *c = GC_MALLOC(sizeof(ls_char_cell));
     if (!c)
       return NULL;
     c->head = (unsigned char)s[i];
@@ -258,7 +285,7 @@ char *ls_float_to_str(double f) {
       strcat(buf, ".0");
   }
   size_t n = strlen(buf);
-  char *p = malloc(n + 1);
+  char *p = GC_MALLOC_ATOMIC(n + 1);
   if (!p)
     return NULL;
   memcpy(p, buf, n + 1);
@@ -266,7 +293,7 @@ char *ls_float_to_str(double f) {
 }
 
 char *ls_char_to_str(int64_t c) {
-  char *p = malloc(2);
+  char *p = GC_MALLOC_ATOMIC(2);
   if (!p)
     return NULL;
   p[0] = (char)c;
