@@ -106,10 +106,7 @@ let expand_instance_head (inst : mono_type) (args : mono_type list) : mono_type
   | CListType _, _ ->
       failwith
         "forge: internal list instance head expects exactly one type argument"
-  | CTypeApp _, _ ->
-      failwith
-        "forge: partial application is not allowed as an impl head (type \
-         constructor must be bare, e.g. Option not Option<int>)"
+  | CTypeApp (n, pre), _ -> CTypeApp (n, pre @ args)
   | _ ->
       failwith
         "forge: invalid instance type for a higher-kind inter (expected a bare \
@@ -167,10 +164,17 @@ let validate_impl_head ~(class_name : string) ~(required_arity : int)
   if required_arity = 0 then ()
   else
     match inst with
-    | CTypeApp _ ->
-        failwith
-          "forge: impl head must not be a partial type application (use a bare \
-           constructor, e.g. Option not Option<int>)"
+    | CTypeApp (n, pre) -> (
+        (* [impl Functor for Result<e>]: the type with its last parameters
+           left out. *)
+        match arity_of_name_in_seen seen_ctors n with
+        | Some k when k <> List.length pre + required_arity ->
+            failwith
+              ("Cannot use " ^ n ^ "<...> with " ^ string_of_int (List.length pre)
+              ^ " argument(s) as " ^ class_name ^ ": " ^ n ^ " takes " ^ string_of_int k
+              ^ " type parameter(s), and " ^ class_name ^ " needs "
+              ^ string_of_int required_arity ^ " left out")
+        | _ -> ())
     | TypeName n -> (
         match arity_of_name_in_seen seen_ctors n with
         | Some k when k <> required_arity ->

@@ -1,0 +1,118 @@
+// A heap allocator over 64 words: a free list of holes sorted by address,
+// allocation by first fit, best fit or worst fit (splitting the chosen hole),
+// and freeing with coalescing of neighbouring holes.
+import "fmt.forge"
+import "avl.forge"
+
+mod Alloc where
+  type Block = { start: Int, size: Int }
+
+  type Strategy = | FirstFit | BestFit | WorstFit
+
+  type Request = | Malloc of (Int, Int) | Free of Int   // (id, size) / id
+
+  type Heap = {
+    free: List<Block>,              // sorted by start, never adjacent
+    used: Avl.Map<Int, Block>,      // id -> block
+    failures: Int
+  }
+
+  let heap_size = 64
+
+  let strategy_name s = case s do | FirstFit -> "first fit" | BestFit -> "best fit" | WorstFit -> "worst fit"
+
+  impl Named for Strategy where
+    name_of s = strategy_name s
+  end
+
+  let init = { free: { start: 0, size: heap_size } :: [], used: Avl.nil, failures: 0 }
+
+  let id_name id = Fmt.letter id
+
+  // The hole a strategy picks for a request of n words.
+  let choose s n holes =
+    let fits = filter (fn b -> b.size >= n) holes in
+    case s do
+    | FirstFit -> (case fits do | b :: _ -> Some b | [] -> None)
+    | BestFit -> List.min_by (fn b -> (b.size, b.start)) fits
+    | WorstFit -> List.min_by (fn b -> (0 - b.size, b.start)) fits
+
+  // Replace hole b by what is left of it after taking n words from its start.
+  let rec carve b n holes =
+    case holes do
+    | [] -> []
+    | h :: rest ->
+      if h.start == b.start then
+        (if h.size == n then rest else { start: h.start + n, size: h.size - n } :: rest)
+      else h :: carve b n rest
+
+  // Insert a hole in address order, merging it with the holes it touches.
+  let rec release b holes =
+    case holes do
+    | [] -> b :: []
+    | h :: rest ->
+      if b.start + b.size < h.start then b :: holes
+      else if b.start + b.size == h.start then { start: b.start, size: b.size + h.size } :: rest
+      else if h.start + h.size == b.start then release { start: h.start, size: h.size + b.size } rest
+      else h :: release b rest
+
+  let largest heap = List.max_of 0 (map (fn b -> b.size) heap.free)
+  let free_words heap = List.sum (map (fn b -> b.size) heap.free)
+
+  // One request: the new heap and a description of what happened.
+  let apply s heap req =
+    case req do
+    | Malloc (id, n) ->
+      (case choose s n heap.free do
+       | Some b ->
+         ({ heap with free = carve b n heap.free, used = Avl.insert id { start: b.start, size: n } heap.used },
+          "@" ^ int_to_str b.start)
+       | None -> ({ heap with failures = heap.failures + 1 }, "FAILED"))
+    | Free id ->
+      (case Avl.find id heap.used do
+       | Some b -> ({ heap with free = release b heap.free, used = Avl.remove id heap.used }, "ok")
+       | None -> (heap, "bad free"))
+
+  let describe req =
+    case req do
+    | Malloc (id, n) -> "alloc " ^ id_name id ^ " " ^ int_to_str n
+    | Free id -> "free  " ^ id_name id
+
+  // The heap, one character per word: the owner's letter, or '.' when free.
+  let heap_map heap =
+    let owners = Avl.to_list heap.used in
+    let owner a =
+      case filter (fn (_, b) -> a >= b.start && a < b.start + b.size) owners do
+      | (id, _) :: _ -> id_name id
+      | [] -> "."
+    in
+    reduce_left (fn acc -> fn a -> acc ^ owner a) "" [0...(heap_size - 1)]
+
+  // External fragmentation: the share of free memory outside the largest hole.
+  let fragmentation heap = Fmt.percent (free_words heap - largest heap) (free_words heap)
+
+  let header =
+    cat!("    step  ", (Fmt.left 12 "request"), (Fmt.left 10 "result"), (Fmt.left (heap_size + 2) "heap"),
+         "free holes  max  frag")
+
+  let row k req result heap =
+    cat!("    ", (Fmt.int_r 4 k), "  ", (Fmt.left 12 (describe req)), (Fmt.left 10 result), (heap_map heap), "  ",
+         (Fmt.int_r 4 (free_words heap)), (Fmt.int_r 6 (list_length heap.free)),
+         (Fmt.int_r 5 (largest heap)), (Fmt.right 6 (fragmentation heap)))
+
+  // Run a request sequence, printing the heap after every step.
+  let simulate s reqs =
+    let rec go k heap rs =
+      case rs do
+      | [] -> heap
+      | r :: rest ->
+        let (heap2, result) = apply s heap r in
+        { print_string (row k r result heap2); go (k + 1) heap2 rest }
+    in
+    {
+      print_string "";
+      print_string ("  Strategy: " ^ name_of s);
+      print_string header;
+      go 1 init reqs
+    }
+end

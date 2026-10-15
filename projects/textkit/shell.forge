@@ -1,0 +1,189 @@
+// shell.forge -- the mini shell: tokenizer, parser, command table and the
+// pipeline executor.
+
+import "tools.forge"
+
+type Token =
+  | Word of String
+  | Pipe
+  | Redirect of Bool      // true for >> (append)
+
+impl Show for Token where
+  show t = case t do | Word w -> "Word(" ^ w ^ ")" | Pipe -> "Pipe" | Redirect a -> if a then "Append" else "Redirect"
+end
+
+type Command = { name: String, args: List<String> }
+
+// A parsed command line: the stages of the pipeline and an optional
+// output redirection (append?, file name).
+type Line = { stages: List<Command>, redirect: Option<(Bool, String)> }
+
+// An entry of the command table.
+type Tool = {
+  name: String,
+  spec: List<(String, Bool)>,
+  help: String,
+  run: List<File> -> Args -> List<String> -> Res<List<String>>
+}
+
+mod Lexer where
+  use Lists
+
+  // `cur` is the word being read: None between words, so that "" (an
+  // explicitly quoted empty word) can be told apart from no word at all.
+  let flush cur toks = case cur do | None -> toks | Some cs -> Word (Str.implode (list_rev cs)) :: toks
+  let add c cur = case cur do | None -> Some (c :: []) | Some cs -> Some (c :: cs)
+  let started cur = case cur do | None -> Some [] | Some cs -> Some cs
+
+  // Three mutually recursive states: plain text, '...' and "...".
+  let rec plain cs cur toks =
+    case cs do
+    | [] -> Ok (list_rev (flush cur toks))
+    | '|' :: rest -> plain rest None (Pipe :: flush cur toks)
+    | '>' :: '>' :: rest -> plain rest None (Redirect true :: flush cur toks)
+    | '>' :: rest -> plain rest None (Redirect false :: flush cur toks)
+    | '\'' :: rest -> single rest (started cur) toks
+    | '"' :: rest -> double rest (started cur) toks
+    | '\\' :: c :: rest -> plain rest (add c cur) toks
+    | '\\' :: [] -> Err (Syntax "trailing backslash")
+    | c :: rest -> if Chars.is_space c then plain rest None (flush cur toks) else plain rest (add c cur) toks
+  and single cs cur toks =
+    case cs do
+    | [] -> Err (Syntax "unterminated ' quote")
+    | '\'' :: rest -> plain rest cur toks
+    | c :: rest -> single rest (add c cur) toks
+  and double cs cur toks =
+    case cs do
+    | [] -> Err (Syntax "unterminated \" quote")
+    | '"' :: rest -> plain rest cur toks
+    | '\\' :: c :: rest -> if c == '"' || c == '\\' then double rest (add c cur) toks else double rest (add c (add '\\' cur)) toks
+    | c :: rest -> double rest (add c cur) toks
+
+  let tokenize line : Res<List<Token>> = plain (Str.explode line) None []
+end
+
+mod Parser where
+  use Lists
+
+  // Split the tokens at every Pipe.
+  let split_stages toks =
+    let step (cur, acc) t = case t do | Pipe -> ([], list_rev cur :: acc) | _ -> (t :: cur, acc) in
+    let (cur, acc) = reduce_left (fn st -> fn t -> step st t) ([], []) toks in
+    list_rev (list_rev cur :: acc)
+
+  let stage toks =
+    case toks do
+    | [] -> Err (Syntax "empty command in pipeline")
+    | Word name :: rest ->
+      Result.traverse (fn t -> case t do | Word w -> Ok w | _ -> Err (Syntax "misplaced redirection")) rest
+        |> fmap (fn args -> { name: name, args: args })
+    | _ -> Err (Syntax "a command must start with a word")
+
+  let parse toks : Res<Line> =
+    // Peel a trailing "> file" off the token list first.
+    let (body, redirect) =
+      case list_rev toks do
+      | Word f :: Redirect a :: before -> (list_rev before, Ok (Some (a, f)))
+      | Redirect _ :: _ -> (toks, Err (Syntax "redirection without a file name"))
+      | _ -> (toks, Ok None)
+    in
+    redirect >>= (fn r ->
+      if body == [] then Err (Syntax "empty command line")
+      else fmap (fn stages -> { stages: stages, redirect: r }) (Result.traverse stage (split_stages body)))
+end
+
+mod Shell where
+  use Lists
+
+  // Levenshtein distance, one DP row at a time.
+  let distance a b =
+    let bs = Str.explode b in
+    let first = [0...list_length bs] in
+    let next_row row (i, ca) =
+      let step (prev_diag, left, acc) (up, cb) =
+        let cost = if ca == cb then 0 else 1 in
+        let best = reduce_left (fn m -> fn x -> if x < m then x else m) (up + 1) [left + 1, prev_diag + cost] in
+        (up, best, best :: acc)
+      in
+      let (_, _, acc) = reduce_left (fn st -> fn p -> step st p) (list_head row, i, i :: []) (list_zip (list_tail row) bs) in
+      list_rev acc
+    in
+    let last = reduce_left next_row first (list_enumerate (Str.explode a)) in
+    list_nth last (list_length bs)
+
+  // The command table.
+  let tools : List<Tool> = [
+    { name: "cat", spec: flags!(bool "n"), help: "print files (-n numbers lines)", run: Tools.cat },
+    { name: "echo", spec: flags!(), help: "print the arguments", run: Tools.echo },
+    { name: "ls", spec: flags!(bool "l"), help: "list files (-l with sizes)", run: Tools.ls },
+    { name: "wc", spec: flags!(bool "l", "w", "c"), help: "count lines, words, bytes", run: Tools.wc },
+    { name: "grep", spec: flags!(bool "i", "v", "n", "c"), help: "lines matching a regex", run: Tools.grep },
+    { name: "head", spec: flags!(value "n"), help: "first n lines", run: Tools.head },
+    { name: "tail", spec: flags!(value "n"), help: "last n lines", run: Tools.tail },
+    { name: "sort", spec: flags!(bool "r", "n", "u"; value "k", "t"), help: "sort lines (-k key, -t sep)", run: Tools.sort },
+    { name: "uniq", spec: flags!(bool "c", "d"), help: "collapse adjacent duplicates", run: Tools.uniq },
+    { name: "cut", spec: flags!(value "d", "f"), help: "select fields", run: Tools.cut },
+    { name: "tr", spec: flags!(bool "d"), help: "translate or delete characters", run: Tools.tr },
+    { name: "rev", spec: flags!(), help: "reverse each line", run: Tools.rev },
+    { name: "nl", spec: flags!(), help: "number non-empty lines", run: Tools.nl },
+    { name: "sed", spec: flags!(), help: "substitute: s/regex/text/[g]", run: Tools.sed },
+    { name: "column", spec: flags!(bool "t"; value "s"), help: "align separated columns", run: Tools.column },
+    { name: "table", spec: flags!(bool "H"; value "s"), help: "draw a boxed table", run: Tools.table },
+    { name: "stats", spec: flags!(value "f", "s"), help: "statistics of a numeric field", run: Tools.stats },
+    { name: "freq", spec: flags!(value "n"), help: "most frequent words", run: Tools.freq }
+  ]
+
+  // Aliases expand to a command and leading arguments.
+  let aliases = [("ll", "ls" :: "-l" :: []), ("count", "wc" :: "-l" :: []), ("upper", "tr" :: "a-z" :: "A-Z" :: [])]
+
+  let help_lines =
+    let w = list_max 0 (map (fn t -> str_length t.name) tools) in
+    let alias_line (a, ws) = a ^ " = " ^ Str.join " " ws in
+    list_concat [
+      [Str.pad_right (w + 2) t.name ^ t.help | t <- tools],
+      "" :: ("aliases: " ^ Str.join ", " (map alias_line aliases)) :: [],
+      "pipes: a | b,  redirection: > file, >> file,  quotes: '...' \"...\"" :: []
+    ]
+
+  // The closest command name, if it is close enough to be a plausible typo.
+  let suggest name =
+    let scored = map (fn t -> (distance name t.name, t.name)) tools in
+    // (compare has no instance for pairs: see bugs/02-no-ord-for-tuples.forge)
+    let by_score (d1, n1) (d2, n2) = if d1 == d2 then compare n1 n2 else compare d1 d2 in
+    case list_sort_by by_score scored do
+    | (d, best) :: _ -> if d <= 2 then Some best else None
+    | [] -> None
+
+  let lookup name =
+    case list_find (fn t -> t.name == name) tools do
+    | Some t -> Ok t
+    | None -> Err (UnknownCommand (name, suggest name))
+
+  // An alias, or else the command itself (Option's Alternative).
+  let expand cmd =
+    let via_alias = fmap (fn ws -> { name: list_head ws, args: list_append (list_tail ws) cmd.args }) (list_assoc cmd.name aliases) in
+    case via_alias <|> Some cmd do | Some c -> c | None -> cmd
+
+  let run_stage fs input cmd =
+    case expand cmd do
+    | { name: "help" } -> Ok help_lines
+    | c ->
+      lookup c.name >>= (fn t ->
+        Flags.parse t.name t.spec c.args >>= (fn args -> t.run fs args input))
+
+  // Run one command line: returns the new filesystem and the output lines.
+  let execute fs text : Res<(List<File>, List<String>)> =
+    Lexer.tokenize text >>= Parser.parse >>= (fn line ->
+      let rec go input stages =
+        case stages do
+        | [] -> Ok input
+        | cmd :: rest -> run_stage fs input cmd >>= (fn out -> go out rest)
+      in
+      go [] line.stages >>= (fn out ->
+        case line.redirect do
+        | None -> Ok (fs, out)
+        | Some (append, file) ->
+          let body = Str.join "" (map (fn l -> l ^ "\n") out) in
+          let old = if append then (case Vfs.read fs file do | Some b -> b | None -> "") else "" in
+          Ok (Vfs.write file (old ^ body) fs, [])))
+end

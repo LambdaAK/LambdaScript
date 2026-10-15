@@ -275,6 +275,60 @@
   impl Show for (a, b, c) requires Show<a>, Show<b>, Show<c> where
     show p = case p do | (x, y, z) -> "(" ^ show x ^ ", " ^ show y ^ ", " ^ show z ^ ")"
   end
+
+  impl Show for (a, b, c, d) requires Show<a>, Show<b>, Show<c>, Show<d> where
+    show p = case p do | (x, y, z, w) -> "(" ^ show x ^ ", " ^ show y ^ ", " ^ show z ^ ", " ^ show w ^ ")"
+  end
+
+  impl Show for (a, b, c, d, e) requires Show<a>, Show<b>, Show<c>, Show<d>, Show<e> where
+    show p =
+      case p do
+      | (x, y, z, w, v) -> "(" ^ show x ^ ", " ^ show y ^ ", " ^ show z ^ ", " ^ show w ^ ", " ^ show v ^ ")"
+  end
+
+  // Equality and order of tuples, lists and options: component by
+  // component, using the components' own instances.
+  impl Eq for (a, b) requires Eq<a>, Eq<b> where
+    (==) p q = case (p, q) do | ((a1, b1), (a2, b2)) -> (==) a1 a2 && (==) b1 b2
+  end
+
+  impl Ord for (a, b) requires Ord<a>, Ord<b> where
+    compare p q =
+      case (p, q) do
+      | ((a1, b1), (a2, b2)) -> (case compare a1 a2 do | EQ -> compare b1 b2 | c -> c)
+  end
+
+  impl Eq for (a, b, c) requires Eq<a>, Eq<b>, Eq<c> where
+    (==) p q =
+      case (p, q) do
+      | ((a1, b1, c1), (a2, b2, c2)) -> (==) a1 a2 && (==) b1 b2 && (==) c1 c2
+  end
+
+  impl Ord for (a, b, c) requires Ord<a>, Ord<b>, Ord<c> where
+    compare p q =
+      case (p, q) do
+      | ((a1, b1, c1), (a2, b2, c2)) ->
+          (case compare a1 a2 do
+          | EQ -> (case compare b1 b2 do | EQ -> compare c1 c2 | o -> o)
+          | o -> o)
+  end
+
+  impl Eq for List<a> requires Eq<a> where
+    (==) xs ys =
+      case (xs, ys) do
+      | ([], []) -> true
+      | (x :: xt, y :: yt) -> (==) x y && (==) xt yt
+      | _ -> false
+  end
+
+  impl Ord for List<a> requires Ord<a> where
+    compare xs ys =
+      case (xs, ys) do
+      | ([], []) -> EQ
+      | ([], _) -> LT
+      | (_, []) -> GT
+      | (x :: xt, y :: yt) -> (case compare x y do | EQ -> compare xt yt | o -> o)
+  end
   
   // Option
   
@@ -326,5 +380,32 @@
   impl Show for Option<a> requires Show<a> where
     show o = case o do | None -> "None" | Some x -> "Some " ^ show x
   end
+
+  impl Eq for Option<a> requires Eq<a> where
+    (==) p q = case (p, q) do | (None, None) -> true | (Some x, Some y) -> (==) x y | _ -> false
+  end
+
+  impl Ord for Option<a> requires Ord<a> where
+    compare p q =
+      case (p, q) do
+      | (None, None) -> EQ
+      | (None, _) -> LT
+      | (_, None) -> GT
+      | (Some x, Some y) -> compare x y
+  end
   
   let println x = print_string (show x)
+  // The integer written in s: an optional minus sign, then decimal digits.
+  // None if s is anything else.
+  let str_to_int s =
+    let rec digits cs acc =
+      case cs do
+      | [] -> Some acc
+      | c :: rest ->
+          if c >= '0' && c <= '9' then digits rest (acc * 10 + (char_to_int c - 48)) else None
+    in
+    case string_to_list s do
+    | [] -> None
+    | '-' :: [] -> None
+    | '-' :: cs -> (case digits cs 0 do | Some n -> Some (0 - n) | None -> None)
+    | cs -> digits cs 0

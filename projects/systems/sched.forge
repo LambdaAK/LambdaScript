@@ -1,0 +1,156 @@
+// CPU scheduling: FCFS, shortest job first, shortest remaining time first,
+// round robin and priority scheduling over one job set. Each policy produces
+// a timeline of slices, from which the Gantt chart and the per-job waiting
+// and turnaround times are computed.
+import "fmt.forge"
+
+mod Sched where
+  // A job: lower priority numbers run first.
+  type Job = { name: String, arrival: Int, burst: Int, priority: Int }
+
+  // `who` is a job name, or "-" while the CPU is idle.
+  type Slice = { who: String, start: Int, stop: Int }
+
+  type Policy = | Fcfs | Sjf | Srtf | RoundRobin of Int | Priority
+
+  let policy_name p =
+    case p do
+    | Fcfs -> "First come, first served"
+    | Sjf -> "Shortest job first (non-preemptive)"
+    | Srtf -> "Shortest remaining time first (preemptive)"
+    | RoundRobin q -> "Round robin, quantum " ^ int_to_str q
+    | Priority -> "Priority (non-preemptive, 1 = highest)"
+
+  impl Named for Policy where
+    name_of p = policy_name p,
+    tag p = case p do
+      | Fcfs -> "FCFS" | Sjf -> "SJF" | Srtf -> "SRTF"
+      | RoundRobin q -> "RR" ^ int_to_str q | Priority -> "PRIO"
+  end
+
+  let job n a b p = { name: n, arrival: a, burst: b, priority: p }
+
+  // Append a slice, merging it with the previous one when they touch.
+  let extend slices s =
+    case slices do
+    | last :: rest -> if last.who == s.who && last.stop == s.start then { last with stop = s.stop } :: rest else s :: slices
+    | [] -> s :: []
+
+  let by_arrival jobs = List.sort_by (fn a -> fn b -> (a.arrival, a.name) <= (b.arrival, b.name)) jobs
+
+  // Non-preemptive scheduling: whenever the CPU is free, run the waiting job
+  // with the smallest key to completion. (The loop is a top-level function
+  // taking `key`: as a local closure it crashes natively, see
+  // bugs/07-native-segfault-local-rec-closure.forge.)
+  let rec np_loop key t pending acc =
+    case pending do
+    | [] -> List.rev acc
+    | _ ->
+      let ready = filter (fn j -> j.arrival <= t) pending in
+      (case List.min_by key ready do
+       | Some j -> np_loop key (t + j.burst) (List.remove j pending) (extend acc { who: j.name, start: t, stop: t + j.burst })
+       | None ->
+         let next = reduce_left (fn m -> fn j -> if j.arrival < m then j.arrival else m) 1000000 pending in
+         np_loop key next pending (extend acc { who: "-", start: t, stop: next }))
+
+  let nonpreemptive key jobs = np_loop key 0 jobs []
+
+  // Preemptive SRTF, simulated one time unit at a time.
+  let srtf jobs =
+    let rec go t left acc =
+      case left do
+      | [] -> List.rev acc
+      | _ ->
+        let ready = filter (fn (j, _) -> j.arrival <= t) left in
+        (case List.min_by (fn (j, r) -> (r, j.arrival, j.name)) ready do
+         | Some (j, r) ->
+           let left2 = if r == 1 then List.remove (j, r) left else map (fn (k, s) -> if k == j then (k, s - 1) else (k, s)) left in
+           go (t + 1) left2 (extend acc { who: j.name, start: t, stop: t + 1 })
+         | None -> go (t + 1) left (extend acc { who: "-", start: t, stop: t + 1 }))
+    in
+    go 0 (map (fn j -> (j, j.burst)) jobs) []
+
+  // Round robin: a FIFO ready queue; jobs arriving during a quantum enter the
+  // queue before the job that was just preempted.
+  let round_robin q jobs =
+    let arrivals_upto t xs = filter (fn j -> j.arrival <= t) xs in
+    let rec go t queue future acc =
+      case queue do
+      | [] ->
+        (case by_arrival future do
+         | [] -> List.rev acc
+         | j :: _ ->
+           let t2 = if j.arrival > t then j.arrival else t in
+           let now = arrivals_upto t2 future in
+           go t2 (map (fn k -> (k, k.burst)) (by_arrival now))
+              (filter (fn k -> k.arrival > t2) future)
+              (if t2 > t then extend acc { who: "-", start: t, stop: t2 } else acc))
+      | (j, r) :: rest ->
+        let run = if r < q then r else q in
+        let t2 = t + run in
+        let arrived = by_arrival (arrivals_upto t2 future) in
+        let future2 = filter (fn k -> k.arrival > t2) future in
+        let queue2 = List.append rest (map (fn k -> (k, k.burst)) arrived) in
+        let queue3 = if r > run then List.append queue2 ((j, r - run) :: []) else queue2 in
+        go t2 queue3 future2 (extend acc { who: j.name, start: t, stop: t2 })
+    in
+    go 0 [] jobs []
+
+  let schedule p jobs =
+    case p do
+    | Fcfs -> nonpreemptive (fn j -> (j.arrival, j.name)) jobs
+    | Sjf -> nonpreemptive (fn j -> (j.burst, j.arrival, j.name)) jobs
+    | Srtf -> srtf jobs
+    | RoundRobin q -> round_robin q jobs
+    | Priority -> nonpreemptive (fn j -> (j.priority, j.arrival, j.name)) jobs
+
+  // ---- metrics -----------------------------------------------------------
+
+  let completion slices name = List.max_of 0 [s.stop | s <- slices, s.who == name]
+  let first_run slices name =
+    case [s.start | s <- slices, s.who == name] do | t :: _ -> t | [] -> 0
+
+  // Per job: (name, completion, turnaround, waiting, response).
+  let metrics slices jobs =
+    [ { name: j.name, done: c, turnaround: c - j.arrival, waiting: c - j.arrival - j.burst,
+        response: first_run slices j.name - j.arrival }
+    | j <- jobs, c <- [completion slices j.name] ]
+
+  // ---- the Gantt chart ---------------------------------------------------
+
+  // Each time unit is three columns wide; slice names are centred in bars, and
+  // the time axis below marks every slice boundary.
+  let gantt slices =
+    let width s = 3 * (s.stop - s.start) in
+    let bar = reduce_left (fn acc -> fn s -> acc ^ "|" ^ Fmt.center (width s - 1) s.who) "" slices ^ "|" in
+    let axis =
+      reduce_left (fn (line, col) -> fn s ->
+                     let label = int_to_str s.start in
+                     (line ^ label ^ Fmt.spaces (width s - str_length label), col + width s))
+                  ("", 0) slices in
+    let last = case List.rev slices do | s :: _ -> int_to_str s.stop | [] -> "0" in
+    (bar, tuple_fst axis ^ last)
+
+  let context_switches slices = list_length (filter (fn s -> s.who != "-") slices) - 1
+
+  let report p jobs =
+    {
+      let slices = schedule p jobs;
+      let ms = metrics slices jobs;
+      let n = list_length ms;
+      let total f = List.sum (map f ms);
+      let (bar, axis) = gantt slices;
+      print_string "";
+      print_string ("  " ^ name_of p ^ "  " ^ tag p);
+      print_string ("    " ^ bar);
+      print_string ("    " ^ axis);
+      print_string "    job  done  turnaround  waiting  response";
+      map (fn m -> print_string (cat!("    ", (Fmt.left 3 m.name), (Fmt.int_r 6 m.done), (Fmt.int_r 12 m.turnaround),
+                                      (Fmt.int_r 9 m.waiting), (Fmt.int_r 10 m.response)))) ms;
+      print_string (cat!("    average turnaround ", (Fmt.ratio (total (fn m -> m.turnaround)) n),
+                         ", waiting ", (Fmt.ratio (total (fn m -> m.waiting)) n),
+                         ", response ", (Fmt.ratio (total (fn m -> m.response)) n),
+                         "; context switches ", (int_to_str (context_switches slices))));
+      (p, total (fn m -> m.waiting), total (fn m -> m.turnaround))
+    }
+end

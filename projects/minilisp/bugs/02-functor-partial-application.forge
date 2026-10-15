@@ -1,0 +1,22 @@
+// FIXED: this now behaves as expected in both back ends.
+// MISSING FEATURE + POOR ERROR: a higher-kinded instance cannot be given for a
+// partially applied two-parameter type, so the usual `Either e` / `Result e`
+// monad cannot be written.  The error message also has no file or line.
+//
+// Run:   ./_build/default/bin/interpreter.exe projects/minilisp/bugs/02-functor-partial-application.forge
+// Expected: prints `Ok 5` (as in Haskell's `instance Functor (Either e)`), or at
+//           least an error that points at line 16.
+// Actual:   error: impl head must not be a partial type application (use a bare
+//           constructor, e.g. Option not Option<int>)
+//           -- no location, and the suggestion does not apply to a type with
+//           two parameters.
+// Workaround used in minilisp: the error type is fixed inside the result type
+//           (`type Res<a> = | Ok of a | Err of LispError`, util.forge), and the
+//           type inferencer has its own monad (infer.forge).
+type Result<e, a> = | Ok of a | Err of e
+
+impl Functor for Result<e> where
+  fmap f r = case r do | Ok v -> Ok (f v) | Err e -> Err e
+end
+
+let () = case fmap (fn x -> x + 1) (Ok 4) do | Ok v -> print_string ("Ok " ^ show v) | Err e -> print_string e

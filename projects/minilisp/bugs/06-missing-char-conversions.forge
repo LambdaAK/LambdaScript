@@ -1,0 +1,18 @@
+// FIXED: the built-ins are char_to_int, int_to_char, str_to_int (an
+// Option<Int>) and string_of_list; this file now uses those names.
+// MISSING BASIC BUILTINS: there is no char_to_int / int_to_char (char code),
+// no string_to_int (parse a number), and no list_of_chars -> String
+// (string_of_list). library.tex lists none of them. A tokenizer needs all
+// three, so minilisp writes them by hand (util.forge: Chars.digit_value,
+// Text.parse_int, Text.of_chars), which is O(n^2) for of_chars because it
+// rebuilds the string with ^ one character at a time.
+//
+// Run:   ./_build/default/bin/interpreter.exe projects/minilisp/bugs/06-missing-char-conversions.forge
+// Expected: 55 / 123 / "abc" from builtins such as char_to_int, string_to_int
+//           and string_of_list.
+// Actual:   error: type error: Unbound variable: char_to_int
+//           (each line fails on its own; also note the message has no line
+//           number, as in 03-type-error-no-location.forge).
+let () = println (char_to_int '7')
+let () = println (str_to_int "123")
+let () = println (string_of_list ['a', 'b', 'c'])

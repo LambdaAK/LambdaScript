@@ -1,0 +1,24 @@
+// FIXED: this now behaves as expected in both back ends.
+// Bug 03: native code segfaults on map / reduce_right over a 200,000-element
+// list, and the output printed before the crash is lost.
+//
+// The interpreter runs this (and the same with 1,000,000 elements) fine.
+// The native executable dies with SIGSEGV (exit 139) -- presumably the
+// non-tail-recursive map/reduce_right overflow the C stack -- with no
+// message, and even the "start" line printed by the first item never
+// appears, because stdout is not flushed when the process crashes.
+// 150,000 elements still work; 200,000 do not (macOS, default 8 MB stack).
+// list_length and the tail-recursive `build` are fine at 1,000,000.
+//
+// Run:
+//   ./_build/default/bin/interpreter.exe projects/textkit/bugs/03-native-stack-overflow-map.forge
+//   d=$(mktemp -d); cp projects/textkit/bugs/03-native-stack-overflow-map.forge $d/b.forge
+//   ./_build/default/bin/compile_forge.exe $d/b.forge $d/b.exe && $d/b.exe; echo "exit $?"
+// Expected (both back ends):  start / 200000
+// Actual (native):            no output at all, exit 139
+// textkit is not affected: its lists are at most a few hundred elements.
+
+let () = println "start"
+let rec build n acc = if n == 0 then acc else build (n - 1) (n :: acc)
+let big = build 200000 []
+let () = println (list_length (map (fn x -> x) big))

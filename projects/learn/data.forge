@@ -1,0 +1,66 @@
+// Synthetic datasets, generated with the Rand monad.
+import "rng.forge"
+import "util.forge"
+import "matrix.forge"
+
+// One labelled example: a feature vector and a class in 0 .. k-1.
+type Sample = { x: List<Float>, y: Int }
+
+type Dataset = { name: String, classes: Int, samples: List<Sample> }
+
+mod Data where
+  let point x1 x2 y = { x: [x1, x2], y: y }
+
+  // A point at polar coordinates (r, theta), with Gaussian jitter.
+  let polar r theta noise y =
+    Gen.normal 0.0 noise >>= (fn dx ->
+    fmap (fn dy -> point (r *. Math.cos theta +. dx) (r *. Math.sin theta +. dy) y)
+         (Gen.normal 0.0 noise))
+
+  // Two concentric rings: class 0 at radius 1, class 1 at radius 2.2. No
+  // straight line separates them.
+  let ring_point y =
+    let radius = if y == 0 then 1.0 else 2.2 in
+    Gen.normal radius 0.18 >>= (fn r ->
+    Gen.between 0.0 Math.two_pi >>= (fn theta ->
+    pure { x: [r *. Math.cos theta, r *. Math.sin theta], y: y }))
+
+  // Two interleaved spirals: arm y is the other arm turned by pi.
+  // t runs over 1.25 turns; the radius grows with t.
+  let spiral_point n i y =
+    let t = 0.15 +. 1.25 *. int_to_float i /. int_to_float n in
+    let theta = Math.two_pi *. t +. (if y == 0 then 0.0 else Math.pi) in
+    polar (2.0 *. t) theta 0.07 y
+
+  // Three Gaussian blobs, overlapping a little.
+  let centres = [(0.0 -. 2.0, 0.0), (2.0, 1.0), (0.0, 0.0 -. 2.5)]
+  let blob_point y =
+    let (cx, cy) = list_nth centres y in
+    Gen.normal cx 0.9 >>= (fn x1 ->
+    fmap (fn x2 -> point x1 x2 y) (Gen.normal cy 0.9))
+
+  // Shuffle by sorting on random keys (the sort is stable, keys distinct
+  // in practice).
+  let shuffle xs =
+    fmap (fn keys -> map tuple_snd (Sort.by tuple_fst (Lists.zip keys xs)))
+         (Gen.replicate (list_length xs) Gen.uniform)
+
+  // n points per class, shuffled.
+  let balanced classes n gen =
+    let per_class = Gen.traverse (fn y -> Gen.traverse (fn i -> gen i y) [0...n - 1]) [0...classes - 1] in
+    fmap (fn groups -> reduce_right (fn a -> fn b -> a ++ b) groups []) per_class >>= shuffle
+
+  let rings n = fmap (fn s -> { name: "rings", classes: 2, samples: s })
+                     (balanced 2 n (fn _ -> fn y -> ring_point y))
+  let spirals n = fmap (fn s -> { name: "spirals", classes: 2, samples: s })
+                       (balanced 2 n (spiral_point n))
+  let blobs n = fmap (fn s -> { name: "blobs", classes: 3, samples: s })
+                     (balanced 3 n (fn _ -> fn y -> blob_point y))
+
+  // The first `n` samples for training, the rest for testing.
+  let split n (d : Dataset) =
+    ({ d with samples = Lists.take n d.samples }, { d with samples = Lists.drop n d.samples })
+
+  let class_counts (d : Dataset) =
+    [Lists.count (fn s -> s.y == k) d.samples | k <- [0...d.classes - 1]]
+end

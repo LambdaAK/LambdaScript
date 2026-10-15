@@ -66,9 +66,10 @@ errors at compile time and run-time errors when the executable runs.
 
 \section{Type errors}
 
-Type errors start with \texttt{type error:}. A mismatch names the two types
-that could not be made equal and, on the next line, the definition (as the
-type checker sees it, with operators as applications) in which it was found.
+Type errors start with the file and line of the definition in which they
+were found, then \texttt{type error in \textasciigrave f\textasciigrave:} (the
+name it defines, when it has one). A mismatch names the two types that could
+not be made equal.
 
 \begin{center}\small
 \begin{tabularx}{\textwidth}{@{}l X@{}}

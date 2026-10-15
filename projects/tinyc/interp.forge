@@ -1,0 +1,147 @@
+// A direct AST interpreter, the reference against which the compiled code is
+// tested. It runs in a state-and-error monad: the state (printed lines and a
+// step counter) survives a run-time error, so partial output is kept.
+import "util.forge"
+import "ast.forge"
+
+use Ast
+
+type Value = | VInt of Int | VBool of Bool
+
+impl Show for Value where
+  show v = case v do | VInt n -> int_to_str n | VBool b -> if b then "true" else "false"
+end
+
+type IState = { printed: List<String>, steps: Int }
+
+// Eval<a>: from a state to a result and a new state.
+type Eval<a> = | E of (IState -> (Res<a>, IState))
+
+let run_eval m st = case m do | E f -> f st
+
+impl Functor for Eval where
+  fmap f m = E (fn st -> case run_eval m st do | (Ok x, st2) -> (Ok (f x), st2) | (Err e, st2) -> (Err e, st2))
+end
+
+impl Applicative for Eval where
+  pure x = E (fn st -> (Ok x, st)),
+  ap mf mx = E (fn st -> case run_eval mf st do
+                         | (Ok f, st2) -> run_eval (fmap f mx) st2
+                         | (Err e, st2) -> (Err e, st2))
+end
+
+impl Monad for Eval where
+  bind m f = E (fn st -> case run_eval m st do | (Ok x, st2) -> run_eval (f x) st2 | (Err e, st2) -> (Err e, st2))
+end
+
+mod Interp where
+  let fail msg : Eval<a> = E (fn st -> (Err msg, st))
+  let emit line : Eval<Unit> = E (fn st -> (Ok (), { st with printed = line :: st.printed }))
+  let tick : Eval<Unit> = E (fn st -> (Ok (), { st with steps = st.steps + 1 }))
+
+  // Variables live in a stack of scopes, innermost first.
+  let rec lookup x scopes =
+    case scopes do
+    | [] -> VInt 0
+    | s :: rest -> case Map.find x s do | Some v -> v | None -> lookup x rest
+
+  let rec assign x v scopes =
+    case scopes do
+    | [] -> []
+    | s :: rest -> if Map.mem x s then Map.insert x v s :: rest else s :: assign x v rest
+
+  let declare x v scopes = case scopes do | s :: rest -> Map.insert x v s :: rest | [] -> [Map.insert x v Map.empty]
+
+  // How a statement finished.
+  type Flow = | Normal | Returned of Option<Value>
+
+  let int_of v = case v do | VInt n -> n | VBool b -> if b then 1 else 0
+  let bool_of v = case v do | VBool b -> b | VInt n -> n != 0
+
+  let arith op a b =
+    case op do
+    | Plus -> pure (VInt (a + b)) | Minus -> pure (VInt (a - b)) | Times -> pure (VInt (a * b))
+    | Divide -> if b == 0 then fail "division by zero" else pure (VInt (a / b))
+    | Modulo -> if b == 0 then fail "division by zero" else pure (VInt (a % b))
+    | LtOp -> pure (VBool (a < b)) | LeOp -> pure (VBool (a <= b))
+    | GtOp -> pure (VBool (a > b)) | GeOp -> pure (VBool (a >= b))
+    | _ -> fail "bad operator"
+
+  let rec eval funcs scopes e =
+    case e do
+    | Num n -> pure (VInt n)
+    | BoolLit b -> pure (VBool b)
+    | Var (x, _) -> pure (lookup x scopes)
+    | Unary (Negate, a, _) -> fmap (fn v -> VInt (0 - int_of v)) (eval funcs scopes a)
+    | Unary (LogNot, a, _) -> fmap (fn v -> VBool (not (bool_of v))) (eval funcs scopes a)
+    | Bin (AndOp, a, b, _) -> mdo!(x <- eval funcs scopes a; if bool_of x then eval funcs scopes b else pure (VBool false))
+    | Bin (OrOp, a, b, _) -> mdo!(x <- eval funcs scopes a; if bool_of x then pure (VBool true) else eval funcs scopes b)
+    | Bin (EqOp, a, b, _) -> mdo!(x <- eval funcs scopes a; y <- eval funcs scopes b; pure (VBool (x == y)))
+    | Bin (NeOp, a, b, _) -> mdo!(x <- eval funcs scopes a; y <- eval funcs scopes b; pure (VBool (x != y)))
+    | Bin (op, a, b, _) -> mdo!(x <- eval funcs scopes a; y <- eval funcs scopes b; arith op (int_of x) (int_of y))
+    | Call (f, args, _) ->
+        (case Map.find f funcs do
+         | None -> fail ("no function " ^ f)
+         | Some fd -> mdo!(
+             vs <- eval_args funcs scopes args;
+             _ <- tick;
+             call_body funcs fd vs))
+
+  // The callee sees only its parameters (a fresh scope stack).
+  and call_body funcs (fd : Func) vs =
+    let frame = Map.of_list [(x, v) | ((x, _), v) <- zip fd.params vs] in
+    mdo!(res <- exec_block funcs [frame] fd.body;
+         case res do
+         | (_, Returned (Some v)) -> pure v
+         | _ -> pure (VInt 0))
+
+  and eval_args funcs scopes args =
+    case args do
+    | [] -> pure []
+    | a :: rest -> mdo!(v <- eval funcs scopes a; vs <- eval_args funcs scopes rest; pure (v :: vs))
+
+  and zip xs ys = case (xs, ys) do | (x :: xr, y :: yr) -> (x, y) :: zip xr yr | _ -> []
+
+  // Executing a statement yields the new scopes and how it finished.
+  and exec funcs scopes s =
+    case s do
+    | SVar (x, _, e, _) -> mdo!(v <- eval funcs scopes e; pure (declare x v scopes, Normal))
+    | SAssign (x, e, _) -> mdo!(v <- eval funcs scopes e; pure (assign x v scopes, Normal))
+    | SIf (c, a, b, _) -> mdo!(v <- eval funcs scopes c;
+        exec_block funcs scopes (if bool_of v then a else b))
+    | SWhile (c, b, l) -> mdo!(v <- eval funcs scopes c;
+        if bool_of v
+        then mdo!(_ <- tick; res <- exec_block funcs scopes b;
+                  case res do
+                  | (sc, Normal) -> exec funcs sc s
+                  | done -> pure done)
+        else pure (scopes, Normal))
+    | SReturn (None, _) -> pure (scopes, Returned None)
+    | SReturn (Some e, _) -> mdo!(v <- eval funcs scopes e; pure (scopes, Returned (Some v)))
+    | SPrint (e, _) -> mdo!(v <- eval funcs scopes e; _ <- emit (show v); pure (scopes, Normal))
+    | SExpr (e, _) -> mdo!(_ <- eval funcs scopes e; pure (scopes, Normal))
+    | SBlock b -> exec_block funcs scopes b
+
+  // A block runs in a fresh inner scope; assignments to outer variables
+  // are kept, its own declarations are dropped with the scope.
+  and exec_block funcs scopes b =
+    mdo!(res <- exec_stmts funcs (Map.empty :: scopes) (stmts b);
+         case res do
+         | (_ :: outer, r) -> pure (outer, r)
+         | ([], r) -> pure ([], r))
+
+  and exec_stmts funcs scopes ss =
+    case ss do
+    | [] -> pure (scopes, Normal)
+    | s :: rest -> mdo!(res <- exec funcs scopes s;
+        case res do
+        | (sc, Normal) -> exec_stmts funcs sc rest
+        | done -> pure done)
+
+  // Run a checked program: (printed lines, steps, error if it trapped).
+  let run (p : Program) =
+    let funcs = Map.of_list [(f.name, f) | f <- p.funcs] in
+    case run_eval (exec_block funcs [] p.main) { printed: [], steps: 0 } do
+    | (Ok _, st) -> (Util.rev st.printed, st.steps, None)
+    | (Err e, st) -> (Util.rev st.printed, st.steps, Some e)
+end

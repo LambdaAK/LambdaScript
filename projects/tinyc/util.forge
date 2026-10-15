@@ -1,0 +1,167 @@
+// Shared infrastructure for the Tiny compiler: a result monad, a do-notation
+// macro, string helpers and a persistent balanced map (an AVL tree) used for
+// environments, VM frames and the code store.
+
+// ---------------------------------------------------------------------------
+// Result: a computation that either succeeds or fails with a message.
+// It is a higher-kinded instance of the prelude's Functor/Applicative/Monad.
+type Res<a> = | Ok of a | Err of String
+
+impl Functor for Res where
+  fmap f r = case r do | Ok x -> Ok (f x) | Err e -> Err e
+end
+
+impl Applicative for Res where
+  pure x = Ok x,
+  ap rf rx = case rf do | Ok f -> fmap f rx | Err e -> Err e
+end
+
+impl Monad for Res where
+  bind r f = case r do | Ok x -> f x | Err e -> Err e
+end
+
+// Do-notation: mdo!(x <- m; y <- n; e) is m >>= (fn x -> n >>= (fn y -> e)).
+// The macro is recursive: each arm peels off one binding.
+macro_rules! mdo where
+  ($x:ident <- $m:expr ; $($rest:tt)+) => $m >>= (fn $x -> mdo!($($rest)+));
+  ($e:expr) => $e
+end
+
+mod Util where
+  let fail msg = Err msg
+
+  // Apply a fallible function to every element, stopping at the first error.
+  let rec traverse f xs =
+    case xs do
+    | [] -> Ok []
+    | x :: rest -> mdo!(y <- f x; ys <- traverse f rest; Ok (y :: ys))
+
+  // Thread an accumulator through a fallible step function.
+  let rec fold_res f acc xs =
+    case xs do
+    | [] -> Ok acc
+    | x :: rest -> mdo!(acc2 <- f acc x; fold_res f acc2 rest)
+
+  // ---- strings -------------------------------------------------------------
+  let rec repeat_str k s = if k <= 0 then "" else s ^ repeat_str (k - 1) s
+  let pad_left w s = repeat_str (w - str_length s) " " ^ s
+  let pad_right w s = s ^ repeat_str (w - str_length s) " "
+
+  let join sep xs =
+    case xs do
+    | [] -> ""
+    | x :: rest -> reduce_left (fn acc -> fn y -> acc ^ sep ^ y) x rest
+
+  let string_of_chars cs = reduce_left (fn acc -> fn c -> acc ^ char_to_str c) "" cs
+
+  let rev xs = reduce_left (fn acc -> fn x -> x :: acc) [] xs
+
+  // Split a string into lines (on '\n'); used to number source listings.
+  let lines s =
+    let rec go cs cur acc =
+      case cs do
+      | [] -> rev (string_of_chars (rev cur) :: acc)
+      | '\n' :: rest -> go rest [] (string_of_chars (rev cur) :: acc)
+      | c :: rest -> go rest (c :: cur) acc
+    in go (string_to_list s) [] []
+
+  // Forge has no char-to-int builtin, so digits are decoded by hand
+  // (bugs/05-no-char-to-int.forge).
+  let digit_value c =
+    case c do
+    | '0' -> 0 | '1' -> 1 | '2' -> 2 | '3' -> 3 | '4' -> 4
+    | '5' -> 5 | '6' -> 6 | '7' -> 7 | '8' -> 8 | '9' -> 9
+    | _ -> -1
+
+  let is_digit c = c >= '0' && c <= '9'
+  let is_alpha c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
+  let is_space c = c == ' ' || c == '\n' || c == '\t'
+
+  let sum xs = reduce_left (+) 0 xs
+end
+
+// ---------------------------------------------------------------------------
+// A persistent AVL map. Keys are ordered by `order`, built on the structural
+// `<`: using the Ord trait's `compare` here breaks both back ends
+// (bugs/03-constrained-let-under-annotation.forge).
+mod Map where
+  type rec T<k, v> = | Leaf | Node of (T<k, v>, k, v, T<k, v>, Int)
+
+  let empty = Leaf
+
+  // A local three-way comparison: matching on the prelude's Ordering is
+  // slow in the interpreter (bugs/04-slow-match-on-prelude-types.forge).
+  type Cmp = | Less | Same | More
+  let order a b = if a < b then Less else if a > b then More else Same
+
+  let height t = case t do | Leaf -> 0 | Node (_, _, _, _, h) -> h
+  let max a b = if a > b then a else b
+  let node l k v r = Node (l, k, v, r, 1 + max (height l) (height r))
+
+  let rotate_right t =
+    case t do
+    | Node (Node (ll, lk, lv, lr, _), k, v, r, _) -> node ll lk lv (node lr k v r)
+    | _ -> t
+
+  let rotate_left t =
+    case t do
+    | Node (l, k, v, Node (rl, rk, rv, rr, _), _) -> node (node l k v rl) rk rv rr
+    | _ -> t
+
+  // Restore the AVL invariant at the root (children are already balanced).
+  let balance l k v r =
+    let hl = height l in
+    let hr = height r in
+    if hl > hr + 1 then
+      (case l do
+       | Node (ll, _, _, lr, _) ->
+           if height ll >= height lr then rotate_right (node l k v r)
+           else rotate_right (node (rotate_left l) k v r)
+       | Leaf -> node l k v r)
+    else if hr > hl + 1 then
+      (case r do
+       | Node (rl, _, _, rr, _) ->
+           if height rr >= height rl then rotate_left (node l k v r)
+           else rotate_left (node l k v (rotate_right r))
+       | Leaf -> node l k v r)
+    else node l k v r
+
+  let rec insert key value t =
+    case t do
+    | Leaf -> node Leaf key value Leaf
+    | Node (l, k, v, r, _) ->
+        case order key k do
+        | Less -> balance (insert key value l) k v r
+        | More -> balance l k v (insert key value r)
+        | Same -> node l key value r
+
+  let rec find key t =
+    case t do
+    | Leaf -> None
+    | Node (l, k, v, r, _) ->
+        case order key k do
+        | Less -> find key l
+        | More -> find key r
+        | Same -> Some v
+
+  let mem key t = case find key t do | Some _ -> true | None -> false
+
+  // The value at key, or d; no Option on this path, as the VM uses it for
+  // every instruction fetch and local variable.
+  let rec get_or d key t =
+    case t do
+    | Leaf -> d
+    | Node (l, k, v, r, _) ->
+        if key < k then get_or d key l else if key > k then get_or d key r else v
+
+  let find_or d key t = get_or d key t
+
+  let rec size t = case t do | Leaf -> 0 | Node (l, _, _, r, _) -> size l + 1 + size r
+
+  let of_list kvs = reduce_left (fn m -> fn (k, v) -> insert k v m) Leaf kvs
+
+  // An array: the elements of a list indexed from 0.
+  let of_array xs =
+    let rec go i ys m = case ys do | [] -> m | y :: rest -> go (i + 1) rest (insert i y m) in
+    go 0 xs Leaf
+end

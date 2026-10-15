@@ -1,0 +1,377 @@
+==================== Part 1: a Lisp interpreter ====================
+global environment: 48 bindings, tree depth 16
+prelude procedures: assoc caddr cadr compose filter foldl foldr map range reverse
+
+--- 1. factorial ---
+> (define (fact n) (if (= n 0) 1 (* n (fact (- n 1)))))
+  => fact
+> (fact 10)
+  => 3628800
+> (fact 20)
+  => 2432902008176640000
+> (define (fact-iter n acc) (if (= n 0) acc (fact-iter (- n 1) (* n acc))))
+  => fact-iter
+> (fact-iter 15 1)
+  => 1307674368000
+> (map fact (range 0 8))
+  => (1 1 2 6 24 120 720 5040 40320)
+
+--- 2. fibonacci ---
+> (define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))
+  => fib
+> (fib 18)
+  => 2584
+> (define (fib-fast n) (define (go k a b) (if (= k 0) a (go (- k 1) b (+ a b)))) (go n 0 1))
+  => fib-fast
+> (fib-fast 80)
+  => 23416728348467685
+> (map fib (range 0 12))
+  => (0 1 1 2 3 5 8 13 21 34 55 89 144)
+
+--- 3. closures and accumulators ---
+> (define (make-adder n) (lambda (x) (+ x n)))
+  => make-adder
+> (define add5 (make-adder 5))
+  => add5
+> (add5 37)
+  => 42
+> (map (make-adder 100) '(1 2 3))
+  => (101 102 103)
+> (define (make-counter n) (lambda () (list n (make-counter (+ n 1)))))
+  => make-counter
+> (define (take-counts c k) (if (= k 0) '() (let ((r (c))) (cons (car r) (take-counts (cadr r) (- k 1))))))
+  => take-counts
+> (take-counts (make-counter 10) 5)
+  => (10 11 12 13 14)
+> (define (make-account balance) (lambda (msg amount) (cond ((eq? msg 'deposit) (make-account (+ balance amount))) ((eq? msg 'withdraw) (if (> amount balance) (error "insufficient funds" amount balance) (make-account (- balance amount)))) ((eq? msg 'balance) balance) (else (error "unknown request" msg)))))
+  => make-account
+> (let* ((a (make-account 100)) (b (a 'deposit 50)) (c (b 'withdraw 30))) (c 'balance 0))
+  => 120
+> ((make-account 10) 'withdraw 25)
+  !! error: insufficient funds: 25 10
+> ((make-account 10) 'transfer 1)
+  !! error: unknown request: transfer
+> (foldl (lambda (acc x) (cons (+ x (if (null? acc) 0 (car acc))) acc)) '() '(1 2 3 4 5))
+  => (15 10 6 3 1)
+
+--- 4. higher-order functions ---
+> (define (square x) (* x x))
+  => square
+> (map square (range 1 10))
+  => (1 4 9 16 25 36 49 64 81 100)
+> (filter (lambda (n) (= 0 (mod n 3))) (range 1 20))
+  => (3 6 9 12 15 18)
+> (foldl + 0 (range 1 100))
+  => 5050
+> (foldr cons '() '(a b c))
+  => (a b c)
+> ((compose square (lambda (x) (+ x 1))) 6)
+  => 49
+> (define (curry f) (lambda (a) (lambda (b) (f a b))))
+  => curry
+> (((curry *) 6) 7)
+  => 42
+> (apply + (range 1 10))
+  => 55
+> (define (sum-all first . rest) (foldl + first rest))
+  => sum-all
+> (sum-all 1 2 3 4)
+  => 10
+> ((lambda args (length args)) 'a 'b 'c)
+  => 3
+> (map (lambda (f) (f 16)) (list square (lambda (x) (/ x 2)) number->string))
+  => (256 8 "16")
+
+--- 5. quicksort ---
+> (define (quicksort xs) (if (null? xs) '() (let ((pivot (car xs)) (rest (cdr xs))) (append (quicksort (filter (lambda (x) (< x pivot)) rest)) (list pivot) (quicksort (filter (lambda (x) (>= x pivot)) rest))))))
+  => quicksort
+> (quicksort '(33 7 21 3 99 1 0 42 7 18 -5 64))
+  => (-5 0 1 3 7 7 18 21 33 42 64 99)
+> (define (sorted? xs) (or (null? xs) (null? (cdr xs)) (and (<= (car xs) (cadr xs)) (sorted? (cdr xs)))))
+  => sorted?
+> (sorted? (quicksort (map (lambda (i) (mod (* i 7919) 101)) (range 1 60))))
+  => #t
+> (length (quicksort (range 1 120)))
+  => 120
+> (define (sort-by less? xs) (if (null? xs) '() (let ((p (car xs))) (append (sort-by less? (filter (lambda (x) (less? x p)) (cdr xs))) (list p) (sort-by less? (filter (lambda (x) (not (less? x p))) (cdr xs)))))))
+  => sort-by
+> (define (before? a b) (< (compare a b) 0))
+  => before?
+> (sort-by before? '(pear apple fig banana cherry))
+  => (apple banana cherry fig pear)
+> (sort-by before? '("b" "a" "c"))
+  => ("a" "b" "c")
+> (sort-by before? '((2 1) (1 5) (1 2 3) () (2)))
+  => (() (1 2 3) (1 5) (2) (2 1))
+> (sort-by (lambda (a b) (> a b)) '(3 1 4 1 5 9 2 6))
+  => (9 6 5 4 3 2 1 1)
+
+--- 6. association-list database ---
+> (define people '((alice 34 engineering) (bob 27 sales) (carol 45 engineering) (dave 31 marketing) (erin 29 sales) (frank 52 engineering)))
+  => people
+> (define (name p) (car p))
+  => name
+> (define (age p) (cadr p))
+  => age
+> (define (dept p) (caddr p))
+  => dept
+> (assoc 'carol people)
+  => (carol 45 engineering)
+> (assoc 'zoe people)
+  => #f
+> (map name (filter (lambda (p) (eq? (dept p) 'engineering)) people))
+  => (alice carol frank)
+> (define (average xs) (/ (foldl + 0 xs) (length xs)))
+  => average
+> (average (map age people))
+  => 36
+> (define (update db key f) (map (lambda (p) (if (eq? (name p) key) (f p) p)) db))
+  => update
+> (assoc 'bob (update people 'bob (lambda (p) (list (name p) (+ (age p) 1) 'management))))
+  => (bob 28 management)
+> (define (count-by db d) (length (filter (lambda (p) (eq? (dept p) d)) db)))
+  => count-by
+> (map (lambda (d) (list d (count-by people d))) '(engineering sales marketing))
+  => ((engineering 3) (sales 2) (marketing 1))
+> (define (oldest db) (foldl (lambda (best p) (if (> (age p) (age best)) p best)) (car db) (cdr db)))
+  => oldest
+> (name (oldest people))
+  => frank
+
+--- 7. mutual recursion ---
+> (define (even? n) (if (= n 0) #t (odd? (- n 1))))
+  => even?
+> (define (odd? n) (if (= n 0) #f (even? (- n 1))))
+  => odd?
+> (even? 100)
+  => #t
+> (odd? 777)
+  => #t
+> (map even? (range 0 5))
+  => (#t #f #t #f #t #f)
+> (define (sum-to n) (if (= n 0) 0 (+ n (sum-to (- n 1)))))
+  => sum-to
+> (sum-to 10000)
+  => 50005000
+> (define (count-down n) (if (= n 0) 'liftoff (count-down (- n 1))))
+  => count-down
+> (count-down 10000)
+  => liftoff
+
+--- 8. strings and symbols ---
+> (define (greet who) (string-append "Hello, " who "!"))
+  => greet
+> (greet "Forge")
+  => "Hello, Forge!"
+> (string-length (greet "Lisp"))
+  => 12
+> (substring "functional" 3 7)
+  => "ctio"
+> (define (join sep xs) (if (null? xs) "" (foldl (lambda (acc s) (string-append acc sep s)) (car xs) (cdr xs))))
+  => join
+> (join ", " (map number->string (range 1 5)))
+  => "1, 2, 3, 4, 5"
+> (string->symbol "quux")
+  => quux
+> (symbol->string 'abc)
+  => "abc"
+> (string->number "-123")
+  => -123
+> (string->number "12x")
+  => #f
+> (list (string=? "a" "a") (string<? "apple" "banana") (equal? '(1 (2 "x")) '(1 (2 "x"))))
+  => (#t #t #t)
+> "escapes: \"quoted\" and \\"
+  => "escapes: \"quoted\" and \\"
+
+--- 9. special forms ---
+> (let ((x 2) (y 3)) (let ((x 7) (z (+ x y))) (list x y z)))
+  => (7 3 5)
+> (let* ((x 2) (y (* x 10)) (z (+ x y))) z)
+  => 22
+> (define (classify n) (cond ((< n 0) 'negative) ((= n 0) 'zero) ((< n 10) 'small) (else 'large)))
+  => classify
+> (map classify '(-3 0 4 99))
+  => (negative zero small large)
+> (list (and) (and 1 2 3) (and 1 #f 3) (or) (or #f 2) (or #f #f))
+  => (#t 3 #f #f 2 #f)
+> (begin 1 2 3)
+  => 3
+> (if #f 1)
+  => ()
+> (cond ((assoc 'b '((a 1) (b 2)))) (else 0))
+  => (b 2)
+> '(1 (2 3) "s" #t)
+  => (1 (2 3) "s" #t)
+> ''x
+  => 'x
+
+--- 10. error cases ---
+> (+ 1 undefined-variable)
+  !! error: unbound symbol: undefined-variable
+> ((lambda (x y) x) 1)
+  !! error: lambda: expected 2 argument(s), got 1
+> (car 5)
+  !! error: car: expected a list, got number 5
+> (+ 1 "two")
+  !! error: +: expected a number, got string "two"
+> (/ 10 0)
+  !! error: /: division by zero
+> (mod 7 0)
+  !! error: mod: division by zero
+> (5 3)
+  !! error: not a procedure: 5
+> (error "custom failure" 'code 42)
+  !! error: custom failure: code 42
+> (if)
+  !! error: bad syntax in if: (if)
+> (let ((x)) x)
+  !! error: bad syntax in let binding: (let ((x)) x)
+> (lambda (1) 1)
+  !! error: bad syntax in lambda parameters: (lambda (1) 1)
+> (cons 1 2)
+  !! error: cons: expected a list, got number 2
+> (string-append "a" 'b)
+  !! error: string-append: expected a string, got symbol b
+> (apply + 1 2)
+  !! error: apply: expected 2 argument(s), got 3
+> (fact 5)
+  !! error: unbound symbol: fact
+> (define)
+  !! error: bad syntax in define: (define)
+
+--- 11. read error: unbalanced ---
+source: (define (broken x) (+ x 1)
+  !! read error: missing )
+
+--- 12. read error: stray paren ---
+source: (+ 1 2))
+  !! read error: unexpected )
+
+--- 13. read error: unterminated string ---
+source: (string-length "abc)
+  !! read error: unterminated string
+
+============== Part 2: Hindley-Milner type inference ==============
+built-ins:
+  +     : Int -> Int -> Int
+  -     : Int -> Int -> Int
+  *     : Int -> Int -> Int
+  <     : Int -> Int -> Bool
+  ==    : a -> a -> Bool
+  ::    : a -> List<a> -> List<a>
+  head  : List<a> -> a
+  tail  : List<a> -> List<a>
+  null  : List<a> -> Bool
+  fst   : (a, b) -> a
+  snd   : (a, b) -> b
+
+[identity]  fun x -> x
+  parsed: (fun x -> x)
+  type:   a -> a   (1 type variables)
+
+[K combinator]  fun x y -> x
+  parsed: (fun x -> (fun y -> x))
+  type:   a -> b -> a   (2 type variables)
+
+[S combinator]  fun x y z -> x z (y z)
+  parsed: (fun x -> (fun y -> (fun z -> (x z (y z)))))
+  type:   (a -> b -> c) -> (a -> b) -> a -> c   (6 type variables)
+
+[compose]  fun f g x -> f (g x)
+  parsed: (fun f -> (fun g -> (fun x -> (f (g x)))))
+  type:   (a -> b) -> (c -> a) -> c -> b   (5 type variables)
+
+[flip]  fun f x y -> f y x
+  parsed: (fun f -> (fun x -> (fun y -> (f y x))))
+  type:   (a -> b -> c) -> b -> a -> c   (5 type variables)
+
+[twice]  fun f x -> f (f x)
+  parsed: (fun f -> (fun x -> (f (f x))))
+  type:   (a -> a) -> a -> a   (4 type variables)
+
+[let-polymorphism]  let id = fun x -> x in (id 1, id true)
+  parsed: (let id = (fun x -> x) in ((id 1), (id true)))
+  type:   (Int, Bool)   (5 type variables)
+
+[nested pairs]  let pair = fun x -> (x, x) in pair (pair 1)
+  parsed: (let pair = (fun x -> (x, x)) in (pair (pair 1)))
+  type:   ((Int, Int), (Int, Int))   (5 type variables)
+
+[swap]  fun p -> (snd p, fst p)
+  parsed: (fun p -> ((snd p), (fst p)))
+  type:   (a, b) -> (b, a)   (7 type variables)
+
+[factorial]  let rec fact n = if n == 0 then 1 else n * fact (n - 1) in fact
+  parsed: (let rec fact = (fun n -> (if (n == 0) then 1 else (n * (fact (n - 1))))) in fact)
+  type:   Int -> Int   (10 type variables)
+
+[map]  let rec map f xs = if null xs then [] else f (head xs) :: map f (tail xs) in map
+  parsed: (let rec map = (fun f -> (fun xs -> (if (null xs) then [] else ((f (head xs)) :: (map f (tail xs)))))) in map)
+  type:   (a -> b) -> List<a> -> List<b>   (18 type variables)
+
+[fold]  let rec fold f acc xs = if null xs then acc else fold f (f acc (head xs)) (tail xs) in fold
+  parsed: (let rec fold = (fun f -> (fun acc -> (fun xs -> (if (null xs) then acc else ((fold f (f acc (head xs))) (tail xs)))))) in fold)
+  type:   (a -> b -> a) -> a -> List<b> -> a   (17 type variables)
+
+[sum with fold]  let rec fold f acc xs = if null xs then acc else fold f (f acc (head xs)) (tail xs) in fold (fun a b -> a + b) 0 [1, 2, 3]
+  parsed: (let rec fold = (fun f -> (fun acc -> (fun xs -> (if (null xs) then acc else ((fold f (f acc (head xs))) (tail xs)))))) in ((fold (fun a -> (fun b -> (a + b))) 0) (1 :: (2 :: (3 :: [])))))
+  type:   Int   (34 type variables)
+
+[list literal]  [(1, true), (2, false)]
+  parsed: ((1, true) :: ((2, false) :: []))
+  type:   List<(Int, Bool)>   (7 type variables)
+
+[polymorphic length]  let rec len xs = if null xs then 0 else 1 + len (tail xs) in (len [1, 2], len [true])
+  parsed: (let rec len = (fun xs -> (if (null xs) then 0 else (1 + (len (tail xs))))) in ((len (1 :: (2 :: []))), (len (true :: []))))
+  type:   (Int, Int)   (24 type variables)
+
+[error: int plus bool]  1 + true
+  parsed: (1 + true)
+  error:  type mismatch: Int vs Bool
+          in (1 + true)
+
+[error: self-application]  fun x -> x x
+  parsed: (fun x -> (x x))
+  error:  infinite type: a occurs in a -> b
+          in (x x)
+
+[error: if condition]  if 1 then 2 else 3
+  parsed: (if 1 then 2 else 3)
+  error:  type mismatch: Int vs Bool
+          in the condition 1
+
+[error: branches differ]  fun b -> if b then 1 else false
+  parsed: (fun b -> (if b then 1 else false))
+  error:  type mismatch: Int vs Bool
+          in the branches of (if b then 1 else false)
+
+[error: unbound variable]  foo 1
+  parsed: (foo 1)
+  error:  unbound variable: foo
+
+[error: lambda-bound is monomorphic]  fun f -> (f 1, f true)
+  parsed: (fun f -> ((f 1), (f true)))
+  error:  type mismatch: Int vs Bool
+          in (f true)
+
+[error: heterogeneous list]  [1, true]
+  parsed: (1 :: (true :: []))
+  error:  type mismatch: Int vs Bool
+          in (1 :: (true :: []))
+
+[error: applying a number]  let x = 3 in x 4
+  parsed: (let x = 3 in (x 4))
+  error:  type mismatch: Int vs Int -> a
+          in (x 4)
+
+[parse error: missing body]  fun x ->
+  parse error: expected an expression, found end of input
+
+[parse error: missing in]  let x = 1 x
+  parse error: expected keyword in, found end of input
+
+[parse error: stray paren]  (1, 2))
+  parse error: unexpected ')'
+
+summary: 13 Lisp programs run; 15 of 26 ML expressions well typed

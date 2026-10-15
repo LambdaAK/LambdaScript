@@ -1,0 +1,140 @@
+// regex.forge -- a small backtracking regular-expression engine for grep
+// and sed:  literals  .  [abc] [a-z] [^x]  * + ?  ^ $  and \ escapes.
+
+import "result.forge"
+
+type Atom =
+  | Lit of Char
+  | Any
+  | Class of (Bool, List<Char>)   // negated?, members
+
+type Item =
+  | One of Atom
+  | Star of Atom
+  | Plus of Atom
+  | Opt of Atom
+
+type Regex = { start: Bool, items: List<Item>, stop: Bool }
+
+mod Regex where
+  use Lists
+
+  // Members of a bracket expression, with ranges expanded: "a-z0-9_".
+  let rec class_members cs =
+    case cs do
+    | [] -> []
+    | a :: '-' :: b :: rest -> list_append (Chars.range a b) (class_members rest)
+    | c :: rest -> c :: class_members rest
+
+  // Read a bracket expression after '['; returns the atom and what follows ']'.
+  let parse_class cs =
+    let (neg, body) = case cs do | '^' :: rest -> (true, rest) | _ -> (false, cs) in
+    let rec go acc rest =
+      case rest do
+      | [] -> Err (Syntax "unterminated [ in pattern")
+      | ']' :: after -> if acc == [] then go (']' :: acc) after else Ok (Class (neg, class_members (list_rev acc)), after)
+      | c :: after -> go (c :: acc) after
+    in
+    go [] body
+
+  // One atom from the front of the pattern.
+  let parse_atom cs =
+    case cs do
+    | '.' :: rest -> Ok (Any, rest)
+    | '[' :: rest -> parse_class rest
+    | '\\' :: c :: rest -> Ok (Lit c, rest)
+    | c :: rest -> Ok (Lit c, rest)
+    | [] -> Err (Syntax "empty pattern")
+
+  // Attach a postfix operator to an atom, if one follows.
+  let with_suffix a rest =
+    case rest do
+    | '*' :: after -> (Star a, after)
+    | '+' :: after -> (Plus a, after)
+    | '?' :: after -> (Opt a, after)
+    | _ -> (One a, rest)
+
+  let rec parse_items cs =
+    case cs do
+    | [] -> Ok []
+    | '$' :: [] -> Ok []
+    | _ ->
+      parse_atom cs >>= (fn (a, rest) ->
+        let (item, after) = with_suffix a rest in
+        fmap (fn items -> item :: items) (parse_items after))
+
+  let compile pattern : Res<Regex> =
+    let cs = Str.explode pattern in
+    let (start, body) = case cs do | '^' :: rest -> (true, rest) | _ -> (false, cs) in
+    let stop = Str.reverse pattern |> Str.starts_with "$" in
+    fmap (fn items -> { start: start, items: items, stop: stop }) (parse_items body)
+
+  let atom_ok a c =
+    case a do
+    | Lit x -> x == c
+    | Any -> true
+    | Class (neg, members) -> (Chars.index_of c members != None) != neg
+
+  // Match items against the front of cs; returns the unmatched remainder.
+  // Repetition is greedy: the longest match is tried first.
+  let rec match_here items stop cs =
+    case items do
+    | [] -> if stop && cs != [] then None else Some cs
+    | One a :: rest ->
+      (case cs do
+       | c :: cr -> if atom_ok a c then match_here rest stop cr else None
+       | [] -> None)
+    | Star a :: rest -> match_star a rest stop cs
+    | Plus a :: rest ->
+      (case cs do
+       | c :: cr -> if atom_ok a c then match_star a rest stop cr else None
+       | [] -> None)
+    | Opt a :: rest ->
+      let skip = match_here rest stop cs in
+      (case cs do
+       | c :: cr -> if atom_ok a c then (case match_here rest stop cr do | Some r -> Some r | None -> skip) else skip
+       | [] -> skip)
+  and match_star a rest stop cs =
+    let longer = case cs do
+      | c :: cr -> if atom_ok a c then match_star a rest stop cr else None
+      | [] -> None
+    in
+    case longer do
+    | Some r -> Some r
+    | None -> match_here rest stop cs
+
+  // The leftmost match in a line: (offset, length).
+  let search re line =
+    let cs = Str.explode line in
+    let total = list_length cs in
+    let rec go i cs =
+      case match_here re.items re.stop cs do
+      | Some rest -> Some (i, total - i - list_length rest)
+      | None -> if re.start then None else (case cs do | [] -> None | _ :: cr -> go (i + 1) cr)
+    in
+    go 0 cs
+
+  let matches re line = search re line != None
+
+  // Replace the first (or every) match; '&' in the replacement is the match.
+  let substitute re all repl line =
+    let expand m = Str.replace true "&" m repl in
+    // `just_matched`: an empty match right after a match does not count
+    // (so s/l*/X/g turns "hello" into "XhXeXoX", as in sed).
+    let rec go text just_matched =
+      case search re text do
+      | None -> text
+      | Some (i, n) ->
+        let before = Str.take i text in
+        let m = str_slice text i n in
+        let after = Str.drop (i + n) text in
+        if n == 0 && i == 0 && just_matched then
+          (if text == "" then "" else Str.take 1 text ^ go (Str.drop 1 text) false)
+        else if not all then before ^ expand m ^ after
+        else if n == 0 then
+          // An empty match still has to make progress.
+          (if after == "" then before ^ expand m else before ^ expand m ^ Str.take 1 after ^ go (Str.drop 1 after) false)
+        else before ^ expand m ^ (if re.start then after else go after true)
+    in
+    go line false
+end

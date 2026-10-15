@@ -1,0 +1,127 @@
+// The type checker: int versus bool, declared names, call arity, return
+// types and missing returns. Written in the Res monad; the first error stops
+// the check and is reported with its line.
+import "util.forge"
+import "ast.forge"
+
+use Ast
+
+mod Check where
+  type Sig = { args: List<Ty>, result: Ty }
+
+  // The context of a statement: function signatures, variables in scope, the
+  // names declared in the innermost block, and the enclosing function.
+  type Ctx = { funcs: Map.T<String, Sig>, vars: Map.T<String, Ty>, here: List<String>, fname: String, ret: Ty }
+
+  let err line msg = Err ("line " ^ int_to_str line ^ ": " ^ msg)
+
+  let want line what expected actual =
+    if expected == actual then Ok ()
+    else err line (what ^ " should be " ^ ty_name expected ^ " but is " ^ ty_name actual)
+
+  let arith op = op == Plus || op == Minus || op == Times || op == Divide || op == Modulo
+  let order op = op == LtOp || op == LeOp || op == GtOp || op == GeOp
+
+  let rec check_expr (ctx : Ctx) e =
+    case e do
+    | Num _ -> Ok TInt
+    | BoolLit _ -> Ok TBool
+    | Var (x, l) ->
+        (case Map.find x ctx.vars do
+         | Some t -> Ok t
+         | None -> err l ("undeclared variable '" ^ x ^ "'"))
+    | Unary (Negate, a, l) -> mdo!(t <- check_expr ctx a; _ <- want l "operand of unary '-'" TInt t; Ok TInt)
+    | Unary (LogNot, a, l) -> mdo!(t <- check_expr ctx a; _ <- want l "operand of '!'" TBool t; Ok TBool)
+    | Bin (op, a, b, l) -> mdo!(ta <- check_expr ctx a; tb <- check_expr ctx b; check_bin l op ta tb)
+    | Call (f, args, l) ->
+        (case Map.find f ctx.funcs do
+         | None -> err l ("call to undeclared function '" ^ f ^ "'")
+         | Some sg ->
+             let n = list_length sg.args in
+             let m = list_length args in
+             if n != m then
+               err l ("function '" ^ f ^ "' expects " ^ int_to_str n ^ " argument" ^ (if n == 1 then "" else "s")
+                      ^ " but is given " ^ int_to_str m)
+             else mdo!(
+               ts <- Util.traverse (check_expr ctx) args;
+               _ <- Util.traverse (fn (i, (want_t, got)) ->
+                       want l ("argument " ^ int_to_str i ^ " of '" ^ f ^ "'") want_t got)
+                     (zip3 1 sg.args ts);
+               Ok sg.result))
+
+  // Number the pairs of two equally long lists from i.
+  and zip3 i xs ys =
+    case (xs, ys) do
+    | (x :: xr, y :: yr) -> (i, (x, y)) :: zip3 (i + 1) xr yr
+    | _ -> []
+
+  and check_bin l op ta tb =
+    let what = "operand of '" ^ op_name op ^ "'" in
+    if arith op then mdo!(_ <- want l what TInt ta; _ <- want l what TInt tb; Ok TInt)
+    else if order op then mdo!(_ <- want l what TInt ta; _ <- want l what TInt tb; Ok TBool)
+    else if op == AndOp || op == OrOp then mdo!(_ <- want l what TBool ta; _ <- want l what TBool tb; Ok TBool)
+    else if ta == TVoid then err l ("cannot compare a void value with '" ^ op_name op ^ "'")
+    else mdo!(_ <- want l ("right " ^ what) ta tb; Ok TBool)
+
+  // Checking a statement yields the context for the statements after it.
+  let rec check_stmt (ctx : Ctx) s =
+    case s do
+    | SVar (x, t, e, l) ->
+        if list_length (filter (fn y -> y == x) ctx.here) > 0
+        then err l ("variable '" ^ x ^ "' is already declared in this block")
+        else if t == TVoid then err l ("variable '" ^ x ^ "' cannot have type void")
+        else mdo!(te <- check_expr ctx e;
+                  _ <- want l ("initial value of '" ^ x ^ "'") t te;
+                  Ok { ctx with vars = Map.insert x t ctx.vars, here = x :: ctx.here })
+    | SAssign (x, e, l) ->
+        (case Map.find x ctx.vars do
+         | None -> err l ("assignment to undeclared variable '" ^ x ^ "'")
+         | Some t -> mdo!(te <- check_expr ctx e; _ <- want l ("value assigned to '" ^ x ^ "'") t te; Ok ctx))
+    | SIf (c, a, b, l) -> mdo!(tc <- check_expr ctx c; _ <- want l "condition of 'if'" TBool tc;
+                              _ <- check_block ctx a; _ <- check_block ctx b; Ok ctx)
+    | SWhile (c, b, l) -> mdo!(tc <- check_expr ctx c; _ <- want l "condition of 'while'" TBool tc;
+                              _ <- check_block ctx b; Ok ctx)
+    | SReturn (None, l) ->
+        if ctx.ret == TVoid then Ok ctx
+        else err l ("function '" ^ ctx.fname ^ "' must return a value of type " ^ ty_name ctx.ret)
+    | SReturn (Some e, l) ->
+        if ctx.ret == TVoid then err l ("'" ^ ctx.fname ^ "' returns void and cannot return a value")
+        else mdo!(te <- check_expr ctx e; _ <- want l ("return value of '" ^ ctx.fname ^ "'") ctx.ret te; Ok ctx)
+    | SPrint (e, l) -> mdo!(te <- check_expr ctx e;
+                           if te == TVoid then err l "cannot print a void value" else Ok ctx)
+    | SExpr (e, _) -> mdo!(_ <- check_expr ctx e; Ok ctx)
+    | SBlock b -> mdo!(_ <- check_block ctx b; Ok ctx)
+
+  // A block opens a new scope: its declarations do not escape.
+  and check_block ctx b = mdo!(_ <- Util.fold_res check_stmt { ctx with here = [] } (stmts b); Ok ())
+
+  // Does every path through the statements end in a return?
+  let rec returns ss =
+    case ss do
+    | [] -> false
+    | SReturn _ :: _ -> true
+    | SIf (_, a, b, _) :: rest -> (returns (stmts a) && returns (stmts b)) || returns rest
+    | SBlock b :: rest -> returns (stmts b) || returns rest
+    | _ :: rest -> returns rest
+
+  let check_func funcs (f : Func) =
+    let names = map tuple_fst f.params in
+    let dup = filter (fn x -> list_length (filter (fn y -> y == x) names) > 1) names in
+    case dup do
+    | x :: _ -> err f.line ("parameter '" ^ x ^ "' of '" ^ f.name ^ "' is declared twice")
+    | [] ->
+        let ctx = { funcs: funcs, vars: Map.of_list f.params, here: names, fname: f.name, ret: f.ret } in
+        mdo!(_ <- check_block ctx f.body;
+             if f.ret != TVoid && not (returns (stmts f.body))
+             then err f.line ("function '" ^ f.name ^ "' may finish without returning a value of type " ^ ty_name f.ret)
+             else Ok ())
+
+  // Collect every signature first, so functions may call each other freely.
+  let check_program (p : Program) =
+    let add funcs (f : Func) =
+      if Map.mem f.name funcs then err f.line ("function '" ^ f.name ^ "' is defined twice")
+      else Ok (Map.insert f.name { args: map tuple_snd f.params, result: f.ret } funcs) in
+    mdo!(funcs <- Util.fold_res add Map.empty p.funcs;
+         _ <- Util.traverse (check_func funcs) p.funcs;
+         check_block { funcs: funcs, vars: Map.empty, here: [], fname: "main", ret: TVoid } p.main)
+end

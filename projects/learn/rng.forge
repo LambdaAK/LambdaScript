@@ -1,0 +1,75 @@
+// A seeded random number generator, and a state monad around it.
+//
+// The generator is a linear congruential generator modulo 2^31 with the
+// multiplier of C's rand. The state is below 2^31 and the multiplier below
+// 2^31, so every product stays below 2^62: the 63-bit interpreter and the
+// 64-bit native code compute exactly the same sequence.
+
+mod Rng where
+  let modulus = 2147483648
+  let next s = (1103515245 * s + 12345) % modulus
+
+  // The low bits of an LCG modulo a power of two are weak (bit 0 simply
+  // alternates), so integer draws use the high 15 bits.
+  let high s = s / 65536
+
+  // Uniform in [0, 1).
+  let uniform s =
+    let s1 = next s in
+    (int_to_float s1 /. 2147483648.0, s1)
+
+  // Uniform integer in [0, n), for n up to 32768.
+  let below n s =
+    let s1 = next s in
+    (high s1 % n, s1)
+end
+
+// A random computation: a function from a state to a value and a new state.
+type Rand<a> = | Rand of (Int -> (a, Int))
+
+mod R where
+  let run r s = case r do | Rand g -> g s
+  let eval r s = tuple_fst (run r s)
+end
+
+// Rand is a monad, implemented through the prelude's higher-kinded traits.
+impl Functor for Rand where
+  fmap f r = Rand (fn s -> case R.run r s do | (x, s1) -> (f x, s1))
+end
+
+impl Applicative for Rand where
+  pure x = Rand (fn s -> (x, s)),
+  ap rf rx =
+    Rand (fn s ->
+      let (f, s1) = R.run rf s in
+      let (x, s2) = R.run rx s1 in
+      (f x, s2))
+end
+
+impl Monad for Rand where
+  bind r f = Rand (fn s -> let (x, s1) = R.run r s in R.run (f x) s1)
+end
+
+// Generators built from the monad operations.
+mod Gen where
+  let uniform : Rand<Float> = Rand Rng.uniform
+  let below n : Rand<Int> = Rand (Rng.below n)
+  let between lo hi = fmap (fn u -> lo +. (hi -. lo) *. u) uniform
+
+  // Approximately normal: the sum of twelve uniforms has mean 6, variance 1.
+  let rec sum_uniforms k acc =
+    if k == 0 then pure acc
+    else uniform >>= (fn u -> sum_uniforms (k - 1) (acc +. u))
+  let normal mu sigma = fmap (fn t -> mu +. sigma *. (t -. 6.0)) (sum_uniforms 12 0.0)
+
+  // n independent draws.
+  let rec replicate n g =
+    if n == 0 then pure []
+    else g >>= (fn x -> fmap (fn xs -> x :: xs) (replicate (n - 1) g))
+
+  // Run a generator for every element of a list.
+  let rec traverse f xs =
+    case xs do
+    | [] -> pure []
+    | x :: rest -> f x >>= (fn y -> fmap (fn ys -> y :: ys) (traverse f rest))
+end

@@ -1,1 +1,1 @@
-error: type error: Type inference failed while checking definition: cannot match String with Int
+error: error-type.forge:2: type error: cannot match String with Int

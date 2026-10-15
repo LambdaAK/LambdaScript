@@ -1,0 +1,32 @@
+// FIXED: this now behaves as expected in both back ends.
+// Bug (native only): a function whose Ord constraint comes from a call inside
+// a local `let ... in` cannot be compiled. `exec` has type
+// Ord k => List<(k, Int)> -> k -> Int; the interpreter runs it, the native
+// compiler's specialiser produces an ill-typed program. Without the local
+// let (`let exec m r = lookup r m`) both back ends work.
+// Expected: prints 2 (both back ends).
+// Actual: interpreter prints 2; native compiler:
+//   error: the native compiler does not support this program yet: internal: the
+//   specialised program does not type-check: Other error: Type inference failed
+//   while checking definition: cannot match Unit with K
+//     in: let () = (println__sp3) (((exec) (((A, 1)) :: ...)) (B))
+// Run: cp to a temp dir, then
+//   ./_build/default/bin/compile_forge.exe <tmp>/05-local-let-in-constrained-fn-native.forge <tmp>/a.exe
+type K = | A | B
+
+impl Eq for K where
+  (==) x y = case (x, y) do | (A, A) -> true | (B, B) -> true | _ -> false
+end
+
+impl Ord for K where
+  compare x y = case (x, y) do | (A, B) -> LT | (B, A) -> GT | _ -> EQ
+end
+
+let rec lookup k kvs =
+  case kvs do
+  | [] -> 0
+  | (k2, v) :: rest -> (case compare k k2 do | EQ -> v | _ -> lookup k rest)
+
+let exec m r = let x = lookup r m in x
+
+let () = println (exec [(A, 1), (B, 2)] B)

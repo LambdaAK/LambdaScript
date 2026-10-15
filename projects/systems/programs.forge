@@ -1,0 +1,165 @@
+// Assembly programs for the register machine, as source text.
+// Conventions: arguments and results in r0 (and r1), ALU instructions set the
+// flags, `call` pushes the return address, the stack grows down from 256.
+
+mod Programs where
+  let sum_to_100 = "; the sum 1 + 2 + ... + 100
+        ldi r0, 0          ; total
+        ldi r1, 1          ; i
+loop:   add r0, r1
+        add r1, 1
+        cmp r1, 101
+        jlt loop
+        out r0
+        halt"
+
+  let fib_iterative = "; the first N Fibonacci numbers, iteratively
+.equ N 20
+        ldi r1, 0          ; a
+        ldi r2, 1          ; b
+        ldi r3, N          ; numbers left to print
+loop:   out r1
+        mov r4, r1
+        add r4, r2         ; a + b
+        mov r1, r2
+        mov r2, r4
+        sub r3, 1
+        jnz loop
+        halt"
+
+  let fib_recursive = "; fib(n) for n = 0..15 by the doubly recursive definition
+        ldi r5, 0          ; n
+next:   mov r0, r5
+        call fib
+        out r0
+        add r5, 1
+        cmp r5, 16
+        jlt next
+        halt
+
+; fib: r0 = n -> r0 = fib(n); preserves r1 and r2
+fib:    cmp r0, 2
+        jlt base           ; fib(0) = 0, fib(1) = 1
+        push r1
+        push r2
+        mov r1, r0         ; keep n
+        sub r0, 1
+        call fib
+        mov r2, r0         ; fib(n - 1)
+        mov r0, r1
+        sub r0, 2
+        call fib           ; fib(n - 2)
+        add r0, r2
+        pop r2
+        pop r1
+base:   ret"
+
+  let bubble_sort = "; bubble sort of LEN words at BASE, then print them
+.equ BASE 100
+.equ LEN 12
+.data BASE 29 3 71 14 8 55 42 1 97 23 64 10
+outer:  ldi r1, 0          ; swapped?
+        ldi r2, BASE       ; pointer
+        ldi r3, LEN
+        sub r3, 1          ; comparisons in this pass
+inner:  load r4, [r2]
+        load r5, [r2+1]
+        cmp r4, r5
+        jle noswap
+        store r5, [r2]
+        store r4, [r2+1]
+        ldi r1, 1
+noswap: add r2, 1
+        sub r3, 1
+        jnz inner
+        cmp r1, 0
+        jnz outer          ; another pass if anything moved
+        ldi r2, BASE
+        ldi r3, LEN
+print:  load r4, [r2]
+        out r4
+        add r2, 1
+        sub r3, 1
+        jnz print
+        halt"
+
+  let gcd = "; gcd of five pairs stored in memory, by Euclid's algorithm
+.equ PAIRS 50
+.data PAIRS 1071 462 270 192 17 5 144 89 1000000 625
+        ldi r6, PAIRS      ; pointer to the current pair
+        ldi r7, 5          ; pairs left
+next:   load r0, [r6]
+        load r1, [r6+1]
+        call gcd
+        out r0
+        add r6, 2
+        sub r7, 1
+        jnz next
+        halt
+
+; gcd: r0, r1 -> r0
+gcd:    cmp r1, 0
+        jz done
+        mov r2, r0
+        mod r2, r1
+        mov r0, r1
+        mov r1, r2
+        jmp gcd
+done:   ret"
+
+  let factorial = "; 1! .. 12! with a recursive factorial
+        ldi r5, 1
+next:   mov r0, r5
+        call fact
+        out r0
+        add r5, 1
+        cmp r5, 12
+        jle next
+        halt
+
+; fact: r0 = n -> r0 = n!
+fact:   cmp r0, 1
+        jle one
+        push r0
+        sub r0, 1
+        call fact
+        pop r1
+        mul r0, r1
+        ret
+one:    ldi r0, 1
+        ret"
+
+  // Programs that fail at run time.
+  let divide_by_zero = "; 100 / (3 - 3)
+        ldi r0, 100
+        ldi r1, 3
+        sub r1, 3
+        div r0, r1
+        out r0
+        halt"
+
+  let runaway = "; unbounded recursion
+loop:   push r0
+        call loop
+        halt"
+
+  let no_halt = "; falls off the end of the program
+        ldi r0, 7
+        out r0"
+
+  // A program full of mistakes, for the assembler's error reports.
+  let broken = "; every line here has a problem
+start:  ldi r0, 10
+        mov r9, r0         ; no register r9
+        add r0             ; missing operand
+        frob r1, r2        ; no such instruction
+        jmp nowhere        ; undefined label
+start:  halt               ; label defined twice
+        ldi r1, 12x        ; not a number
+        load r2, [r1+]     ; bad memory reference
+.data 200 1 2 three        ; undefined constant
+.equ SIZE                  ; missing value
+        out r0, r1         ; too many operands
+.org 16                    ; unknown directive
+        halt"
+end

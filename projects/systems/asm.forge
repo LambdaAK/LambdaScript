@@ -1,0 +1,250 @@
+// The two-pass assembler.
+//
+// Syntax, one statement per line:
+//   label:  mnemonic op, op      ; comment
+//   .equ NAME value              ; a named constant
+//   .data ADDR v1 v2 ...         ; initial memory words from ADDR on
+// Operands are registers r0..r7, integers, constants, labels, and memory
+// references [rB] or [rB+off]. Pass one assigns addresses to labels; pass two
+// parses the instructions with every symbol known. All errors are collected
+// and reported with their line numbers.
+import "fmt.forge"
+import "avl.forge"
+import "cpu.forge"
+
+// A result with a String error, made a Monad so the operand parsers chain.
+type Res<a> = | Ok of a | Err of String
+
+impl Functor for Res where
+  fmap f r = case r do | Ok x -> Ok (f x) | Err e -> Err e
+end
+
+impl Applicative for Res where
+  pure x = Ok x,
+  ap rf rx = case rf do | Ok f -> fmap f rx | Err e -> Err e
+end
+
+impl Monad for Res where
+  bind r f = case r do | Ok x -> f x | Err e -> Err e
+end
+
+mod Asm where
+  use Cpu
+
+  type AsmError = { line: Int, msg: String }
+
+  type Program = {
+    code: Avl.Map<Int, Instr>,
+    size: Int,
+    data: List<(Int, Int)>,
+    labels: Avl.Map<String, Int>
+  }
+
+  type Outcome = | Assembled of Program | Failed of List<AsmError>
+
+  // A source line after comment stripping and tokenising.
+  type Line = { num: Int, label: Option<String>, words: List<String> }
+
+  let strip_comment s =
+    let rec go cs acc = case cs do | [] -> List.rev acc | ';' :: _ -> List.rev acc | c :: rest -> go rest (c :: acc) in
+    Fmt.chars_to_str (go (string_to_list s) [])
+
+  let tokens s = Fmt.split_on (fn c -> c == ',' || Fmt.is_space c) s
+
+  let ends_with_colon w = str_length w > 1 && str_slice w (str_length w - 1) 1 == ":"
+
+  let is_ident w =
+    case string_to_list w do
+    | c :: rest -> Fmt.is_alpha c && reduce_left (fn ok -> fn d -> ok && (Fmt.is_alpha d || Fmt.is_digit d)) true rest
+    | [] -> false
+
+  let lex num src =
+    case tokens (strip_comment src) do
+    | w :: rest ->
+      if ends_with_colon w then { num: num, label: Some (str_slice w 0 (str_length w - 1)), words: rest }
+      else { num: num, label: None, words: w :: rest }
+    | [] -> { num: num, label: None, words: [] }
+
+  let is_directive l = case l.words do | w :: _ -> str_slice w 0 1 == "." | [] -> false
+  let is_instruction l = l.words != [] && not (is_directive l)
+
+  // ---- pass one: addresses of labels, values of constants ----------------
+
+  type Symbols = { labels: Avl.Map<String, Int>, consts: Avl.Map<String, Int>, errors: List<AsmError> }
+
+  let err n msg = { line: n, msg: msg }
+
+  let define l addr syms =
+    case l.label do
+    | None -> syms
+    | Some name ->
+      if not (is_ident name) then { syms with errors = err l.num ("bad label name '" ^ name ^ "'") :: syms.errors }
+      else if Avl.mem name syms.labels then
+        { syms with errors = err l.num ("duplicate label '" ^ name ^ "'") :: syms.errors }
+      else { syms with labels = Avl.insert name addr syms.labels }
+
+  let define_const l syms =
+    case l.words do
+    | ".equ" :: name :: value :: [] ->
+      (case Fmt.parse_int value do
+       | Some v -> { syms with consts = Avl.insert name v syms.consts }
+       | None -> { syms with errors = err l.num ("bad constant value '" ^ value ^ "'") :: syms.errors })
+    | ".equ" :: _ -> { syms with errors = err l.num ".equ expects a name and a value" :: syms.errors }
+    | _ -> syms
+
+  let pass_one lines =
+    let rec go ls addr syms =
+      case ls do
+      | [] -> syms
+      | l :: rest ->
+        let syms2 = define_const l (define l addr syms) in
+        go rest (if is_instruction l then addr + 1 else addr) syms2
+    in
+    go lines 0 { labels: Avl.nil, consts: Avl.nil, errors: [] }
+
+  // ---- pass two: operands and instructions -------------------------------
+
+  let register w =
+    case string_to_list w do
+    | 'r' :: d :: [] ->
+      if not (Fmt.is_digit d) then Err ("bad register '" ^ w ^ "'")
+      else
+        (case reg_of_index (Fmt.digit_value d) do
+         | Some r -> Ok r
+         | None -> Err ("no such register '" ^ w ^ "'"))
+    | _ -> Err ("expected a register, found '" ^ w ^ "'")
+
+  // A number, a constant or a label.
+  let value syms w =
+    case Fmt.parse_int w do
+    | Some n -> Ok n
+    | None ->
+      if not (is_ident w) then Err ("bad number '" ^ w ^ "'")
+      else
+        (case Avl.find w syms.consts do
+         | Some v -> Ok v
+         | None ->
+           (case Avl.find w syms.labels do
+            | Some a -> Ok a
+            | None -> Err ("undefined symbol '" ^ w ^ "'")))
+
+  // A register (rN) or an immediate value.
+  let operand syms w =
+    if str_slice w 0 1 == "r" && str_length w == 2 then fmap Reg (register w)
+    else fmap Imm (value syms w)
+
+  // [rB] or [rB+off]
+  let address syms w =
+    let n = str_length w in
+    if n < 3 || str_slice w 0 1 != "[" || str_slice w (n - 1) 1 != "]" || str_slice w (n - 2) 1 == "+" then
+      Err ("expected a memory reference [rB+off], found '" ^ w ^ "'")
+    else
+      case Fmt.split_on (fn c -> c == '+') (str_slice w 1 (n - 2)) do
+      | b :: [] -> register b >>= (fn r -> pure (r, 0))
+      | b :: off :: [] -> register b >>= (fn r -> value syms off >>= (fn o -> pure (r, o)))
+      | _ -> Err ("bad memory reference '" ^ w ^ "'")
+
+  // Jump targets must be labels (or absolute addresses).
+  let target syms w =
+    case Fmt.parse_int w do
+    | Some n -> Ok n
+    | None ->
+      (case Avl.find w syms.labels do
+       | Some a -> Ok a
+       | None -> Err ("undefined label '" ^ w ^ "'"))
+
+  let alu_ops = [("add", Add), ("sub", Sub), ("mul", Mul), ("div", Div), ("mod", Mod)]
+  let jumps = [("jmp", Always), ("jz", IfZero), ("jnz", IfNonZero), ("jlt", IfLess),
+               ("jgt", IfGreater), ("jle", IfLessEq), ("jge", IfGreaterEq)]
+
+  let rec lookup k kvs = case kvs do | [] -> None | (k2, v) :: rest -> if k == k2 then Some v else lookup k rest
+
+  let arity m =
+    case lookup m alu_ops do
+    | Some _ -> Some 2
+    | None ->
+      (case lookup m jumps do
+       | Some _ -> Some 1
+       | None ->
+         lookup m [("mov", 2), ("ldi", 2), ("load", 2), ("store", 2), ("cmp", 2), ("call", 1),
+                   ("ret", 0), ("push", 1), ("pop", 1), ("out", 1), ("halt", 0)])
+
+  let plural n = if n == 1 then "" else "s"
+
+  let wrong_arity m args =
+    case arity m do
+    | Some k -> Err (cat!("'", m, "' expects ", (int_to_str k), " operand", (plural k),
+                          ", found ", (int_to_str (list_length args))))
+    | None -> Err ("unknown instruction '" ^ m ^ "'")
+
+  let parse_instr syms words =
+    case words do
+    | "mov" :: d :: s :: [] -> register d >>= (fn rd -> register s >>= (fn rs -> pure (Mov (rd, rs))))
+    | "ldi" :: d :: v :: [] -> register d >>= (fn rd -> value syms v >>= (fn n -> pure (Ldi (rd, n))))
+    | "load" :: d :: a :: [] -> register d >>= (fn rd -> address syms a >>= (fn (b, off) -> pure (Load (rd, b, off))))
+    | "store" :: s :: a :: [] -> register s >>= (fn rs -> address syms a >>= (fn (b, off) -> pure (Store (rs, b, off))))
+    | "cmp" :: d :: o :: [] -> register d >>= (fn rd -> operand syms o >>= (fn op -> pure (Cmp (rd, op))))
+    | "call" :: t :: [] -> fmap Call (target syms t)
+    | "ret" :: [] -> Ok Ret
+    | "push" :: r :: [] -> fmap Push (register r)
+    | "pop" :: r :: [] -> fmap Pop (register r)
+    | "out" :: r :: [] -> fmap Out (register r)
+    | "halt" :: [] -> Ok Halt
+    | m :: d :: o :: [] ->
+      (case lookup m alu_ops do
+       | Some op -> register d >>= (fn rd -> operand syms o >>= (fn x -> pure (Alu (op, rd, x))))
+       | None -> wrong_arity m (d :: o :: []))
+    | m :: t :: [] ->
+      (case lookup m jumps do
+       | Some c -> fmap (fn a -> Jump (c, a)) (target syms t)
+       | None -> wrong_arity m (t :: []))
+    | m :: args -> wrong_arity m args
+    | [] -> Err "empty instruction"
+
+  // The words of a .data directive.
+  let parse_data syms l =
+    case l.words do
+    | ".data" :: a :: vs ->
+      (case value syms a do
+       | Err e -> Err e
+       | Ok base ->
+         let rec go i ws acc =
+           case ws do
+           | [] -> Ok (List.rev acc)
+           | w :: rest -> (case value syms w do | Ok v -> go (i + 1) rest ((base + i, v) :: acc) | Err e -> Err e)
+         in
+         go 0 vs [])
+    | ".data" :: [] -> Err ".data expects an address"
+    | ".equ" :: _ -> Ok []
+    | d :: _ -> Err ("unknown directive '" ^ d ^ "'")
+    | [] -> Ok []
+
+  let assemble src =
+    let lines = [lex n s | (n, s) <- List.zip [1...10000] (Fmt.lines src)] in
+    let syms = pass_one lines in
+    let rec go ls addr code data errs =
+      case ls do
+      | [] -> (addr, code, data, errs)
+      | l :: rest ->
+        if is_instruction l then
+          (case parse_instr syms l.words do
+           | Ok i -> go rest (addr + 1) (Avl.insert addr i code) data errs
+           | Err e -> go rest (addr + 1) code data (err l.num e :: errs))
+        else if is_directive l then
+          (case parse_data syms l do
+           | Ok ws -> go rest addr code (List.append data ws) errs
+           | Err e -> go rest addr code data (err l.num e :: errs))
+        else go rest addr code data errs
+    in
+    let (size, code, data, errs) = go lines 0 Avl.nil [] [] in
+    let all = List.sort_by (fn a -> fn b -> a.line <= b.line) (List.append syms.errors errs) in
+    case all do
+    | [] -> Assembled { code: code, size: size, data: data, labels: syms.labels }
+    | _ -> Failed all
+
+  // A listing: address, label (if any) and the disassembled instruction.
+  let listing p =
+    let label_at a = [name | (name, b) <- Avl.to_list p.labels, b == a] in
+    [cat!((Fmt.int_r 4 a), "  ", (Fmt.left 8 (Fmt.join "," (label_at a) ^ (if label_at a == [] then "" else ":"))), (show i))
+     | (a, i) <- Avl.to_list p.code]
+end

@@ -1,0 +1,115 @@
+// Scalar maths (sin and cos are not built in), vectors and matrices.
+//
+// A vector is a List<Float>; a matrix is a list of rows, each a vector.
+
+mod Math where
+  let pi = 3.14159265358979323846
+  let two_pi = 2.0 *. pi
+  let abs x = if x < 0.0 then 0.0 -. x else x
+  let max x y = if x > y then x else y
+  let min x y = if x < y then x else y
+  let neg x = 0.0 -. x
+  let square x = x *. x
+
+  // Nearest integer to x, as a float (ties away from zero).
+  let round x = if x < 0.0 then neg (int_to_float (float_to_int (0.5 -. x)))
+                else int_to_float (float_to_int (x +. 0.5))
+
+  // Taylor series sum_k (-1)^k x^(2k+1) / (2k+1)!, summed term by term:
+  // each term is the previous one times -x^2 / ((2k)(2k+1)). After range
+  // reduction to [-pi, pi], 14 terms bring the error below 1e-15.
+  let rec series x2 term k n acc =
+    if k > n then acc
+    else
+      let next = term *. neg x2 /. int_to_float ((2 * k) * (2 * k + 1)) in
+      series x2 next (k + 1) n (acc +. next)
+
+  // x - 2 pi round(x / 2 pi): the same angle, in [-pi, pi].
+  let reduce x = x -. two_pi *. round (x /. two_pi)
+
+  let sin x =
+    let r = reduce x in
+    series (r *. r) r 1 14 r
+
+  // cos x = 1 - x^2/2! + x^4/4! - ..., with the same recurrence shifted.
+  let rec cos_series x2 term k n acc =
+    if k > n then acc
+    else
+      let next = term *. neg x2 /. int_to_float ((2 * k - 1) * (2 * k)) in
+      cos_series x2 next (k + 1) n (acc +. next)
+
+  let cos x =
+    let r = reduce x in
+    cos_series (r *. r) 1.0 1 14 1.0
+
+  let tanh x =
+    if x > 20.0 then 1.0
+    else if x < 0.0 -. 20.0 then 0.0 -. 1.0
+    else let e = exp (2.0 *. x) in (e -. 1.0) /. (e +. 1.0)
+
+  let sigmoid x = 1.0 /. (1.0 +. exp (neg x))
+end
+
+mod Vec where
+  let rec zip_with f xs ys =
+    case (xs, ys) do
+    | (x :: xt, y :: yt) -> f x y :: zip_with f xt yt
+    | _ -> []
+
+  let add xs ys = zip_with (+.) xs ys
+  let sub xs ys = zip_with (-.) xs ys
+  let mul xs ys = zip_with (*.) xs ys
+  let scale c xs = map (fn x -> c *. x) xs
+  let sum xs = reduce_left (+.) 0.0 xs
+
+  // Written out rather than as sum (mul xs ys): this is the inner loop of
+  // the whole program and the direct recursion allocates no list.
+  let rec dot xs ys =
+    case xs do
+    | [] -> 0.0
+    | x :: xt -> case ys do | [] -> 0.0 | y :: yt -> x *. y +. dot xt yt
+
+  // a + c b, fused.
+  let rec axpy c bs as_ =
+    case as_ do
+    | [] -> []
+    | a :: at -> case bs do | [] -> as_ | b :: bt -> (a +. c *. b) :: axpy c bt at
+
+  let zeros n = [0.0 | _ <- [1...n]]
+  let mean xs = sum xs /. int_to_float (list_length xs)
+  let dist2 xs ys = reduce_left (fn acc -> fn d -> acc +. d *. d) 0.0 (sub xs ys)
+  let one_hot k n = [if i == k then 1.0 else 0.0 | i <- [0...n - 1]]
+end
+
+mod Mat where
+  // W x, one dot product per row.
+  let mul_vec w x = map (fn row -> Vec.dot row x) w
+
+  // W^T d without forming the transpose: the sum of the rows of W, each
+  // scaled by its entry of d.
+  let rec tmul_vec w d =
+    case (w, d) do
+    | (row :: [], di :: _) -> Vec.scale di row
+    | (row :: rest, di :: dt) -> Vec.axpy di row (tmul_vec rest dt)
+    | _ -> []
+
+  // The outer product d x^T.
+  let outer d x = map (fn di -> Vec.scale di x) d
+
+  let add a b = Vec.zip_with Vec.add a b
+  let scale c a = map (Vec.scale c) a
+  // a + c b, row by row.
+  let axpy c b a = Vec.zip_with (fn ra -> fn rb -> Vec.axpy c rb ra) a b
+  let zeros r c = [Vec.zeros c | _ <- [1...r]]
+
+  let rec transpose rs =
+    case rs do
+    | [] -> []
+    | [] :: _ -> []
+    | _ -> map list_head rs :: transpose (map list_tail rs)
+
+  let column_means rs = map Vec.mean (transpose rs)
+  let column_stds rs =
+    map (fn c -> let mu = Vec.mean c in sqrt (Vec.mean (map (fn x -> Math.square (x -. mu)) c)))
+        (transpose rs)
+end

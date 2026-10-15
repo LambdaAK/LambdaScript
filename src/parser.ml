@@ -451,6 +451,15 @@ end = struct
 
       (* Check if it starts with uppercase - if so, it's a constructor *)
       if is_uppercase_first id then
+        (* A constructor may be qualified by its module: [M.C], [M.N.C]. *)
+        let* rest =
+          parse_several
+            (let* () = expect_token Dot in
+             expect_token_get_data (function
+               | Id s when is_uppercase_first s -> Some s
+               | _ -> None))
+        in
+        let id = String.concat "." (id :: rest) in
         (* Try to parse an optional payload pattern *)
         let* payload_option =
           (let* payload_sub_pat = SubPatParser.sub_pat_parser in
@@ -534,6 +543,15 @@ end = struct
       let* () = expect_token WildcardPattern in
       return WildcardPat
 
+    (* [(p : T)] inside a pattern, e.g. [Some (x : Int)]. *)
+    let annot_pat_parser : sub_pat parser =
+      let* () = expect_token LParen in
+      let* p = PatParser.pat_parser in
+      let* () = expect_token Colon in
+      let* ct = CompoundTypeParser.compound_type_parser in
+      let* () = expect_token RParen in
+      return (AnnotPat (p, ct))
+
     let vector_pat_parser : sub_pat parser =
       let* () = expect_token LParen in
       let* pats = parse_sep_delim PatParser.pat_parser Comma in
@@ -573,6 +591,7 @@ end = struct
           infix_pat_parser;
           paren_infix_pat_parser;
           wildcard_pat_parser;
+          annot_pat_parser;
           vector_pat_parser;
           record_pat_parser;
         ]
@@ -1344,6 +1363,7 @@ end
 
 and DefnParser : sig
   val defn_parser : defn parser
+  val defns_parser : defn list parser
 end = struct
   let class_constraint_parser : (string * compound_type) parser =
     let* cls = qualified_id_parser in
@@ -1988,6 +2008,118 @@ end = struct
       let* ct = CompoundTypeParser.compound_type_parser in
       return (TypeDef (name, args, ct))
 
+  (* [type rec ... and ...] whose members may be record types:
+     [type rec Value = | Clo of Lam and Lam = { env: List<Value> }]. Record
+     types are structural, so a record member is an alias, written out in
+     the group's constructors; it may not refer to itself, even through
+     other records (that would be an infinite type). *)
+  let rec_group_with_records_parser () : defn list parser =
+    let member =
+      let* name = expect_token_get_data (function Id s -> Some s | _ -> None) in
+      let* args =
+        (let* () = expect_token_get_data (function Relop "<" -> Some () | _ -> None) in
+         let* ps = parse_sep_delim string_parser Comma in
+         let* () = expect_token_get_data (function Relop ">" -> Some () | _ -> None) in
+         return ps)
+        <|> return []
+      in
+      let* () = expect_token Equals in
+      let* is_sum = check_tokens Pipe in
+      if is_sum then
+        let* ctors = parse_several constructor_parser in
+        if ctors = [] then fail else return (`Sum (name, args, ctors))
+      else
+        let* is_record = check_tokens LBrace in
+        if not is_record then fail
+        else
+          let* ct = CompoundTypeParser.compound_type_parser in
+          return (`Record (name, args, ct))
+    in
+    let* () = expect_token Type in
+    let* () = expect_token Rec in
+    let* first = member in
+    let* rest = parse_several (let* () = expect_token And in member) in
+    let members = first :: rest in
+    let records = List.filter_map (function `Record r -> Some r | `Sum _ -> None) members in
+    let sums = List.filter_map (function `Sum s -> Some s | `Record _ -> None) members in
+    if records = [] then fail
+    else
+      (* Replace the records' names by their bodies. *)
+      let rec subst_ct (recs : (string * string list * compound_type) list) (ct : compound_type) =
+        match ct with
+        | BasicType ft -> BasicType (subst_ft recs ft)
+        | FunctionType (ft, out) -> FunctionType (subst_ft recs ft, subst_ct recs out)
+      and subst_ft recs ft =
+        let expand name args =
+          match List.find_opt (fun (n, _, _) -> String.equal n name) recs with
+          | Some (_, params, body) when List.length params = List.length args ->
+              let sub = List.combine params args in
+              let rec inst_ct = function
+                | BasicType f -> BasicType (inst_ft f)
+                | FunctionType (f, o) -> FunctionType (inst_ft f, inst_ct o)
+              and inst_ft = function
+                | (TypeVarWritten p | TypeName p) as t -> (
+                    match List.assoc_opt p sub with Some a -> ParenFactorType a | None -> t)
+                | ParenFactorType c -> ParenFactorType (inst_ct c)
+                | VectorType cs -> VectorType (List.map inst_ct cs)
+                | ListType c -> ListType (inst_ct c)
+                | TypeApp (n, cs) -> TypeApp (n, List.map inst_ct cs)
+                | RecordTypeWritten fs -> RecordTypeWritten (List.map (fun (n, c) -> (n, inst_ct c)) fs)
+                | t -> t
+              in
+              Some (ParenFactorType (inst_ct body))
+          | _ -> None
+        in
+        match ft with
+        | TypeName n -> ( match expand n [] with Some t -> t | None -> ft)
+        | TypeApp (n, cs) -> (
+            let cs = List.map (subst_ct recs) cs in
+            match expand n cs with Some t -> t | None -> TypeApp (n, cs))
+        | ParenFactorType c -> ParenFactorType (subst_ct recs c)
+        | VectorType cs -> VectorType (List.map (subst_ct recs) cs)
+        | ListType c -> ListType (subst_ct recs c)
+        | RecordTypeWritten fs -> RecordTypeWritten (List.map (fun (n, c) -> (n, subst_ct recs c)) fs)
+        | t -> t
+      in
+      let rec mentions names ct =
+        match ct with
+        | BasicType ft -> mentions_ft names ft
+        | FunctionType (ft, out) -> mentions_ft names ft || mentions names out
+      and mentions_ft names = function
+        | TypeName n -> List.mem n names
+        | TypeApp (n, cs) -> List.mem n names || List.exists (mentions names) cs
+        | ParenFactorType c | ListType c -> mentions names c
+        | VectorType cs -> List.exists (mentions names) cs
+        | RecordTypeWritten fs -> List.exists (fun (_, c) -> mentions names c) fs
+        | _ -> false
+      in
+      let names = List.map (fun (n, _, _) -> n) records in
+      let rec resolve recs k =
+        if k = 0 then recs
+        else resolve (List.map (fun (n, ps, b) -> (n, ps, subst_ct recs b)) recs) (k - 1)
+      in
+      let records = resolve records (List.length records) in
+      match List.find_opt (fun (_, _, b) -> mentions names b) records with
+      | Some (n, _, _) ->
+          failwith
+            ("the record type " ^ n
+           ^ " refers to itself: a recursive type needs a constructor (write `| "
+           ^ String.capitalize_ascii n ^ " of { ... }` in a sum type)")
+      | None ->
+          let sums =
+            List.map
+              (fun (n, ps, ctors) ->
+                (n, ps, List.map (fun (c, p) -> (c, Stdlib.Option.map (subst_ct records) p)) ctors))
+              sums
+          in
+          let sum_defns =
+            match sums with
+            | [] -> []
+            | [ (n, ps, ctors) ] -> [ SumTypeDefRec (n, ps, ctors) ]
+            | _ -> [ SumTypeDefMutRec sums ]
+          in
+          return (sum_defns @ List.map (fun (n, ps, b) -> TypeDef (n, ps, b)) records)
+
   let rec defn_parser : defn parser =
    fun tokens ->
     (import_defn_parser () <|> use_defn_parser () <|> mod_defn_parser ()
@@ -2053,9 +2185,16 @@ end = struct
         | _ -> None)
     in
     let* () = expect_token Where in
-    let* inner_defns = parse_several defn_parser in
+    let* inner_defns = parse_several defns_parser in
     let* () = expect_token End in
-    return (ModDef (mod_name, inner_defns))
+    return (ModDef (mod_name, List.concat inner_defns))
+
+  and defns_parser : defn list parser =
+   fun tokens ->
+    (rec_group_with_records_parser ()
+    <|> let* d = defn_parser in
+        return [ d ])
+      tokens
 end
 
 and ExprOrDefnParser : sig
@@ -2072,7 +2211,9 @@ end
 and ProgramParser : sig
   val program_parser : program parser
 end = struct
-  let program_parser : program parser = parse_several DefnParser.defn_parser
+  let program_parser : program parser =
+    let* ds = parse_several DefnParser.defns_parser in
+    return (List.concat ds)
 end
 
 (** {1 Whole-program parsing with diagnostics} *)

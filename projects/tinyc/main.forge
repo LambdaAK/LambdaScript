@@ -1,0 +1,101 @@
+// tinyc: a compiler for Tiny, a small C-like language, written in Forge.
+//
+// Pipeline: lexer -> parser -> type checker -> optimiser -> code generator
+// -> assembler -> stack VM, with an AST interpreter as the reference. Every
+// sample is run four ways (interpreter and VM, each before and after
+// optimisation) and the outputs must agree.
+//
+//   interpreter: ./_build/default/bin/interpreter.exe projects/tinyc/main.forge
+//   native:      copy projects/tinyc/*.forge to a temp dir, then
+//                ./_build/default/bin/compile_forge.exe <tmp>/main.forge <tmp>/main.exe
+import "util.forge"
+import "lexer.forge"
+import "ast.forge"
+import "parser.forge"
+import "typecheck.forge"
+import "optimize.forge"
+import "codegen.forge"
+import "vm.forge"
+import "interp.forge"
+import "samples.forge"
+
+use Ast
+
+let say s = print_string s
+
+// The front end: source text to a checked program, or the first error.
+let front_end src =
+  mdo!(toks <- Lexer.tokenize src;
+       prog <- Parse.parse toks;
+       _ <- Check.check_program prog;
+       Ok (toks, prog))
+
+// Programs whose bytecode is listed in full.
+let listed = ["factorial", "optimiser showcase"]
+
+let show_outcome lines err =
+  let body = Util.join " " lines in
+  case err do
+  | None -> body
+  | Some e -> body ^ (if body == "" then "" else " ") ^ "<run-time error: " ^ e ^ ">"
+
+let indent text = Util.join "\n" (map (fn l -> "    " ^ l) (Util.lines text))
+
+let field label value = say ("  " ^ Util.pad_right 22 label ^ value)
+
+// Compile and run one good program; returns whether all four runs agreed.
+let report_program (name, src) =
+  {
+    say ("=== " ^ name ^ " ===");
+    case front_end src do
+    | Err e -> { say ("  unexpected error: " ^ e); false }
+    | Ok (toks, prog) -> {
+        let opt = Opt.program prog;
+        let (code0, entries0) = Code.compile false prog;
+        let (code1, entries1) = Code.compile true opt;
+        let vm0 = Vm.execute code0;
+        let vm1 = Vm.execute code1;
+        let (out0, steps0, err0) = Interp.run prog;
+        let (out1, steps1, err1) = Interp.run opt;
+        field "source" (int_to_str (list_length (Util.lines src) - 1) ^ " lines, " ^ int_to_str (list_length toks) ^ " tokens");
+        field "syntax tree" (int_to_str (program_nodes prog) ^ " nodes, optimised " ^ int_to_str (program_nodes opt));
+        field "main block" (describe prog.main);
+        field "bytecode" (int_to_str (list_length code0) ^ " instructions, optimised " ^ int_to_str (list_length code1));
+        field "output" (show_outcome vm1.lines vm1.error);
+        field "executed (VM)" (int_to_str vm0.count ^ " instructions, optimised " ^ int_to_str vm1.count);
+        field "interpreter steps" (int_to_str steps0 ^ " (calls + loop iterations)");
+        let runs = [(out0, err0), (out1, err1), (vm0.lines, vm0.error), (vm1.lines, vm1.error)];
+        let agree = (runs |> filter (fn r -> r == (out0, err0)) |> list_length) == 4;
+        field "differential test" (if agree then "interpreter = VM = optimised VM = optimised interpreter"
+                                  else "MISMATCH");
+        if list_length (filter (fn l -> l == name) listed) > 0 then {
+          say "  optimised source:";
+          map (fn f -> say (indent (show_func f))) opt.funcs;
+          say (indent (show_block 0 opt.main));
+          say "  bytecode before optimisation:";
+          map say (Code.disassemble code0 entries0);
+          if code1 == code0 then say "  bytecode after optimisation: identical"
+          else { say "  bytecode after optimisation:"; map say (Code.disassemble code1 entries1); () }
+        } else ();
+        agree
+      }
+  }
+
+let report_error (name, src) =
+  case front_end src do
+  | Err e -> { say ("  " ^ Util.pad_right 38 (name ^ ":") ^ e); true }
+  | Ok _ -> { say ("  " ^ name ^ ": accepted, but should have been rejected"); false }
+
+let () = say "tinyc: compiling Tiny programs to a stack machine"
+let () = say ""
+let results = Samples.good |> map report_program
+let () = say ""
+let () = say "=== programs with compile errors ==="
+let rejected = Samples.bad |> map report_error
+let () = say ""
+let count_true bs = bs |> filter (fn b -> b) |> list_length
+let passed = count_true results
+let () = say ("summary: " ^ int_to_str passed ^ "/" ^ int_to_str (list_length results)
+              ^ " programs agree across all four runs, "
+              ^ int_to_str (count_true rejected) ^ "/" ^ int_to_str (list_length rejected)
+              ^ " bad programs rejected")

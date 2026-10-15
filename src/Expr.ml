@@ -1,22 +1,3 @@
-type pat =
-  | ConsPat of sub_pat * pat
-  | SubPat of sub_pat
-
-and sub_pat =
-  | IdPat of string
-  | UnitPat
-  | VectorPat of pat list
-  | RecordPat of (string * pat) list (* { x: pat, y: pat } *)
-  | WildcardPat
-  | IntPat of int
-  | CharPat of char
-  | StringPat of string
-  | BoolPat of bool
-  | NilPat
-  | Pat of pat
-  | InfixPat of string
-  | VariantPat of string * pat option
-
 type rel_op =
   | EQ
   | NE
@@ -54,6 +35,26 @@ and factor_type =
   | ListType of compound_type
   | TypeApp of string * compound_type list
   | RecordTypeWritten of (string * compound_type) list (* {x: int, y: bool} *)
+
+type pat =
+  | ConsPat of sub_pat * pat
+  | SubPat of sub_pat
+
+and sub_pat =
+  | IdPat of string
+  | UnitPat
+  | VectorPat of pat list
+  | RecordPat of (string * pat) list (* { x: pat, y: pat } *)
+  | WildcardPat
+  | IntPat of int
+  | CharPat of char
+  | StringPat of string
+  | BoolPat of bool
+  | NilPat
+  | Pat of pat
+  | InfixPat of string
+  | VariantPat of string * pat option
+  | AnnotPat of pat * compound_type (* (p : T), inside a larger pattern *)
 
 type defn =
   | Defn of pat * (string * compound_type) list * compound_type option * expr * compound_type option * int (* pat, constraints, type_annotation, body, return_type, num_explicit_params *)

@@ -1,0 +1,14 @@
+// FIXED: this now behaves as expected in both back ends.
+// Bug: the interpreter type-checks and runs the program one top-level item
+// at a time, so the effects of earlier items happen before a type error in
+// a later item is reported. The manual (types.tex) says "a program is only
+// run once all its types check", and the native compiler rejects the whole
+// program without running anything.
+//
+// Run:      ./_build/default/bin/interpreter.exe projects/learn/bugs/02-interpreter-runs-before-typecheck.forge
+// Expected: only the type error on stderr, nothing on stdout, exit 1
+// Actual:   prints "ran" on stdout, then the type error, exit 1
+//           (in a real program this meant a 10 s training run finished
+//           before a type error further down was reported)
+let () = print_string "ran"
+let () = println (1 + true)

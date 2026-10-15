@@ -1,0 +1,95 @@
+// k-means clustering with k-means++ seeding.
+import "rng.forge"
+import "util.forge"
+import "matrix.forge"
+import "metrics.forge"
+
+type KMeans = {
+  centres: List<List<Float>>,
+  assignment: List<Int>,
+  inertia: List<Float>,   // the inertia after each iteration
+  converged: Bool
+}
+
+mod KMeans where
+  // The index of the nearest centre and the squared distance to it.
+  let nearest centres p =
+    let rec go i cs best = case (cs, best) do
+      | ([], Some b) -> b
+      | ([], None) -> (0 - 1, 0.0)
+      | (c :: rest, None) -> go (i + 1) rest (Some (i, Vec.dist2 p c))
+      | (c :: rest, Some (bi, bd)) ->
+          let d = Vec.dist2 p c in
+          go (i + 1) rest (if d < bd then Some (i, d) else Some (bi, bd))
+    in
+    go 0 centres None
+
+  // The point at which the running total of the weights first exceeds t.
+  let rec pick_weighted t pts ws = case (pts, ws) do
+    | (p :: [], _) -> p
+    | (p :: prest, w :: wrest) -> if t < w then p else pick_weighted (t -. w) prest wrest
+    | _ -> []
+
+  // k-means++: the first centre is a uniformly chosen point; each next one
+  // is drawn with probability proportional to the squared distance to the
+  // nearest centre chosen so far.
+  let seed k points =
+    let n = list_length points in
+    let rec more centres j =
+      if j == k then pure centres
+      else
+        let d2 = map (fn p -> tuple_snd (nearest centres p)) points in
+        let total = Vec.sum d2 in
+        Gen.uniform >>= (fn u ->
+          more (centres ++ [pick_weighted (u *. total) points d2]) (j + 1))
+    in
+    Gen.below n >>= (fn i -> more [list_nth points i] 1)
+
+  let inertia centres points =
+    Vec.sum (map (fn p -> tuple_snd (nearest centres p)) points)
+
+  // The mean of the points assigned to cluster j; an empty cluster keeps
+  // its old centre.
+  let recentre old points assignment =
+    let pairs = Lists.zip assignment points in
+    let rec go j cs = case cs do
+      | [] -> []
+      | c :: rest ->
+          let members = [p | (a, p) <- pairs, a == j] in
+          (if members == [] then c else Mat.column_means members) :: go (j + 1) rest
+    in
+    go 0 old
+
+  // Lloyd's algorithm: assign, recentre, until no point moves.
+  let fit k max_iter points =
+    let rec loop it centres assignment history =
+      let assignment1 = map (fn p -> tuple_fst (nearest centres p)) points in
+      let centres1 = recentre centres points assignment1 in
+      let history1 = history ++ [inertia centres1 points] in
+      if assignment1 == assignment || it >= max_iter then
+        { centres: centres1, assignment: assignment1, inertia: history1,
+          converged: assignment1 == assignment }
+      else loop (it + 1) centres1 assignment1 history1
+    in
+    fmap (fn c0 -> loop 1 c0 [] []) (seed k points)
+
+  let sizes k (m : KMeans) = [Lists.count (fn a -> a == j) m.assignment | j <- [0...k - 1]]
+end
+
+// k-means turned into a classifier: each centre votes for the majority
+// class of the training points assigned to it.
+type Centroids = | Centroids of (List<List<Float>>, List<Int>)
+
+mod Centroids where
+  let label_clusters k classes (m : KMeans) labels =
+    let pairs = Lists.zip m.assignment labels in
+    let vote j = Lists.argmax [Lists.count (fn (a, y) -> a == j && y == c) pairs | c <- [0...classes - 1]] in
+    Centroids (m.centres, map vote [0...k - 1])
+end
+
+// Only `predict` is given: `describe`, `accuracy` and `confusion` are the
+// trait's default methods.
+impl Classifier for Centroids where
+  predict c x = case c do
+    | Centroids (centres, votes) -> list_nth votes (tuple_fst (KMeans.nearest centres x))
+end

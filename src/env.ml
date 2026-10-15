@@ -16,6 +16,9 @@ let built_ins : (string * value * c_type) list =
     ("*.", BuiltInFunction (FloatOp "*."), Mono (FloatType => (FloatType => FloatType)));
     ("/.", BuiltInFunction (FloatOp "/."), Mono (FloatType => (FloatType => FloatType)));
     ("sqrt", BuiltInFunction (FloatMath "sqrt"), Mono (FloatType => FloatType));
+    ("char_to_int", BuiltInFunction CharToInt, Mono (CharType => IntType));
+    ("int_to_char", BuiltInFunction IntToChar, Mono (IntType => CharType));
+    ("string_of_list", BuiltInFunction ListToString, Mono (CListType CharType => StringType));
     ("exp", BuiltInFunction (FloatMath "exp"), Mono (FloatType => FloatType));
     ("log", BuiltInFunction (FloatMath "log"), Mono (FloatType => FloatType));
     ( "string_to_list",

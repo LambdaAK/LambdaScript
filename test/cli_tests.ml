@@ -68,6 +68,10 @@ let interpreter_tests =
     ( "interpreter: file without trailing newline" >:: fun _ ->
       let src = "let () = print_string \"x\"" in
       assert_runs ~expected:"x\n" "no newline" src (interp src) );
+    ( "interpreter: nothing runs when a later definition has a type error" >:: fun _ ->
+      let r = interp "let () = print_string \"too early\"\nlet bad = 1 + \"x\"" in
+      assert_equal ~printer:string_of_status (Exited 1) r.status;
+      assert_equal ~printer:(Printf.sprintf "%S") "" r.out );
     ( "interpreter: output is flushed before a runtime error" >:: fun _ ->
       let src = "let () = print \"partial\"\nlet x = 1 / 0" in
       let r = interp src in
@@ -154,6 +158,35 @@ let compiler_tests =
       (match r.status with Exited 0 -> () | _ -> assert_failure ("compile failed: " ^ describe r));
       let rr = run_process out [] in
       assert_runs ~expected:"spaced\n" "spaces" "" rr );
+    ( "native: deep recursion works, and a stack overflow is a clean error" >:: fun _ ->
+      with_tmpdir @@ fun dir ->
+      let src = Filename.concat dir "deep.forge" in
+      write_file src
+        "let () = println \"start\"\n\
+         let rec build n acc = if n == 0 then acc else build (n - 1) (n :: acc)\n\
+         let () = println (list_length (map (fn x -> x + 1) (build 300000 [])))\n";
+      let out = Filename.concat dir "deep" in
+      let r = run_process ~timeout:120.0 ~cwd:(repo ()) (exe "compile_forge") [ src; out ] in
+      (match r.status with Exited 0 -> () | _ -> assert_failure ("compile failed: " ^ describe r));
+      assert_runs ~expected:"start\n300000\n" "deep recursion" "" (run_process out []);
+      let rr = run_process ~env:(Array.append [| "FORGE_STACK_MB=1" |] (Unix.environment ())) out [] in
+      (match rr.status with Exited 1 -> () | _ -> assert_failure ("expected exit 1: " ^ describe rr));
+      assert_equal ~printer:Fun.id "start\n" rr.out;
+      if not (contains rr.err "stack overflow") then assert_failure ("expected a stack overflow message: " ^ describe rr) );
+    ( "type errors name the file, line and definition, in both drivers" >:: fun _ ->
+      with_tmpdir @@ fun dir ->
+      let src = Filename.concat dir "bad.forge" in
+      write_file src
+        "type Value = | Num of Int\n\nlet ok = 1\n\nlet pick s =\n  case s do\n  | \"one\" -> Some (Num 1)\n  | _ -> Some 2\n";
+      let expected = src ^ ":5: type error in `pick`: cannot match" in
+      List.iter
+        (fun (what, r) ->
+          if not (contains r.err expected) || contains r.err "in: " then
+            assert_failure (Printf.sprintf "%s: expected %S, without an echo: %s" what expected (describe r)))
+        [
+          ("interpreter", run_process ~cwd:(repo ()) (exe "interpreter") [ src ]);
+          ("compile_forge", run_process ~timeout:120.0 ~cwd:(repo ()) (exe "compile_forge") [ src; Filename.concat dir "out" ]);
+        ] );
     ( "compile_forge: default output name is a.out in the cwd" >:: fun _ ->
       with_tmpdir @@ fun dir ->
       let src = Filename.concat dir "p.forge" in
@@ -335,8 +368,8 @@ let gc_tests =
 (* examples/ml: a small machine-learning library (matrices, regression,
    kernels, Adam) and four experiments. Both back ends must print
    examples/ml/main.out. *)
-let ml_example_tests =
-  let dir () = Filename.concat (repo ()) "examples/ml" in
+let program_tests (rel : string) =
+  let dir () = Filename.concat (repo ()) rel in
   let expected () = read_file (Filename.concat (dir ()) "main.out") in
   [
     ( "interpreter" >:: fun _ ->
@@ -356,13 +389,24 @@ let ml_example_tests =
       assert_equal ~printer:string_of_status ~msg:(describe c) (Exited 0) c.status;
       let r = run_process ~timeout:60.0 out [] in
       assert_equal ~printer:string_of_status (Exited 0) r.status;
+      assert_equal ~printer:(fun s -> s) "" r.err;
       assert_equal ~printer:(fun s -> s) (expected ()) r.out );
   ]
+
+let ml_example_tests = program_tests "examples/ml"
+
+(* projects/: five larger programs (see each one's README.md); each prints
+   its main.out in both back ends. *)
+let project_tests =
+  List.map
+    (fun p -> p >::: program_tests (Filename.concat "projects" p))
+    [ "textkit"; "learn"; "minilisp"; "systems"; "tinyc" ]
 
 let suite =
   "cli"
   >::: [
          "ml example" >::: ml_example_tests;
+         "projects" >::: project_tests;
          "garbage collection" >::: gc_tests;
          "interpreter" >::: interpreter_tests;
          "ambiguity" >::: ambiguity_tests;

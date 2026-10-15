@@ -1,0 +1,26 @@
+// FIXED: this now behaves as expected in both back ends.
+// CONFUSING ERROR: a type error inside a long definition reports no line or
+// column and prints the whole desugared definition (`match ... with`, every
+// application fully parenthesised) instead of the offending expression.
+// In minilisp the message was ~60 lines long for one missing `Num` wrapper.
+//
+// Run:   ./_build/default/bin/interpreter.exe projects/minilisp/bugs/03-type-error-no-location.forge
+// Expected: something like
+//   error: 03-type-error-no-location.forge:22: cannot match Value with Int
+//     in the arm `| "two" -> Ok 2`
+// Actual:
+//   error: type error: Type inference failed while checking definition: cannot match Value with Int
+//     in: let pick = fn s -> match s with
+//   | "one" -> (Ok) ((Num) (1))
+//   | "two" -> (Ok) (2)
+//   ...   (no position at all; the file name is not even mentioned)
+type Value = | Num of Int
+type Res<a> = | Ok of a | Err of String
+
+let pick s =
+  case s do
+  | "one" -> Ok (Num 1)
+  | "two" -> Ok 2
+  | _ -> Err "unknown"
+
+let () = print_string "unreachable"

@@ -1,0 +1,78 @@
+// lists.forge -- list utilities missing from the prelude.
+//
+// Names carry a list_ prefix so that `use Lists` cannot shadow anything.
+
+mod Lists where
+  let list_rev xs = reduce_left (fn acc -> fn x -> x :: acc) [] xs
+  let list_append xs ys = reduce_right (fn x -> fn acc -> x :: acc) xs ys
+  let list_concat xss = reduce_right list_append xss []
+  let list_concat_map f xs = list_concat (map f xs)
+
+  let rec list_all p xs = case xs do | [] -> true | x :: rest -> p x && list_all p rest
+  let rec list_any p xs = case xs do | [] -> false | x :: rest -> p x || list_any p rest
+
+  let rec list_take n xs =
+    if n <= 0 then []
+    else case xs do | [] -> [] | x :: rest -> x :: list_take (n - 1) rest
+
+  let rec list_drop n xs =
+    if n <= 0 then xs
+    else case xs do | [] -> [] | _ :: rest -> list_drop (n - 1) rest
+
+  // All but the last element.
+  let list_init xs = list_take (list_length xs - 1) xs
+  let list_last_n n xs = list_drop (list_length xs - n) xs
+
+  let rec list_zip xs ys =
+    case (xs, ys) do
+    | (x :: xr, y :: yr) -> (x, y) :: list_zip xr yr
+    | _ -> []
+
+  // Pairs every element with its 1-based position.
+  let list_enumerate xs = list_zip [1...list_length xs] xs
+
+  let list_sum xs = reduce_left (+) 0 xs
+  let list_max z xs = reduce_left (fn a -> fn b -> if b > a then b else a) z xs
+
+  let rec list_find p xs =
+    case xs do
+    | [] -> None
+    | x :: rest -> if p x then Some x else list_find p rest
+
+  let list_filter_map f xs =
+    reduce_right (fn x -> fn acc -> case f x do | Some y -> y :: acc | None -> acc) xs []
+
+  let rec list_assoc k xs =
+    case xs do
+    | [] -> None
+    | (k2, v) :: rest -> if k2 == k then Some v else list_assoc k rest
+
+  // Element at index i, if any (list_nth fails outside the list).
+  let list_get i xs = if i >= 0 && i < list_length xs then Some (list_nth xs i) else None
+
+  // A stable merge sort by an Ordering-valued comparison.
+  let rec list_merge cmp xs ys =
+    case (xs, ys) do
+    | ([], _) -> ys
+    | (_, []) -> xs
+    | (x :: xr, y :: yr) ->
+      case cmp y x do
+      | LT -> y :: list_merge cmp xs yr
+      | _ -> x :: list_merge cmp xr ys
+
+  let rec list_sort_by cmp xs =
+    let n = list_length xs in
+    if n <= 1 then xs
+    else
+      let half = n / 2 in
+      list_merge cmp (list_sort_by cmp (list_take half xs)) (list_sort_by cmp (list_drop half xs))
+
+  // Runs of adjacent equal elements, each with its length: [a,a,b] -> [(2,a),(1,b)].
+  let list_runs xs =
+    let step acc x =
+      case acc do
+      | (n, y) :: rest -> if x == y then (n + 1, y) :: rest else (1, x) :: acc
+      | [] -> (1, x) :: []
+    in
+    list_rev (reduce_left step [] xs)
+end

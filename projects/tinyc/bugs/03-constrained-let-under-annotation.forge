@@ -1,0 +1,25 @@
+// FIXED: this now behaves as expected in both back ends.
+// BUG: an Ord-constrained helper, called from a `let ... in` inside a
+// function whose parameter is annotated, breaks in BOTH back ends.
+//
+// `ins` is constrained (Ord a => a -> List<a> -> List<a>) because it calls
+// `compare`; `h` passes the constraint on. `g` fixes the type to Int by an
+// annotation and binds the result with `let ... in`.
+//
+// Expected (both back ends): [2]
+// Actual:
+//   interpreter: error: runtime error: eval_c_expr: EApp
+//   native:      error: the native compiler does not support this program yet:
+//                a type-class dictionary used as a value (`__dict_Ord_18`)
+// Each of these makes it work: drop the annotation `(ks : List<Int>)`, or
+// return `h ks` directly instead of `let r = h ks in r`, or call `h` at top
+// level. A `{ let r = h ks; r }` block fails the same way.
+//
+// Run: ./_build/default/bin/interpreter.exe projects/tinyc/bugs/03-constrained-let-under-annotation.forge
+// Workaround in tinyc (util.forge, mod Map): the AVL map orders keys with
+// a local `order` function built on the structural `<` (which needs no
+// dictionary) instead of the Ord trait's `compare`.
+let rec ins k xs = case xs do | [] -> [k] | x :: r -> (case compare k x do | GT -> x :: ins k r | _ -> k :: xs)
+let h ks = case ks do | k :: _ -> ins k [] | [] -> []
+let g (ks : List<Int>) = let r = h ks in r
+let () = println (g [2, 1])

@@ -482,6 +482,9 @@ let prim_op (fc : fctx) (p : string) (tys : Tast.ty list) (vs : operand list) : 
   | "float_to_int", [ x ] -> assign fc (Call ("ls_float_to_int", [ x ]))
   | "float_to_str", [ x ] -> assign fc (Call ("ls_float_to_str", [ x ]))
   | "char_to_str", [ x ] -> assign fc (Call ("ls_char_to_str", [ x ]))
+  | "char_to_int", [ x ] -> x
+  | "int_to_char", [ x ] -> assign fc (Call ("ls_int_to_char", [ x ]))
+  | "string_of_list", [ x ] -> assign fc (Call ("ls_list_to_string", [ x ]))
   | "+.", [ a; b ] -> assign fc (Call ("ls_fadd", [ a; b ]))
   | "-.", [ a; b ] -> assign fc (Call ("ls_fsub", [ a; b ]))
   | "*.", [ a; b ] -> assign fc (Call ("ls_fmul", [ a; b ]))

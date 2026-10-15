@@ -1,0 +1,22 @@
+// FIXED: this now behaves as expected in both back ends.
+// Bug: inside an instance method, a local `let ... in` (or a block with a
+// definition) breaks a recursive call of the same method at the instance's
+// own type. Without the `let`, the same program type-checks.
+//
+// Run:      ./_build/default/bin/interpreter.exe projects/learn/bugs/03-let-in-recursive-impl-method.forge
+//           (compile_forge.exe gives the same error)
+// Expected: x1
+// Actual:   error: type error: Type inference failed while checking definition:
+//           cannot match a with μTree. Tree<a>
+// Replacing the arm by  `| Node (n, l) -> "x" ^ show l`  makes it work.
+// Workaround used in tree.forge: the printer is a local `let rec go` inside
+// `show`, which calls itself instead of `show`.
+type rec Tree<a> = | Leaf of a | Node of (Int, Tree<a>)
+
+impl Show for Tree<a> requires Show<a> where
+  show t = case t do
+    | Leaf a -> show a
+    | Node (n, l) -> let prefix = "x" in prefix ^ show l
+end
+
+let () = print_string (show (Node (1, Leaf 1)))

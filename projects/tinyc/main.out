@@ -1,0 +1,344 @@
+tinyc: compiling Tiny programs to a stack machine
+
+=== factorial ===
+  source                16 lines, 112 tokens
+  syntax tree           50 nodes, optimised 50
+  main block            19 nodes in 3 statements
+  bytecode              53 instructions, optimised 53
+  output                1 1 2 6 24 120 720 5040 40320 362880 3628800 true
+  executed (VM)         1178 instructions, optimised 1178
+  interpreter steps     107 (calls + loop iterations)
+  differential test     interpreter = VM = optimised VM = optimised interpreter
+  optimised source:
+    fn fact(n: int): int {
+      if (n <= 1) {
+        return 1;
+      }
+      return n * fact(n - 1);
+    }
+    fn fact_loop(n: int): int {
+      var acc: int = 1;
+      while (n > 1) {
+        acc = acc * n;
+        n = n - 1;
+      }
+      return acc;
+    }
+    {
+      var i: int = 0;
+      while (i <= 10) {
+        print fact(i);
+        i = i + 1;
+      }
+      print fact(20) == fact_loop(20);
+    }
+  bytecode before optimisation:
+     0  call 2 (0 args)
+     1  halt
+main:
+     2  push 0
+     3  store 0
+     4  load 0
+     5  push 10
+     6  le
+     7  jumpz 16
+     8  load 0
+     9  call 23 (1 args)
+    10  print.i
+    11  load 0
+    12  push 1
+    13  add
+    14  store 0
+    15  jump 4
+    16  push 20
+    17  call 23 (1 args)
+    18  push 20
+    19  call 36 (1 args)
+    20  eq
+    21  print.b
+    22  retv
+fact:
+    23  load 0
+    24  push 1
+    25  le
+    26  jumpz 29
+    27  push 1
+    28  ret
+    29  load 0
+    30  load 0
+    31  push 1
+    32  sub
+    33  call 23 (1 args)
+    34  mul
+    35  ret
+fact_loop:
+    36  push 1
+    37  store 1
+    38  load 0
+    39  push 1
+    40  gt
+    41  jumpz 51
+    42  load 1
+    43  load 0
+    44  mul
+    45  store 1
+    46  load 0
+    47  push 1
+    48  sub
+    49  store 0
+    50  jump 38
+    51  load 1
+    52  ret
+  bytecode after optimisation: identical
+=== fibonacci ===
+  source                25 lines, 164 tokens
+  syntax tree           70 nodes, optimised 70
+  main block            28 nodes in 5 statements
+  bytecode              76 instructions, optimised 75
+  output                0 1 1 2 3 5 8 13 21 34 55 89 144 233 377 610 true 1548008755920
+  executed (VM)         57284 instructions, optimised 57284
+  interpreter steps     5499 (calls + loop iterations)
+  differential test     interpreter = VM = optimised VM = optimised interpreter
+=== gcd ===
+  source                17 lines, 171 tokens
+  syntax tree           73 nodes, optimised 69
+  main block            32 nodes in 5 statements
+  bytecode              75 instructions, optimised 71
+  output                21 21 1 true 54
+  executed (VM)         527 instructions, optimised 523
+  interpreter steps     45 (calls + loop iterations)
+  differential test     interpreter = VM = optimised VM = optimised interpreter
+=== primes ===
+  source                17 lines, 111 tokens
+  syntax tree           52 nodes, optimised 52
+  main block            23 nodes in 4 statements
+  bytecode              56 instructions, optimised 56
+  output                2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67 71 73 79 83 89 97 25
+  executed (VM)         5903 instructions, optimised 5903
+  interpreter steps     431 (calls + loop iterations)
+  differential test     interpreter = VM = optimised VM = optimised interpreter
+=== collatz ===
+  source                20 lines, 133 tokens
+  syntax tree           60 nodes, optimised 60
+  main block            31 nodes in 6 statements
+  bytecode              65 instructions, optimised 65
+  output                0 1 7 2 5 8 16 3 19 6 14 9 9 17 17 4 12 20 20 7 7 15 15 10 23 10 111 18 18 18 27 111
+  executed (VM)         9776 instructions, optimised 9776
+  interpreter steps     501 (calls + loop iterations)
+  differential test     interpreter = VM = optimised VM = optimised interpreter
+=== nested loops and short-circuit ===
+  source                27 lines, 236 tokens
+  syntax tree           134 nodes, optimised 99
+  main block            95 nodes in 9 statements
+  bytecode              155 instructions, optimised 116
+  output                37 13 8 true true 1 3 100 5 6 true
+  executed (VM)         446 instructions, optimised 408
+  interpreter steps     19 (calls + loop iterations)
+  differential test     interpreter = VM = optimised VM = optimised interpreter
+=== optimiser showcase ===
+  source                18 lines, 164 tokens
+  syntax tree           90 nodes, optimised 33
+  main block            65 nodes in 9 statements
+  bytecode              98 instructions, optimised 34
+  output                10 49 30 0 10 true
+  executed (VM)         86 instructions, optimised 36
+  interpreter steps     3 (calls + loop iterations)
+  differential test     interpreter = VM = optimised VM = optimised interpreter
+  optimised source:
+    fn square(x: int): int {
+      return x * x;
+    }
+    fn pick(flag: bool): int {
+      if (flag) {
+        return 20;
+      } else {
+        return 10;
+      }
+    }
+    {
+      var x: int = 10;
+      print x;
+      print square(7);
+      print pick(true) + pick(false);
+      print 0;
+      print x;
+      print x > 3;
+    }
+  bytecode before optimisation:
+     0  call 2 (0 args)
+     1  halt
+main:
+     2  push 2
+     3  push 3
+     4  add
+     5  push 10
+     6  push 4
+     7  sub
+     8  mul
+     9  push 3
+    10  div
+    11  store 0
+    12  push 2
+    13  push 3
+    14  mul
+    15  push 5
+    16  gt
+    17  jumpz 21
+    18  push 0
+    19  not
+    20  jump 22
+    21  push 0
+    22  jumpz 26
+    23  load 0
+    24  print.i
+    25  jump 28
+    26  push 0
+    27  print.i
+    28  push 1
+    29  push 2
+    30  gt
+    31  jumpz 35
+    32  push 12345
+    33  print.i
+    34  jump 28
+    35  push 0
+    36  jumpz 39
+    37  push 1
+    38  jump 42
+    39  push 1
+    40  push 2
+    41  eq
+    42  jumpz 45
+    43  push 1
+    44  print.i
+    45  push 7
+    46  call 74 (1 args)
+    47  load 0
+    48  push 0
+    49  mul
+    50  sub
+    51  print.i
+    52  push 1
+    53  call 86 (1 args)
+    54  push 1
+    55  not
+    56  call 86 (1 args)
+    57  add
+    58  print.i
+    59  load 0
+    60  load 0
+    61  sub
+    62  print.i
+    63  load 0
+    64  neg
+    65  neg
+    66  print.i
+    67  load 0
+    68  push 3
+    69  gt
+    70  not
+    71  not
+    72  print.b
+    73  retv
+square:
+    74  load 0
+    75  load 0
+    76  mul
+    77  push 1
+    78  mul
+    79  push 0
+    80  add
+    81  ret
+    82  push 999
+    83  print.i
+    84  push 0
+    85  ret
+pick:
+    86  load 0
+    87  not
+    88  jumpz 94
+    89  push 10
+    90  push 0
+    91  sub
+    92  ret
+    93  jump 98
+    94  push 0
+    95  push 20
+    96  add
+    97  ret
+  bytecode after optimisation:
+     0  call 2 (0 args)
+     1  halt
+main:
+     2  push 10
+     3  store 0
+     4  load 0
+     5  print.i
+     6  push 7
+     7  call 24 (1 args)
+     8  print.i
+     9  push 1
+    10  call 28 (1 args)
+    11  push 0
+    12  call 28 (1 args)
+    13  add
+    14  print.i
+    15  push 0
+    16  print.i
+    17  load 0
+    18  print.i
+    19  load 0
+    20  push 3
+    21  gt
+    22  print.b
+    23  retv
+square:
+    24  load 0
+    25  load 0
+    26  mul
+    27  ret
+pick:
+    28  load 0
+    29  jumpz 32
+    30  push 20
+    31  ret
+    32  push 10
+    33  ret
+=== digit sums ===
+  source                20 lines, 137 tokens
+  syntax tree           64 nodes, optimised 64
+  main block            45 nodes in 8 statements
+  bytecode              68 instructions, optimised 68
+  output                28002 64 71027
+  executed (VM)         175672 instructions, optimised 175672
+  interpreter steps     10893 (calls + loop iterations)
+  differential test     interpreter = VM = optimised VM = optimised interpreter
+=== run-time error ===
+  source                8 lines, 47 tokens
+  syntax tree           20 nodes, optimised 20
+  main block            15 nodes in 3 statements
+  bytecode              23 instructions, optimised 23
+  output                33 50 100 <run-time error: division by zero>
+  executed (VM)         60 instructions, optimised 60
+  interpreter steps     8 (calls + loop iterations)
+  differential test     interpreter = VM = optimised VM = optimised interpreter
+
+=== programs with compile errors ===
+  type error in a declaration:          line 2: initial value of 'flag' should be bool but is int
+  type error in an operator:            line 2: operand of '+' should be int but is bool
+  non-bool condition:                   line 2: condition of 'while' should be bool but is int
+  undeclared variable:                  line 3: undeclared variable 'step'
+  variable out of scope:                line 2: undeclared variable 'inner'
+  undeclared function:                  line 1: call to undeclared function 'square'
+  wrong arity:                          line 3: function 'add' expects 2 arguments but is given 1
+  wrong argument type:                  line 2: argument 1 of 'neg' should be bool but is int
+  wrong return type:                    line 2: return value of 'half' should be bool but is int
+  missing return:                       line 1: function 'sign' may finish without returning a value of type int
+  value from a void function:           line 2: initial value of 'x' should be int but is void
+  redeclared variable:                  line 2: variable 'a' is already declared in this block
+  syntax error: missing semicolon:      line 2: syntax error: expected ';', found 'print'
+  syntax error: unbalanced parenthesis: line 1: syntax error: expected ')', found ';'
+  syntax error: missing expression:     line 1: syntax error: expected an expression, found '*'
+  lexical error:                        line 2: unexpected character '#'
+
+summary: 9/9 programs agree across all four runs, 16/16 bad programs rejected

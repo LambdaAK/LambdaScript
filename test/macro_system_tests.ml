@@ -168,6 +168,18 @@ let out = list_length (collect!(1, 2, 3, 4))
            in
            let _, dynamic_env, _ = run_program_interpreter_style program in
            assert_runtime_value ~env:dynamic_env ~name:"out" ~expected:"4" );
+         ( "macro_rules_repetition_items_are_whole_expressions" >:: fun _ ->
+           let program =
+             {|
+macro_rules! sum where
+  ($($x:expr),*) => reduce_left (+) 0 [$($x),*]
+end
+let inc x = x + 1
+let out = sum!(inc 1, 10, inc (inc 3),)
+|}
+           in
+           let _, dynamic_env, _ = run_program_interpreter_style program in
+           assert_runtime_value ~env:dynamic_env ~name:"out" ~expected:"17" );
          ( "macro_rules_transcriber_repetition_splices_into_args" >:: fun _ ->
            let program =
              {|

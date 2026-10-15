@@ -1,0 +1,227 @@
+// The Lisp side of the demo: a prelude written in Lisp itself, a runner that
+// threads the global environment through a program's top-level forms, and
+// the suite of test programs.
+import "eval.forge"
+
+// `programs! { "title" => "source", ... }` builds the list of test programs.
+macro_rules! programs where
+  ($($title:literal => $src:expr),*) => [$(($title, $src)),*]
+end
+
+mod Lisp where
+  // List utilities that are not primitives are defined in Lisp.
+  let prelude_src = "
+    (define (map f xs) (if (null? xs) '() (cons (f (car xs)) (map f (cdr xs)))))
+    (define (filter p xs)
+      (cond ((null? xs) '())
+            ((p (car xs)) (cons (car xs) (filter p (cdr xs))))
+            (else (filter p (cdr xs)))))
+    (define (foldl f acc xs) (if (null? xs) acc (foldl f (f acc (car xs)) (cdr xs))))
+    (define (foldr f init xs) (if (null? xs) init (f (car xs) (foldr f init (cdr xs)))))
+    (define (reverse xs) (foldl (lambda (acc x) (cons x acc)) '() xs))
+    (define (range a b) (if (> a b) '() (cons a (range (+ a 1) b))))
+    (define (assoc key alist)
+      (cond ((null? alist) #f)
+            ((equal? key (car (car alist))) (car alist))
+            (else (assoc key (cdr alist)))))
+    (define (compose f g) (lambda (x) (f (g x))))
+    (define (cadr xs) (car (cdr xs)))
+    (define (caddr xs) (car (cdr (cdr xs))))
+  "
+
+  // Evaluate forms in order, threading the globals; `report` sees each form
+  // with its outcome.
+  let run_forms report g forms =
+    reduce_left
+      (fn g -> fn form ->
+        case Eval.eval_top g form do
+        | Ok (g2, v) -> { report form (Ok v); g2 }
+        | Err e -> { report form (Err e); g })
+      g forms
+
+  let quiet = fn _ -> fn _ -> ()
+
+  let base_globals =
+    case Reader.read_program prelude_src do
+    | Ok forms -> run_forms quiet Eval.primitives forms
+    | Err e -> { print_string ("prelude: " ^ show e); Eval.primitives }
+
+  // The annotations are needed by the native back end
+  // (bugs/04-native-constrained-statement.forge).
+  let print_outcome (form : Value) (r : Res<Value>) =
+    {
+      print_string ("> " ^ show form);
+      case r do
+      | Ok v -> print_string ("  => " ^ show v)
+      | Err e -> print_string ("  !! error: " ^ show e)
+    }
+
+  let run_program index (title, src) =
+    {
+      print_string "";
+      print_string ("--- " ^ int_to_str index ^ ". " ^ title ^ " ---");
+      case Reader.read_program src do
+      | Err e -> { print_string ("source: " ^ src); print_string ("  !! " ^ show e) }
+      | Ok forms -> { run_forms print_outcome base_globals forms; () }
+    }
+
+  let suite = programs! {
+    "factorial" => "
+      (define (fact n) (if (= n 0) 1 (* n (fact (- n 1)))))
+      (fact 10)
+      (fact 20)
+      (define (fact-iter n acc) (if (= n 0) acc (fact-iter (- n 1) (* n acc))))
+      (fact-iter 15 1)
+      (map fact (range 0 8))",
+
+    "fibonacci" => "
+      (define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))
+      (fib 18)
+      (define (fib-fast n)
+        (define (go k a b) (if (= k 0) a (go (- k 1) b (+ a b))))
+        (go n 0 1))
+      (fib-fast 80)
+      (map fib (range 0 12))",
+
+    "closures and accumulators" => "
+      (define (make-adder n) (lambda (x) (+ x n)))
+      (define add5 (make-adder 5))
+      (add5 37)
+      (map (make-adder 100) '(1 2 3))
+      ; a counter is a closure that returns its value and the next counter
+      (define (make-counter n) (lambda () (list n (make-counter (+ n 1)))))
+      (define (take-counts c k) (if (= k 0) '() (let ((r (c))) (cons (car r) (take-counts (cadr r) (- k 1))))))
+      (take-counts (make-counter 10) 5)
+      ; a bank account as a message-passing closure, rebuilt on each change
+      (define (make-account balance)
+        (lambda (msg amount)
+          (cond ((eq? msg 'deposit) (make-account (+ balance amount)))
+                ((eq? msg 'withdraw)
+                 (if (> amount balance) (error \"insufficient funds\" amount balance) (make-account (- balance amount))))
+                ((eq? msg 'balance) balance)
+                (else (error \"unknown request\" msg)))))
+      (let* ((a (make-account 100)) (b (a 'deposit 50)) (c (b 'withdraw 30))) (c 'balance 0))
+      ((make-account 10) 'withdraw 25)
+      ((make-account 10) 'transfer 1)
+      ; a running-sum accumulator folded over a list
+      (foldl (lambda (acc x) (cons (+ x (if (null? acc) 0 (car acc))) acc)) '() '(1 2 3 4 5))",
+
+    "higher-order functions" => "
+      (define (square x) (* x x))
+      (map square (range 1 10))
+      (filter (lambda (n) (= 0 (mod n 3))) (range 1 20))
+      (foldl + 0 (range 1 100))
+      (foldr cons '() '(a b c))
+      ((compose square (lambda (x) (+ x 1))) 6)
+      (define (curry f) (lambda (a) (lambda (b) (f a b))))
+      (((curry *) 6) 7)
+      (apply + (range 1 10))
+      (define (sum-all first . rest) (foldl + first rest))
+      (sum-all 1 2 3 4)
+      ((lambda args (length args)) 'a 'b 'c)
+      (map (lambda (f) (f 16)) (list square (lambda (x) (/ x 2)) number->string))",
+
+    "quicksort" => "
+      (define (quicksort xs)
+        (if (null? xs) '()
+            (let ((pivot (car xs)) (rest (cdr xs)))
+              (append (quicksort (filter (lambda (x) (< x pivot)) rest))
+                      (list pivot)
+                      (quicksort (filter (lambda (x) (>= x pivot)) rest))))))
+      (quicksort '(33 7 21 3 99 1 0 42 7 18 -5 64))
+      (define (sorted? xs) (or (null? xs) (null? (cdr xs)) (and (<= (car xs) (cadr xs)) (sorted? (cdr xs)))))
+      (sorted? (quicksort (map (lambda (i) (mod (* i 7919) 101)) (range 1 60))))
+      (length (quicksort (range 1 120)))
+      ; a generic version ordered by the built-in compare (numbers, strings, symbols, lists)
+      (define (sort-by less? xs)
+        (if (null? xs) '()
+            (let ((p (car xs)))
+              (append (sort-by less? (filter (lambda (x) (less? x p)) (cdr xs)))
+                      (list p)
+                      (sort-by less? (filter (lambda (x) (not (less? x p))) (cdr xs)))))))
+      (define (before? a b) (< (compare a b) 0))
+      (sort-by before? '(pear apple fig banana cherry))
+      (sort-by before? '(\"b\" \"a\" \"c\"))
+      (sort-by before? '((2 1) (1 5) (1 2 3) () (2)))
+      (sort-by (lambda (a b) (> a b)) '(3 1 4 1 5 9 2 6))",
+
+    "association-list database" => "
+      (define people '((alice 34 engineering) (bob 27 sales) (carol 45 engineering)
+                       (dave 31 marketing) (erin 29 sales) (frank 52 engineering)))
+      (define (name p) (car p))
+      (define (age p) (cadr p))
+      (define (dept p) (caddr p))
+      (assoc 'carol people)
+      (assoc 'zoe people)
+      (map name (filter (lambda (p) (eq? (dept p) 'engineering)) people))
+      (define (average xs) (/ (foldl + 0 xs) (length xs)))
+      (average (map age people))
+      (define (update db key f) (map (lambda (p) (if (eq? (name p) key) (f p) p)) db))
+      (assoc 'bob (update people 'bob (lambda (p) (list (name p) (+ (age p) 1) 'management))))
+      (define (count-by db d) (length (filter (lambda (p) (eq? (dept p) d)) db)))
+      (map (lambda (d) (list d (count-by people d))) '(engineering sales marketing))
+      (define (oldest db) (foldl (lambda (best p) (if (> (age p) (age best)) p best)) (car db) (cdr db)))
+      (name (oldest people))",
+
+    "mutual recursion" => "
+      (define (even? n) (if (= n 0) #t (odd? (- n 1))))
+      (define (odd? n) (if (= n 0) #f (even? (- n 1))))
+      (even? 100)
+      (odd? 777)
+      (map even? (range 0 5))
+      (define (sum-to n) (if (= n 0) 0 (+ n (sum-to (- n 1)))))
+      (sum-to 10000)
+      (define (count-down n) (if (= n 0) 'liftoff (count-down (- n 1))))
+      (count-down 10000)",
+
+    "strings and symbols" => "
+      (define (greet who) (string-append \"Hello, \" who \"!\"))
+      (greet \"Forge\")
+      (string-length (greet \"Lisp\"))
+      (substring \"functional\" 3 7)
+      (define (join sep xs) (if (null? xs) \"\" (foldl (lambda (acc s) (string-append acc sep s)) (car xs) (cdr xs))))
+      (join \", \" (map number->string (range 1 5)))
+      (string->symbol \"quux\")
+      (symbol->string 'abc)
+      (string->number \"-123\")
+      (string->number \"12x\")
+      (list (string=? \"a\" \"a\") (string<? \"apple\" \"banana\") (equal? '(1 (2 \"x\")) '(1 (2 \"x\"))))
+      \"escapes: \\\"quoted\\\" and \\\\\"",
+
+    "special forms" => "
+      (let ((x 2) (y 3)) (let ((x 7) (z (+ x y))) (list x y z)))
+      (let* ((x 2) (y (* x 10)) (z (+ x y))) z)
+      (define (classify n) (cond ((< n 0) 'negative) ((= n 0) 'zero) ((< n 10) 'small) (else 'large)))
+      (map classify '(-3 0 4 99))
+      (list (and) (and 1 2 3) (and 1 #f 3) (or) (or #f 2) (or #f #f))
+      (begin 1 2 3)
+      (if #f 1)
+      (cond ((assoc 'b '((a 1) (b 2)))) (else 0))
+      (quote (1 (2 3) \"s\" #t))
+      ''x",
+
+    "error cases" => "
+      (+ 1 undefined-variable)
+      ((lambda (x y) x) 1)
+      (car 5)
+      (+ 1 \"two\")
+      (/ 10 0)
+      (mod 7 0)
+      (5 3)
+      (error \"custom failure\" 'code 42)
+      (if)
+      (let ((x)) x)
+      (lambda (1) 1)
+      (cons 1 2)
+      (string-append \"a\" 'b)
+      (apply + 1 2)
+      (fact 5)
+      (define)",
+
+    "read error: unbalanced" => "(define (broken x) (+ x 1)",
+    "read error: stray paren" => "(+ 1 2))",
+    "read error: unterminated string" => "(string-length \"abc)"
+  }
+
+  let run_all () = reduce_left (fn i -> fn p -> { run_program i p; i + 1 }) 1 suite
+end

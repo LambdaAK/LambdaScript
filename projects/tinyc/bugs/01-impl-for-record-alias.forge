@@ -1,0 +1,21 @@
+// FIXED: this now behaves as expected in both back ends.
+// BUG: an `impl` for a named record type is accepted, but using it fails.
+//
+// Expected: prints "P(1)" (or the impl itself is rejected with a clear
+//           message saying instances for record types are not supported).
+// Actual (interpreter and native):
+//   error: type error: No instance `Show` for type {x: Int, y: Int}
+// The error is reported at the use, not at the impl, and names the very type
+// the impl was written for.
+//
+// Run: ./_build/default/bin/interpreter.exe projects/tinyc/bugs/01-impl-for-record-alias.forge
+// Workaround in tinyc: Func/Program are printed by plain functions
+// (show_func in ast.forge) instead of `impl Show`.
+type P = { x: Int, y: Int }
+
+impl Show for P where
+  show p = "P(" ^ int_to_str p.x ^ ")"
+end
+
+let p : P = { x: 1, y: 2 }
+let () = print_string (show p)

@@ -1,0 +1,135 @@
+// The primitive procedures. Every primitive takes the list of evaluated
+// arguments and returns a Res, so type and arity errors are values.
+import "sexpr.forge"
+
+// `expect!(proc, value, Pattern => body, "kind")`: run body when the value
+// matches the pattern, otherwise report a type error naming the procedure.
+macro_rules! expect where
+  ($f:expr, $v:expr, $p:pat => $body:expr, $kind:expr) =>
+    case $v do
+    | $p -> $body
+    | other -> Err (TypeError ($f, $kind, other))
+end
+
+mod Builtins where
+  let arity f want args = Err (Arity (f, want, list_length args))
+
+  let num f v = expect!(f, v, Num n => Ok n, "number")
+  let str f v = expect!(f, v, Str s => Ok s, "string")
+  let lst f v = expect!(f, v, List xs => Ok xs, "list")
+
+  let nums f args = mapM (num f) args
+
+  // Variadic integer arithmetic: (+), (+ 1 2 3), (- x), (- x y z), ...
+  let arith_int f args =
+    case (f, args) do
+    | ("+", _) -> fmap (reduce_left (+) 0) (nums f args)
+    | ("*", _) -> fmap (reduce_left (*) 1) (nums f args)
+    | ("-", []) -> arity f "at least 1" args
+    | ("-", x :: []) -> fmap (fn n -> 0 - n) (num f x)
+    | ("-", x :: rest) -> num f x >>= (fn n -> fmap (reduce_left (-) n) (nums f rest))
+    | ("/", x :: rest) ->
+        num f x >>= (fn n ->
+          nums f rest >>= (fn ds ->
+            if ds == [] then arity f "at least 2" args
+            else if filter (fn d -> d == 0) ds != [] then Err (DivByZero f)
+            else Ok (reduce_left (/) n ds)))
+    | ("mod", a :: b :: []) ->
+        num f a >>= (fn x -> num f b >>= (fn y -> if y == 0 then Err (DivByZero f) else Ok (x % y)))
+    | _ -> arity f "2" args
+
+  let arith f args = fmap Num (arith_int f args)
+
+  // Chained numeric comparison: (< 1 2 3) holds when every adjacent pair does.
+  let compare_chain f test args =
+    nums f args >>= (fn ns ->
+      case ns do
+      | [] -> arity f "at least 1" args
+      | first :: rest ->
+          let step = fn (ok, prev) -> fn n -> (ok && test prev n, n) in
+          Ok (Boolean (tuple_fst (reduce_left step (true, first) rest))))
+
+  let predicate f p args = case args do | x :: [] -> Ok (Boolean (p x)) | _ -> arity f "1" args
+
+  let list_prim f args =
+    case (f, args) do
+    | ("cons", x :: xs :: []) -> lst f xs >>= (fn ys -> Ok (List (x :: ys)))
+    | ("car", x :: []) -> lst f x >>= (fn xs -> case xs do | h :: _ -> Ok h | [] -> Err (TypeError (f, "non-empty list", x)))
+    | ("cdr", x :: []) -> lst f x >>= (fn xs -> case xs do | _ :: t -> Ok (List t) | [] -> Err (TypeError (f, "non-empty list", x)))
+    | ("list", _) -> Ok (List args)
+    | ("length", x :: []) -> fmap (fn xs -> Num (list_length xs)) (lst f x)
+    | ("append", _) -> fmap (fn xss -> List (reduce_left (++) [] xss)) (mapM (lst f) args)
+    | ("cons", _) -> arity f "2" args
+    | _ -> arity f "1" args
+
+  let string_prim f args =
+    case (f, args) do
+    | ("string-append", _) -> fmap (fn ss -> Str (Text.join "" ss)) (mapM (str f) args)
+    | ("string-length", s :: []) -> fmap (fn x -> Num (str_length x)) (str f s)
+    | ("substring", s :: a :: b :: []) ->
+        str f s >>= (fn x -> num f a >>= (fn i -> num f b >>= (fn j -> Ok (Str (str_slice x i (j - i))))))
+    | ("substring", _) -> arity f "3" args
+    | ("number->string", n :: []) -> fmap (fn x -> Str (int_to_str x)) (num f n)
+    | ("string->number", s :: []) ->
+        str f s >>= (fn x -> Ok (case Text.parse_int x do | Some n -> Num n | None -> Boolean false))
+    | ("string->symbol", s :: []) -> fmap Sym (str f s)
+    | ("symbol->string", s :: []) -> expect!(f, s, Sym x => Ok (Str x), "symbol")
+    | ("string=?", a :: b :: []) -> str f a >>= (fn x -> fmap (fn y -> Boolean (x == y)) (str f b))
+    | ("string<?", a :: b :: []) -> str f a >>= (fn x -> fmap (fn y -> Boolean (x < y)) (str f b))
+    | ("string=?", _) -> arity f "2" args
+    | ("string<?", _) -> arity f "2" args
+    | _ -> arity f "1" args
+
+  let is_proc v = case v do | Prim _ -> true | Closure _ -> true | _ -> false
+
+  // Dispatch on the primitive's name.
+  let call f args =
+    case f do
+    | "+" -> arith f args
+    | "-" -> arith f args
+    | "*" -> arith f args
+    | "/" -> arith f args
+    | "mod" -> arith f args
+    | "=" -> compare_chain f (fn a -> fn b -> a == b) args
+    | "<" -> compare_chain f (fn a -> fn b -> a < b) args
+    | ">" -> compare_chain f (fn a -> fn b -> a > b) args
+    | "<=" -> compare_chain f (fn a -> fn b -> a <= b) args
+    | ">=" -> compare_chain f (fn a -> fn b -> a >= b) args
+    | "not" -> predicate f (fn v -> not (Sexpr.truthy v)) args
+    | "null?" -> predicate f (fn v -> v == List []) args
+    | "pair?" -> predicate f (fn v -> case v do | List (_ :: _) -> true | _ -> false) args
+    | "number?" -> predicate f (fn v -> case v do | Num _ -> true | _ -> false) args
+    | "symbol?" -> predicate f (fn v -> case v do | Sym _ -> true | _ -> false) args
+    | "string?" -> predicate f (fn v -> case v do | Str _ -> true | _ -> false) args
+    | "boolean?" -> predicate f (fn v -> case v do | Boolean _ -> true | _ -> false) args
+    | "procedure?" -> predicate f is_proc args
+    | "eq?" ->
+        (case args do
+         | a :: b :: [] -> Ok (Boolean (not (is_proc a) && (==) a b))
+         | _ -> arity f "2" args)
+    | "compare" ->
+        (case args do
+         | a :: b :: [] -> Ok (Num (case compare a b do | LT -> 0 - 1 | EQ -> 0 | GT -> 1))
+         | _ -> arity f "2" args)
+    | "equal?" -> (case args do | a :: b :: [] -> Ok (Boolean ((==) a b)) | _ -> arity f "2" args)
+    | "error" ->
+        (case args do
+         | Str msg :: irritants -> Err (UserError (msg, irritants))
+         | _ -> Err (UserError ("error", args)))
+    | "cons" -> list_prim f args
+    | "car" -> list_prim f args
+    | "cdr" -> list_prim f args
+    | "list" -> list_prim f args
+    | "length" -> list_prim f args
+    | "append" -> list_prim f args
+    | _ -> string_prim f args
+
+  // The names bound to primitives in the initial global environment
+  // (`apply` is handled by the evaluator, which can call procedures).
+  let names =
+    ["+", "-", "*", "/", "mod", "=", "<", ">", "<=", ">=", "not", "null?", "pair?",
+     "number?", "symbol?", "string?", "boolean?", "procedure?", "eq?", "equal?", "compare", "error",
+     "cons", "car", "cdr", "list", "length", "append", "string-append", "string-length",
+     "substring", "number->string", "string->number", "string->symbol", "symbol->string",
+     "string=?", "string<?", "apply"]
+end

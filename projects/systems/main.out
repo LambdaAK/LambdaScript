@@ -1,0 +1,353 @@
+
+========================================================================
+  Part 0. A persistent AVL map
+========================================================================
+  inserted   : keys 1..255: size 255, height 8, balanced true
+  removed    : the even keys: size 128, height 8, balanced true
+  persistent : old version still maps 64 to Some 4096, new version has None
+  folds      : sum of values 2796160, first keys [1, 3, 5, 7, 9, 11]
+  fmap       : [1, 9, 5, 9, 1]
+
+========================================================================
+  Part 1. A register machine and its assembler
+========================================================================
+
+--- Sum of 1..100
+  program    : 8 instructions, 0 data words, labels: loop
+       0          ldi   r0, 0
+       1          ldi   r1, 1
+       2  loop:   add   r0, r1
+       3          add   r1, 1
+       4          cmp   r1, 101
+       5          jlt   @2
+       6          out   r0
+       7          halt
+  output     : 5050
+  status     : halted after 404 instructions
+  registers  : r0=5050 r1=101 r2=0 r3=0 r4=0 r5=0 r6=0 r7=0
+  flags      : Z=1 N=0  pc=7  sp=256  max stack depth=0
+  most used  : add 200, cmp 100, jlt 100, ldi 2, halt 1
+
+--- Fibonacci, iterative
+  program    : 11 instructions, 0 data words, labels: loop
+  output     : 0 1 1 2 3 5 8 13 21 34 55 89 144 233 377 610 987 1597 2584 4181
+  status     : halted after 144 instructions
+  registers  : r0=0 r1=6765 r2=10946 r3=0 r4=10946 r5=0 r6=0 r7=0
+  flags      : Z=1 N=0  pc=10  sp=256  max stack depth=0
+  most used  : mov 60, add 20, jnz 20, out 20, sub 20
+
+--- Fibonacci, recursive with call/ret
+  program    : 23 instructions, 0 data words, labels: base fib next
+       0          ldi   r5, 0
+       1  next:   mov   r0, r5
+       2          call  @8
+       3          out   r0
+       4          add   r5, 1
+       5          cmp   r5, 16
+       6          jlt   @1
+       7          halt
+       8  fib:    cmp   r0, 2
+       9          jlt   @22
+      10          push  r1
+      11          push  r2
+      12          mov   r1, r0
+      13          sub   r0, 1
+      14          call  @8
+      15          mov   r2, r0
+      16          mov   r0, r1
+      17          sub   r0, 2
+      18          call  @8
+      19          add   r0, r2
+      20          pop   r2
+      21          pop   r1
+      22  base:   ret
+  output     : 0 1 1 2 3 5 8 13 21 34 55 89 144 233 377 610
+  status     : halted after 46352 instructions
+  registers  : r0=610 r1=0 r2=0 r3=0 r4=0 r5=16 r6=0 r7=0
+  flags      : Z=1 N=0  pc=7  sp=256  max stack depth=43
+  most used  : mov 7717, cmp 5166, jlt 5166, call 5150, ret 5150
+
+--- Bubble sort in memory
+  program    : 24 instructions, 12 data words, labels: inner noswap outer print
+  output     : 1 3 8 10 14 23 29 42 55 64 71 97
+  status     : halted after 903 instructions
+  registers  : r0=0 r1=0 r2=112 r3=0 r4=97 r5=97 r6=0 r7=0
+  flags      : Z=1 N=0  pc=23  sp=256  max stack depth=0
+  most used  : load 210, jnz 120, sub 120, add 111, cmp 108
+  memory     : [100..111] = 1 3 8 10 14 23 29 42 55 64 71 97
+
+--- Greatest common divisors
+  program    : 18 instructions, 10 data words, labels: done gcd next
+  output     : 21 6 1 1 625
+  status     : halted after 200 instructions
+  registers  : r0=625 r1=0 r2=0 r3=0 r4=0 r5=0 r6=60 r7=0
+  flags      : Z=1 N=0  pc=9  sp=256  max stack depth=1
+  most used  : mov 63, cmp 26, jz 26, jmp 21, mod 21
+
+--- Factorials, recursive
+  program    : 18 instructions, 0 data words, labels: fact next one
+  output     : 1 2 6 24 120 720 5040 40320 362880 3628800 39916800 479001600
+  status     : halted after 650 instructions
+  registers  : r0=479001600 r1=12 r2=0 r3=0 r4=0 r5=13 r6=0 r7=0
+  flags      : Z=0 N=0  pc=7  sp=256  max stack depth=23
+  most used  : cmp 90, jle 90, call 78, ret 78, mul 66
+
+  Run-time faults:
+
+--- Division by zero
+  program    : 6 instructions, 0 data words, labels: none
+  output     : 
+  status     : FAULT: division by zero at pc 3 after 4 instructions
+  registers  : r0=100 r1=0 r2=0 r3=0 r4=0 r5=0 r6=0 r7=0
+  flags      : Z=1 N=0  pc=3  sp=256  max stack depth=0
+  most used  : ldi 2, div 1, sub 1
+
+--- Unbounded recursion
+  program    : 3 instructions, 0 data words, labels: loop
+  output     : 
+  status     : FAULT: stack overflow at pc 0 after 65 instructions
+  registers  : r0=0 r1=0 r2=0 r3=0 r4=0 r5=0 r6=0 r7=0
+  flags      : Z=0 N=0  pc=0  sp=192  max stack depth=64
+  most used  : push 33, call 32
+
+--- Missing halt
+  program    : 2 instructions, 0 data words, labels: none
+  output     : 7
+  status     : FAULT: pc outside the program at pc 2 after 2 instructions
+  registers  : r0=7 r1=0 r2=0 r3=0 r4=0 r5=0 r6=0 r7=0
+  flags      : Z=0 N=0  pc=2  sp=256  max stack depth=0
+  most used  : ldi 1, out 1
+
+  Assembly errors:
+
+--- A broken program: assembly failed
+  line  3: no such register 'r9'
+  line  4: 'add' expects 2 operands, found 1
+  line  5: unknown instruction 'frob'
+  line  6: undefined label 'nowhere'
+  line  7: duplicate label 'start'
+  line  8: bad number '12x'
+  line  9: expected a memory reference [rB+off], found '[r1+]'
+  line 10: undefined symbol 'three'
+  line 11: .equ expects a name and a value
+  line 12: 'out' expects 1 operand, found 2
+  line 13: unknown directive '.org'
+
+  total      : 48724 instructions executed by the machine
+
+========================================================================
+  Part 2. Process scheduling
+========================================================================
+  job  arrival  burst  priority
+  A         0      7         3
+  B         2      4         1
+  C         4      1         4
+  D         5      4         2
+  E         6      6         5
+  F        24      3         1
+  policies: FCFS SJF SRTF RR3 PRIO
+
+  First come, first served  FCFS
+    |         A          |     B     |C |     D     |        E        |  -  |   F    |
+    0                    7           11 12          16                22    24       27
+    job  done  turnaround  waiting  response
+    A       7           7        0         0
+    B      11           9        5         5
+    C      12           8        7         7
+    D      16          11        7         7
+    E      22          16       10        10
+    F      27           3        0         0
+    average turnaround 9.00, waiting 4.83, response 4.83; context switches 5
+
+  Shortest job first (non-preemptive)  SJF
+    |         A          |C |     B     |     D     |        E        |  -  |   F    |
+    0                    7  8           12          16                22    24       27
+    job  done  turnaround  waiting  response
+    A       7           7        0         0
+    B      12          10        6         6
+    C       8           4        3         3
+    D      16          11        7         7
+    E      22          16       10        10
+    F      27           3        0         0
+    average turnaround 8.50, waiting 4.33, response 4.33; context switches 5
+
+  Shortest remaining time first (preemptive)  SRTF
+    |  A  |  B  |C |  B  |     D     |      A       |        E        |  -  |   F    |
+    0     2     4  5     7           11             16                22    24       27
+    job  done  turnaround  waiting  response
+    A      16          16        9         0
+    B       7           5        1         0
+    C       5           1        0         0
+    D      11           6        2         2
+    E      22          16       10        10
+    F      27           3        0         0
+    average turnaround 7.83, waiting 3.67, response 2.00; context switches 7
+
+  Round robin, quantum 3  RR3
+    |   A    |   B    |   A    |C |   D    |   E    |B |A |D |   E    |  -  |   F    |
+    0        3        6        9  10       13       16 17 18 19       22    24       27
+    job  done  turnaround  waiting  response
+    A      18          18       11         0
+    B      17          15       11         1
+    C      10           6        5         5
+    D      19          14       10         5
+    E      22          16       10         7
+    F      27           3        0         0
+    average turnaround 12.00, waiting 7.83, response 3.00; context switches 10
+
+  Priority (non-preemptive, 1 = highest)  PRIO
+    |         A          |     B     |     D     |C |        E        |  -  |   F    |
+    0                    7           11          15 16                22    24       27
+    job  done  turnaround  waiting  response
+    A       7           7        0         0
+    B      11           9        5         5
+    C      16          12       11        11
+    D      15          10        6         6
+    E      22          16       10        10
+    F      27           3        0         0
+    average turnaround 9.50, waiting 5.33, response 5.33; context switches 5
+
+  Ranking by average waiting time:
+    1. SRTF  Shortest remaining time first (preemptive)    waiting 3.67, turnaround 7.83
+    2. SJF   Shortest job first (non-preemptive)           waiting 4.33, turnaround 8.50
+    3. FCFS  First come, first served                      waiting 4.83, turnaround 9.00
+    4. PRIO  Priority (non-preemptive, 1 = highest)        waiting 5.33, turnaround 9.50
+    5. RR3   Round robin, quantum 3                        waiting 7.83, turnaround 12.00
+
+========================================================================
+  Part 3a. Heap allocation with a free list
+========================================================================
+
+  Strategy: first fit
+    step  request     result    heap                                                              free holes  max  frag
+       1  alloc A 12  @0        AAAAAAAAAAAA....................................................    52     1   52  0.0%
+       2  alloc B 6   @12       AAAAAAAAAAAABBBBBB..............................................    46     1   46  0.0%
+       3  alloc C 10  @18       AAAAAAAAAAAABBBBBBCCCCCCCCCC....................................    36     1   36  0.0%
+       4  alloc D 4   @28       AAAAAAAAAAAABBBBBBCCCCCCCCCCDDDD................................    32     1   32  0.0%
+       5  alloc E 14  @32       AAAAAAAAAAAABBBBBBCCCCCCCCCCDDDDEEEEEEEEEEEEEE..................    18     1   18  0.0%
+       6  alloc F 8   @46       AAAAAAAAAAAABBBBBBCCCCCCCCCCDDDDEEEEEEEEEEEEEEFFFFFFFF..........    10     1   10  0.0%
+       7  free  B     ok        AAAAAAAAAAAA......CCCCCCCCCCDDDDEEEEEEEEEEEEEEFFFFFFFF..........    16     2   10 37.5%
+       8  free  D     ok        AAAAAAAAAAAA......CCCCCCCCCC....EEEEEEEEEEEEEEFFFFFFFF..........    20     3   10 50.0%
+       9  alloc G 3   @12       AAAAAAAAAAAAGGG...CCCCCCCCCC....EEEEEEEEEEEEEEFFFFFFFF..........    17     3   10 41.2%
+      10  free  E     ok        AAAAAAAAAAAAGGG...CCCCCCCCCC..................FFFFFFFF..........    31     3   18 41.9%
+      11  alloc H 16  @28       AAAAAAAAAAAAGGG...CCCCCCCCCCHHHHHHHHHHHHHHHH..FFFFFFFF..........    15     3   10 33.3%
+      12  free  A     ok        ............GGG...CCCCCCCCCCHHHHHHHHHHHHHHHH..FFFFFFFF..........    27     4   12 55.6%
+      13  alloc I 9   @0        IIIIIIIII...GGG...CCCCCCCCCCHHHHHHHHHHHHHHHH..FFFFFFFF..........    18     4   10 44.4%
+      14  free  C     ok        IIIIIIIII...GGG.............HHHHHHHHHHHHHHHH..FFFFFFFF..........    28     4   13 53.6%
+      15  alloc J 20  FAILED    IIIIIIIII...GGG.............HHHHHHHHHHHHHHHH..FFFFFFFF..........    28     4   13 53.6%
+      16  free  G     ok        IIIIIIIII...................HHHHHHHHHHHHHHHH..FFFFFFFF..........    31     3   19 38.7%
+      17  free  C     bad free  IIIIIIIII...................HHHHHHHHHHHHHHHH..FFFFFFFF..........    31     3   19 38.7%
+      18  free  F     ok        IIIIIIIII...................HHHHHHHHHHHHHHHH....................    39     2   20 48.7%
+      19  free  H     ok        IIIIIIIII.......................................................    55     1   55  0.0%
+      20  free  I     ok        ................................................................    64     1   64  0.0%
+      21  free  J     bad free  ................................................................    64     1   64  0.0%
+
+  Strategy: best fit
+    step  request     result    heap                                                              free holes  max  frag
+       1  alloc A 12  @0        AAAAAAAAAAAA....................................................    52     1   52  0.0%
+       2  alloc B 6   @12       AAAAAAAAAAAABBBBBB..............................................    46     1   46  0.0%
+       3  alloc C 10  @18       AAAAAAAAAAAABBBBBBCCCCCCCCCC....................................    36     1   36  0.0%
+       4  alloc D 4   @28       AAAAAAAAAAAABBBBBBCCCCCCCCCCDDDD................................    32     1   32  0.0%
+       5  alloc E 14  @32       AAAAAAAAAAAABBBBBBCCCCCCCCCCDDDDEEEEEEEEEEEEEE..................    18     1   18  0.0%
+       6  alloc F 8   @46       AAAAAAAAAAAABBBBBBCCCCCCCCCCDDDDEEEEEEEEEEEEEEFFFFFFFF..........    10     1   10  0.0%
+       7  free  B     ok        AAAAAAAAAAAA......CCCCCCCCCCDDDDEEEEEEEEEEEEEEFFFFFFFF..........    16     2   10 37.5%
+       8  free  D     ok        AAAAAAAAAAAA......CCCCCCCCCC....EEEEEEEEEEEEEEFFFFFFFF..........    20     3   10 50.0%
+       9  alloc G 3   @28       AAAAAAAAAAAA......CCCCCCCCCCGGG.EEEEEEEEEEEEEEFFFFFFFF..........    17     3   10 41.2%
+      10  free  E     ok        AAAAAAAAAAAA......CCCCCCCCCCGGG...............FFFFFFFF..........    31     3   15 51.6%
+      11  alloc H 16  FAILED    AAAAAAAAAAAA......CCCCCCCCCCGGG...............FFFFFFFF..........    31     3   15 51.6%
+      12  free  A     ok        ..................CCCCCCCCCCGGG...............FFFFFFFF..........    43     3   18 58.1%
+      13  alloc I 9   @54       ..................CCCCCCCCCCGGG...............FFFFFFFFIIIIIIIII.    34     3   18 47.1%
+      14  free  C     ok        ............................GGG...............FFFFFFFFIIIIIIIII.    44     3   28 36.4%
+      15  alloc J 20  @0        JJJJJJJJJJJJJJJJJJJJ........GGG...............FFFFFFFFIIIIIIIII.    24     3   15 37.5%
+      16  free  G     ok        JJJJJJJJJJJJJJJJJJJJ..........................FFFFFFFFIIIIIIIII.    27     2   26  3.7%
+      17  free  C     bad free  JJJJJJJJJJJJJJJJJJJJ..........................FFFFFFFFIIIIIIIII.    27     2   26  3.7%
+      18  free  F     ok        JJJJJJJJJJJJJJJJJJJJ..................................IIIIIIIII.    35     2   34  2.9%
+      19  free  H     bad free  JJJJJJJJJJJJJJJJJJJJ..................................IIIIIIIII.    35     2   34  2.9%
+      20  free  I     ok        JJJJJJJJJJJJJJJJJJJJ............................................    44     1   44  0.0%
+      21  free  J     ok        ................................................................    64     1   64  0.0%
+
+  Strategy: worst fit
+    step  request     result    heap                                                              free holes  max  frag
+       1  alloc A 12  @0        AAAAAAAAAAAA....................................................    52     1   52  0.0%
+       2  alloc B 6   @12       AAAAAAAAAAAABBBBBB..............................................    46     1   46  0.0%
+       3  alloc C 10  @18       AAAAAAAAAAAABBBBBBCCCCCCCCCC....................................    36     1   36  0.0%
+       4  alloc D 4   @28       AAAAAAAAAAAABBBBBBCCCCCCCCCCDDDD................................    32     1   32  0.0%
+       5  alloc E 14  @32       AAAAAAAAAAAABBBBBBCCCCCCCCCCDDDDEEEEEEEEEEEEEE..................    18     1   18  0.0%
+       6  alloc F 8   @46       AAAAAAAAAAAABBBBBBCCCCCCCCCCDDDDEEEEEEEEEEEEEEFFFFFFFF..........    10     1   10  0.0%
+       7  free  B     ok        AAAAAAAAAAAA......CCCCCCCCCCDDDDEEEEEEEEEEEEEEFFFFFFFF..........    16     2   10 37.5%
+       8  free  D     ok        AAAAAAAAAAAA......CCCCCCCCCC....EEEEEEEEEEEEEEFFFFFFFF..........    20     3   10 50.0%
+       9  alloc G 3   @54       AAAAAAAAAAAA......CCCCCCCCCC....EEEEEEEEEEEEEEFFFFFFFFGGG.......    17     3    7 58.8%
+      10  free  E     ok        AAAAAAAAAAAA......CCCCCCCCCC..................FFFFFFFFGGG.......    31     3   18 41.9%
+      11  alloc H 16  @28       AAAAAAAAAAAA......CCCCCCCCCCHHHHHHHHHHHHHHHH..FFFFFFFFGGG.......    15     3    7 53.3%
+      12  free  A     ok        ..................CCCCCCCCCCHHHHHHHHHHHHHHHH..FFFFFFFFGGG.......    27     3   18 33.3%
+      13  alloc I 9   @0        IIIIIIIII.........CCCCCCCCCCHHHHHHHHHHHHHHHH..FFFFFFFFGGG.......    18     3    9 50.0%
+      14  free  C     ok        IIIIIIIII...................HHHHHHHHHHHHHHHH..FFFFFFFFGGG.......    28     3   19 32.1%
+      15  alloc J 20  FAILED    IIIIIIIII...................HHHHHHHHHHHHHHHH..FFFFFFFFGGG.......    28     3   19 32.1%
+      16  free  G     ok        IIIIIIIII...................HHHHHHHHHHHHHHHH..FFFFFFFF..........    31     3   19 38.7%
+      17  free  C     bad free  IIIIIIIII...................HHHHHHHHHHHHHHHH..FFFFFFFF..........    31     3   19 38.7%
+      18  free  F     ok        IIIIIIIII...................HHHHHHHHHHHHHHHH....................    39     2   20 48.7%
+      19  free  H     ok        IIIIIIIII.......................................................    55     1   55  0.0%
+      20  free  I     ok        ................................................................    64     1   64  0.0%
+      21  free  J     bad free  ................................................................    64     1   64  0.0%
+
+  Summary:
+    first fit 1 failed allocation, final free list [(0, 64)]
+    best fit  1 failed allocation, final free list [(0, 64)]
+    worst fit 1 failed allocation, final free list [(0, 64)]
+
+========================================================================
+  Part 3b. Page replacement
+========================================================================
+  reference string: 7 0 1 2 0 3 0 4 2 3 0 3 2 1 2 0 1 7 0 1; policies: FIFO, LRU, OPT
+
+  FIFO, 3 frames
+    ref     7  0  1  2  0  3  0  4  2  3  0  3  2  1  2  0  1  7  0  1
+    frame0  7  7  7  2  2  2  2  4  4  4  0  0  0  0  0  0  0  7  7  7
+    frame1  .  0  0  0  0  3  3  3  2  2  2  2  2  1  1  1  1  1  0  0
+    frame2  .  .  1  1  1  1  0  0  0  3  3  3  3  3  2  2  2  2  2  1
+            F  F  F  F  .  F  F  F  F  F  F  .  .  F  F  .  .  F  F  F
+    hits 5, faults 15, hit rate 25.0%
+
+  LRU, 3 frames
+    ref     7  0  1  2  0  3  0  4  2  3  0  3  2  1  2  0  1  7  0  1
+    frame0  7  7  7  2  2  2  2  4  4  4  0  0  0  1  1  1  1  1  1  1
+    frame1  .  0  0  0  0  0  0  0  0  3  3  3  3  3  3  0  0  0  0  0
+    frame2  .  .  1  1  1  3  3  3  2  2  2  2  2  2  2  2  2  7  7  7
+            F  F  F  F  .  F  .  F  F  F  F  .  .  F  .  F  .  F  .  .
+    hits 8, faults 12, hit rate 40.0%
+
+  OPT, 3 frames
+    ref     7  0  1  2  0  3  0  4  2  3  0  3  2  1  2  0  1  7  0  1
+    frame0  7  7  7  2  2  2  2  2  2  2  2  2  2  2  2  2  2  7  7  7
+    frame1  .  0  0  0  0  0  0  4  4  4  0  0  0  0  0  0  0  0  0  0
+    frame2  .  .  1  1  1  3  3  3  3  3  3  3  3  1  1  1  1  1  1  1
+            F  F  F  F  .  F  .  F  .  .  F  .  .  F  .  .  .  F  .  .
+    hits 11, faults 9, hit rate 55.0%
+
+  Faults by number of frames:
+    frames    1    2    3    4    5    6    7
+    FIFO     20   15   15   10    9    6    6
+    LRU      20   17   12    8    7    6    6
+    OPT      20   13    9    8    7    6    6
+
+  Belady's anomaly, reference string 1 2 3 4 1 2 5 1 2 3 4 5
+
+  FIFO, 3 frames
+    ref     1  2  3  4  1  2  5  1  2  3  4  5
+    frame0  1  1  1  4  4  4  5  5  5  5  5  5
+    frame1  .  2  2  2  1  1  1  1  1  3  3  3
+    frame2  .  .  3  3  3  2  2  2  2  2  4  4
+            F  F  F  F  F  F  F  .  .  F  F  .
+    hits 3, faults 9, hit rate 25.0%
+
+  FIFO, 4 frames
+    ref     1  2  3  4  1  2  5  1  2  3  4  5
+    frame0  1  1  1  1  1  1  5  5  5  5  4  4
+    frame1  .  2  2  2  2  2  2  1  1  1  1  5
+    frame2  .  .  3  3  3  3  3  3  2  2  2  2
+    frame3  .  .  .  4  4  4  4  4  4  3  3  3
+            F  F  F  F  .  .  F  F  F  F  F  F
+    hits 2, faults 10, hit rate 16.7%
+    FIFO: 9 faults with 3 frames, 10 with 4 -- the anomaly appears
+    LRU:  10 faults with 3 frames, 8 with 4 (a stack algorithm never gets worse)
+

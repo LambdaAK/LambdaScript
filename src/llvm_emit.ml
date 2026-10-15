@@ -369,6 +369,8 @@ let runtime_declarations : string =
    declare i8* @ls_string_to_list(i8*)\n\
    declare double @ls_int_to_float(i64)\n\
    declare double @ls_fadd(double, double)\n\
+   declare i64 @ls_int_to_char(i64)\n\
+   declare i8* @ls_list_to_string(i8*)\n\
    declare double @ls_fsub(double, double)\n\
    declare double @ls_fmul(double, double)\n\
    declare double @ls_fdiv(double, double)\n\
@@ -1693,7 +1695,10 @@ let emit_func ctx (fn_sigs : (string, func_def) H.t) (f : func_def) : string =
       List.iter (fun i -> emit_instr ctx fn_sigs h body_lines i) blk.instrs;
       emit_term ctx h body_lines ~ret:f.ret ~is_c_main blk.term)
     blks;
-  Printf.sprintf "define %s @%s(%s) {\n%s\n}\n" ret_s (gsym f.name) params_s
+  (* The program's [main] runs on a thread with a large stack: the runtime
+     defines the C [main] (see [ls_runtime.c]). *)
+  let sym = if is_c_main then "ls_program_main" else gsym f.name in
+  Printf.sprintf "define %s @%s(%s) {\n%s\n}\n" ret_s sym params_s
     (String.concat "\n" !body_lines)
 
 let emit_prog (p : prog) : string =

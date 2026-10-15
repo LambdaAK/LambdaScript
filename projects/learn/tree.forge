@@ -1,0 +1,129 @@
+// CART decision trees: binary splits chosen by Gini impurity.
+import "util.forge"
+import "matrix.forge"
+import "data.forge"
+import "metrics.forge"
+
+// A split sends x to the left when x[feature] <= threshold. The leaves
+// carry a payload: class counts while growing, then whatever fmap makes
+// of them (a predicted class, a label to print).
+type rec Tree<a> =
+  | Leaf of a
+  | Split of (Int, Float, Tree<a>, Tree<a>)
+
+impl Functor for Tree where
+  fmap f t = case t do
+    | Leaf a -> Leaf (f a)
+    | Split (feat, thr, l, r) -> Split (feat, thr, fmap f l, fmap f r)
+end
+
+// Folding visits the leaves from left to right.
+impl Foldable for Tree where
+  fold_left f z t = case t do
+    | Leaf a -> f z a
+    | Split (_, _, l, r) -> fold_left f (fold_left f z l) r,
+  fold_right f z t = case t do
+    | Leaf a -> f a z
+    | Split (_, _, l, r) -> fold_right f (fold_right f z r) l
+end
+
+// Printed as indented text, one node per line. (No local `let` in the
+// Split arm: the native compiler cannot specialise that, see bugs/04.)
+impl Show for Tree<a> requires Show<a> where
+  show t =
+    let rec go indent t = case t do
+      | Leaf a -> indent ^ "=> " ^ show a
+      | Split (feat, thr, l, r) ->
+          indent ^ "if x" ^ int_to_str feat ^ " <= " ^ Fmt.fixed 3 thr ^ ":\n" ^ go (indent ^ "|   ") l
+          ^ "\n" ^ indent ^ "else:\n" ^ go (indent ^ "|   ") r
+    in
+    go "" t
+end
+
+// The trained classifier: a tree whose leaves are classes.
+type Cart = | Cart of Tree<Int>
+
+type TreeConfig = { max_depth: Int, min_split: Int, classes: Int }
+
+mod Tree where
+  let gini counts n =
+    if n == 0 then 0.0
+    else
+      let nf = int_to_float n in
+      1.0 -. reduce_left (fn acc -> fn c -> acc +. Math.square (int_to_float c /. nf)) 0.0 counts
+
+  let counts k samples =
+    reduce_left (fn cs -> fn (s : Sample) -> Lists.update_at s.y (fn c -> c + 1) cs) (Lists.replicate k 0) samples
+
+  let feature f (s : Sample) = list_nth s.x f
+
+  // The best threshold on feature f: sort by the feature, then move the
+  // samples one by one from the right side to the left, keeping the class
+  // counts of both sides. Returns Some (score, threshold) where score is
+  // the weighted Gini impurity of the two sides, or None if all values are
+  // equal.
+  let best_threshold k f samples =
+    let sorted = Sort.by (feature f) samples in
+    let n = list_length samples in
+    let rec sweep i left right rest best = case rest do
+      | a :: b :: more ->
+          let left1 = Lists.update_at a.y (fn c -> c + 1) left in
+          let right1 = Lists.update_at a.y (fn c -> c - 1) right in
+          let va = feature f a in
+          let vb = feature f b in
+          let best1 =
+            if va < vb then
+              let nl = i + 1 in
+              let score = (int_to_float nl *. gini left1 nl +. int_to_float (n - nl) *. gini right1 (n - nl))
+                          /. int_to_float n in
+              let thr = (va +. vb) /. 2.0 in
+              case best do
+              | Some (s, _) -> if score < s then Some (score, thr) else best
+              | None -> Some (score, thr)
+            else best
+          in
+          sweep (i + 1) left1 right1 (b :: more) best1
+      | _ -> best
+    in
+    sweep 0 (Lists.replicate k 0) (counts k samples) sorted None
+
+  // Grow a tree of class counts.
+  let rec grow (cfg : TreeConfig) depth samples =
+    let cs = counts cfg.classes samples in
+    let n = list_length samples in
+    let impurity = gini cs n in
+    if depth >= cfg.max_depth || n < cfg.min_split || impurity == 0.0 then Leaf cs
+    else
+      let d = list_length (list_head samples).x in
+      let candidates = [(score, thr, f) | f <- [0...d - 1],
+                                          Some (score, thr) <- [best_threshold cfg.classes f samples]] in
+      case Sort.by (fn (score, _, _) -> score) candidates do
+      | (score, thr, f) :: _ ->
+          if score < impurity then
+            let left = filter (fn s -> feature f s <= thr) samples in
+            let right = filter (fn s -> feature f s > thr) samples in
+            Split (f, thr, grow cfg (depth + 1) left, grow cfg (depth + 1) right)
+          else Leaf cs
+      | [] -> Leaf cs
+
+  let fit cfg samples = grow cfg 0 samples
+
+  let rec classify t x = case t do
+    | Leaf c -> c
+    | Split (f, thr, l, r) -> if list_nth x f <= thr then classify l x else classify r x
+
+  let rec depth t = case t do
+    | Leaf _ -> 0
+    | Split (_, _, l, r) -> 1 + (let a = depth l in let b = depth r in if a > b then a else b)
+
+  let leaves t = fold_left (fn n -> fn _ -> n + 1) 0 t
+
+  // A leaf label for printing: the majority class and the counts.
+  let label counts = "class " ^ int_to_str (Lists.argmax counts) ^ "  " ^ show counts
+end
+
+impl Classifier for Cart where
+  predict c x = case c do | Cart t -> Tree.classify t x,
+  describe c = case c do
+    | Cart t -> "CART tree (depth " ^ int_to_str (Tree.depth t) ^ ", " ^ int_to_str (Tree.leaves t) ^ " leaves)"
+end

@@ -1,0 +1,109 @@
+// Small helpers: number formatting, list utilities, sorting.
+
+mod Fmt where
+  let rec pow10 d = if d == 0 then 1 else 10 * pow10 (d - 1)
+  let rec repeat k s = if k <= 0 then "" else s ^ repeat (k - 1) s
+
+  // x with d digits after the point, rounded half away from zero. Built
+  // from integers only, so both back ends print the same text.
+  let fixed d x =
+    let p = pow10 d in
+    let a = if x < 0.0 then 0.0 -. x else x in
+    let n = float_to_int (a *. int_to_float p +. 0.5) in
+    let frac = int_to_str (n % p) in
+    let sign = if x < 0.0 && n > 0 then "-" else "" in
+    if d == 0 then sign ^ int_to_str n
+    else sign ^ int_to_str (n / p) ^ "." ^ repeat (d - str_length frac) "0" ^ frac
+
+  let percent x = fixed 1 (100.0 *. x) ^ "%"
+
+  // Pad with spaces to width w, on the right (left-aligned) or the left.
+  let left w s = s ^ repeat (w - str_length s) " "
+  let right w s = repeat (w - str_length s) " " ^ s
+
+  let rec join sep xs =
+    case xs do
+    | [] -> ""
+    | x :: [] -> x
+    | x :: rest -> x ^ sep ^ join sep rest
+
+  // A crude horizontal bar for loss curves: one '#' per `unit`.
+  let bar unit x = repeat (float_to_int (x /. unit +. 0.5)) "#"
+end
+
+mod Lists where
+  let rec zip xs ys =
+    case (xs, ys) do
+    | (x :: xt, y :: yt) -> (x, y) :: zip xt yt
+    | _ -> []
+
+  let rec take n xs =
+    if n <= 0 then []
+    else case xs do | [] -> [] | x :: rest -> x :: take (n - 1) rest
+
+  let rec drop n xs =
+    if n <= 0 then xs
+    else case xs do | [] -> [] | _ :: rest -> drop (n - 1) rest
+
+  // Consecutive chunks of size n (the last may be shorter).
+  let rec chunks n xs =
+    case xs do
+    | [] -> []
+    | _ -> take n xs :: chunks n (drop n xs)
+
+  let sum_int xs = reduce_left (+) 0 xs
+  let rec replicate n x = if n <= 0 then [] else x :: replicate (n - 1) x
+
+  // Index of the largest element (the first one on ties).
+  let argmax xs =
+    let rec go i best bi rest =
+      case rest do
+      | [] -> bi
+      | x :: t -> if x > best then go (i + 1) x i t else go (i + 1) best bi t
+    in
+    case xs do | [] -> 0 - 1 | x :: t -> go 1 x 0 t
+
+  // Replace the element at index i by f of it.
+  let rec update_at i f xs =
+    case xs do
+    | [] -> []
+    | x :: rest -> if i == 0 then f x :: rest else x :: update_at (i - 1) f rest
+
+  let count p xs = reduce_left (fn n -> fn x -> if p x then n + 1 else n) 0 xs
+end
+
+// Stable merge sort with a "less or equal" function.
+mod Sort where
+  let rec merge le xs ys =
+    case (xs, ys) do
+    | ([], _) -> ys
+    | (_, []) -> xs
+    | (x :: xt, y :: yt) -> if le x y then x :: merge le xt ys else y :: merge le xs yt
+
+  let rec split xs =
+    case xs do
+    | a :: b :: rest -> let (l, r) = split rest in (a :: l, b :: r)
+    | _ -> (xs, [])
+
+  let rec sort le xs =
+    case xs do
+    | [] -> []
+    | _ :: [] -> xs
+    | _ -> let (l, r) = split xs in merge le (sort le l) (sort le r)
+
+  let by key xs = sort (fn a -> fn b -> key a <= key b) xs
+end
+
+mod Lines where
+  let reverse xs = reduce_left (fn acc -> fn x -> x :: acc) [] xs
+  let implode cs = reduce_left (fn acc -> fn c -> acc ^ char_to_str c) "" cs
+
+  // Split a string at newlines.
+  let split s =
+    let rec go cs cur acc = case cs do
+      | [] -> reverse (implode (reverse cur) :: acc)
+      | '\n' :: rest -> go rest [] (implode (reverse cur) :: acc)
+      | c :: rest -> go rest (c :: cur) acc
+    in
+    go (string_to_list s) [] []
+end

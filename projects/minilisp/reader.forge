@@ -1,0 +1,78 @@
+// The Lisp reader: characters -> tokens -> s-expressions.
+import "sexpr.forge"
+
+mod Reader where
+  type Token =
+    | LParen
+    | RParen
+    | Quote
+    | TNum of Int
+    | TSym of String
+    | TStr of String
+    | TBool of Bool
+
+  let is_delim c = Chars.is_space c || c == '(' || c == ')' || c == '\'' || c == '"' || c == ';'
+
+  // Split off the longest prefix of characters satisfying p.
+  let rec span p cs =
+    case cs do
+    | c :: rest ->
+        if p c then (let (taken, left) = span p rest in (c :: taken, left))
+        else ([], cs)
+    | [] -> ([], [])
+
+  let atom text =
+    case text do
+    | "#t" -> TBool true
+    | "#f" -> TBool false
+    | _ -> (case Text.parse_int text do | Some n -> TNum n | None -> TSym text)
+
+  // Characters of a string literal up to the closing quote; escapes are
+  // \" \\ and \n.
+  let rec string_body cs acc =
+    case cs do
+    | [] -> Err (ReadError "unterminated string")
+    | '"' :: rest -> Ok (Text.of_chars (reverse acc), rest)
+    | '\\' :: 'n' :: rest -> string_body rest ('\n' :: acc)
+    | '\\' :: c :: rest -> string_body rest (c :: acc)
+    | c :: rest -> string_body rest (c :: acc)
+
+  let rec tokenize cs =
+    case cs do
+    | [] -> Ok []
+    | '(' :: rest -> fmap (fn ts -> LParen :: ts) (tokenize rest)
+    | ')' :: rest -> fmap (fn ts -> RParen :: ts) (tokenize rest)
+    | '\'' :: rest -> fmap (fn ts -> Quote :: ts) (tokenize rest)
+    | ';' :: rest -> tokenize (tuple_snd (span (fn c -> c != '\n') rest))
+    | '"' :: rest -> string_body rest [] >>= (fn (s, left) -> fmap (fn ts -> TStr s :: ts) (tokenize left))
+    | c :: rest ->
+        if Chars.is_space c then tokenize rest
+        else
+          let (word, left) = span (fn c -> not (is_delim c)) cs in
+          fmap (fn ts -> atom (Text.of_chars word) :: ts) (tokenize left)
+
+  // One expression from the front of the token list, plus the tokens left.
+  let rec read_expr toks =
+    case toks do
+    | [] -> Err (ReadError "unexpected end of input")
+    | LParen :: rest -> read_list rest []
+    | RParen :: _ -> Err (ReadError "unexpected )")
+    | Quote :: rest -> read_expr rest >>= (fn (e, left) -> Ok (List [Sym "quote", e], left))
+    | TNum n :: rest -> Ok (Num n, rest)
+    | TSym s :: rest -> Ok (Sym s, rest)
+    | TStr s :: rest -> Ok (Str s, rest)
+    | TBool b :: rest -> Ok (Boolean b, rest)
+  and read_list toks acc =
+    case toks do
+    | [] -> Err (ReadError "missing )")
+    | RParen :: rest -> Ok (List (reverse acc), rest)
+    | _ -> read_expr toks >>= (fn (e, left) -> read_list left (e :: acc))
+
+  let rec read_all toks =
+    case toks do
+    | [] -> Ok []
+    | _ -> read_expr toks >>= (fn (e, left) -> fmap (fn es -> e :: es) (read_all left))
+
+  // The whole pipeline: a program's text to its list of top-level forms.
+  let read_program src = tokenize (string_to_list src) >>= read_all
+end

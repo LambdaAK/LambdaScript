@@ -1,0 +1,93 @@
+// Page replacement: FIFO, LRU and the optimal (Belady) policy over a
+// reference string, with a fixed number of frames. One simulator serves all
+// three; a policy is just the function that picks the victim page.
+import "fmt.forge"
+import "avl.forge"
+
+mod Paging where
+  type Policy = | Fifo | Lru | Opt
+
+  let policy_name p = case p do | Fifo -> "FIFO" | Lru -> "LRU" | Opt -> "OPT"
+
+  impl Named for Policy where
+    name_of p = policy_name p
+  end
+
+  type State = {
+    slots: List<Option<Int>>,       // frame contents, in frame order
+    loaded: Avl.Map<Int, Int>,      // page -> time it was loaded
+    used: Avl.Map<Int, Int>,        // page -> time of its last use
+    hits: Int,
+    misses: Int
+  }
+
+  let start frames = { slots: [None | _ <- [1...frames]], loaded: Avl.nil, used: Avl.nil, hits: 0, misses: 0 }
+
+  let resident st = [p | Some p <- st.slots]
+
+  // Position of the next use of page p in the remaining references.
+  let rec next_use p refs i = case refs do | [] -> 1000000 | q :: rest -> if q == p then i else next_use p rest (i + 1)
+
+  // The page to evict, by policy.
+  let victim policy st future =
+    let pages = resident st in
+    let pick key = case List.min_by key pages do | Some p -> p | None -> -1 in
+    case policy do
+    | Fifo -> pick (fn p -> Avl.find_or 0 p st.loaded)
+    | Lru -> pick (fn p -> Avl.find_or 0 p st.used)
+    | Opt -> pick (fn p -> 0 - next_use p future 0)
+
+  // Put page p in the first empty frame, or in place of the victim.
+  let place p old slots =
+    let rec go ss filled =
+      case ss do
+      | [] -> []
+      | s :: rest ->
+        if not filled && s == old then Some p :: go rest true else s :: go rest filled
+    in
+    go slots false
+
+  // One reference at time t; returns the new state and whether it hit.
+  let access policy t p future st =
+    if List.mem p (resident st) then
+      ({ st with hits = st.hits + 1, used = Avl.insert p t st.used }, true)
+    else
+      let full = not (List.mem None st.slots) in
+      let old = if full then Some (victim policy st future) else None in
+      let st2 = case old do
+        | Some v -> { st with loaded = Avl.remove v st.loaded, used = Avl.remove v st.used }
+        | None -> st
+      in
+      ({ st2 with slots = place p old st2.slots, misses = st2.misses + 1,
+                  loaded = Avl.insert p t st2.loaded, used = Avl.insert p t st2.used }, false)
+
+  // Run a whole reference string; also returns each step's frames and hit.
+  let run policy frames refs =
+    let rec go t rs st trace =
+      case rs do
+      | [] -> (st, List.rev trace)
+      | p :: rest ->
+        let (st2, hit) = access policy t p rest st in
+        go (t + 1) rest st2 ((p, st2.slots, hit) :: trace)
+    in
+    go 0 refs (start frames) []
+
+  // The trace as a table: one column per reference, one row per frame.
+  let print_trace policy frames refs =
+    let (st, trace) = run policy frames refs in
+    let cell s = Fmt.right 3 s in
+    let row label f = "    " ^ Fmt.left 6 label ^ reduce_left (fn acc -> fn x -> acc ^ cell (f x)) "" trace in
+    let frame i (_, slots, _) = case list_nth slots i do | Some p -> int_to_str p | None -> "." in
+    {
+      print_string "";
+      print_string (cat!("  ", (name_of policy), ", ", (int_to_str frames), " frames"));
+      print_string (row "ref" (fn (p, _, _) -> int_to_str p));
+      map (fn i -> print_string (row ("frame" ^ int_to_str i) (frame i))) [0...(frames - 1)];
+      print_string (row "" (fn (_, _, hit) -> if hit then "." else "F"));
+      print_string (cat!("    hits ", (int_to_str st.hits), ", faults ", (int_to_str st.misses),
+                         ", hit rate ", (Fmt.percent st.hits (st.hits + st.misses))));
+      ()
+    }
+
+  let faults policy frames refs = (tuple_fst (run policy frames refs)).misses
+end

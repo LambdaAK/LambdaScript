@@ -177,6 +177,8 @@ let evidence_occurrences : (c_expr * (string * mono_type) list) list ref = ref [
 
 let evidence_bindings : (c_expr * (string * c_type) list) list ref = ref []
 
+let joined_rows : (string * string, mono_type) Hashtbl.t = Hashtbl.create 64
+
 (** All equations of the last top-level definition checked by
     [generate_defn] (its full solution resolves the logged predicates). *)
 let last_defn_equations : type_equations ref = ref []
@@ -610,6 +612,14 @@ let rec match_instance_head (sub : (string * mono_type) list) (pat : mono_type)
   | CListType p, CListType u -> match_instance_head sub p u
   | VectorType ps, VectorType ts -> fold2 ps ts
   | FunctionType (a, b), FunctionType (c, d) -> fold2 [ a; b ] [ c; d ]
+  | RecordType pfs, RecordType tfs ->
+      (* An instance for a record type: the same fields (an open record's
+         row variable aside), field by field. *)
+      let fields fs =
+        List.sort (fun (a, _) (b, _) -> compare a b) (List.filter (fun (n, _) -> n <> Cexpr.row_field) fs)
+      in
+      let pfs = fields pfs and tfs = fields tfs in
+      if List.map fst pfs = List.map fst tfs then fold2 (List.map snd pfs) (List.map snd tfs) else None
   | _ -> None
 
 let subst_instance_vars (sub : (string * mono_type) list) (t : mono_type) : mono_type =
@@ -1016,12 +1026,16 @@ and generate_e_bind ?(node : c_expr = EUnit) (env : static_env) (type_env : type
       | [] -> return (List.rev acc)
       | (x, sch) :: rest ->
           let tx = match sch with Mono t -> t | other -> instantiate other in
-          let- g = generalize ~class_preds:p1 local_constraints env type_env tx in
+          let- g = generalize ~local:true ~class_preds:p1 local_constraints env type_env tx in
           gen ((x, g) :: acc) rest
     in
     gen [] pat_env
   in
   log_binding node pattern_bindings;
+  (* The predicates of [e1] on variables of the environment belong to the
+     enclosing binding ([generalize] keeps only those on variables it
+     generalises; the others are stale there). *)
+  pending_expression_class_preds := p1 @ !pending_expression_class_preds;
   let- t2, c2, _ = generate (pattern_bindings @ env) type_env e2 in
   return (t2, local_constraints @ c2, [])
 
@@ -1084,9 +1098,10 @@ and generate_e_bind_rec ?(node : c_expr = EUnit) ?annotation (env : static_env) 
   (* Generalize the function type to make it polymorphic *)
   (* Use env (not new_env) so that the function's type variable can be generalized *)
   let- generalized_type =
-    generalize ~class_preds:p1 constraints_for_generalize env type_env t1
+    generalize ~local:true ~class_preds:p1 constraints_for_generalize env type_env t1
   in
   log_binding node [ (function_id, generalized_type) ];
+  pending_expression_class_preds := p1 @ !pending_expression_class_preds;
   let- t2, c2, _ =
     generate ((function_id, generalized_type) :: env) type_env e2
   in
@@ -1396,6 +1411,22 @@ and type_of_pat_parts (env : static_env) (type_env : type_env) (pat : c_pat) :
                     (Pattern_error
                        ("Constructor " ^ cons_name ^ " takes no argument, but the pattern gives it one")))))
 
+(* The row standing for the fields two open records share beyond their
+   own: the same for the same two rows, so that solving the same equations
+   twice (a local [let]'s scheme, then its enclosing definition) names it the
+   same way. *)
+and joined_row (r1 : mono_type) (r2 : mono_type) : mono_type =
+  match (r1, r2) with
+  | TypeVar a, TypeVar b -> (
+      let key = if String.compare a b < 0 then (a, b) else (b, a) in
+      match Hashtbl.find_opt joined_rows key with
+      | Some r -> r
+      | None ->
+          let r = fresh_type_var () in
+          Hashtbl.replace joined_rows key r;
+          r)
+  | _ -> fresh_type_var ()
+
 and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
   (* Optimized version: instead of substituting through all accumulated
      equations on every step, we just accumulate the equations and defer
@@ -1469,10 +1500,17 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
               else (last_type_clash := Some (t1, t2); raise TypeFailure)
           | TCtorApp (w, as1), CTypeApp (n, as2)
           | CTypeApp (n, as2), TCtorApp (w, as1) ->
-              if List.length as1 = List.length as2 then
+              let k = List.length as2 - List.length as1 in
+              if k = 0 then
                 let arg_equations = List.combine as1 as2 in
                 reduce_eq_acc acc
                   (((TypeVar w, TypeName n) :: arg_equations) @ c')
+              else if k > 0 then
+                (* [f<a>] against [Result<e, a>]: [f] is [Result<e>]. *)
+                let pre = List.filteri (fun i _ -> i < k) as2 in
+                let post = List.filteri (fun i _ -> i >= k) as2 in
+                reduce_eq_acc acc
+                  (((TypeVar w, CTypeApp (n, pre)) :: List.combine as1 post) @ c')
               else (last_type_clash := Some (t1, t2); raise TypeFailure)
           (* Recursive sum types like [type rec List<a> = ...] are μ-types
              (FixedPoint) in the environment, while class method signatures use
@@ -1543,7 +1581,7 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
                 | Some r1, Some r2 ->
                     if r1 = r2 then if only1 = [] && only2 = [] then [] else clash ()
                     else
-                      let r3 = fresh_type_var () in
+                      let r3 = joined_row r1 r2 in
                       [
                         (r1, RecordType (only2 @ [ (row_field, r3) ]));
                         (r2, RecordType (only1 @ [ (row_field, r3) ]));
@@ -1633,6 +1671,7 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
       let- resolved_args = aux [] args in
       match head_resolved with
       | TypeName n -> return (CTypeApp (n, resolved_args))
+      | CTypeApp (n, pre) -> return (CTypeApp (n, pre @ resolved_args))
       | CListType _ -> (
           match resolved_args with
           | [ elem ] -> return (CListType elem)
@@ -1819,7 +1858,7 @@ and instantiate_and_simplify (t : c_type) (type_env : type_env) :
     @param env The current static environment
     @param t The monomorphic type to generalize
     @return A polymorphic type with appropriate universal quantifiers *)
-and generalize ?(class_preds : class_equations = [])
+and generalize ?(local = false) ?(class_preds : class_equations = [])
     (constraints : type_equations) (env : static_env) (type_env : type_env)
     (t : mono_type) : c_type type_check_result =
   (* First reduce the constraints to get a solution *)
@@ -1926,7 +1965,16 @@ and generalize ?(class_preds : class_equations = [])
       (Ok ()) preds_solved
   in
   (* Keep class preds that still mention type variables (see preds_solved
-     above). *)
+     above). For a local [let], only those on a variable generalised here: a
+     predicate on a variable of the environment (the type of a parameter of
+     the enclosing function, say) belongs to the enclosing binding, which gets
+     it back through [pending_expression_class_preds]. *)
+  let preds_with_remaining_tyvars =
+    List.filter
+      (fun (_, tau) ->
+        (not local) || List.exists (function TypeVar v -> List.mem v free_vars | _ -> false) (get_type_vars tau))
+      preds_with_remaining_tyvars
+  in
   let base =
     if preds_with_remaining_tyvars = [] then Mono u1
     else Constrained (preds_with_remaining_tyvars, Mono u1)
@@ -3688,6 +3736,19 @@ let elaborate_defn_with_evidence (static_env : static_env) (type_env : type_env)
                               match List.assoc_opt x env_before with Some s -> s | None -> Mono UnitType)
                         in
                         let sp = scheme_preds sch in
+                        (* The occurrence may carry a predicate on a compound
+                           type where the scheme has its parts (a default
+                           method calling its instance's own method:
+                           [Ord (a, b)] against [Ord a, Ord b]); reduce it
+                           through the instances' [requires] first. *)
+                        let preds =
+                          if List.length sp = List.length preds then preds
+                          else
+                            let reduced =
+                              reduce_preds ~static_env (List.map (fun (c, t) -> (c, resolve_ty t)) preds)
+                            in
+                            if List.length reduced = List.length sp then reduced else preds
+                        in
                         let sigma =
                           if List.length sp = List.length preds then
                             List.fold_left2
@@ -3700,13 +3761,35 @@ let elaborate_defn_with_evidence (static_env : static_env) (type_env : type_env)
                           |> List.filter (fun (_, ty) ->
                                  match ty with TypeVar _ | TCtorApp _ -> true | _ -> false)
                         in
+                        (* Inside an instance, a method calls the instance's
+                           other methods at the instance's own type: when the
+                           types do not line up, its [requires] dictionaries
+                           (the written type parameters in scope), in order. *)
+                        let own_dicts cls =
+                          List.filter_map
+                            (fun ((c, v), d) ->
+                              if String.equal c cls && String.starts_with ~prefix:"$written(" v then Some d else None)
+                            scope
+                        in
+                        let nth_of_class = Hashtbl.create 4 in
                         let args =
                           List.map
                             (fun (cls, ty) ->
+                              let i = Stdlib.Option.value (Hashtbl.find_opt nth_of_class cls) ~default:0 in
+                              Hashtbl.replace nth_of_class cls (i + 1);
                               let v = match ty with TypeVar v -> v | TCtorApp (w, _) -> w | _ -> "" in
+                              let fallback () =
+                                let own = own_dicts cls in
+                                let n_cls = List.length (List.filter (fun (c, _) -> String.equal c cls) params) in
+                                match List.nth_opt own i with
+                                | Some d when List.length own = n_cls -> d
+                                | _ -> dynamic_dictionary cls
+                              in
                               match List.assoc_opt v sigma with
-                              | Some it -> dict_arg ~scope (cls, it)
-                              | None -> dynamic_dictionary cls)
+                              | Some it ->
+                                  let d = dict_arg ~scope (cls, it) in
+                                  if d = dynamic_dictionary cls then fallback () else d
+                              | None -> fallback ())
                             params
                         in
                         List.fold_left (fun acc a -> EApp (acc, a)) e args)

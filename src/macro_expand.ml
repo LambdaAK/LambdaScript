@@ -369,38 +369,41 @@ and match_repeat (macro_name : string) (inner : matcher_seq)
     (expected_names : string list) (input : macro_tt list) (env : capture_env) :
     (capture_env * macro_tt list) list =
   let min_count = if one_or_more then 1 else 0 in
+  let stop iter_envs_rev rem count acc =
+    if count >= min_count then
+      let iter_envs = List.rev iter_envs_rev in
+      let repeat_bindings =
+        build_repeat_bindings macro_name expected_names iter_envs
+      in
+      match merge_env env repeat_bindings with
+      | Some merged -> (merged, rem) :: acc
+      | None -> acc
+    else acc
+  in
+  (* With a separator, items after the first must follow one: in
+     [$($x:expr),*], [inc 1, 10] is two items, not [inc], [1] and [10]. A
+     trailing separator may end the repetition. *)
   let rec loop (iter_envs_rev : capture_env list) (rem : macro_tt list)
       (count : int) (acc : (capture_env * macro_tt list) list) =
-    let acc =
-      if count >= min_count then
-        let iter_envs = List.rev iter_envs_rev in
-        let repeat_bindings =
-          build_repeat_bindings macro_name expected_names iter_envs
-        in
-        match merge_env env repeat_bindings with
-        | Some merged -> (merged, rem) :: acc
-        | None -> acc
-      else acc
+    let acc = stop iter_envs_rev rem count acc in
+    let start =
+      match sep with
+      | Some sep_tok when count > 0 -> (
+          match rem with
+          | MacroTTToken tok :: tail when tok = sep_tok -> Some tail
+          | _ -> None)
+      | _ -> Some rem
     in
-    let one_iter_matches = match_matcher_seq macro_name inner rem [] in
-    List.fold_left
-      (fun acc (iter_env, rem_after_iter) ->
-        if List.length rem_after_iter = List.length rem then acc
-        else
-          let next_rems =
-            match sep with
-            | None -> [ rem_after_iter ]
-            | Some sep_tok -> (
-                match rem_after_iter with
-                | MacroTTToken tok :: tail when tok = sep_tok ->
-                    [ rem_after_iter; tail ]
-                | _ -> [ rem_after_iter ])
-          in
-          List.fold_left
-            (fun acc rem_next ->
-              loop (iter_env :: iter_envs_rev) rem_next (count + 1) acc)
-            acc next_rems)
-      acc one_iter_matches
+    match start with
+    | None -> acc
+    | Some start ->
+        let acc = if start != rem then stop iter_envs_rev start count acc else acc in
+        List.fold_left
+          (fun acc (iter_env, rem_after_iter) ->
+            if List.length rem_after_iter = List.length start then acc
+            else loop (iter_env :: iter_envs_rev) rem_after_iter (count + 1) acc)
+          acc
+          (match_matcher_seq macro_name inner start [])
   in
   loop [] input 0 []
 

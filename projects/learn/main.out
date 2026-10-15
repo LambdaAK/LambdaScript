@@ -1,0 +1,219 @@
+
+0. Random numbers and Taylor-series trigonometry
+================================================
+  first LCG states from seed 1      1103527590 377401575 662824084 1147902781 2035015474
+  uniform draws                     0.0614 0.3238 0.0713 0.4512 0.0063
+  2000 normals: mean, std           0.0233, 1.0213
+  sin(pi/6), cos(pi/3)              0.500000000000, 0.500000000000
+  sin(100), cos(-7.5)               -0.506365641, 0.346635318
+  max |sin^2 + cos^2 - 1| (421 pts) < 1e-12
+
+1. Datasets
+===========
+  rings                             200 points, 2 classes [100, 100]; train 160, test 40
+  spirals                           200 points, 2 classes [100, 100]; train 150, test 50
+  blobs                             240 points, 3 classes [80, 80, 80]; train 180, test 60
+  first ring points                 (-0.398, 1.109):0 (-1.240, -2.121):1 (0.274, 0.661):0
+
+2. Multi-layer perceptrons (softmax + cross-entropy, momentum SGD)
+==================================================================
+
+rings, no hidden layer: softmax regression 2-2, 6 parameters
+  lr 0.10, momentum 0.90, batch 16, 40 epochs
+     epoch      loss   train acc
+         1    0.7872       47.5%   ###############################
+         5    0.7176       46.3%   #############################
+        10    0.7029       57.5%   ############################
+        15    0.7027       51.9%   ############################
+        20    0.6948       46.9%   ############################
+        25    0.6973       55.6%   ############################
+        30    0.7188       52.5%   #############################
+        35    0.7098       57.5%   ############################
+        40    0.7321       50.6%   #############################
+  train accuracy                    51.9%
+  test accuracy                     35.0%
+  test confusion matrix:
+    true\pred      0     1
+    0              6    15
+    1             11     8
+
+rings, one hidden layer: MLP 2-8-2 (tanh), 42 parameters
+  lr 0.10, momentum 0.90, batch 16, 40 epochs
+     epoch      loss   train acc
+         1    0.6924       60.0%   ############################
+         5    0.3808       86.3%   ###############
+        10    0.1383       99.4%   ######
+        15    0.0793       99.4%   ###
+        20    0.0585       99.4%   ##
+        25    0.0460      100.0%   ##
+        30    0.0387      100.0%   ##
+        35    0.0402       98.8%   ##
+        40    0.0279      100.0%   #
+  train accuracy                    100.0%
+  test accuracy                     97.5%
+  test confusion matrix:
+    true\pred      0     1
+    0             21     0
+    1              1    18
+
+spirals, one hidden layer: MLP 2-16-2 (tanh), 82 parameters
+  lr 0.05, momentum 0.90, batch 10, 60 epochs
+     epoch      loss   train acc
+         1    0.6716       54.0%   ###########################
+         5    0.6712       50.0%   ###########################
+        10    0.6752       56.0%   ###########################
+        15    0.6540       54.0%   ##########################
+        20    0.6987       49.3%   ############################
+        25    0.6512       60.7%   ##########################
+        30    0.6159       65.3%   #########################
+        35    0.6467       64.7%   ##########################
+        40    0.6104       64.7%   ########################
+        45    0.6376       62.0%   ##########################
+        50    0.6339       66.7%   #########################
+        55    0.6096       66.0%   ########################
+        60    0.5930       64.0%   ########################
+  train accuracy                    65.3%
+  test accuracy                     74.0%
+  test confusion matrix:
+    true\pred      0     1
+    0             28     4
+    1              9     9
+
+spirals, two hidden layers: MLP 2-12-8-2 (relu, tanh), 158 parameters
+  lr 0.05, momentum 0.90, batch 10, 60 epochs
+     epoch      loss   train acc
+         1    0.6897       50.0%   ############################
+         5    0.6643       52.0%   ###########################
+        10    0.6068       64.0%   ########################
+        15    0.4264       82.7%   #################
+        20    0.1966       96.7%   ########
+        25    0.1322       96.0%   #####
+        30    0.0273      100.0%   #
+        35    0.1485       94.7%   ######
+        40    0.0151      100.0%   #
+        45    0.0084      100.0%   
+        50    0.0062      100.0%   
+        55    0.0053      100.0%   
+        60    0.0045      100.0%   
+  train accuracy                    100.0%
+  test accuracy                     100.0%
+  test confusion matrix:
+    true\pred      0     1
+    0             32     0
+    1              0    18
+
+blobs, three classes: MLP 2-6-3 (sigmoid), 39 parameters
+  lr 0.10, momentum 0.90, batch 16, 30 epochs
+     epoch      loss   train acc
+         1    1.0034       52.2%   ########################################
+         5    0.1545       94.4%   ######
+        10    0.1286       95.0%   #####
+        15    0.1191       94.4%   #####
+        20    0.1233       94.4%   #####
+        25    0.1179       95.0%   #####
+        30    0.1199       94.4%   #####
+  train accuracy                    94.4%
+  test accuracy                     95.0%
+  test confusion matrix:
+    true\pred      0     1     2
+    0             15     0     0
+    1              0    21     0
+    2              2     1    21
+
+3. k-means clustering (k-means++ seeding) on the blobs
+======================================================
+  iteration   inertia
+          1   377.976
+          2   368.289
+          3   368.012
+          4   368.012
+  converged                         true after 4 iterations
+  cluster sizes                     [80, 81, 79]
+  centres                           (-0.044, -2.431) (2.168, 0.887) (-2.137, 0.051)
+  true centres                      (-2.000, 0.000) (2.000, 1.000) (0.000, -2.500)
+  clusters (rows) against true classes (columns):
+    cluster        0     1     2
+    0              5     1    74
+    1              0    79     2
+    2             75     0     4
+  purity                            95.0%
+  as a classifier                   accuracy 95.0% (nearest centre, majority vote)
+  elbow: final inertia for k = 1 .. 6
+   k = 1     1587.93   ################################################################
+   k = 2      780.31   ###############################
+   k = 3      368.03   ###############
+   k = 4      318.13   #############
+   k = 5      284.81   ###########
+   k = 6      233.38   #########
+
+4. CART decision trees (Gini impurity)
+======================================
+  blobs, max depth 3 (x0, x1 are the coordinates; leaves show the training counts):
+    if x0 <= -0.893:
+    |   if x1 <= -2.166:
+    |   |   if x0 <= -2.644:
+    |   |   |   => class 0  [1, 0, 0]
+    |   |   else:
+    |   |   |   => class 2  [0, 0, 7]
+    |   else:
+    |   |   if x1 <= -1.041:
+    |   |   |   => class 0  [4, 0, 2]
+    |   |   else:
+    |   |   |   => class 0  [57, 0, 0]
+    else:
+    |   if x1 <= -0.361:
+    |   |   if x1 <= -1.186:
+    |   |   |   => class 2  [0, 0, 42]
+    |   |   else:
+    |   |   |   => class 1  [2, 5, 5]
+    |   else:
+    |   |   if x0 <= -0.317:
+    |   |   |   => class 0  [1, 0, 0]
+    |   |   else:
+    |   |   |   => class 1  [0, 54, 0]
+  CART tree (depth 3, 8 leaves)     train 95.0%, test 96.7%
+  test confusion matrix:
+    true\pred      0     1     2
+    0             15     0     0
+    1              0    21     0
+    2              2     0    22
+
+  rings, max depth 4:
+    if x0 <= -1.217:
+    |   => class 1  [0, 27]
+    else:
+    |   if x0 <= 1.153:
+    |   |   if x1 <= -1.540:
+    |   |   |   => class 1  [0, 14]
+    |   |   else:
+    |   |   |   if x1 <= 1.414:
+    |   |   |   |   => class 0  [78, 0]
+    |   |   |   else:
+    |   |   |   |   => class 1  [0, 11]
+    |   else:
+    |   |   if x0 <= 1.229:
+    |   |   |   => class 1  [1, 2]
+    |   |   else:
+    |   |   |   => class 1  [0, 27]
+
+  test accuracy by maximum depth:
+     depth     rings   spirals     blobs
+         1     67.5%     50.0%     60.0%
+         2     75.0%     50.0%     95.0%
+         3     80.0%     76.0%     96.7%
+         4     95.0%     78.0%     96.7%
+         6     95.0%     88.0%     96.7%
+         8     95.0%     96.0%     96.7%
+        10     95.0%    100.0%     96.7%
+
+5. MLP against decision tree (depth 6)
+======================================
+   dataset                             model     train      test
+     rings            softmax regression 2-2     51.9%     35.0%
+                            MLP 2-8-2 (tanh)    100.0%     97.5%
+               CART tree (depth 4, 6 leaves)     99.4%     95.0%
+   spirals                 MLP 2-16-2 (tanh)     65.3%     74.0%
+                   MLP 2-12-8-2 (relu, tanh)    100.0%    100.0%
+               CART tree (depth 6, 8 leaves)     86.7%     88.0%
+     blobs               MLP 2-6-3 (sigmoid)     94.4%     95.0%
+              CART tree (depth 6, 12 leaves)     98.9%     96.7%

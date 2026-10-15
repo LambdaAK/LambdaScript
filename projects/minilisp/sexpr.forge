@@ -1,0 +1,150 @@
+// S-expressions: the values of the Lisp, its environments, its errors, and
+// the result monad the reader and the evaluator are written in.
+import "util.forge"
+
+// Values and lexical environments refer to each other (closures capture an
+// environment, environments hold values), so they are declared together.
+// A closure's fields live in an anonymous record: a named record type cannot
+// be part of a `type rec` group (bugs/01-rec-record-type.forge).
+type rec Value =
+  | Num of Int
+  | Sym of String
+  | Str of String
+  | Boolean of Bool
+  | List of List<Value>
+  | Prim of String
+  | Closure of { name: Option<String>, params: List<String>, rest: Option<String>, body: List<Value>, env: Env }
+and Env =
+  | Empty
+  | Frame of (List<(String, Value)>, Env)
+
+type LispError =
+  | Unbound of String
+  | Arity of (String, String, Int)          // procedure, expected, given
+  | TypeError of (String, String, Value)    // procedure, expected, got
+  | DivByZero of String
+  | NotProcedure of Value
+  | BadSyntax of (String, Value)
+  | ReadError of String
+  | UserError of (String, List<Value>)
+
+// The result of anything that can fail. The error type is fixed here because
+// `impl Functor for Result<e>` is rejected (bugs/02-functor-partial-application.forge).
+type Res<a> = | Ok of a | Err of LispError
+
+impl Functor for Res where
+  fmap f r = case r do | Ok v -> Ok (f v) | Err e -> Err e
+end
+
+impl Applicative for Res where
+  pure x = Ok x
+  ,
+  ap rf rx = case rf do | Err e -> Err e | Ok f -> fmap f rx
+end
+
+impl Monad for Res where
+  bind r f = case r do | Err e -> Err e | Ok v -> f v
+end
+
+mod Sexpr where
+  let nil = List []
+  let truthy v = case v do | Boolean false -> false | _ -> true
+
+  let type_name v =
+    case v do
+    | Num _ -> "number"
+    | Sym _ -> "symbol"
+    | Str _ -> "string"
+    | Boolean _ -> "boolean"
+    | List [] -> "empty list"
+    | List _ -> "list"
+    | Prim _ -> "primitive"
+    | Closure _ -> "procedure"
+
+  let escape s =
+    string_to_list s
+    |> map (fn c -> case c do | '"' -> "\\\"" | '\\' -> "\\\\" | '\n' -> "\\n" | _ -> char_to_str c)
+    |> Text.join ""
+
+  // Environment lookup walks the frames outwards.
+  let rec env_find name env =
+    case env do
+    | Empty -> None
+    | Frame (binds, outer) ->
+        (case lookup name binds do
+         | Some v -> Some v
+         | None -> env_find name outer)
+
+  let rec env_depth env = case env do | Empty -> 0 | Frame (_, outer) -> 1 + env_depth outer
+end
+
+// The printer: values are shown the way the reader would read them back.
+impl Show for Value where
+  show v =
+    case v do
+    | Num n -> int_to_str n
+    | Sym s -> s
+    | Str s -> "\"" ^ Sexpr.escape s ^ "\""
+    | Boolean true -> "#t"
+    | Boolean false -> "#f"
+    | List (Sym "quote" :: x :: []) -> "'" ^ show x
+    | List xs -> "(" ^ Text.join " " (map show xs) ^ ")"
+    | Prim name -> "#<primitive " ^ name ^ ">"
+    | Closure c ->
+        (case c.name do
+         | Some n -> "#<procedure " ^ n ^ ">"
+         | None -> "#<lambda/" ^ int_to_str (list_length c.params) ^ ">")
+end
+
+// Equality for `equal?`: structural on data, never true for procedures
+// (a closure's environment may be arbitrarily large).
+impl Eq for Value where
+  (==) a b =
+    case (a, b) do
+    | (Num x, Num y) -> x == y
+    | (Sym x, Sym y) -> x == y
+    | (Str x, Str y) -> x == y
+    | (Boolean x, Boolean y) -> x == y
+    | (List xs, List ys) ->
+        list_length xs == list_length ys
+          && reduce_left (fn acc -> fn (x, y) -> acc && (==) x y) true (zip xs ys)
+    | (Prim x, Prim y) -> x == y
+    | _ -> false
+end
+
+// A total order for `compare`: numbers, strings and symbols by value, lists
+// lexicographically, and values of different kinds by kind.
+impl Ord for Value where
+  compare a b =
+    let rank v = case v do | Num _ -> 0 | Str _ -> 1 | Sym _ -> 2 | Boolean _ -> 3 | List _ -> 4 | _ -> 5 in
+    case (a, b) do
+    | (Num x, Num y) -> compare x y
+    | (Str x, Str y) -> compare x y
+    | (Sym x, Sym y) -> compare x y
+    | (Boolean x, Boolean y) -> compare x y
+    | (List (x :: xs), List (y :: ys)) ->
+        (case compare x y do
+         | EQ -> compare (List xs) (List ys)
+         | other -> other)
+    | (List [], List []) -> EQ
+    | (List [], List _) -> LT
+    | (List _, List []) -> GT
+    | _ -> compare (rank a) (rank b)
+end
+
+impl Show for LispError where
+  show e =
+    case e do
+    | Unbound s -> "unbound symbol: " ^ s
+    | Arity (f, want, got) -> f ^ ": expected " ^ want ^ " argument(s), got " ^ int_to_str got
+    | TypeError (f, want, v) -> f ^ ": expected a " ^ want ^ ", got " ^ Sexpr.type_name v ^ " " ^ show v
+    | DivByZero f -> f ^ ": division by zero"
+    | NotProcedure v -> "not a procedure: " ^ show v
+    | BadSyntax (what, form) -> "bad syntax in " ^ what ^ ": " ^ show form
+    | ReadError msg -> "read error: " ^ msg
+    | UserError (msg, irritants) -> msg ^ (case irritants do | [] -> "" | _ -> ": " ^ Text.join " " (map show irritants))
+end
+
+impl Show for Res<a> requires Show<a> where
+  show r = case r do | Ok v -> show v | Err e -> "error: " ^ show e
+end
