@@ -3688,6 +3688,19 @@ let elaborate_defn_with_evidence (static_env : static_env) (type_env : type_env)
                               match List.assoc_opt x env_before with Some s -> s | None -> Mono UnitType)
                         in
                         let sp = scheme_preds sch in
+                        (* The occurrence may carry a predicate on a compound
+                           type where the scheme has its parts (a default
+                           method calling its instance's own method:
+                           [Ord (a, b)] against [Ord a, Ord b]); reduce it
+                           through the instances' [requires] first. *)
+                        let preds =
+                          if List.length sp = List.length preds then preds
+                          else
+                            let reduced =
+                              reduce_preds ~static_env (List.map (fun (c, t) -> (c, resolve_ty t)) preds)
+                            in
+                            if List.length reduced = List.length sp then reduced else preds
+                        in
                         let sigma =
                           if List.length sp = List.length preds then
                             List.fold_left2
@@ -3700,13 +3713,35 @@ let elaborate_defn_with_evidence (static_env : static_env) (type_env : type_env)
                           |> List.filter (fun (_, ty) ->
                                  match ty with TypeVar _ | TCtorApp _ -> true | _ -> false)
                         in
+                        (* Inside an instance, a method calls the instance's
+                           other methods at the instance's own type: when the
+                           types do not line up, its [requires] dictionaries
+                           (the written type parameters in scope), in order. *)
+                        let own_dicts cls =
+                          List.filter_map
+                            (fun ((c, v), d) ->
+                              if String.equal c cls && String.starts_with ~prefix:"$written(" v then Some d else None)
+                            scope
+                        in
+                        let nth_of_class = Hashtbl.create 4 in
                         let args =
                           List.map
                             (fun (cls, ty) ->
+                              let i = Stdlib.Option.value (Hashtbl.find_opt nth_of_class cls) ~default:0 in
+                              Hashtbl.replace nth_of_class cls (i + 1);
                               let v = match ty with TypeVar v -> v | TCtorApp (w, _) -> w | _ -> "" in
+                              let fallback () =
+                                let own = own_dicts cls in
+                                let n_cls = List.length (List.filter (fun (c, _) -> String.equal c cls) params) in
+                                match List.nth_opt own i with
+                                | Some d when List.length own = n_cls -> d
+                                | _ -> dynamic_dictionary cls
+                              in
                               match List.assoc_opt v sigma with
-                              | Some it -> dict_arg ~scope (cls, it)
-                              | None -> dynamic_dictionary cls)
+                              | Some it ->
+                                  let d = dict_arg ~scope (cls, it) in
+                                  if d = dynamic_dictionary cls then fallback () else d
+                              | None -> fallback ())
                             params
                         in
                         List.fold_left (fun acc a -> EApp (acc, a)) e args)

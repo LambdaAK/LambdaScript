@@ -33,9 +33,9 @@ definition applies from that point on.
 \toprule
 \textbf{Trait} & \textbf{Methods} & \textbf{Instances} \\
 \midrule
-\tc{Show<a>} & \tc{show : a -> String} & \tc{Int}, \tc{Float}, \tc{Bool}, \tc{Char}, \tc{String}, \tc{Unit}, \tc{Ordering}, \tc{List<a>}, \tc{Option<a>}, pairs and triples \\
-\tc{Eq<a>} & \tc{(==)}, \tc{(!=)} & \tc{Int}, \tc{Float}, \tc{Bool}, \tc{Char}, \tc{String}, \tc{Unit}, \tc{Ordering} \\
-\tc{Ord<a>} (requires \tc{Eq}) & \tc{compare}, \tc{(<)}, \tc{(<=)}, \tc{(>)}, \tc{(>=)} & \tc{Int}, \tc{Float}, \tc{Bool}, \tc{Char}, \tc{String}, \tc{Unit} \\
+\tc{Show<a>} & \tc{show : a -> String} & \tc{Int}, \tc{Float}, \tc{Bool}, \tc{Char}, \tc{String}, \tc{Unit}, \tc{Ordering}, \tc{List<a>}, \tc{Option<a>}, tuples of 2 to 5 \\
+\tc{Eq<a>} & \tc{(==)}, \tc{(!=)} & \tc{Int}, \tc{Float}, \tc{Bool}, \tc{Char}, \tc{String}, \tc{Unit}, \tc{Ordering}, pairs, triples, \tc{List<a>}, \tc{Option<a>} \\
+\tc{Ord<a>} (requires \tc{Eq}) & \tc{compare}, \tc{(<)}, \tc{(<=)}, \tc{(>)}, \tc{(>=)} & \tc{Int}, \tc{Float}, \tc{Bool}, \tc{Char}, \tc{String}, \tc{Unit}, pairs, triples, \tc{List<a>}, \tc{Option<a>} \\
 \tc{Semigroup<a>} & \tc{mappend}, \tc{(++)} & \tc{String}, \tc{List<a>}, \tc{Option<a>} \\
 \tc{Monoid<a>} (requires \tc{Semigroup}) & \tc{empty} & \tc{String}, \tc{List<a>}, \tc{Option<a>} \\
 \tc{Functor<f<_>>} & \tc{fmap} & \tc{Option} \\

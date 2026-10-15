@@ -163,6 +163,12 @@ let builtin_tests =
     ok "float arithmetic operators" (ps "float_to_str (1.5 +. 2.25) ^ \" \" ^ float_to_str (1.0 -. 4.0) ^ \" \" ^ float_to_str (2.5 *. 4.0) ^ \" \" ^ float_to_str (1.0 /. 8.0)") "3.75 -3.0 10.0 0.125\n";
     ok "float operators: precedence like + and *" (ps "float_to_str (3.0 *. 2.0 -. 1.0 /. 4.0 +. 1.0)") "6.75\n";
     ok "float operators as values" "let () = println (reduce_left (+.) 0.0 [0.5, 1.5, 2.0], map ((*.) 2.0) [1.0, 3.0])" "(4.0, [2.0, 6.0])\n";
+    ok "compare on tuples, lists and options" "let () = println [compare (1, \"x\") (2, \"y\"), compare (1, \"y\") (1, \"x\"), compare (1, 2, 3) (1, 2, 3), compare [1, 2] [1, 3], compare [1] [], compare None (Some 0)]" "[LT, GT, EQ, LT, GT, LT]\n";
+    ok "Ord default methods on tuples" "let () = println ((<) (1, 2) (1, 3), (>=) (2, 'a') (1, 'b'), (==) [Some 1] [Some 1])" "(true, true, true)\n";
+    ok "tuple order uses the components' instances"
+      "type K = | K of Int\nimpl Eq for K where\n  (==) a b = case (a, b) do | (K x, K y) -> x % 10 == y % 10\nend\nimpl Ord for K where\n  compare a b = case (a, b) do | (K x, K y) -> compare (x % 10) (y % 10)\nend\nlet () = println (compare (K 13, 1) (K 23, 2), (==) [K 5] [K 15])"
+      "(LT, true)\n";
+    ok "show for 4- and 5-tuples" "let () = println ((1, \"a\", 2.5, true), (1, 2, 3, 4, (5, 6)))" "((1, a, 2.5, true), (1, 2, 3, 4, (5, 6)))\n";
     ok "char_to_int and int_to_char" "let () = println (char_to_int (int_to_char 65), int_to_char 97, char_to_int 'z')" "(65, a, 122)\n";
     ok "string_of_list inverts string_to_list" "let () = print_string (string_of_list (string_to_list \"forge\") ^ string_of_list [])" "forge\n";
     ok "str_to_int" "let () = println [str_to_int \"123\", str_to_int \"-45\", str_to_int \"4x\", str_to_int \"\", str_to_int \"-\"]" "[Some 123, Some -45, None, None, None]\n";
