@@ -162,3 +162,61 @@ char *ls_str_concat(const char *a, const char *b) {
     p[la] = '\0';
   return p;
 }
+
+/* --- String and conversion builtins (native compiler) --- */
+
+int64_t ls_str_length(const char *s) { return s ? (int64_t)strlen(s) : 0; }
+
+/** [str_slice s start len], clamped to the string like the interpreter. */
+char *ls_str_slice(const char *s, int64_t start, int64_t len) {
+  int64_t n = s ? (int64_t)strlen(s) : 0;
+  if (start < 0)
+    start = 0;
+  if (start > n)
+    start = n;
+  if (len < 0)
+    len = 0;
+  if (len > n - start)
+    len = n - start;
+  char *p = malloc((size_t)len + 1);
+  if (!p)
+    return NULL;
+  if (len > 0)
+    memcpy(p, s + start, (size_t)len);
+  p[len] = '\0';
+  return p;
+}
+
+/** List cell for a [List<Char>] (layout matches the compiler's
+    [{ i64, i8* }] cons cells). */
+typedef struct ls_char_cell {
+  int64_t head;
+  struct ls_char_cell *tail;
+} ls_char_cell;
+
+void *ls_string_to_list(const char *s) {
+  ls_char_cell *head = NULL;
+  int64_t n = s ? (int64_t)strlen(s) : 0;
+  for (int64_t i = n - 1; i >= 0; i--) {
+    ls_char_cell *c = malloc(sizeof(ls_char_cell));
+    if (!c)
+      return NULL;
+    c->head = (unsigned char)s[i];
+    c->tail = head;
+    head = c;
+  }
+  return head;
+}
+
+double ls_int_to_float(int64_t x) { return (double)x; }
+
+/** Truncation toward zero (like OCaml's int_of_float for finite values). */
+int64_t ls_float_to_int(double f) {
+  if (f != f)
+    return 0;
+  if (f >= 9.2233720368547758e18)
+    return INT64_MAX;
+  if (f <= -9.2233720368547758e18)
+    return INT64_MIN;
+  return (int64_t)f;
+}

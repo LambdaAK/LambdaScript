@@ -347,6 +347,11 @@ let runtime_declarations : string =
    declare i8* @ls_int_to_str(i64)\n\
    declare i64 @ls_idiv(i64, i64)\n\
    declare i64 @ls_cmp_float(double, double)\n\
+   declare i64 @ls_str_length(i8*)\n\
+   declare i8* @ls_str_slice(i8*, i64, i64)\n\
+   declare i8* @ls_string_to_list(i8*)\n\
+   declare double @ls_int_to_float(i64)\n\
+   declare i64 @ls_float_to_int(double)\n\
    declare void @ls_compare_functions()\n\
    declare i64 @ls_imod(i64, i64)\n\
    declare i8* @ls_str_concat(i8*, i8*)\n\
@@ -390,6 +395,16 @@ let emit_global_string ctx (dst : string) (s : string) : string =
     not 0.1), so doubles are always written in hexadecimal bit form. *)
 let llvm_double_literal (f : float) : string =
   Printf.sprintf "0x%016LX" (Int64.bits_of_float f)
+
+(** A global symbol name: Forge operators such as [+++] become functions
+    named [+++], which LLVM accepts only quoted ([@"+++"]). *)
+let gsym (name : string) : string =
+  let ok c =
+    (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+    || c = '_' || c = '.' || c = '$' || c = '-'
+  in
+  if name <> "" && String.for_all ok name && not (name.[0] >= '0' && name.[0] <= '9') then name
+  else "\"" ^ name ^ "\""
 
 let operand_min_ty (h : (string, ty) H.t) : operand -> ty = function
   | ConstI64 _ -> I64
@@ -509,7 +524,7 @@ let emit_copy_dst (ctx : emit_ctx) (h : (string, ty) H.t)
       lines :=
         !lines
         @ [
-            Printf.sprintf "  %%%s = bitcast %s @%s to %s" dst fpty name fpty;
+            Printf.sprintf "  %%%s = bitcast %s @%s to %s" dst fpty (gsym name) fpty;
           ];
       H.replace h dst (Fun (ps, rt))
   | Local _ -> (
@@ -623,7 +638,7 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
           let parts = map_call_args ctx h lines fd args in
           lines :=
             !lines
-            @ [ Printf.sprintf "  call void @%s(%s)" name (String.concat ", " parts) ]
+            @ [ Printf.sprintf "  call void @%s(%s)" (gsym name) (String.concat ", " parts) ]
       )
   | VoidIndirectCall (callee_op, ptys, args) ->
       let callee_ty = llvm_fun_ptr_ty_ctx ctx ptys Unit in
@@ -946,6 +961,34 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
                       ];
                   H.replace h dst RawPtr
               | _ -> failwith "llvm_emit: ls_variant_payload arity")
+          | _ when List.mem_assoc name runtime_externs ->
+              let ptys, rty = List.assoc name runtime_externs in
+              if List.length ptys <> List.length args then
+                failwith ("llvm_emit: arity of runtime call " ^ name);
+              let parts =
+                List.map2
+                  (fun pty op ->
+                    match (pty, op) with
+                    | String, ConstStr str ->
+                        let tmp = fresh_emit_aux ctx in
+                        lines := !lines @ [ emit_global_string ctx tmp str ];
+                        H.replace h tmp String;
+                        Printf.sprintf "i8* %%%s" tmp
+                    | _ ->
+                        let got, v = emit_operand ctx h op in
+                        let exp = llvm_ll_ty_ctx ctx pty in
+                        if got <> exp then
+                          failwith ("llvm_emit: argument type of runtime call " ^ name);
+                        Printf.sprintf "%s %s" exp v)
+                  ptys args
+              in
+              lines :=
+                !lines
+                @ [
+                    Printf.sprintf "  %%%s = call %s @%s(%s)" dst (llvm_ll_ty_ctx ctx rty) name
+                      (String.concat ", " parts);
+                  ];
+              H.replace h dst rty
           | _ ->
               let fd = H.find fn_sigs name in
               if fd.ret = Unit then
@@ -955,7 +998,7 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
               lines :=
                 !lines
                 @ [
-                    Printf.sprintf "  %%%s = call %s @%s(%s)" dst ret_ll name
+                    Printf.sprintf "  %%%s = call %s @%s(%s)" dst ret_ll (gsym name)
                       (String.concat ", " parts);
                   ];
               H.replace h dst fd.ret)
@@ -1447,7 +1490,7 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
           lines :=
             !lines
             @ [
-                Printf.sprintf "  %%%s = bitcast %s @%s to i8*" ctmp fpty code;
+                Printf.sprintf "  %%%s = bitcast %s @%s to i8*" ctmp fpty (gsym code);
                 Printf.sprintf "  %%%s = call i8* @ls_mkclos(i8* %%%s, i8* %s)" dst
                   ctmp env_v;
               ];
@@ -1530,6 +1573,10 @@ let emit_term (ctx : emit_ctx) (h : (string, ty) H.t)
     | false, (RawPtr | Clos _), Some o ->
         let _ty, v = emit_operand ctx h o in
         lines := !lines @ [ Printf.sprintf "  ret i8* %s" v ]
+    | false, F64, Some o ->
+        let _ty, v = emit_operand ctx h o in
+        lines := !lines @ [ Printf.sprintf "  ret double %s" v ]
+    | false, Unit, Some _ -> lines := !lines @ [ "  ret void" ]
     | _ -> failwith "llvm_emit: bad return"
   in
   match t with
@@ -1573,7 +1620,7 @@ let emit_func ctx (fn_sigs : (string, func_def) H.t) (f : func_def) : string =
       List.iter (fun i -> emit_instr ctx fn_sigs h body_lines i) blk.instrs;
       emit_term ctx h body_lines ~ret:f.ret ~is_c_main blk.term)
     blks;
-  Printf.sprintf "define %s @%s(%s) {\n%s\n}\n" ret_s f.name params_s
+  Printf.sprintf "define %s @%s(%s) {\n%s\n}\n" ret_s (gsym f.name) params_s
     (String.concat "\n" !body_lines)
 
 let emit_prog (p : prog) : string =

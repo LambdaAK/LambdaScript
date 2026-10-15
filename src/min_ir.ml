@@ -137,6 +137,17 @@ let runtime_void_symbols = [ "print"; "print_string" ]
     [Assign (tmp, Call ("str_concat", \[s1; s2\]))]. *)
 let runtime_string_symbols = [ "int_to_str"; "str_concat"; "strcmp" ]
 
+(** Runtime functions callable with [Call (name, args)] / [VoidCall], with
+    their Min IR signatures (see [runtime/ls_runtime.c]). *)
+let runtime_externs : (string * (ty list * ty)) list =
+  [
+    ("ls_str_length", ([ String ], I64));
+    ("ls_str_slice", ([ String; I64; I64 ], String));
+    ("ls_string_to_list", ([ String ], List I64));
+    ("ls_int_to_float", ([ I64 ], F64));
+    ("ls_float_to_int", ([ F64 ], I64));
+  ]
+
 (* ----- helpers for well-formedness checks later ----- *)
 
 let block_map (f : func_def) : (string, block) Hashtbl.t =

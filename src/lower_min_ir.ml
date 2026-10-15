@@ -754,6 +754,9 @@ type env = (string * env_binding) list
     from closure capture and resolved when referenced inside lambdas. *)
 let is_native_builtin_name : string -> bool = function
   | "print" | "print_string" | "int_to_str" -> true
+  | "__prim_str_length" | "__prim_str_slice" | "__prim_string_to_list"
+  | "__prim_int_to_float" | "__prim_float_to_int" ->
+      true
   | "str_concat" -> true
   | "int_eq" | "float_eq" | "str_eq" | "char_eq" | "bool_eq" | "unit_eq" -> true
   | "int_compare" | "float_compare" | "str_compare" | "char_compare"
@@ -790,6 +793,12 @@ let native_builtin_binary_callable (name : string) : callable option =
   | "char_compare" -> mk "__builtin_char_compare" [ I64; I64 ] RawPtr
   | "float_compare" -> mk "__builtin_float_compare" [ F64; F64 ] RawPtr
   | "str_concat" -> mk "__builtin_str_concat" [ String; String ] String
+  (* Primitives behind the [str_length] … wrappers of [native_builtin_defns]. *)
+  | "__prim_str_length" -> mk "ls_str_length" [ String ] I64
+  | "__prim_str_slice" -> mk "ls_str_slice" [ String; I64; I64 ] String
+  | "__prim_string_to_list" -> mk "ls_string_to_list" [ String ] (List I64)
+  | "__prim_int_to_float" -> mk "ls_int_to_float" [ I64 ] F64
+  | "__prim_float_to_int" -> mk "ls_float_to_int" [ F64 ] I64
   | _ -> None
 
 (** LLVM symbols [ls_print], [ls_println], [ls_int_to_str] (see runtime). *)
@@ -4966,30 +4975,82 @@ let lower_c_expr_to_prog (e : c_expr) : (prog, string) result =
   | Ok fn -> Ok { funcs = [ fn ]; entry = Some "main" }
   | Error e -> Error e
 
-(** [Env.code_mapping] defines polymorphic helpers ([tuple_fst], …) as surface
-    expressions. Bodies are only injected for helpers that monomorphize inside
-    tuple-only code; list helpers ([map], …) stay as interpreter definitions
-    only so [collect_mono_instantiations] does not type-check their full
-    recursive bodies on every program. *)
-let code_mapping_poly_defns (static_env : static_env) : c_defn list =
-  let allow_native_mono = function
-    | "tuple_fst" | "tuple_snd" | "list_length" -> true
-    | _ -> false
+(** Builtins implemented as ordinary Forge functions for native code: the
+    library functions of {!Env.code_mapping} ([map], [filter], [not], [(+)],
+    …) and wrappers around runtime primitives ([str_length], …). They are
+    prepended to the program (so first-class and partial uses get closures
+    like any function), except where the program defines the same name. *)
+let native_wrapper_source =
+  {|let str_length s = __prim_str_length s
+let str_slice s start len = __prim_str_slice s start len
+let string_to_list s = __prim_string_to_list s
+let list_of_string s = __prim_string_to_list s
+let int_to_float n = __prim_int_to_float n
+let float_to_int f = __prim_float_to_int f|}
+
+let native_prim_types : static_env =
+  [
+    ("__prim_str_length", Mono (FunctionType (StringType, IntType)));
+    ( "__prim_str_slice",
+      Mono (FunctionType (StringType, FunctionType (IntType, FunctionType (IntType, StringType))))
+    );
+    ("__prim_string_to_list", Mono (FunctionType (StringType, CListType CharType)));
+    ("__prim_int_to_float", Mono (FunctionType (IntType, FloatType)));
+    ("__prim_float_to_int", Mono (FunctionType (FloatType, IntType)));
+  ]
+
+let defined_names (defs : c_defn list) : string list =
+  List.concat_map
+    (function
+      | CDefn (p, _, _, _, _, _) | CDefnRec (p, _, _, _, _, _) -> pat_bound_simple p
+      | CDefnMutRec ds -> List.concat_map (fun (p, _, _, _, _, _) -> pat_bound_simple p) ds
+      | CClassDecl (_, _, methods, _) -> List.map (fun (m, _, _) -> m) methods
+      | CSumType (_, _, ctors) | CSumTypeRec (_, _, ctors) -> List.map fst ctors
+      | CSumTypeRecMutRec ts -> List.concat_map (fun (_, _, ctors) -> List.map fst ctors) ts
+      | CTypeAlias _ -> [])
+    defs
+
+let native_builtin_defns (static_env : static_env) (program : c_defn list) : c_defn list =
+  let taken = defined_names program in
+  let parse_expr code =
+    let tokens = Lex.lex (Lex.list_of_string code) |> List.map (fun (t : Lex.token) -> t.token_type) in
+    match Parser.ExprParser.expr_parser tokens with
+    | Some (e, []) -> Some (Condense.condense_expr e)
+    | _ -> None
   in
-  List.fold_left
-    (fun acc (id, code) ->
-      if not (allow_native_mono id && is_poly_static id static_env) then acc
-      else
-        let tokens =
-          Lex.lex (Lex.list_of_string code)
-          |> List.map (fun (t : Lex.token) -> t.token_type)
-        in
-        match Parser.ExprParser.expr_parser tokens with
-        | None -> acc
-        | Some (e, _) ->
-            CDefn (CIdPat id, [], None, Condense.condense_expr e, None, 0)
-            :: acc)
-    [] Env.code_mapping
+  let library =
+    List.filter_map
+      (fun (id, code) ->
+        if List.mem id taken || not (List.mem_assoc id static_env) then None
+        else
+          match parse_expr code with
+          | None -> None
+          | Some e -> (
+              match e with
+              | EBindRec (CIdPat inner, _, e1, EId (inner', _), _) when String.equal inner inner' ->
+                  Some
+                    (CDefnRec
+                       (CIdPat id, [], None, Condense.subst_c_expr [ (inner, EId (id, None)) ] e1, None, 0))
+              | EBind (CIdPat inner, _, e1, EId (inner', _), _) when String.equal inner inner' ->
+                  Some (CDefn (CIdPat id, [], None, e1, None, 0))
+              | e -> Some (CDefn (CIdPat id, [], None, e, None, 0))))
+      Env.code_mapping
+  in
+  let wrappers =
+    let tokens =
+      Lex.lex (Lex.list_of_string native_wrapper_source)
+      |> List.map (fun (t : Lex.token) -> t.token_type)
+    in
+    match Parser.ProgramParser.program_parser tokens with
+    | Some (prog, []) ->
+        List.filter
+          (function
+            | CDefn (CIdPat id, _, _, _, _, _) -> not (List.mem id taken)
+            | _ -> false)
+          (List.map Condense.condense_defn prog)
+    | _ -> []
+  in
+  library @ wrappers
 
 let lower_c_program (defs : c_defn list) (static_env : static_env)
     (type_env : Typecheck.type_env) (ctor_env : Typecheck.constructor_env) :
@@ -5000,8 +5061,9 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
     generated_funcs := [];
     lowering_type_env := type_env;
     lowering_ctor_env := ctor_env;
+    let static_env = native_prim_types @ static_env in
     let defs = eta_expand_program static_env defs in
-    let defs = defs @ code_mapping_poly_defns static_env in
+    let defs = native_builtin_defns static_env defs @ defs in
     lowering_defs := defs;
     let instances = collect_mono_instantiations defs static_env type_env in
     let user_funs = ref [] in
