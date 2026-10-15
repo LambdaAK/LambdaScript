@@ -1046,25 +1046,14 @@ and generate_e_bind_rec ?(node : c_expr = EUnit) ?annotation (env : static_env) 
              ("Invalid pattern in recursive let binding: expected an \
                identifier, got: " ^ string_of_pat pat))
   in
-  let has_outer_constrained_binding =
-    match List.assoc_opt function_id env with
-    | Some sch -> scheme_has_class_constraint sch
-    | None -> false
-  in
+  (* In [let rec f = e1 in e2], [f] refers to itself in [e1], even when it
+     shadows a trait method of the same name. *)
   let function_type = fresh_type_var () in
   let new_env = (function_id, Mono function_type) :: env in
-  let- t1, c1, _ =
-    if has_outer_constrained_binding then generate env type_env e1
-    else generate new_env type_env e1
-  in
+  let- t1, c1, _ = generate new_env type_env e1 in
   let p1 = !pending_expression_class_preds in
   pending_expression_class_preds := [];
-  (* Add constraint that function_type must equal t1 for ordinary recursive
-     bindings; in constrained method bodies we intentionally keep references
-     dispatching through the class method from the outer environment. *)
-  let new_constraint_opt =
-    if has_outer_constrained_binding then None else Some (function_type, t1)
-  in
+  let new_constraint_opt = Some (function_type, t1) in
   let- return_type_constraints =
     match return_type with
     | Some t ->
