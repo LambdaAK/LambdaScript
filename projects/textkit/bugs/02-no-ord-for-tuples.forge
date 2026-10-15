@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // Bug 02: `compare` has no Ord instance for tuples, and the error has no location.
 //
 // The operators == and < are structural and work on tuples, and Show has

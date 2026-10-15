@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // CONFUSING ERROR: a type error inside a long definition reports no line or
 // column and prints the whole desugared definition (`match ... with`, every
 // application fully parenthesised) instead of the offending expression.

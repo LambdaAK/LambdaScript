@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // Bug (both back ends): a record update whose new field value calls an
 // Ord-constrained function on a parameter, bound by a local `let`, breaks
 // dictionary passing. The types are all concrete here (K has an Ord

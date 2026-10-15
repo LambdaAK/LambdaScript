@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // BUG: an `impl` for a named record type is accepted, but using it fails.
 //
 // Expected: prints "P(1)" (or the impl itself is rejected with a clear

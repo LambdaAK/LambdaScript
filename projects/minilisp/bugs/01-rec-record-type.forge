@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // BUG: a record type cannot take part in a `type rec ... and ...` group,
 // and a record type cannot refer to itself with `type rec`.
 //

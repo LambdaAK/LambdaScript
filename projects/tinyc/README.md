@@ -106,6 +106,11 @@ instructions in all, at roughly 20 µs each.
 
 ## Forge problems found (see `bugs/`)
 
+**Status: all fixed.** Every problem below has been fixed in Forge since; each
+file in `bugs/` now runs correctly in both back ends (the comments in the
+files keep the original report), and the workarounds described here are no
+longer needed.
+
 1. `01-impl-for-record-alias.forge`: `impl Show for P`, where `P` is a named
    record type, is accepted, but every use fails with *No instance*. This
    happens in both back ends.

@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // Performance: in the interpreter, float arithmetic is about 8x slower than
 // integer arithmetic. The two loops below do the same amount of work; on
 // an Apple M3 Max the Int loop takes ~0.18 s and the Float loop ~1.4 s

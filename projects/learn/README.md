@@ -96,6 +96,11 @@ on stderr and exit status 0.
 
 ## Forge problems found
 
+**Status: all fixed.** Every problem below has been fixed in Forge since; each
+file in `bugs/` now runs correctly in both back ends (the comments in the
+files keep the original report), and the workarounds described here are no
+longer needed.
+
 Each has a minimal reproduction with expected and actual behaviour in
 `bugs/`:
 

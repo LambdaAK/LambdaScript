@@ -93,6 +93,11 @@ benchmark: about 0.3 ms for each `filter` step of the Lisp program. The native b
 
 ## Problems found (`bugs/`)
 
+**Status: all fixed.** Every problem below has been fixed in Forge since; each
+file in `bugs/` now runs correctly in both back ends (the comments in the
+files keep the original report), and the workarounds described here are no
+longer needed.
+
 1. `01-rec-record-type.forge`: a named record type cannot be part of `type rec ... and ...`,
    and neither can a self-referential record type (syntax error). Workaround: an anonymous record
    as the constructor payload.

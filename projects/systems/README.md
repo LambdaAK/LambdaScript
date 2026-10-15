@@ -105,6 +105,11 @@ Run times (Apple Silicon laptop, wall clock):
 
 ## Bugs and missing features found
 
+**Status: all fixed.** Every problem below has been fixed in Forge since; each
+file in `bugs/` now runs correctly in both back ends (the comments in the
+files keep the original report), and the workarounds described here are no
+longer needed.
+
 Each one is reduced to a small program in `bugs/`. The comment at the top of
 each file gives the expected and actual behaviour and how to run it.
 

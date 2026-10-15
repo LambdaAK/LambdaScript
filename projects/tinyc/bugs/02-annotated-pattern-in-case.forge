@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // BUG: a type-annotated pattern is rejected inside a `case` arm.
 //
 // types.tex ("Annotations") says "A pattern, a parameter or a result can be

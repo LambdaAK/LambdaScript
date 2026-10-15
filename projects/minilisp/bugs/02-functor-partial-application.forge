@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // MISSING FEATURE + POOR ERROR: a higher-kinded instance cannot be given for a
 // partially applied two-parameter type, so the usual `Either e` / `Result e`
 // monad cannot be written.  The error message also has no file or line.

@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // Bug: an `impl` for a named record type is accepted, but no use of it ever
 // resolves. The instance declaration gives no error; the call site says
 // there is no instance for the (expanded) record type.

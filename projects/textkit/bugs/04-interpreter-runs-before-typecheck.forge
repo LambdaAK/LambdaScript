@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // Bug 04: the interpreter runs top-level effects before the whole program
 // has been type checked.
 //

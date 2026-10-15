@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // Bug (native only): a function whose Ord constraint comes from a call inside
 // a local `let ... in` cannot be compiled. `exec` has type
 // Ord k => List<(k, Int)> -> k -> Int; the interpreter runs it, the native

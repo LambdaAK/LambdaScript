@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // Bug: a module-qualified constructor cannot be used in a pattern.
 //   M.B 3 is accepted as an expression, but `case t do | M.A -> ...` is a
 //   syntax error, so code outside a module must `use M` to match on its types.

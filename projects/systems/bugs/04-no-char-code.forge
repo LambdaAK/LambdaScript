@@ -1,3 +1,5 @@
+// FIXED: the built-ins are char_to_int, int_to_char, str_to_int (an
+// Option<Int>) and string_of_list; this file now uses those names.
 // Missing feature: there is no builtin to turn a Char into its code or a
 // String into an Int (library.tex lists only int_to_str, char_to_str,
 // string_to_list, ...). Parsing numbers -- e.g. in the assembler -- needs a
@@ -6,4 +8,4 @@
 //   string_to_int : String -> Option<Int> (or Int).
 // Actual: error: type error: Unbound variable: char_code (both back ends).
 // Run: ./_build/default/bin/interpreter.exe projects/systems/bugs/04-no-char-code.forge
-let () = println (char_code '7' - char_code '0')
+let () = println (char_to_int '7' - char_to_int '0')

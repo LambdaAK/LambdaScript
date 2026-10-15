@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // Bug (native compiler only): a constrained recursive function over a
 // user-defined recursive type, with a local `let ... in` in one of its case
 // arms, makes the native compiler's specialisation pass produce a program

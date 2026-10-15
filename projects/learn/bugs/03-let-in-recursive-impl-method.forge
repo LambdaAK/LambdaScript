@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // Bug: inside an instance method, a local `let ... in` (or a block with a
 // definition) breaks a recursive call of the same method at the instance's
 // own type. Without the `let`, the same program type-checks.

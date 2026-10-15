@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // BUG: an Ord-constrained helper, called from a `let ... in` inside a
 // function whose parameter is annotated, breaks in BOTH back ends.
 //

@@ -136,6 +136,11 @@ There are about 1,240 lines of Forge, not counting `bugs/`.
 
 ## Problems found (`bugs/`)
 
+**Status: all fixed.** Every problem below has been fixed in Forge since; each
+file in `bugs/` now runs correctly in both back ends (the comments in the
+files keep the original report), and the workarounds described here are no
+longer needed.
+
 1. `01-no-char-code.forge`: there is no `char_to_int`/`int_to_char` and no
    string-to-int conversion. Character classes, case conversion, digit values
    and `tr` ranges all go through lookup tables in `strings.forge`.

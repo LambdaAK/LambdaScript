@@ -368,8 +368,8 @@ let gc_tests =
 (* examples/ml: a small machine-learning library (matrices, regression,
    kernels, Adam) and four experiments. Both back ends must print
    examples/ml/main.out. *)
-let ml_example_tests =
-  let dir () = Filename.concat (repo ()) "examples/ml" in
+let program_tests (rel : string) =
+  let dir () = Filename.concat (repo ()) rel in
   let expected () = read_file (Filename.concat (dir ()) "main.out") in
   [
     ( "interpreter" >:: fun _ ->
@@ -389,13 +389,24 @@ let ml_example_tests =
       assert_equal ~printer:string_of_status ~msg:(describe c) (Exited 0) c.status;
       let r = run_process ~timeout:60.0 out [] in
       assert_equal ~printer:string_of_status (Exited 0) r.status;
+      assert_equal ~printer:(fun s -> s) "" r.err;
       assert_equal ~printer:(fun s -> s) (expected ()) r.out );
   ]
+
+let ml_example_tests = program_tests "examples/ml"
+
+(* projects/: five larger programs (see each one's README.md); each prints
+   its main.out in both back ends. *)
+let project_tests =
+  List.map
+    (fun p -> p >::: program_tests (Filename.concat "projects" p))
+    [ "textkit"; "learn"; "minilisp"; "systems"; "tinyc" ]
 
 let suite =
   "cli"
   >::: [
          "ml example" >::: ml_example_tests;
+         "projects" >::: project_tests;
          "garbage collection" >::: gc_tests;
          "interpreter" >::: interpreter_tests;
          "ambiguity" >::: ambiguity_tests;

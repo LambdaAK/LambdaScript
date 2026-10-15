@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // Bug: a named record type (alias) in a trait method's signature is not
 // expanded, so a record literal of exactly that type is rejected.
 //

@@ -1,3 +1,5 @@
+// FIXED: the built-ins are char_to_int, int_to_char, str_to_int (an
+// Option<Int>) and string_of_list; this file now uses those names.
 // MISSING FEATURE: there is no way to turn a Char into its code or a digit
 // string into an Int (no char_to_int / char_code / string_to_int /
 // int_of_string in library.tex or among the built-ins in src/env.ml).
@@ -10,4 +12,4 @@
 //
 // Run: ./_build/default/bin/interpreter.exe projects/tinyc/bugs/05-no-char-to-int.forge
 let () = println (char_to_int '7' - char_to_int '0')
-let () = println (string_to_int "123")
+let () = println (str_to_int "123")

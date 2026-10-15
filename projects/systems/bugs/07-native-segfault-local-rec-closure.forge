@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // Bug (native only): segmentation fault. A local `let rec go` captures the
 // parameter `key` and passes it to min_by, whose fold closure calls `key`;
 // the selected record (4+ fields) is then read. The interpreter prints [0].

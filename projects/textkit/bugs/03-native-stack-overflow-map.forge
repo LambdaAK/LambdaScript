@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // Bug 03: native code segfaults on map / reduce_right over a 200,000-element
 // list, and the output printed before the crash is lost.
 //

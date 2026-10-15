@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // MISSING FEATURE: a constructor of a type declared inside a module can be
 // used qualified in an expression (`Shapes.Square 4`) but not in a pattern
 // (`| Shapes.Square w -> ...` is a syntax error). The only way to match on it

@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // PERFORMANCE BUG (interpreter): building and matching values of the
 // prelude's sum types (Option, Ordering) is about 4x slower than the very
 // same code on an identical user-defined type.

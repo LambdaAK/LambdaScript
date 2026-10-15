@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // Bug: the interpreter type-checks and runs the program one top-level item
 // at a time, so the effects of earlier items happen before a type error in
 // a later item is reported. The manual (types.tex) says "a program is only

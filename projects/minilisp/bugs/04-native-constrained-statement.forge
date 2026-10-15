@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // NATIVE COMPILER BUG: a constrained polymorphic function whose constrained
 // call sits in statement position (`{ e; ... }` or `let _ = e in ...`) is
 // rejected by the native back end after specialisation. The interpreter runs

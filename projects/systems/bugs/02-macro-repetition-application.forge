@@ -1,3 +1,4 @@
+// FIXED: this now behaves as expected in both back ends.
 // Bug: inside a macro repetition `$($x:expr),*`, an argument that is a
 // function application is split into several fragments: `sum!(inc 1, 10)`
 // expands to `[inc, 1, 10]` instead of `[(inc 1), 10]`. A single `$x:expr`
