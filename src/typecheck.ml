@@ -576,6 +576,64 @@ let class_method_names ~(static_env : static_env) ~(class_name : string) :
 (** Polymorphic instance heads (e.g. [impl Monoid for [a]]) use dictionary names
     that do not match the exact [dict_for_instance] slug of a concrete [tau];
     [generalize] still needs to accept those predicates. *)
+let rec normalize_inst_ty (t : mono_type) : mono_type =
+  match t with
+  | FixedPoint (n, b) -> (
+      (* Recursive types may be wrapped more than once. *)
+      match normalize_inst_ty b with
+      | CTypeApp (n', args) when String.equal n n' -> CTypeApp (n, args)
+      | _ -> CTypeApp (n, []))
+  | _ -> t
+
+(** Match an instance head (with [$written(a)] pattern variables) against a
+    type. *)
+let rec match_instance_head (sub : (string * mono_type) list) (pat : mono_type)
+    (t : mono_type) : (string * mono_type) list option =
+  let t = normalize_inst_ty t in
+  let fold2 ps ts =
+    if List.length ps <> List.length ts then None
+    else
+      List.fold_left2
+        (fun acc p u -> match acc with None -> None | Some s -> match_instance_head s p u)
+        (Some sub) ps ts
+  in
+  match (pat, t) with
+  | TypeVar v, _ -> (
+      match List.assoc_opt v sub with
+      | None -> Some ((v, t) :: sub)
+      | Some t' -> if t' = t then Some sub else None)
+  | (IntType | FloatType | BoolType | StringType | CharType | UnitType), _ ->
+      if pat = t then Some sub else None
+  | TypeName n, (CTypeApp (m, _) | TypeName m) -> if String.equal n m then Some sub else None
+  | CTypeApp (n, []), TypeName m -> if String.equal n m then Some sub else None
+  | CTypeApp (n, ps), CTypeApp (m, ts) -> if String.equal n m then fold2 ps ts else None
+  | CListType p, CListType u -> match_instance_head sub p u
+  | VectorType ps, VectorType ts -> fold2 ps ts
+  | FunctionType (a, b), FunctionType (c, d) -> fold2 [ a; b ] [ c; d ]
+  | _ -> None
+
+let subst_instance_vars (sub : (string * mono_type) list) (t : mono_type) : mono_type =
+  List.fold_left (fun acc (v, ty) -> replace_typevar_in_mono ~var_id:v ~with_ty:ty acc) t sub
+
+(** Is there an instance of [cls] for the type [ty] (which has no type
+    variables), counting the instances its own requirements need? *)
+let rec instance_exists ?(depth = 0) ~(static_env : static_env) (cls : string) (ty : mono_type) :
+    bool =
+  depth < 32
+  && List.exists
+       (fun (i : instance) ->
+         String.equal i.inst_class cls
+         && List.mem_assoc i.inst_dict static_env
+         &&
+         match match_instance_head [] i.inst_head ty with
+         | None -> false
+         | Some sub ->
+             List.for_all
+               (fun (rc, rt) ->
+                 instance_exists ~depth:(depth + 1) ~static_env rc (subst_instance_vars sub rt))
+               i.inst_requires)
+       !instances
+
 let forge_dict_resolves_for_class ~(static_env : static_env)
     ~(class_name : string) (tau : mono_type) : bool =
   let exact = dict_for_instance ~class_name tau in
@@ -1370,10 +1428,13 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
           (* Native lists are [CListType elem]; HKT signatures use
              [TCtorApp(w,[elem])] for the class parameter (e.g. [impl Functor
              for [u]]). *)
-          | TCtorApp (_, as1), CListType et2 | CListType et2, TCtorApp (_, as1)
+          | TCtorApp (w, as1), CListType et2 | CListType et2, TCtorApp (w, as1)
             ->
+              (* The head is the list type constructor (a list of some
+                 element type stands for it). *)
               if List.length as1 = 1 then
-                reduce_eq_acc acc ((List.hd as1, et2) :: c')
+                reduce_eq_acc acc
+                  ((List.hd as1, et2) :: (TypeVar w, CListType (fresh_type_var ())) :: c')
               else (last_type_clash := Some (t1, t2); raise TypeFailure)
           | CTypeApp (name1, args1), CTypeApp (name2, args2) ->
               if name1 = name2 && List.length args1 = List.length args2 then
@@ -1560,6 +1621,10 @@ and get_type (var : mono_type) (subs : type_equations) (type_env : type_env) :
       | CListType _ -> (
           match resolved_args with
           | [ elem ] -> return (CListType elem)
+          | [] ->
+              (* The list type constructor itself (a [Functor] instance
+                 head, say). *)
+              return head_resolved
           | _ ->
               Error
                 (OtherError
@@ -1833,7 +1898,10 @@ and generalize ?(class_preds : class_equations = [])
                      ("No instance `" ^ c ^ "` for type "
                     ^ string_of_mono_type (Typefixer.fix_type tau)))
             else if
-              forge_dict_resolves_for_class ~static_env:env ~class_name:c tau
+              instance_exists ~static_env:env c tau
+              || (match normalize_inst_ty tau with
+                 | VectorType _ | RecordType _ | FunctionType _ -> false
+                 | _ -> forge_dict_resolves_for_class ~static_env:env ~class_name:c tau)
             then Ok ()
             else
               Error
@@ -3455,45 +3523,6 @@ let defining_dict : string option ref = ref None
 let fresh_dict_param (cls : string) : string =
   incr dict_param_counter;
   Printf.sprintf "__dict_%s_%d" cls !dict_param_counter
-
-let rec normalize_inst_ty (t : mono_type) : mono_type =
-  match t with
-  | FixedPoint (n, b) -> (
-      (* Recursive types may be wrapped more than once. *)
-      match normalize_inst_ty b with
-      | CTypeApp (n', args) when String.equal n n' -> CTypeApp (n, args)
-      | _ -> CTypeApp (n, []))
-  | _ -> t
-
-(** Match an instance head (with [$written(a)] pattern variables) against a
-    type. *)
-let rec match_instance_head (sub : (string * mono_type) list) (pat : mono_type)
-    (t : mono_type) : (string * mono_type) list option =
-  let t = normalize_inst_ty t in
-  let fold2 ps ts =
-    if List.length ps <> List.length ts then None
-    else
-      List.fold_left2
-        (fun acc p u -> match acc with None -> None | Some s -> match_instance_head s p u)
-        (Some sub) ps ts
-  in
-  match (pat, t) with
-  | TypeVar v, _ -> (
-      match List.assoc_opt v sub with
-      | None -> Some ((v, t) :: sub)
-      | Some t' -> if t' = t then Some sub else None)
-  | (IntType | FloatType | BoolType | StringType | CharType | UnitType), _ ->
-      if pat = t then Some sub else None
-  | TypeName n, (CTypeApp (m, _) | TypeName m) -> if String.equal n m then Some sub else None
-  | CTypeApp (n, []), TypeName m -> if String.equal n m then Some sub else None
-  | CTypeApp (n, ps), CTypeApp (m, ts) -> if String.equal n m then fold2 ps ts else None
-  | CListType p, CListType u -> match_instance_head sub p u
-  | VectorType ps, VectorType ts -> fold2 ps ts
-  | FunctionType (a, b), FunctionType (c, d) -> fold2 [ a; b ] [ c; d ]
-  | _ -> None
-
-let subst_instance_vars (sub : (string * mono_type) list) (t : mono_type) : mono_type =
-  List.fold_left (fun acc (v, ty) -> replace_typevar_in_mono ~var_id:v ~with_ty:ty acc) t sub
 
 type dict_scope = ((string * string) * c_expr) list
 
