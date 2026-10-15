@@ -178,7 +178,7 @@ let compile ?(quiet = false) ?(prelude = true) (src_path : string) (out_path : s
         else
           let rt = runtime_c_path () in
           let cmd_exe =
-            Printf.sprintf "clang -O1 -g -Wno-override-module -o %s %s %s %s -lm"
+            Printf.sprintf "clang -O1 -g -Wno-override-module -pthread -o %s %s %s %s -lm"
               (Filename.quote out_path) (Filename.quote ll_path) (Filename.quote rt)
               (Lazy.force gc_flags)
           in

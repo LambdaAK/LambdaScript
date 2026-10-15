@@ -158,6 +158,21 @@ let compiler_tests =
       (match r.status with Exited 0 -> () | _ -> assert_failure ("compile failed: " ^ describe r));
       let rr = run_process out [] in
       assert_runs ~expected:"spaced\n" "spaces" "" rr );
+    ( "native: deep recursion works, and a stack overflow is a clean error" >:: fun _ ->
+      with_tmpdir @@ fun dir ->
+      let src = Filename.concat dir "deep.forge" in
+      write_file src
+        "let () = println \"start\"\n\
+         let rec build n acc = if n == 0 then acc else build (n - 1) (n :: acc)\n\
+         let () = println (list_length (map (fn x -> x + 1) (build 300000 [])))\n";
+      let out = Filename.concat dir "deep" in
+      let r = run_process ~timeout:120.0 ~cwd:(repo ()) (exe "compile_forge") [ src; out ] in
+      (match r.status with Exited 0 -> () | _ -> assert_failure ("compile failed: " ^ describe r));
+      assert_runs ~expected:"start\n300000\n" "deep recursion" "" (run_process out []);
+      let rr = run_process ~env:(Array.append [| "FORGE_STACK_MB=1" |] (Unix.environment ())) out [] in
+      (match rr.status with Exited 1 -> () | _ -> assert_failure ("expected exit 1: " ^ describe rr));
+      assert_equal ~printer:Fun.id "start\n" rr.out;
+      if not (contains rr.err "stack overflow") then assert_failure ("expected a stack overflow message: " ^ describe rr) );
     ( "compile_forge: default output name is a.out in the cwd" >:: fun _ ->
       with_tmpdir @@ fun dir ->
       let src = Filename.concat dir "p.forge" in

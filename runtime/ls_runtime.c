@@ -5,6 +5,10 @@
 #include <string.h>
 #include <math.h>
 #include <sys/resource.h>
+#include <pthread.h>
+#include <signal.h>
+#include <unistd.h>
+#define GC_THREADS
 #include <gc.h>
 
 /* Memory is managed by the Boehm-Demers-Weiser conservative garbage
@@ -30,6 +34,65 @@ __attribute__((constructor)) static void ls_runtime_init(void) {
   GC_INIT();
   if (getenv("FORGE_RUNTIME_STATS"))
     atexit(ls_report_stats);
+}
+
+/* The program runs on a thread with a large stack (1 GiB by default,
+   FORGE_STACK_MB to change it; the memory is only used as needed), so that
+   non-tail recursion over long lists works. Running off its end is reported
+   as a run-time error instead of a silent segmentation fault. */
+
+int ls_program_main(void);
+
+static char *ls_stack_lo, *ls_stack_hi;
+
+static void ls_fault(int sig, siginfo_t *info, void *ctx) {
+  (void)ctx;
+  char *a = (char *)info->si_addr;
+  if (ls_stack_lo && a >= ls_stack_lo - (1 << 20) && a < ls_stack_hi) {
+    static const char msg[] =
+        "error: runtime error: stack overflow (too deep a recursion; FORGE_STACK_MB sets the stack size)\n";
+    fflush(stdout);
+    if (write(2, msg, sizeof msg - 1) < 0) {}
+    _exit(1);
+  }
+  signal(sig, SIG_DFL);
+  raise(sig);
+}
+
+static void *ls_main_thread(void *arg) {
+  size_t size = *(size_t *)arg;
+  char here;
+  ls_stack_hi = &here + 4096;
+  ls_stack_lo = &here - size;
+  static char alt[64 * 1024];
+  stack_t ss = {0};
+  ss.ss_sp = alt;
+  ss.ss_size = sizeof alt;
+  sigaltstack(&ss, NULL);
+  struct sigaction sa = {0};
+  sa.sa_sigaction = ls_fault;
+  sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+  sigemptyset(&sa.sa_mask);
+  sigaction(SIGSEGV, &sa, NULL);
+  sigaction(SIGBUS, &sa, NULL);
+  int code = ls_program_main();
+  fflush(stdout);
+  exit(code);
+  return NULL;
+}
+
+int main(void) {
+  size_t size = (size_t)1 << 30;
+  const char *mb = getenv("FORGE_STACK_MB");
+  if (mb && atol(mb) > 0)
+    size = (size_t)atol(mb) << 20;
+  pthread_attr_t attr;
+  pthread_attr_init(&attr);
+  pthread_t t;
+  if (pthread_attr_setstacksize(&attr, size) != 0 || pthread_create(&t, &attr, ls_main_thread, &size) != 0)
+    return ls_program_main();
+  pthread_join(t, NULL);
+  return 0;
 }
 
 /** Report a run-time error (like the interpreter: message on stderr, exit
