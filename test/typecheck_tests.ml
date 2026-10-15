@@ -118,6 +118,8 @@ let literal_types =
     t_type "block" "{ let a = 1; a }" "Int";
     t_type "unit block" "{ }" "Unit";
     t_type "statement of any type" "{ 1 + 1; \"x\" }" "String";
+    t_type "field of a record literal" "fn x -> {fa: x}.fa" "a -> a";
+    t_type "record field in a comprehension" "[{fa: x}.fa | x <- [1]]" "List<Int>";
     t_type "if" "if true then 1 else 2" "Int";
     t_type "concat" "\"a\" ^ \"b\"" "String";
     t_type "comparison" "1 < 2" "Bool";
@@ -260,6 +262,7 @@ let definition_types =
 let rejection_tests =
   [
     t_reject "int plus bool" "1 + true";
+    t_reject "field of a record literal keeps its type" "((fn x -> {fa: x}.fa) 1) ^ \"s\"";
     t_reject "ill-typed statement in a block" "{ 1 + true; 2 }";
     t_reject "block-local definition constrains a parameter" "(fn x -> { let y = x + 1; y }) \"s\"";
     t_reject "block-local definition constrains a function argument" "(fn x -> { let y = x ^ \"!\"; 0 }) 5";

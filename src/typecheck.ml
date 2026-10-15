@@ -685,22 +685,10 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
       let- record_type, record_equations, _ =
         generate env type_env record_expr
       in
-      (* Known record shape (e.g. typeclass dictionary): use the field's type
-         and freshen its metavariables so each access site is independent — same
-         issue as [instantiate_infer_scheme] for [inter] methods. *)
+      (* The field has the type it has in the record: [{fa: x}.fa] is [x]. *)
       match record_type with
-      | RecordType fields -> (
-          match List.assoc_opt field_name fields with
-          | None ->
-              let field_type = fresh_type_var () in
-              let minimal_record = open_record [ (field_name, field_type) ] in
-              return
-                ( field_type,
-                  (record_type, minimal_record) :: record_equations,
-                  [] )
-          | Some ft ->
-              let ft', _ = freshen_method_mono_and_preds ft [] in
-              return (ft', record_equations, []))
+      | RecordType fields when List.mem_assoc field_name fields ->
+          return (List.assoc field_name fields, record_equations, [])
       | _ ->
           let field_type = fresh_type_var () in
           let minimal_record = open_record [ (field_name, field_type) ] in
