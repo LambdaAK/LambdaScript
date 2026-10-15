@@ -180,6 +180,8 @@ and builtin_function =
   | StringToInt
   | IntToFloat
   | FloatToInt
+  | FloatToString
+  | CharToString
   | StringToList
   | Map
   | Filter

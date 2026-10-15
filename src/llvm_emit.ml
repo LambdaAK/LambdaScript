@@ -369,6 +369,8 @@ let runtime_declarations : string =
    declare i8* @ls_string_to_list(i8*)\n\
    declare double @ls_int_to_float(i64)\n\
    declare i64 @ls_float_to_int(double)\n\
+   declare i8* @ls_float_to_str(double)\n\
+   declare i8* @ls_char_to_str(i64)\n\
    declare void @ls_compare_functions()\n\
    declare i64 @ls_imod(i64, i64)\n\
    declare i8* @ls_str_concat(i8*, i8*)\n\

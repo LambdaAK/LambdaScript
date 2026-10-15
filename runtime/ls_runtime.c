@@ -220,3 +220,39 @@ int64_t ls_float_to_int(double f) {
     return INT64_MIN;
   return (int64_t)f;
 }
+
+/** [float_to_str]: the shortest %g form that reads back as the same double,
+    with ".0" added to integral values (same strings as the interpreter). */
+char *ls_float_to_str(double f) {
+  char buf[64];
+  if (f != f)
+    snprintf(buf, sizeof buf, "nan");
+  else if (f == 1.0 / 0.0)
+    snprintf(buf, sizeof buf, "inf");
+  else if (f == -1.0 / 0.0)
+    snprintf(buf, sizeof buf, "-inf");
+  else {
+    for (int p = 1; p <= 17; p++) {
+      snprintf(buf, sizeof buf, "%.*g", p, f);
+      if (strtod(buf, NULL) == f)
+        break;
+    }
+    if (!strpbrk(buf, ".e"))
+      strcat(buf, ".0");
+  }
+  size_t n = strlen(buf);
+  char *p = malloc(n + 1);
+  if (!p)
+    return NULL;
+  memcpy(p, buf, n + 1);
+  return p;
+}
+
+char *ls_char_to_str(int64_t c) {
+  char *p = malloc(2);
+  if (!p)
+    return NULL;
+  p[0] = (char)c;
+  p[1] = '\0';
+  return p;
+}

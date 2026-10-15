@@ -151,6 +151,8 @@ let runtime_externs : (string * (ty list * ty)) list =
     ("ls_string_to_list", ([ String ], List I64));
     ("ls_int_to_float", ([ I64 ], F64));
     ("ls_float_to_int", ([ F64 ], I64));
+    ("ls_float_to_str", ([ F64 ], String));
+    ("ls_char_to_str", ([ I64 ], String));
   ]
 
 (* ----- helpers for well-formedness checks later ----- *)

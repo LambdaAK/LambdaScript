@@ -35,6 +35,11 @@ let show_tests =
     ok "show Option Some" (ps "show (Some 3)") "Some 3\n";
     ok "show Option None" (ps "show (list_head [None, Some 1])") "None\n";
     ok "show tuple" (ps "show (1, true)") "(1, true)\n";
+    ok "show triple" (ps "show (1, \"a\", 'c')") "(1, a, c)\n";
+    ok "show nested option" (ps "show (Some (Some 2))") "Some Some 2\n";
+    ok "show Float" (ps "show 2.5") "2.5\n";
+    ok "show integral Float" (ps "show 3.0") "3.0\n";
+    ok "show list of options" (ps "show [Some 1, None]") "[Some 1, None]\n";
   ]
 
 let println_tests =
@@ -154,6 +159,9 @@ let builtin_tests =
     ok "list_nth last" (pr "list_nth [1, 2, 3] 2") "3\n";
     ok "tuple_fst of nested" (pr "tuple_fst (tuple_snd (1, (2, 3)))") "2\n";
     ok "int_to_float" (pr "float_to_int (int_to_float 12)") "12\n";
+    ok "float_to_str shortest round trip" (ps "float_to_str 0.1 ^ \" \" ^ float_to_str 0.333333333333 ^ \" \" ^ float_to_str (-2.25)") "0.1 0.333333333333 -2.25\n";
+    ok "float_to_str integral and large" (ps "float_to_str 7.0 ^ \" \" ^ float_to_str 100000000000000000000000.0 ^ \" \" ^ float_to_str 0.0000001") "7.0 1e+23 1e-07\n";
+    ok "char_to_str" (ps "char_to_str 'a' ^ char_to_str 'b'") "ab\n";
     ok "not false" (pr "not false") "true\n";
     ok "not as value" (pr "map not [true, false]") "[false, true]\n";
     ok "str_concat partial" (ps "map (str_concat \"<\") [\"a\", \"b\"] |> reduce_left (fn a -> fn b -> a ^ b) \"\"") "<a<b\n";

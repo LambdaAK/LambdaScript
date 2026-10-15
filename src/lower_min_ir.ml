@@ -757,7 +757,8 @@ type env = (string * env_binding) list
 let is_native_builtin_name : string -> bool = function
   | "print" | "print_string" | "int_to_str" -> true
   | "__prim_str_length" | "__prim_str_slice" | "__prim_string_to_list"
-  | "__prim_int_to_float" | "__prim_float_to_int" ->
+  | "__prim_int_to_float" | "__prim_float_to_int" | "__prim_float_to_str"
+  | "__prim_char_to_str" ->
       true
   | "str_concat" -> true
   | "int_eq" | "float_eq" | "str_eq" | "char_eq" | "bool_eq" | "unit_eq" -> true
@@ -801,6 +802,8 @@ let native_builtin_binary_callable (name : string) : callable option =
   | "__prim_string_to_list" -> mk "ls_string_to_list" [ String ] (List I64)
   | "__prim_int_to_float" -> mk "ls_int_to_float" [ I64 ] F64
   | "__prim_float_to_int" -> mk "ls_float_to_int" [ F64 ] I64
+  | "__prim_float_to_str" -> mk "ls_float_to_str" [ F64 ] String
+  | "__prim_char_to_str" -> mk "ls_char_to_str" [ I64 ] String
   | _ -> None
 
 (** LLVM symbols [ls_print], [ls_println], [ls_int_to_str] (see runtime). *)
@@ -3921,6 +3924,10 @@ and desugar_list_comp (body : c_expr) (generators : (c_pat * c_expr) list) :
                           ( CCons,
                             body,
                             EApp (EId (comp, None), EId (tl, None)) ) );
+                      (* An element the pattern does not match (or a false
+                         guard) is skipped. *)
+                      ( CConsPat (CWildcardPat, CIdPat tl),
+                        EApp (EId (comp, None), EId (tl, None)) );
                     ] ) ),
             EApp (EId (comp, None), src),
             None )
@@ -3946,6 +3953,7 @@ and desugar_list_comp (body : c_expr) (generators : (c_pat * c_expr) list) :
                     [
                       (CNilPat, when_done);
                       (CConsPat (pat, CIdPat tl), inner_expr);
+                      (CConsPat (CWildcardPat, CIdPat tl), inner_when_done);
                     ] ) ),
             EApp (EId (outer, None), src),
             None )
@@ -5071,7 +5079,9 @@ let str_slice s start len = __prim_str_slice s start len
 let string_to_list s = __prim_string_to_list s
 let list_of_string s = __prim_string_to_list s
 let int_to_float n = __prim_int_to_float n
-let float_to_int f = __prim_float_to_int f|}
+let float_to_int f = __prim_float_to_int f
+let float_to_str f = __prim_float_to_str f
+let char_to_str c = __prim_char_to_str c|}
 
 let native_prim_types : static_env =
   [
@@ -5082,6 +5092,8 @@ let native_prim_types : static_env =
     ("__prim_string_to_list", Mono (FunctionType (StringType, CListType CharType)));
     ("__prim_int_to_float", Mono (FunctionType (IntType, FloatType)));
     ("__prim_float_to_int", Mono (FunctionType (FloatType, IntType)));
+    ("__prim_float_to_str", Mono (FunctionType (FloatType, StringType)));
+    ("__prim_char_to_str", Mono (FunctionType (CharType, StringType)));
   ]
 
 let defined_names (defs : c_defn list) : string list =

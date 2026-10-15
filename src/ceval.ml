@@ -70,6 +70,22 @@ let unwrap_eval_result (result : 'a eval_result) : 'a =
 (** [string_of_env env] converts an environment to a string representation.
     @param env The environment to convert
     @return A string representation of the environment *)
+
+(** [float_to_str]: the shortest [%g] form that reads back as the same float,
+    with [.0] added to integral values ([3.0], [0.1], [1e+100], [nan]); the
+    native runtime's [ls_float_to_str] prints the same strings. *)
+let string_of_forge_float (f : float) : string =
+  if Float.is_nan f then "nan"
+  else if f = Float.infinity then "inf"
+  else if f = Float.neg_infinity then "-inf"
+  else
+    let rec shortest p =
+      let s = Printf.sprintf "%.*g" p f in
+      if p >= 17 || float_of_string s = f then s else shortest (p + 1)
+    in
+    let s = shortest 1 in
+    if String.exists (fun c -> c = '.' || c = 'e') s then s else s ^ ".0"
+
 let rec string_of_env (env : env) =
   List.fold_left
     (fun acc (id, v) -> acc ^ "(" ^ id ^ ", " ^ string_of_value v ^ ") ")
@@ -863,6 +879,8 @@ and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   | IntToString, IntegerValue i -> StringValue (string_of_int i) |> return
   | IntToFloat, IntegerValue i -> FloatValue (float_of_int i) |> return
   | FloatToInt, FloatValue f -> IntegerValue (int_of_float f) |> return
+  | FloatToString, FloatValue f -> StringValue (string_of_forge_float f) |> return
+  | CharToString, CharValue c -> StringValue (String.make 1 c) |> return
   | StringToList, StringValue s ->
       let char_list =
         s |> String.to_seq |> List.of_seq |> List.map (fun c -> CharValue c)
