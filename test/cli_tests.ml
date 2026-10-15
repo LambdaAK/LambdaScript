@@ -78,6 +78,18 @@ let interpreter_tests =
       assert_equal ~printer:string_of_int (20000 * 5) (String.length r.out) );
   ]
 
+let ambiguity_tests =
+  [
+    ( "interpreter: an undetermined trait instance is reported as ambiguous" >:: fun _ ->
+      let src = "let () = println (pure 7)" in
+      assert_clean_error ~mentions:[ "ambiguous type" ] "ambiguous" src (interp src) );
+    ( "compiler: an undetermined trait instance is reported as ambiguous" >:: fun _ ->
+      let src = "let () = println (pure 7)" in
+      match native src with
+      | Error compile -> assert_clean_error ~mentions:[ "ambiguous" ] "ambiguous" src compile
+      | Ok _ -> assert_failure "an ambiguous program should not compile" );
+  ]
+
 let compiler_tests =
   [
     expect_usage "compile_forge: no arguments" "compile_forge" [];
@@ -271,6 +283,7 @@ let suite =
   "cli"
   >::: [
          "interpreter" >::: interpreter_tests;
+         "ambiguity" >::: ambiguity_tests;
          "compile_forge" >::: compiler_tests;
          "repl" >::: repl_tests;
          "forge_hover" >::: hover_tests;

@@ -868,6 +868,16 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
   | Some result -> result
   | None -> return (TypeClassMethodPending (cls_name, method_name, args))
 
+(** A trait method whose instance nothing determined (e.g. [pure 7] printed
+    without saying which [Applicative]) reached an operation that needs its
+    value. *)
+and ambiguous_method (cls : string) (m : string) : value eval_result =
+  Error
+    (OtherError
+       (Printf.sprintf
+          "ambiguous type: cannot tell which `%s` instance `%s` should use here (add a type annotation)"
+          cls m))
+
 and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   match (f, v) with
   | Println, StringValue s ->
@@ -911,6 +921,7 @@ and eval_builtin (f : builtin_function) (v : value) : value eval_result =
   | StrSlice, _ -> Error (OtherError "str_slice: expected string")
   | StrSlicePartial1 _, _ -> Error (OtherError "str_slice: expected int")
   | StrSlicePartial2 _, _ -> Error (OtherError "str_slice: expected int")
+  | _, (TypeClassMethod (cls, m) | TypeClassMethodPending (cls, m, _)) -> ambiguous_method cls m
   | _ -> Error (OtherError "eval_builtin: unimplemented")
 
 and generate_envs_from_generators generators env : env list eval_result =
