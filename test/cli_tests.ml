@@ -173,6 +173,20 @@ let compiler_tests =
       (match rr.status with Exited 1 -> () | _ -> assert_failure ("expected exit 1: " ^ describe rr));
       assert_equal ~printer:Fun.id "start\n" rr.out;
       if not (contains rr.err "stack overflow") then assert_failure ("expected a stack overflow message: " ^ describe rr) );
+    ( "type errors name the file, line and definition, in both drivers" >:: fun _ ->
+      with_tmpdir @@ fun dir ->
+      let src = Filename.concat dir "bad.forge" in
+      write_file src
+        "type Value = | Num of Int\n\nlet ok = 1\n\nlet pick s =\n  case s do\n  | \"one\" -> Some (Num 1)\n  | _ -> Some 2\n";
+      let expected = src ^ ":5: type error in `pick`: cannot match" in
+      List.iter
+        (fun (what, r) ->
+          if not (contains r.err expected) || contains r.err "in: " then
+            assert_failure (Printf.sprintf "%s: expected %S, without an echo: %s" what expected (describe r)))
+        [
+          ("interpreter", run_process ~cwd:(repo ()) (exe "interpreter") [ src ]);
+          ("compile_forge", run_process ~timeout:120.0 ~cwd:(repo ()) (exe "compile_forge") [ src; Filename.concat dir "out" ]);
+        ] );
     ( "compile_forge: default output name is a.out in the cwd" >:: fun _ ->
       with_tmpdir @@ fun dir ->
       let src = Filename.concat dir "p.forge" in

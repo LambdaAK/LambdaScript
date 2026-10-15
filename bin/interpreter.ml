@@ -6,25 +6,7 @@
 open Language
 
 let interpret (filename : string) =
-  let user_source =
-    try Compile_pipeline.read_file filename
-    with Sys_error msg -> Diag.die ("cannot read " ^ msg)
-  in
-  let full_source = Prelude.prepend_to_source ~src_path:filename user_source in
-  let prefix_lines =
-    Diag.lines_in_prefix full_source (String.length full_source - String.length user_source)
-  in
-  let program =
-    Diag.with_source_lines ~file:filename ~prefix_lines (fun () ->
-        Parser.parse_program_tokens
-          ~boundary:(String.length full_source - String.length user_source)
-          (Lex.lex (full_source |> String.to_seq |> List.of_seq)))
-  in
-  let program =
-    Import_resolve.resolve_program ~root_file:filename
-      ~base_dir:(Filename.dirname filename) program
-  in
-  let condensed_program = Condense.condense_program program in
+  let fr = Compile_pipeline.front_end filename in
   let static_env = Build_env.build_full_static_env () in
   let dynamic_env = Ceval.initial_env () |> Ceval.unwrap_eval_result in
   let type_env : Typecheck.type_env = [] in
