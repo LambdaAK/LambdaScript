@@ -58,7 +58,8 @@ elsewhere.
 \texttt{compile\_forge} \textit{file} [\textit{out}] & Compile to a native executable (default \texttt{a.out}); also writes the intermediate \texttt{.mir}, \texttt{.ll} and \texttt{.s} files next to the source.\index{native compiler} \\
 \texttt{dump\_min\_ir} \textit{file} & Print the program in the compiler's intermediate representation, Min IR. \\
 \texttt{parse\_file} \textit{file} & Print the parse tree. \\
-\texttt{forge\_hover} \textit{file prelude line col} & Type at a position, for editor integration (reads the buffer on standard input). \\
+\texttt{forge\_ide} \textit{file} & Diagnostics, symbols and references of a file as JSON, for editors (reads the buffer on standard input). \\
+\texttt{forge\_hover} \textit{file prelude line col} & Type at a position (reads the buffer on standard input). \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -131,7 +132,13 @@ Appendix~\ref{ch:diagnostics} lists the messages.
 
 \section{Editor support}
 
-The \texttt{vscode-forge} directory contains a Visual Studio Code extension
-with syntax highlighting and type-on-hover (it runs \texttt{forge\_hover}).
-Build it with \texttt{npm ci --prefix vscode-forge \&\& npm --prefix
-vscode-forge run compile}.
+The \texttt{vscode-forge} directory contains an extension for Visual Studio
+Code and Cursor. It reports errors and warnings as you type, shows the type
+and doc comment of any name on hover, and supports go to definition, find
+references, rename, completion, an outline, inline type hints, semantic
+highlighting, and commands to run, compile and open a REPL. It is driven by
+\texttt{forge\_ide}, which prints the diagnostics, symbols and references of a
+file as JSON. \texttt{npm run package} in \texttt{vscode-forge} (after
+\texttt{dune build}) produces a \texttt{.vsix} that bundles the Forge tools;
+install it with \texttt{cursor --install-extension} or
+\texttt{code --install-extension}.

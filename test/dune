@@ -118,7 +118,8 @@
   features_tests
   prelude_tests
   cli_tests
-  fuzz_tests)
+  fuzz_tests
+  ide_tests)
  (modules
   lexer_tests
   parser_tests
@@ -128,7 +129,8 @@
   features_tests
   prelude_tests
   cli_tests
-  fuzz_tests)
+  fuzz_tests
+  ide_tests)
  (libraries Language ounit2 unix forge_test_util)
  (deps
   ../bin/interpreter.exe

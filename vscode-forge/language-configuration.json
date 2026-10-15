@@ -1,7 +1,7 @@
 {
   "comments": {
     "lineComment": "//",
-    "blockComment": ["(*", "*)"]
+    "blockComment": ["/*", "*/"]
   },
   "brackets": [
     ["{", "}"],
@@ -12,27 +12,34 @@
     { "open": "{", "close": "}" },
     { "open": "[", "close": "]" },
     { "open": "(", "close": ")" },
-    { "open": "\"", "close": "\"" },
-    { "open": "'", "close": "'" },
-    { "open": "(*", "close": "*)", "notIn": ["string"] }
+    { "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
+    { "open": "/*", "close": " */", "notIn": ["string"] }
   ],
+  "autoCloseBefore": ";:.,=}])> \n\t",
   "surroundingPairs": [
     ["{", "}"],
     ["[", "]"],
     ["(", ")"],
     ["\"", "\""],
-    ["'", "'"],
-    ["(*", "*)"]
+    ["'", "'"]
   ],
   "folding": {
+    "offSide": true,
     "markers": {
-      "start": "^\\s*\\(\\*",
-      "end": "^\\s*\\*\\)"
+      "start": "^\\s*//\\s*#?region\\b",
+      "end": "^\\s*//\\s*#?endregion\\b"
     }
   },
-  "wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
+  "wordPattern": "([A-Za-z_][A-Za-z0-9_']*)|(-?\\d+(\\.\\d+)?)",
   "indentationRules": {
-    "increaseIndentPattern": "^.*\\b(let|if|then|else|case|do|type|fn|trait|inter|impl|switch|where|mod)\\b.*$",
-    "decreaseIndentPattern": "^\\s*(\\||in|else|end)\\b.*$"
-  }
+    "increaseIndentPattern": "^((?!//).)*(\\b(do|where|then|else)|=|->|\\{|\\[|\\()\\s*(//.*)?$",
+    "decreaseIndentPattern": "^\\s*(end\\b|\\}|\\]|\\))"
+  },
+  "onEnterRules": [
+    {
+      "beforeText": "^\\s*//.*$",
+      "afterText": "^(?!\\s*$).+",
+      "action": { "indent": "none", "appendText": "// " }
+    }
+  ]
 }

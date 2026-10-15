@@ -2,249 +2,214 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Forge",
   "scopeName": "source.forge",
+  "fileTypes": ["forge"],
   "patterns": [
-    {
-      "include": "#comments"
-    },
-    {
-      "include": "#keywords"
-    },
-    {
-      "include": "#storage"
-    },
-    {
-      "include": "#types"
-    },
-    {
-      "include": "#constants"
-    },
-    {
-      "include": "#strings"
-    },
-    {
-      "include": "#characters"
-    },
-    {
-      "include": "#numbers"
-    },
-    {
-      "include": "#operators"
-    },
-    {
-      "include": "#functions"
-    },
-    {
-      "include": "#type-constructors"
-    },
-    {
-      "include": "#punctuation"
-    }
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#characters" },
+    { "include": "#numbers" },
+    { "include": "#macro-rules" },
+    { "include": "#declarations" },
+    { "include": "#keywords" },
+    { "include": "#macro-invocation" },
+    { "include": "#macro-fragment" },
+    { "include": "#constants" },
+    { "include": "#modules" },
+    { "include": "#types" },
+    { "include": "#builtins" },
+    { "include": "#operators" },
+    { "include": "#punctuation" }
   ],
   "repository": {
     "comments": {
       "patterns": [
         {
           "name": "comment.block.forge",
-          "begin": "\\(\\*",
-          "end": "\\*\\)",
-          "patterns": [
-            {
-              "include": "#comments"
-            }
-          ]
+          "begin": "/\\*",
+          "end": "\\*/",
+          "captures": { "0": { "name": "punctuation.definition.comment.forge" } }
         },
         {
           "name": "comment.line.double-slash.forge",
           "begin": "//",
-          "end": "$"
+          "end": "$",
+          "beginCaptures": { "0": { "name": "punctuation.definition.comment.forge" } }
+        }
+      ]
+    },
+    "escapes": {
+      "patterns": [
+        { "name": "constant.character.escape.forge", "match": "\\\\[ntr0\\\\\"']" },
+        { "name": "invalid.illegal.escape.forge", "match": "\\\\." }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.forge",
+      "begin": "\"",
+      "end": "\"",
+      "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.forge" } },
+      "endCaptures": { "0": { "name": "punctuation.definition.string.end.forge" } },
+      "patterns": [{ "include": "#escapes" }]
+    },
+    "characters": {
+      "name": "string.quoted.single.forge",
+      "match": "'(\\\\[ntr0\\\\\"']|[^'\\\\])'",
+      "captures": { "1": { "patterns": [{ "include": "#escapes" }] } }
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric.float.forge", "match": "\\b\\d+\\.(?!\\.)\\d*\\b" },
+        { "name": "constant.numeric.integer.forge", "match": "\\b\\d+\\b" }
+      ]
+    },
+    "macro-rules": {
+      "match": "\\b(macro_rules)(!)\\s*([a-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.other.macro.forge" },
+        "2": { "name": "keyword.other.macro.forge" },
+        "3": { "name": "entity.name.function.macro.forge" }
+      }
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "comment": "let (+++) a b = ...",
+          "match": "\\b(let)\\s+(?:(rec)\\s+)?(\\()([-+*/%<>=^!|.]+)(\\))",
+          "captures": {
+            "1": { "name": "storage.type.let.forge" },
+            "2": { "name": "storage.modifier.rec.forge" },
+            "3": { "name": "punctuation.parenthesis.forge" },
+            "4": { "name": "entity.name.function.operator.forge" },
+            "5": { "name": "punctuation.parenthesis.forge" }
+          }
+        },
+        {
+          "match": "\\b(let|and)\\s+(?:(rec)\\s+)?([a-z_][A-Za-z0-9_']*)(?=\\s+[a-z_(\\[{]|\\s*\\[)",
+          "captures": {
+            "1": { "name": "storage.type.let.forge" },
+            "2": { "name": "storage.modifier.rec.forge" },
+            "3": { "name": "entity.name.function.forge" }
+          }
+        },
+        {
+          "match": "\\b(let|and)\\s+(?:(rec)\\s+)?([a-z_][A-Za-z0-9_']*)",
+          "captures": {
+            "1": { "name": "storage.type.let.forge" },
+            "2": { "name": "storage.modifier.rec.forge" },
+            "3": { "name": "variable.other.definition.forge" }
+          }
+        },
+        {
+          "match": "\\b(type)\\s+(?:(rec)\\s+)?([A-Z][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.type.forge" },
+            "2": { "name": "storage.modifier.rec.forge" },
+            "3": { "name": "entity.name.type.forge" }
+          }
+        },
+        {
+          "match": "\\b(trait|inter)\\s+([A-Z][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.trait.forge" },
+            "2": { "name": "entity.name.type.interface.forge" }
+          }
+        },
+        {
+          "match": "\\b(impl)\\s+([A-Z][A-Za-z0-9_]*)\\s+(for)\\b",
+          "captures": {
+            "1": { "name": "storage.type.impl.forge" },
+            "2": { "name": "entity.name.type.interface.forge" },
+            "3": { "name": "keyword.other.for.forge" }
+          }
+        },
+        {
+          "match": "\\b(mod)\\s+([A-Z][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.module.forge" },
+            "2": { "name": "entity.name.namespace.forge" }
+          }
+        },
+        {
+          "match": "\\b(val)\\s+([a-z_][A-Za-z0-9_']*|\\([-+*/%<>=^!|.]+\\))",
+          "captures": {
+            "1": { "name": "storage.type.val.forge" },
+            "2": { "name": "entity.name.function.method.forge" }
+          }
+        },
+        {
+          "comment": "A constructor in a type declaration: | Name",
+          "match": "(\\|)\\s*([A-Z][A-Za-z0-9_]*)(?=\\s+of\\b|\\s*$|\\s*\\|)",
+          "captures": {
+            "1": { "name": "punctuation.separator.variant.forge" },
+            "2": { "name": "entity.name.type.enum-member.forge" }
+          }
         }
       ]
     },
     "keywords": {
       "patterns": [
-        {
-          "name": "keyword.control.forge",
-          "match": "\\b(if|then|else|case|do|of|switch)\\b"
-        },
-        {
-          "name": "keyword.other.forge",
-          "match": "\\b(let|in|and|fn|for|with|end|where|requires|enum|mod|use|import)\\b"
-        }
+        { "name": "keyword.control.forge", "match": "\\b(if|then|else|case|do)\\b" },
+        { "name": "keyword.control.import.forge", "match": "\\b(import|use)\\b" },
+        { "name": "storage.type.forge", "match": "\\b(let|fn|type|trait|inter|impl|mod|val)\\b" },
+        { "name": "storage.modifier.forge", "match": "\\b(rec|and)\\b" },
+        { "name": "keyword.other.forge", "match": "\\b(in|of|with|where|end|requires|for|switch|enum)\\b" }
       ]
     },
-    "storage": {
-      "patterns": [
-        {
-          "name": "storage.type.forge",
-          "match": "\\b(type|rec|trait|inter|impl|val)\\b"
-        }
-      ]
+    "macro-invocation": {
+      "match": "\\b([a-z_][A-Za-z0-9_]*)(!)(?!=)",
+      "captures": {
+        "1": { "name": "entity.name.function.macro.forge" },
+        "2": { "name": "keyword.operator.macro.forge" }
+      }
     },
-    "types": {
-      "patterns": [
-        {
-          "name": "support.type.primitive.forge",
-          "match": "\\b(int|float|bool|string|char|unit|Int|Float|Bool|String|Char|Unit)\\b"
-        },
-        {
-          "name": "support.type.custom.forge",
-          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
-        },
-        {
-          "name": "support.type.variable.forge",
-          "match": "'[a-z][a-zA-Z0-9_]*\\b"
-        }
-      ]
+    "macro-fragment": {
+      "match": "\\$[A-Za-z_][A-Za-z0-9_]*(?::(expr|pat|ty|type|ident|literal|lit|path|block|item|tt))?",
+      "name": "variable.other.macro.forge"
     },
     "constants": {
       "patterns": [
-        {
-          "name": "constant.language.boolean.forge",
-          "match": "\\b(true|false)\\b"
-        },
-        {
-          "name": "constant.language.unit.forge",
-          "match": "\\(\\)"
-        },
-        {
-          "name": "constant.other.wildcard.forge",
-          "match": "\\b_\\b"
-        }
+        { "name": "constant.language.boolean.forge", "match": "\\b(true|false)\\b" },
+        { "name": "constant.language.unit.forge", "match": "\\(\\)" },
+        { "name": "support.constant.forge", "match": "\\b(Some|None|LT|EQ|GT)\\b" }
       ]
     },
-    "strings": {
+    "modules": {
+      "match": "\\b([A-Z][A-Za-z0-9_]*)(\\.)(?=[A-Za-z_])",
+      "captures": {
+        "1": { "name": "entity.name.namespace.forge" },
+        "2": { "name": "punctuation.accessor.forge" }
+      }
+    },
+    "types": {
       "patterns": [
-        {
-          "name": "string.quoted.double.forge",
-          "begin": "\"",
-          "end": "\"",
-          "patterns": [
-            {
-              "name": "constant.character.escape.forge",
-              "match": "\\\\(n|t|r|\\\\|\"|')"
-            }
-          ]
-        }
+        { "name": "support.type.primitive.forge", "match": "\\b(Int|Float|Bool|Char|String|Unit)\\b" },
+        { "name": "support.type.forge", "match": "\\b(List|Option|Ordering)\\b" },
+        { "name": "support.class.trait.forge", "match": "\\b(Show|Eq|Ord|Semigroup|Monoid|Functor|Applicative|Monad|Alternative|Foldable|Bifunctor)\\b" },
+        { "name": "entity.name.type.forge", "match": "\\b[A-Z][A-Za-z0-9_]*\\b" }
       ]
     },
-    "characters": {
-      "patterns": [
-        {
-          "name": "string.quoted.single.forge",
-          "match": "'([^'\\\\]|\\\\(n|t|r|\\\\|\"|'))'"
-        }
-      ]
-    },
-    "numbers": {
-      "patterns": [
-        {
-          "name": "constant.numeric.float.forge",
-          "match": "\\b-?[0-9]+\\.[0-9]+\\b"
-        },
-        {
-          "name": "constant.numeric.integer.forge",
-          "match": "\\b-?[0-9]+\\b"
-        }
-      ]
+    "builtins": {
+      "name": "support.function.builtin.forge",
+      "match": "\\b(print|print_string|println|show|int_to_str|int_to_float|float_to_int|float_to_str|char_to_str|string_to_list|list_of_string|str_length|str_concat|str_slice|list_length|list_head|list_tail|list_nth|map|filter|reduce_left|reduce_right|tuple_fst|tuple_snd|not|sqrt|exp|log|compare|fmap|pure|ap|bind|mappend|empty|aempty)\\b"
     },
     "operators": {
       "patterns": [
-        {
-          "name": "keyword.operator.arrow.forge",
-          "match": "->"
-        },
-        {
-          "name": "keyword.operator.switch.forge",
-          "match": "=>"
-        },
-        {
-          "name": "keyword.operator.bind.forge",
-          "match": "<-"
-        },
-        {
-          "name": "keyword.operator.pipeline.forge",
-          "match": "\\|>"
-        },
-        {
-          "name": "keyword.operator.range.forge",
-          "match": "\\.\\.\\."
-        },
-        {
-          "name": "keyword.operator.cons.forge",
-          "match": "::"
-        },
-        {
-          "name": "keyword.operator.comparison.forge",
-          "match": "(==|!=|<>|<=|>=|<|>)"
-        },
-        {
-          "name": "keyword.operator.logical.forge",
-          "match": "(&&|\\|\\|)"
-        },
-        {
-          "name": "keyword.operator.arithmetic.forge",
-          "match": "(\\+|-|\\*|/|%)"
-        },
-        {
-          "name": "keyword.operator.type-annotation.forge",
-          "match": ":"
-        },
-        {
-          "name": "keyword.operator.pipe.forge",
-          "match": "\\|"
-        },
-        {
-          "name": "keyword.operator.assignment.forge",
-          "match": "="
-        }
-      ]
-    },
-    "functions": {
-      "patterns": [
-        {
-          "name": "support.function.builtin.forge",
-          "match": "\\b(print|println|int_to_str|int_to_float|float_to_int|string_to_list|map|filter|reduce_left|reduce_right|not)\\b"
-        },
-        {
-          "name": "entity.name.function.forge",
-          "match": "\\([^\\)]+\\)(?=\\s*:)"
-        },
-        {
-          "name": "entity.name.function.forge",
-          "match": "\\([^\\)]+\\)(?=\\s+[a-z_][a-zA-Z0-9_']*\\s*=)"
-        },
-        {
-          "name": "entity.name.function.forge",
-          "match": "\\b[a-z_][a-zA-Z0-9_]*\\b(?=\\s*=)"
-        }
-      ]
-    },
-    "type-constructors": {
-      "patterns": [
-        {
-          "name": "entity.name.type.constructor.forge",
-          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
-        }
+        { "name": "keyword.operator.arrow.forge", "match": "->|<-|=>" },
+        { "name": "keyword.operator.pipeline.forge", "match": "\\|>" },
+        { "name": "keyword.operator.cons.forge", "match": "::" },
+        { "name": "keyword.operator.range.forge", "match": "\\.\\.\\." },
+        { "name": "keyword.operator.logical.forge", "match": "&&|\\|\\|" },
+        { "name": "keyword.operator.float.forge", "match": "[-+*/]\\." },
+        { "name": "keyword.operator.comparison.forge", "match": "==|!=|<>|<=|>=" },
+        { "name": "keyword.operator.forge", "match": "[-+*/%^<>=!|]+" }
       ]
     },
     "punctuation": {
       "patterns": [
-        {
-          "name": "punctuation.section.brackets.forge",
-          "match": "[\\[\\]()]"
-        },
-        {
-          "name": "punctuation.section.braces.forge",
-          "match": "[{}]"
-        },
-        {
-          "name": "punctuation.separator.comma.forge",
-          "match": ","
-        },
-        {
-          "name": "punctuation.terminator.semicolon.forge",
-          "match": ";"
-        }
+        { "name": "punctuation.separator.comma.forge", "match": "," },
+        { "name": "punctuation.terminator.forge", "match": ";" },
+        { "name": "punctuation.separator.annotation.forge", "match": ":" },
+        { "name": "punctuation.accessor.forge", "match": "\\." }
       ]
     }
   }

@@ -1,14 +1,25 @@
 {
   "name": "forge",
   "displayName": "Forge",
-  "description": "Syntax highlighting and type-on-hover for Forge programs",
-  "version": "0.1.0",
+  "description": "Forge language support: diagnostics, hover types, go to definition, references, rename, completion, outline, inlay type hints, semantic highlighting and run commands",
+  "version": "0.2.0",
   "publisher": "forge",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LambdaAK/Forge"
+  },
   "engines": {
-    "vscode": "^1.60.0"
+    "vscode": "^1.75.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Snippets"
+  ],
+  "keywords": [
+    "forge",
+    "functional",
+    "language server"
   ],
   "main": "./out/extension.js",
   "activationEvents": [
@@ -17,7 +28,9 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "bundle": "sh ./scripts/bundle-toolchain.sh",
+    "package": "npm run bundle && vsce package --allow-missing-repository --skip-license"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1",
@@ -26,7 +39,8 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "^1.75.0",
+    "@vscode/vsce": "^3.2.1",
     "typescript": "^5.6.0"
   },
   "contributes": {
@@ -34,7 +48,8 @@
       {
         "id": "forge",
         "aliases": [
-          "Forge"
+          "Forge",
+          "forge"
         ],
         "extensions": [
           ".forge"
@@ -49,15 +64,92 @@
         "path": "./syntaxes/forge.tmLanguage.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "forge",
+        "path": "./snippets/forge.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "forge.run",
+        "title": "Run File",
+        "category": "Forge",
+        "icon": "$(play)"
+      },
+      {
+        "command": "forge.compileAndRun",
+        "title": "Compile to Native Code and Run",
+        "category": "Forge"
+      },
+      {
+        "command": "forge.openRepl",
+        "title": "Open REPL",
+        "category": "Forge"
+      },
+      {
+        "command": "forge.restartServer",
+        "title": "Restart Language Server",
+        "category": "Forge"
+      }
+    ],
+    "menus": {
+      "editor/title/run": [
+        {
+          "command": "forge.run",
+          "when": "editorLangId == forge",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "forge.run",
+          "when": "editorLangId == forge"
+        },
+        {
+          "command": "forge.compileAndRun",
+          "when": "editorLangId == forge"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "forge.run",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "editorLangId == forge"
+      }
+    ],
     "configuration": {
       "title": "Forge",
       "properties": {
-        "forge.forgeHoverPath": {
+        "forge.toolchainPath": {
           "type": "string",
           "default": "",
-          "description": "Absolute path to the forge_hover executable (from `dune build bin/forge_hover.exe`). Leave empty to search upward from the file for _build/default/bin/forge_hover(.exe), or set FORGE_HOVER_PATH in the environment."
+          "description": "Directory containing the Forge tools (forge_ide, interpreter, repl, compile_forge), e.g. /path/to/Forge/_build/default/bin. Leave empty to use the _build of a Forge checkout above the file, or the tools bundled with the extension."
+        },
+        "forge.inlayHints.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the inferred types of top-level definitions inline."
         }
       }
-    }
+    },
+    "semanticTokenScopes": [
+      {
+        "language": "forge",
+        "scopes": {
+          "enumMember": [
+            "entity.name.type.enum-member.forge"
+          ],
+          "macro": [
+            "entity.name.function.macro.forge"
+          ],
+          "parameter": [
+            "variable.parameter.forge"
+          ]
+        }
+      }
+    ]
   }
 }

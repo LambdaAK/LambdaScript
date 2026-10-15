@@ -60,3 +60,10 @@
  (libraries Language)
  (instrumentation
   (backend bisect_ppx)))
+
+(executable
+ (name forge_ide)
+ (modules forge_ide)
+ (libraries Language)
+ (instrumentation
+  (backend bisect_ppx)))
