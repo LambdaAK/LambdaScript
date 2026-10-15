@@ -482,7 +482,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       in
 
       match find_bindings_and_body_if_possible branches v with
-      | None -> Error (OtherError "no pattern matched in switch")
+      | None -> Error (OtherError "no pattern matched")
       | Some (bindings, e) -> eval_c_expr e (bindings @ env))
   | ETernary (e1, e2, e3) -> (
       let* v1 : value = eval_c_expr e1 env in
@@ -554,7 +554,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
             bind_pat pattern v1_rec
           in
           match recursive_bindings_option with
-          | None -> Error (OtherError "no pattern matched in let rec")
+          | None -> Error (OtherError "no pattern matched")
           | Some recursive_bindings ->
               env_ref := recursive_bindings @ env;
               eval_c_expr e2 (recursive_bindings @ env))
@@ -562,7 +562,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
           (* evaluate a regular let expression *)
           let new_bindings_option : env option = bind_pat pattern v1_rec in
           match new_bindings_option with
-          | None -> Error (OtherError "no pattern matched in let rec")
+          | None -> Error (OtherError "no pattern matched")
           | Some new_bindings -> eval_c_expr e2 (new_bindings @ env)))
   | EBindMutRec (bindings, body) ->
       (* For mutually recursive bindings: 1. Evaluate all bodies to get closures
@@ -588,7 +588,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
               match bind_pat pat value_rec with
               | None ->
                   Error
-                    (OtherError "no pattern matched in mutually recursive let")
+                    (OtherError "no pattern matched")
               | Some new_bindings ->
                   process_bindings ((new_bindings, env_ref_opt) :: acc) rest)
         in
@@ -1139,7 +1139,7 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       let* value = eval_c_expr body env in
       (* Try to bind the pattern to the value *)
       match bind_pat pat value with
-      | None -> Error (OtherError "eval_defn: pattern match failed")
+      | None -> Error (OtherError "no pattern matched")
       | Some new_bindings ->
           List.iter
             (fun (_, v) -> backpatch_recursive_closures new_bindings v)
@@ -1158,7 +1158,7 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       in
       (* Try to bind the pattern to the recursive value *)
       match bind_pat pat value_rec with
-      | None -> Error (OtherError "eval_defn: pattern match failed")
+      | None -> Error (OtherError "no pattern matched")
       | Some new_bindings ->
           (* If it's a recursive function, backpatch the environment *)
           (match value_rec with
@@ -1191,7 +1191,7 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
               | None ->
                   Error
                     (OtherError
-                       "eval_defn: pattern match failed in mutual recursion")
+                       "no pattern matched")
               | Some new_bindings ->
                   process_defns ((new_bindings, env_ref_opt) :: acc) rest)
         in

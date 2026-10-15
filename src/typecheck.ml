@@ -2164,14 +2164,25 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
           all_equations env_with_self_dict type_env body_type
       in
 
-      (* Create new environment with pattern bindings using bind_static *)
-      let new_bindings =
-        match bind_static pat generalized_type with
-        | Some bindings ->
-            (* Use pattern_env to ensure we have all the variables *)
-            let var_names = List.map fst pattern_env in
-            List.filter (fun (id, _) -> List.mem id var_names) bindings
-        | None -> failwith "Pattern binding failed"
+      (* Bindings of the pattern's variables: an identifier gets the
+         generalised type; every variable of another (possibly refutable)
+         pattern is generalised on its own, as in a local [let]. *)
+      let- new_bindings =
+        match pat with
+        | CIdPat id -> return [ (id, generalized_type) ]
+        | _ ->
+            let rec gen acc = function
+              | [] -> return (List.rev acc)
+              | (x, sch) :: rest ->
+                  let tx = match sch with Mono t -> t | other -> instantiate other in
+                  let- g =
+                    generalize
+                      ~class_preds:(p_body @ explicit_class_constraints)
+                      all_equations env_with_self_dict type_env tx
+                  in
+                  gen ((x, g) :: acc) rest
+            in
+            gen [] pattern_env
       in
 
       (* Return value bindings in static env and empty type env *)
