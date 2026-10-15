@@ -637,6 +637,36 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
   let method_for_dict (dict_name : string) : value option =
     match List.assoc_opt dict_name env with
     | Some (RecordValue fields) -> List.assoc_opt method_name fields
+    | Some ((FunctionClosure _ | RecursiveFunctionClosure _) as dict_fn) -> (
+        (* An instance with [requires] clauses is a function of the required
+           dictionaries; at run time, give it dispatching dictionaries. *)
+        let requires =
+          match
+            List.find_opt
+              (fun i -> String.equal i.inst_dict dict_name)
+              !Forge_class_util.instances
+          with
+          | Some i -> List.filter (fun (_, t) -> match t with TypeVar _ -> true | _ -> false) i.inst_requires
+          | None -> []
+        in
+        let dynamic_dict (cls : string) : value =
+          let methods =
+            match List.assoc_opt cls !Forge_class_util.class_methods with
+            | Some ms -> ms
+            | None -> []
+          in
+          RecordValue (List.map (fun m -> (m, TypeClassMethod (cls, m))) methods)
+        in
+        let rec apply_all fn = function
+          | [] -> Some fn
+          | (cls, _) :: rest -> (
+              match apply_function_value env fn (dynamic_dict cls) with
+              | Ok fn' -> apply_all fn' rest
+              | Error _ -> None)
+        in
+        match apply_all dict_fn requires with
+        | Some (RecordValue fields) -> List.assoc_opt method_name fields
+        | _ -> None)
     | _ -> None
   in
   let forge_dict_slug ~(class_name : string) (dict_name : string) :
@@ -1109,9 +1139,12 @@ and eval_defn (d : c_defn) (env : env) : env eval_result =
       match params with
       | [ _ ] ->
           let bindings =
-            List.map
+            List.concat_map
               (fun (mname, _, dispatch_cls) ->
-                (mname, TypeClassMethod (dispatch_cls, mname)))
+                [
+                  (mname, TypeClassMethod (dispatch_cls, mname));
+                  (method_alias dispatch_cls mname, TypeClassMethod (dispatch_cls, mname));
+                ])
               methods
           in
           return bindings

@@ -164,6 +164,30 @@ exception Pattern_error of string
     messages). *)
 let last_type_clash : (mono_type * mono_type) option ref = ref None
 
+(** {2 Evidence for dictionary passing}
+
+    While [evidence_logging] is set, inference records (by physical AST node)
+    the class predicates instantiated at every occurrence of an overloaded
+    identifier, and the generalised schemes of local [let] bindings. The
+    elaborator ({!elaborate_defn_with_evidence}) resolves those predicates under
+    the final solution of the definition and inserts the dictionaries. *)
+let evidence_logging = ref false
+
+let evidence_occurrences : (c_expr * (string * mono_type) list) list ref = ref []
+
+let evidence_bindings : (c_expr * (string * c_type) list) list ref = ref []
+
+(** All equations of the last top-level definition checked by
+    [generate_defn] (its full solution resolves the logged predicates). *)
+let last_defn_equations : type_equations ref = ref []
+
+let log_occurrence (node : c_expr) (preds : (string * mono_type) list) : unit =
+  if !evidence_logging && preds <> [] then
+    evidence_occurrences := (node, preds) :: !evidence_occurrences
+
+let log_binding (node : c_expr) (binds : (string * c_type) list) : unit =
+  if !evidence_logging then evidence_bindings := (node, binds) :: !evidence_bindings
+
 let assert_distinct_record_field_names (names : string list) : unit =
   let sorted = List.sort String.compare names in
   let rec nodups = function
@@ -607,16 +631,16 @@ let rec generate (env : static_env) (type_env : type_env) (e : c_expr) :
   | EChar _ -> generate_e_char
   | EUnit -> generate_e_unit
   | ENil -> generate_e_nil ()
-  | EId (x, _) -> generate_e_id env x
+  | EId (x, _) -> generate_e_id ~node:e env x
   | EBop (op, e1, e2) -> generate_e_bop env type_env op e1 e2
   | EFunction (pat, cto, body) -> generate_e_function env type_env pat cto body
   | EApp (e1, e2) -> generate_e_app env type_env e1 e2
   | EBind (pat, cto, e1, e2, return_type) ->
-      generate_e_bind env type_env pat cto e1 e2 return_type
+      generate_e_bind ~node:e env type_env pat cto e1 e2 return_type
   | EBindRec (pat, _, e1, e2, return_type) ->
-      generate_e_bind_rec env type_env pat e1 e2 return_type
+      generate_e_bind_rec ~node:e env type_env pat e1 e2 return_type
   | EBindMutRec (bindings, body) ->
-      generate_e_bind_mut_rec env type_env bindings body
+      generate_e_bind_mut_rec ~node:e env type_env bindings body
   | ETernary (e1, e2, e3) -> generate_e_ternary env type_env e1 e2 e3
   | EVector expressions -> generate_e_vector env type_env expressions
   | EListEnumeration (e1, e2) -> generate_e_list_enumeration env type_env e1 e2
@@ -757,12 +781,13 @@ and generate_e_nil () = return (CListType (fresh_type_var ()), [], [])
     @return
       A pair containing the instantiated type of the identifier and an empty
       list of constraints *)
-and generate_e_id (env : static_env) (x : string) :
+and generate_e_id ?(node : c_expr = EUnit) (env : static_env) (x : string) :
     (mono_type * type_equations * type_env) type_check_result =
   match List.assoc_opt x env with
   | Some sch when scheme_has_class_constraint sch ->
       let m, preds = instantiate_infer_scheme sch in
       pending_expression_class_preds := preds @ !pending_expression_class_preds;
+      log_occurrence node preds;
       return (m, [], [])
   | Some uninstantiated ->
       let t = instantiate uninstantiated in
@@ -836,11 +861,12 @@ and generate_e_function (env : static_env) (type_env : type_env) (pat : c_pat)
     @param e2 The argument expression
     @return
       A pair containing the result type and constraints for the application *)
-and generate_class_method_app (env : static_env) (type_env : type_env)
-    (_f : string) (sch : c_type) (e2 : c_expr) :
+and generate_class_method_app ?(node : c_expr = EUnit) (env : static_env)
+    (type_env : type_env) (_f : string) (sch : c_type) (e2 : c_expr) :
     (mono_type * type_equations * type_env) type_check_result =
   let t_fun, preds = instantiate_infer_scheme sch in
   pending_expression_class_preds := preds @ !pending_expression_class_preds;
+  log_occurrence node preds;
   let- t2, c2, _ = generate env type_env e2 in
   let result_type = fresh_type_var () in
   let app_constraint = (t_fun, FunctionType (t2, result_type)) in
@@ -860,7 +886,7 @@ and generate_e_app (env : static_env) (type_env : type_env) (e1 : c_expr)
   | EId (f, _) -> (
       match List.assoc_opt f env with
       | Some sch when scheme_has_class_constraint sch ->
-          generate_class_method_app env type_env f sch e2
+          generate_class_method_app ~node:e1 env type_env f sch e2
       | _ -> generate_e_app_plain env type_env e1 e2)
   | _ -> generate_e_app_plain env type_env e1 e2
 
@@ -872,7 +898,7 @@ and generate_e_app (env : static_env) (type_env : type_env) (e1 : c_expr)
     @param e1 The expression to bind
     @param e2 The expression in the scope of the binding
     @return A pair containing the type of e2 and constraints for the binding *)
-and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
+and generate_e_bind ?(node : c_expr = EUnit) (env : static_env) (type_env : type_env) (pat : c_pat)
     (cto : c_type option) (e1 : c_expr) (e2 : c_expr)
     (return_type : c_type option) :
     (mono_type * type_equations * type_env) type_check_result =
@@ -921,6 +947,7 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
     in
     gen [] pat_env
   in
+  log_binding node pattern_bindings;
   let- t2, c2, _ = generate (pattern_bindings @ env) type_env e2 in
   return (t2, local_constraints @ c2, [])
 
@@ -933,7 +960,7 @@ and generate_e_bind (env : static_env) (type_env : type_env) (pat : c_pat)
     @return
       A pair containing the type of e2 and constraints for the recursive binding
 *)
-and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
+and generate_e_bind_rec ?(node : c_expr = EUnit) (env : static_env) (type_env : type_env) (pat : c_pat)
     (e1 : c_expr) (e2 : c_expr) (return_type : c_type option) :
     (mono_type * type_equations * type_env) type_check_result =
   let- function_id =
@@ -988,6 +1015,7 @@ and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
   let- generalized_type =
     generalize ~class_preds:p1 constraints_for_generalize env type_env t1
   in
+  log_binding node [ (function_id, generalized_type) ];
   let- t2, c2, _ =
     generate ((function_id, generalized_type) :: env) type_env e2
   in
@@ -1001,7 +1029,7 @@ and generate_e_bind_rec (env : static_env) (type_env : type_env) (pat : c_pat)
       List of (pat, type_annotation, expr, return_type, num_explicit_params)
     @param body The expression in the scope of the bindings
     @return Type and constraints for the mutually recursive bindings *)
-and generate_e_bind_mut_rec (env : static_env) (type_env : type_env)
+and generate_e_bind_mut_rec ?(node : c_expr = EUnit) (env : static_env) (type_env : type_env)
     (bindings : (c_pat * c_type option * c_expr * c_type option * int) list)
     (body : c_expr) : (mono_type * type_equations * type_env) type_check_result
     =
@@ -1066,6 +1094,7 @@ and generate_e_bind_mut_rec (env : static_env) (type_env : type_env)
     generalize_all [] body_results
   in
 
+  log_binding node (List.combine function_ids generalized_types);
   (* Create environment for the body with generalized types *)
   let body_env =
     List.fold_left2
@@ -2121,6 +2150,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
         @ return_type_equations @ class_link_equations
         @ [ pattern_body_constraint ]
       in
+      last_defn_equations := all_equations;
 
       (* Generalize the body type *)
       let- generalized_type =
@@ -2221,6 +2251,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
         @ return_type_equations @ class_link_equations
         @ rec_constraints @ [ pattern_body_constraint ]
       in
+      last_defn_equations := all_equations;
 
       (* Generalize the body type *)
       let- generalized_type =
@@ -2319,6 +2350,7 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
       in
 
       let all_equations = all_equations @ annotation_equations in
+      last_defn_equations := all_equations;
 
       (* Generalize all the types. Use [rec_env] (not outer [env]) so the
          recursive placeholders and their type variables are not mistaken for
@@ -3069,7 +3101,7 @@ let subst_methods_with_dict_access ~(dict_param : string)
     [rewrite_constrained_calls] is enabled by the interpreter/REPL so calls to
     constrained non-method defs (e.g. [println]) pass an explicit dictionary
     argument. Native lowering keeps this off and injects dictionaries later. *)
-let rec elaborate_expr ?(rewrite_constrained_calls = false)
+let rec elaborate_expr_legacy ?(rewrite_constrained_calls = false)
     (static_env : static_env) (type_env : type_env) : c_expr -> c_expr =
   (* When rewriting overloaded identifiers (e.g. [mappend]) into dictionary
      dispatch, we must respect lexical shadowing: if an overloaded name is
@@ -3231,7 +3263,7 @@ let rec elaborate_expr ?(rewrite_constrained_calls = false)
                | Expr e -> Expr (aux shadowed e)
                | Defn d ->
                    Defn
-                     (elaborate_defn ~rewrite_constrained_calls static_env type_env d))
+                     (elaborate_defn_legacy ~rewrite_constrained_calls static_env type_env d))
              parts)
     | ETernary (e1, e2, e3) ->
         ETernary (aux shadowed e1, aux shadowed e2, aux shadowed e3)
@@ -3264,7 +3296,7 @@ let rec elaborate_expr ?(rewrite_constrained_calls = false)
   in
   aux []
 
-and elaborate_constrained_body ?(rewrite_constrained_calls = false)
+and elaborate_constrained_body_legacy ?(rewrite_constrained_calls = false)
     (static_env : static_env)
     (type_env : type_env) (name : string) (body : c_expr) : c_expr =
   match List.assoc_opt name static_env with
@@ -3274,7 +3306,7 @@ and elaborate_constrained_body ?(rewrite_constrained_calls = false)
           let dict_param = "__dict_" ^ cls in
           let method_names = class_method_names ~static_env ~class_name:cls in
           let body' =
-            elaborate_expr ~rewrite_constrained_calls static_env type_env body
+            elaborate_expr_legacy ~rewrite_constrained_calls static_env type_env body
           in
           let body'' =
             subst_methods_with_dict_access ~dict_param ~method_names body'
@@ -3282,10 +3314,10 @@ and elaborate_constrained_body ?(rewrite_constrained_calls = false)
           if body' = body'' then body''
           else EFunction (CIdPat dict_param, None, body'')
       | None ->
-          elaborate_expr ~rewrite_constrained_calls static_env type_env body)
-  | _ -> elaborate_expr ~rewrite_constrained_calls static_env type_env body
+          elaborate_expr_legacy ~rewrite_constrained_calls static_env type_env body)
+  | _ -> elaborate_expr_legacy ~rewrite_constrained_calls static_env type_env body
 
-and elaborate_defn ?(rewrite_constrained_calls = false)
+and elaborate_defn_legacy ?(rewrite_constrained_calls = false)
     (static_env : static_env) (type_env : type_env) d : c_defn =
   match d with
   | CDefn (CIdPat name as pat, cs, a, body, r, n) ->
@@ -3294,7 +3326,7 @@ and elaborate_defn ?(rewrite_constrained_calls = false)
           ( pat,
             cs,
             a,
-            elaborate_expr static_env type_env body,
+            elaborate_expr_legacy static_env type_env body,
             r,
             n )
       else
@@ -3302,7 +3334,7 @@ and elaborate_defn ?(rewrite_constrained_calls = false)
           ( pat,
             cs,
             a,
-            elaborate_constrained_body ~rewrite_constrained_calls static_env
+            elaborate_constrained_body_legacy ~rewrite_constrained_calls static_env
               type_env name body,
             r,
             n )
@@ -3311,7 +3343,7 @@ and elaborate_defn ?(rewrite_constrained_calls = false)
         ( pat,
           cs,
           a,
-          elaborate_expr ~rewrite_constrained_calls static_env type_env body,
+          elaborate_expr_legacy ~rewrite_constrained_calls static_env type_env body,
           r,
           n )
   | CDefnRec (CIdPat name as pat, cs, a, body, r, n) ->
@@ -3320,7 +3352,7 @@ and elaborate_defn ?(rewrite_constrained_calls = false)
           ( pat,
             cs,
             a,
-            elaborate_expr static_env type_env body,
+            elaborate_expr_legacy static_env type_env body,
             r,
             n )
       else
@@ -3328,7 +3360,7 @@ and elaborate_defn ?(rewrite_constrained_calls = false)
           ( pat,
             cs,
             a,
-            elaborate_constrained_body ~rewrite_constrained_calls static_env
+            elaborate_constrained_body_legacy ~rewrite_constrained_calls static_env
               type_env name body,
             r,
             n )
@@ -3337,7 +3369,7 @@ and elaborate_defn ?(rewrite_constrained_calls = false)
         ( pat,
           cs,
           a,
-          elaborate_expr ~rewrite_constrained_calls static_env type_env body,
+          elaborate_expr_legacy ~rewrite_constrained_calls static_env type_env body,
           r,
           n )
   | CDefnMutRec defs ->
@@ -3347,9 +3379,478 @@ and elaborate_defn ?(rewrite_constrained_calls = false)
              ( p,
                cs,
                a,
-               elaborate_expr ~rewrite_constrained_calls static_env type_env
+               elaborate_expr_legacy ~rewrite_constrained_calls static_env type_env
                  body,
                r,
                n ))
            defs)
   | d -> d
+
+(* ========================================================================== *)
+(* Evidence-based dictionary passing                                          *)
+(* ========================================================================== *)
+
+(** Type-class elaboration for the interpreter (and the REPL).
+
+    The definition is re-inferred with evidence logging on (see
+    {!evidence_logging}), and its full constraint solution is used to resolve
+    the class predicates recorded at every occurrence of an overloaded name:
+
+    - a predicate whose type is a type variable generalised by an enclosing
+      binding becomes that binding's dictionary parameter;
+    - a predicate on a concrete type is resolved to an instance dictionary
+      ([impl]), applied to the dictionaries of its [requires] clauses;
+    - an ambiguous predicate (e.g. the element type of [show \[\]]) falls back
+      to the interpreter's run-time dispatch.
+
+    Bindings with a constrained scheme take their dictionaries as leading
+    parameters; method occurrences become field accesses on a dictionary;
+    calls to constrained functions pass dictionaries in scheme order. *)
+
+let dict_param_counter = ref 0
+
+let fresh_dict_param (cls : string) : string =
+  incr dict_param_counter;
+  Printf.sprintf "__dict_%s_%d" cls !dict_param_counter
+
+let normalize_inst_ty (t : mono_type) : mono_type =
+  match t with
+  | FixedPoint (n, CTypeApp (n', args)) when String.equal n n' -> CTypeApp (n, args)
+  | FixedPoint (n, _) -> CTypeApp (n, [])
+  | _ -> t
+
+(** Match an instance head (with [$written(a)] pattern variables) against a
+    type. *)
+let rec match_instance_head (sub : (string * mono_type) list) (pat : mono_type)
+    (t : mono_type) : (string * mono_type) list option =
+  let t = normalize_inst_ty t in
+  let fold2 ps ts =
+    if List.length ps <> List.length ts then None
+    else
+      List.fold_left2
+        (fun acc p u -> match acc with None -> None | Some s -> match_instance_head s p u)
+        (Some sub) ps ts
+  in
+  match (pat, t) with
+  | TypeVar v, _ -> (
+      match List.assoc_opt v sub with
+      | None -> Some ((v, t) :: sub)
+      | Some t' -> if t' = t then Some sub else None)
+  | (IntType | FloatType | BoolType | StringType | CharType | UnitType), _ ->
+      if pat = t then Some sub else None
+  | TypeName n, (CTypeApp (m, _) | TypeName m) -> if String.equal n m then Some sub else None
+  | CTypeApp (n, []), TypeName m -> if String.equal n m then Some sub else None
+  | CTypeApp (n, ps), CTypeApp (m, ts) -> if String.equal n m then fold2 ps ts else None
+  | CListType p, CListType u -> match_instance_head sub p u
+  | VectorType ps, VectorType ts -> fold2 ps ts
+  | FunctionType (a, b), FunctionType (c, d) -> fold2 [ a; b ] [ c; d ]
+  | _ -> None
+
+let subst_instance_vars (sub : (string * mono_type) list) (t : mono_type) : mono_type =
+  List.fold_left (fun acc (v, ty) -> replace_typevar_in_mono ~var_id:v ~with_ty:ty acc) t sub
+
+type dict_scope = ((string * string) * c_expr) list
+
+(** Run-time-dispatching dictionary for [cls] (used when a predicate is
+    ambiguous): every method dispatches on its arguments. *)
+let dynamic_dictionary (cls : string) : c_expr =
+  let methods = match List.assoc_opt cls !class_methods with Some ms -> ms | None -> [] in
+  ERecordLit (List.map (fun m -> (m, EId (method_alias cls m, None))) methods)
+
+
+(** Dictionary expression for predicate [cls ty], or [None] if it cannot be
+    resolved statically. [self] is the instance dictionary currently being
+    defined (with its own parameters), used to short-circuit recursion. *)
+let rec resolve_dictionary ~(static_env : static_env) ~(scope : dict_scope)
+    ((cls, ty) : string * mono_type) : c_expr option =
+  match normalize_inst_ty ty with
+  | TypeVar v -> (
+      (* A variable without a dictionary in scope is ambiguous (e.g. the
+         element type of an empty list): dispatch at run time. *)
+      match List.assoc_opt (cls, v) scope with
+      | Some d -> Some d
+      | None -> Some (dynamic_dictionary cls))
+  | TCtorApp (w, _) -> (
+      match List.assoc_opt (cls, w) scope with
+      | Some d -> Some d
+      | None -> Some (dynamic_dictionary cls))
+  | ty -> (
+      let candidates =
+        List.filter
+          (fun i -> String.equal i.inst_class cls && List.mem_assoc i.inst_dict static_env)
+          !instances
+      in
+      let rec try_candidates = function
+        | [] -> None
+        | i :: rest -> (
+            match match_instance_head [] i.inst_head ty with
+            | None -> try_candidates rest
+            | Some sub -> (
+                (* Only requirements on the instance's type variables are
+                   parameters of the dictionary (a requirement on a concrete
+                   type, e.g. [requires Render<Int>], is resolved inside it). *)
+                let reqs =
+                  List.filter_map
+                    (fun (rc, rt) ->
+                      match rt with
+                      | TypeVar _ -> Some (rc, subst_instance_vars sub rt)
+                      | _ -> None)
+                    i.inst_requires
+                in
+                let args = List.map (resolve_dictionary ~static_env ~scope) reqs in
+                if List.exists Stdlib.Option.is_none args then try_candidates rest
+                else
+                  Some
+                    (List.fold_left
+                       (fun acc a -> EApp (acc, Stdlib.Option.get a))
+                       (EId (i.inst_dict, None))
+                       args)))
+      in
+      match try_candidates candidates with
+      | Some _ as r -> r
+      | None ->
+          (* Monomorphic instance registered under its exact slug. *)
+          let exact = dict_for_instance ~class_name:cls ty in
+          if List.mem_assoc exact static_env then Some (EId (exact, None)) else None)
+
+let is_class_method (static_env : static_env) (cls : string) (name : string) : bool =
+  (match List.assoc_opt cls !class_methods with Some ms -> List.mem name ms | None -> false)
+  || List.mem name (class_method_names ~static_env ~class_name:cls)
+
+let rec scheme_preds (t : c_type) : (string * mono_type) list =
+  match t with
+  | PolyType (_, inner) -> scheme_preds inner
+  | Constrained (ps, inner) -> ps @ scheme_preds inner
+  | Mono _ -> []
+
+let pat_bound (p : c_pat) : string list = Condense.c_pat_bound_vars p
+
+(** Context reduction: replace a predicate on a type with a known instance
+    by the predicates that instance requires, until only predicates on type
+    variables remain (e.g. [Show (List a)] becomes [Show a]). Predicates that
+    are fully discharged by instances disappear. *)
+let rec reduce_preds ~(static_env : static_env) (preds : (string * mono_type) list) :
+    (string * mono_type) list =
+  List.concat_map
+    (fun (cls, ty) ->
+      match normalize_inst_ty ty with
+      | (TypeVar _ | TCtorApp _) as t -> [ (cls, t) ]
+      | t -> (
+          let candidates =
+            List.filter
+              (fun i -> String.equal i.inst_class cls && List.mem_assoc i.inst_dict static_env)
+              !instances
+          in
+          match
+            List.find_map
+              (fun i ->
+                match match_instance_head [] i.inst_head t with
+                | Some sub -> Some (List.map (fun (rc, rt) -> (rc, subst_instance_vars sub rt)) i.inst_requires)
+                | None -> None)
+              candidates
+          with
+          | Some reqs -> reduce_preds ~static_env reqs
+          | None -> []))
+    preds
+
+(** Bind the type variables of [pat] (a type from a scheme) to the
+    corresponding parts of [t] (its instantiation at a use site). *)
+let rec match_scheme_ty (sub : (string * mono_type) list) (pat : mono_type) (t : mono_type) :
+    (string * mono_type) list =
+  match (pat, t) with
+  | TypeVar v, _ -> if List.mem_assoc v sub then sub else (v, t) :: sub
+  | TCtorApp (w, ps), TCtorApp (w', ts) when List.length ps = List.length ts ->
+      List.fold_left2 match_scheme_ty
+        (if List.mem_assoc w sub then sub else (w, TypeVar w') :: sub)
+        ps ts
+  | TCtorApp (w, _), _ -> if List.mem_assoc w sub then sub else (w, t) :: sub
+  | FunctionType (a, b), FunctionType (c, d) -> match_scheme_ty (match_scheme_ty sub a c) b d
+  | CListType a, CListType b -> match_scheme_ty sub a b
+  | VectorType ps, VectorType ts when List.length ps = List.length ts ->
+      List.fold_left2 match_scheme_ty sub ps ts
+  | CTypeApp (_, ps), CTypeApp (_, ts) when List.length ps = List.length ts ->
+      List.fold_left2 match_scheme_ty sub ps ts
+  | FixedPoint (_, a), FixedPoint (_, b) -> match_scheme_ty sub a b
+  | RecordType fs, RecordType gs ->
+      List.fold_left
+        (fun acc (n, ft) -> match List.assoc_opt n gs with Some gt -> match_scheme_ty acc ft gt | None -> acc)
+        sub fs
+  | _ -> sub
+
+(** Elaborate one top-level definition [d] (already accepted by
+    [generate_defn]) in [static_env], which may already contain the
+    definition's own bindings. *)
+let elaborate_defn_with_evidence (static_env : static_env) (type_env : type_env)
+    (d : c_defn) : c_defn =
+  let bound_names =
+    match d with
+    | CDefn (p, _, _, _, _, _) | CDefnRec (p, _, _, _, _, _) -> pat_bound p
+    | CDefnMutRec ds -> List.concat_map (fun (p, _, _, _, _, _) -> pat_bound p) ds
+    | _ -> []
+  in
+  (* The environment before this definition (drop the first binding of each
+     name it defines, restoring any shadowed outer binding). *)
+  let env_before =
+    List.fold_left
+      (fun env n ->
+        let rec drop = function
+          | [] -> []
+          | (m, _) :: rest when String.equal m n -> rest
+          | b :: rest -> b :: drop rest
+        in
+        drop env)
+      static_env bound_names
+  in
+  evidence_occurrences := [];
+  evidence_bindings := [];
+  last_defn_equations := [];
+  evidence_logging := true;
+  let checked =
+    Fun.protect
+      ~finally:(fun () -> evidence_logging := false)
+      (fun () -> try generate_defn env_before type_env d with _ -> Error (OtherError ""))
+  in
+  match checked with
+  | Error _ -> d
+  | Ok (top_bindings, _, _) -> (
+      let occurrences = !evidence_occurrences in
+      let local_bindings = !evidence_bindings in
+      let solution = try Some (reduce_eq !last_defn_equations type_env) with TypeFailure -> None in
+      match solution with
+      | None -> d
+      | Some sol ->
+          let resolve_ty t =
+            match get_type t sol type_env with
+            | Ok t' -> (match simplify_mono_type t' type_env with Ok t'' -> t'' | Error _ -> t')
+            | Error _ -> t
+          in
+          let find_occ node = List.find_map (fun (n, ps) -> if n == node then Some ps else None) occurrences in
+          let find_binds node =
+            List.find_map (fun (n, bs) -> if n == node then Some bs else None) local_bindings
+          in
+          (* Dictionary parameters for a constrained scheme: one per predicate
+             on a (resolved) type variable. *)
+          let dict_params_of (sch : c_type) : ((string * string) * string) list =
+            List.filter_map
+              (fun (cls, ty) ->
+                match resolve_ty ty with
+                | TypeVar v -> Some ((cls, v), fresh_dict_param cls)
+                | TCtorApp (w, _) -> Some ((cls, w), fresh_dict_param cls)
+                | _ -> None)
+              (List.sort_uniq compare (reduce_preds ~static_env (scheme_preds sch)))
+          in
+          let wrap params body =
+            List.fold_right (fun (_, p) acc -> EFunction (CIdPat p, None, acc)) params body
+          in
+          let scope_of params = List.map (fun (k, p) -> (k, EId (p, None))) params in
+          let dict_arg ~scope (cls, ty) =
+            match resolve_dictionary ~static_env ~scope (cls, resolve_ty ty) with
+            | Some de -> de
+            | None -> dynamic_dictionary cls
+          in
+          (* [recs]: names of enclosing recursive constrained bindings and the
+             dictionary arguments their self-references must pass. *)
+          let locals : (string * c_type) list ref = ref [] in
+          let rec elab (scope : dict_scope) (recs : (string * c_expr list) list) (e : c_expr) :
+              c_expr =
+            let without names = List.filter (fun (n, _) -> not (List.mem n names)) recs in
+            match e with
+            | EId (x, _) -> (
+                match find_occ e with
+                | Some preds -> (
+                    match preds with
+                    | [ (cls, ty) ] when is_class_method env_before cls x -> (
+                        match
+                          resolve_dictionary ~static_env ~scope (cls, resolve_ty ty)
+                        with
+                        | Some de -> EFieldAccess (de, x)
+                        | None -> EId (method_alias cls x, None))
+                    | _ ->
+                        (* A constrained function: pass one dictionary per
+                           predicate of its scheme on a generalised variable,
+                           in the order the callee takes them (see
+                           [dict_params_of]). The occurrence's instantiated
+                           predicates line up positionally with the scheme's. *)
+                        let sch =
+                          match List.assoc_opt x !locals with
+                          | Some s -> s
+                          | None -> (
+                              match List.assoc_opt x env_before with Some s -> s | None -> Mono UnitType)
+                        in
+                        let sp = scheme_preds sch in
+                        let sigma =
+                          if List.length sp = List.length preds then
+                            List.fold_left2
+                              (fun acc (_, pt) (_, it) -> match_scheme_ty acc pt it)
+                              [] sp preds
+                          else []
+                        in
+                        let params =
+                          List.sort_uniq compare (reduce_preds ~static_env sp)
+                          |> List.filter (fun (_, ty) ->
+                                 match ty with TypeVar _ | TCtorApp _ -> true | _ -> false)
+                        in
+                        let args =
+                          List.map
+                            (fun (cls, ty) ->
+                              let v = match ty with TypeVar v -> v | TCtorApp (w, _) -> w | _ -> "" in
+                              match List.assoc_opt v sigma with
+                              | Some it -> dict_arg ~scope (cls, it)
+                              | None -> dynamic_dictionary cls)
+                            params
+                        in
+                        List.fold_left (fun acc a -> EApp (acc, a)) e args)
+                | None -> (
+                    match List.assoc_opt x recs with
+                    | Some args -> List.fold_left (fun acc a -> EApp (acc, a)) e args
+                    | None -> e))
+            | EApp (a, b) -> EApp (elab scope recs a, elab scope recs b)
+            | EFunction (p, t, body) -> EFunction (p, t, elab scope (without (pat_bound p)) body)
+            | EBind (p, t, e1, e2, r) -> (
+                let names = pat_bound p in
+                match (p, find_binds e) with
+                | CIdPat x, Some [ (_, sch) ] when scheme_has_class_constraint sch ->
+                    let params = dict_params_of sch in
+                    let e1' = elab (scope_of params @ scope) (without names) e1 in
+                    locals := (x, sch) :: !locals;
+                    let e2' = elab scope (without names) e2 in
+                    locals := List.remove_assoc x !locals;
+                    EBind (p, t, wrap params e1', e2', r)
+                | _ -> EBind (p, t, elab scope recs e1, elab scope (without names) e2, r))
+            | EBindRec (p, t, e1, e2, r) -> (
+                let names = pat_bound p in
+                match (p, find_binds e) with
+                | CIdPat x, Some [ (_, sch) ] when scheme_has_class_constraint sch ->
+                    let params = dict_params_of sch in
+                    let self_args = List.map (fun (_, prm) -> EId (prm, None)) params in
+                    let e1' = elab (scope_of params @ scope) ((x, self_args) :: without names) e1 in
+                    locals := (x, sch) :: !locals;
+                    let e2' = elab scope (without names) e2 in
+                    locals := List.remove_assoc x !locals;
+                    EBindRec (p, t, wrap params e1', e2', r)
+                | _ -> EBindRec (p, t, elab scope (without names) e1, elab scope (without names) e2, r))
+            | EBindMutRec (bs, body) ->
+                let names = List.concat_map (fun (p, _, _, _, _) -> pat_bound p) bs in
+                EBindMutRec
+                  ( List.map (fun (p, t, e1, r, n) -> (p, t, elab scope (without names) e1, r, n)) bs,
+                    elab scope (without names) body )
+            | EBlock parts ->
+                let rec go recs = function
+                  | [] -> []
+                  | Expr ex :: rest -> Expr (elab scope recs ex) :: go recs rest
+                  | Defn dd :: rest ->
+                      (* Local definitions in blocks are re-elaborated as
+                         expressions where possible. *)
+                      let names =
+                        match dd with
+                        | CDefn (p, _, _, _, _, _) | CDefnRec (p, _, _, _, _, _) -> pat_bound p
+                        | CDefnMutRec ds -> List.concat_map (fun (p, _, _, _, _, _) -> pat_bound p) ds
+                        | _ -> []
+                      in
+                      let dd' =
+                        match dd with
+                        | CDefn (p, cs, a, b, r, n) -> CDefn (p, cs, a, elab scope recs b, r, n)
+                        | CDefnRec (p, cs, a, b, r, n) ->
+                            CDefnRec (p, cs, a, elab scope (List.filter (fun (k, _) -> not (List.mem k names)) recs) b, r, n)
+                        | other -> other
+                      in
+                      Defn dd' :: go (List.filter (fun (k, _) -> not (List.mem k names)) recs) rest
+                in
+                EBlock (go recs parts)
+            | ETernary (a, b, c) -> ETernary (elab scope recs a, elab scope recs b, elab scope recs c)
+            | ESwitch (scr, brs) ->
+                ESwitch
+                  ( elab scope recs scr,
+                    List.map (fun (p, be) -> (p, elab scope (without (pat_bound p)) be)) brs )
+            | EBop (o, a, b) -> EBop (o, elab scope recs a, elab scope recs b)
+            | EVector es -> EVector (List.map (elab scope recs) es)
+            | EListEnumeration (a, b) -> EListEnumeration (elab scope recs a, elab scope recs b)
+            | EListComprehension (body, gens) ->
+                let rec go recs acc = function
+                  | [] -> EListComprehension (elab scope recs body, List.rev acc)
+                  | (p, ge) :: rest -> go (List.filter (fun (k, _) -> not (List.mem k (pat_bound p))) recs) ((p, elab scope recs ge) :: acc) rest
+                in
+                go recs [] gens
+            | ERecordLit fs -> ERecordLit (List.map (fun (n, x) -> (n, elab scope recs x)) fs)
+            | ERecordUpdate (b, fs) ->
+                ERecordUpdate (elab scope recs b, List.map (fun (n, x) -> (n, elab scope recs x)) fs)
+            | EFieldAccess (b, f) -> EFieldAccess (elab scope recs b, f)
+            | EBool _ | EString _ | EUnit | EInt _ | EChar _ | EFloat _ | ENil -> e
+          in
+          let top_scheme name = List.assoc_opt name top_bindings in
+          let is_dict name = String.starts_with ~prefix:"__forge_dict_" name in
+          (* Instance dictionaries take the dictionaries of their [requires]
+             clauses, in declaration order (the order callers pass them). *)
+          let dict_params_for_instance name =
+            match List.find_opt (fun i -> String.equal i.inst_dict name) !instances with
+            | Some i ->
+                List.filter_map
+                  (fun (cls, ty) ->
+                    match ty with
+                    | TypeVar v -> Some ((cls, v), fresh_dict_param cls)
+                    | _ -> None)
+                  i.inst_requires
+            | None -> []
+          in
+          let elab_binding ~is_rec pat body =
+            match pat with
+            | CIdPat name -> (
+                let params =
+                  if is_dict name then dict_params_for_instance name
+                  else
+                    match top_scheme name with
+                    | Some sch when scheme_has_class_constraint sch -> dict_params_of sch
+                    | _ -> []
+                in
+                (* Dictionary scheme variables are written [$written(a)]; map
+                   the instance's own variables through the solution too. *)
+                let params =
+                  List.map
+                    (fun ((cls, v), prm) ->
+                      match resolve_ty (TypeVar v) with
+                      | TypeVar v' -> ((cls, v'), prm)
+                      | _ -> ((cls, v), prm))
+                    params
+                in
+                let scope = scope_of params in
+                let self_args = List.map (fun (_, prm) -> EId (prm, None)) params in
+                let recs = if is_rec && params <> [] then [ (name, self_args) ] else [] in
+                (params <> [], wrap params (elab scope recs body)))
+            | _ -> (false, elab [] [] body)
+          in
+          match d with
+          | CDefn ((CIdPat name as p), cs, a, body, r, n) ->
+              let has_params, body' = elab_binding ~is_rec:false p body in
+              if is_dict name && has_params then CDefnRec (p, cs, a, body', r, n)
+              else CDefn (p, cs, a, body', r, n)
+          | CDefn (p, cs, a, body, r, n) -> CDefn (p, cs, a, elab [] [] body, r, n)
+          | CDefnRec (p, cs, a, body, r, n) ->
+              let _, body' = elab_binding ~is_rec:true p body in
+              CDefnRec (p, cs, a, body', r, n)
+          | CDefnMutRec ds ->
+              CDefnMutRec (List.map (fun (p, cs, a, body, r, n) -> (p, cs, a, elab [] [] body, r, n)) ds)
+          | other -> other)
+
+(** Elaborate a REPL expression with evidence (see
+    {!elaborate_defn_with_evidence}). *)
+let elaborate_expr_with_evidence (static_env : static_env) (type_env : type_env) (e : c_expr) :
+    c_expr =
+  let d = CDefn (CIdPat "__forge_repl_expr", [], None, e, None, 0) in
+  match elaborate_defn_with_evidence static_env type_env d with
+  | CDefn (_, _, _, e', _, _) -> e'
+  | CDefnRec (_, _, _, e', _, _) -> e'
+  | _ -> e
+
+(** Dictionary-passing elaboration. With [~rewrite_constrained_calls:true]
+    (interpreter, REPL) the evidence-based translation above is used; the
+    native compiler still uses the older syntactic rewriting, which its
+    lowering expects. *)
+let elaborate_defn ?(rewrite_constrained_calls = false) (static_env : static_env)
+    (type_env : type_env) (d : c_defn) : c_defn =
+  if rewrite_constrained_calls then elaborate_defn_with_evidence static_env type_env d
+  else elaborate_defn_legacy static_env type_env d
+
+let elaborate_expr ?(rewrite_constrained_calls = false) (static_env : static_env)
+    (type_env : type_env) (e : c_expr) : c_expr =
+  if rewrite_constrained_calls then elaborate_expr_with_evidence static_env type_env e
+  else elaborate_expr_legacy static_env type_env e

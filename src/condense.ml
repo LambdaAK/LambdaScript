@@ -939,6 +939,7 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
         let decl =
           CClassDecl (name, params, declared_triples, default_lets)
         in
+        register_class_methods name (List.map (fun (m, _, _) -> m) declared_triples);
         let entry = { params; param_arities; declared_triples; impl_spec } in
         after_top_level_defn ();
         walk ((name, entry) :: classes) seen_ctors seen_instances (decl :: acc)
@@ -1113,6 +1114,13 @@ let condense_program ?(user_id_byte_min_after_prelude : (int * int) option)
                         dict_for_instance ~class_name:dispatch_d inst_mono
                       in
                       let body = build_dict_expr dispatch_d field_types in
+                      register_instance
+                        {
+                          inst_class = dispatch_d;
+                          inst_head = inst_mono;
+                          inst_dict = dict_name;
+                          inst_requires = requires_mono;
+                        };
                       let cdefn =
                         CDefn
                           ( CIdPat dict_name,
