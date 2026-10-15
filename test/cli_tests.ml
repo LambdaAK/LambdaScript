@@ -85,6 +85,16 @@ let interpreter_tests =
          let () = println (loop 2000000 0)"
       in
       assert_runs ~expected:"2000000\n" "loop" src (interp ~timeout:15.0 src) );
+    (* A call to a list builtin (map, reduce_left, ...) used to copy every
+       instance dictionary of the prelude into the callee's environment,
+       comparing names as it went: this loop took 11 s. It now takes a third
+       of a second. *)
+    ( "interpreter: calls to list builtins do not scale with the prelude" >:: fun _ ->
+      let src =
+        "let rec go n acc = if n == 0 then acc else go (n - 1) (acc + reduce_left (+) 0 [1, 2, 3])\n\
+         let () = println (go 100000 0)"
+      in
+      assert_runs ~expected:"600000\n" "builtins" src (interp ~timeout:5.0 src) );
     (* Every minor collection scans the evaluator's (deep) stack: with the
        default minor heap this recursion took about 20 s; now about 2 s. *)
     ( "interpreter: recursion five million calls deep" >:: fun _ ->

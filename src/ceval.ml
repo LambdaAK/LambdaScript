@@ -394,10 +394,6 @@ let resolve_tc_method_value (_env : env) (v : value) : value =
      [map show [1,2]]). *)
   v
 
-let is_dict_binding_name (name : string) : bool =
-  String.starts_with ~prefix:"__forge_dict_" name
-  || String.starts_with ~prefix:"__dict_" name
-
 (** Make the garbage collector suit the evaluator. Evaluation recurses on
     the OCaml stack, and every minor collection scans the whole stack, so with
     the default minor heap (256k words) a recursion a million calls deep
@@ -408,55 +404,42 @@ let tune_gc () : unit =
   if Sys.getenv_opt "OCAMLRUNPARAM" = None then
     Gc.set { (Gc.get ()) with minor_heap_size = 8 * 1024 * 1024 }
 
-(** The dictionary bindings of [caller_env] that [closure_env] lacks, put in
-    front of [closure_env].
+(** Instance dictionaries ([__forge_dict_...]) are bound once, at top level,
+    and never change. They are recorded here as they are defined, so that
+    run-time dispatch can find one even from a closure created before it
+    (the prelude's functions, the list builtins). A function call evaluates
+    its body in the closure's own environment. *)
+let global_dicts : (string, value) Hashtbl.t = Hashtbl.create 64
 
-    Bindings in the longest tail the two environments share (physically) are
-    in [closure_env] already, so only the bindings of [caller_env] above that
-    tail need to be examined: usually a few locals, instead of the whole
-    prelude on every call. *)
-let merge_closure_env_with_caller_dicts (closure_env : env) (caller_env : env) :
-    env =
-  if caller_env == closure_env then closure_env
-  else
-    let rec drop n l =
-      if n <= 0 then l else match l with [] -> [] | _ :: t -> drop (n - 1) t
-    in
-    (* Any shared tail gives the same result (the bindings in it are in
-       [closure_env]); a longer one is faster. Usually one of the first tails
-       of [closure_env] is near the top of [caller_env] (a call from the
-       closure's own body, or from the scope that defined it), so look there
-       first, and compare the aligned lists otherwise. *)
-    let rec near_top c l d =
-      l == c || (d > 0 && match l with [] -> false | _ :: t -> near_top c t (d - 1))
-    in
-    let rec quick c k =
-      if near_top c caller_env 8 then Some c
-      else if k = 0 then None
-      else match c with [] -> None | _ :: t -> quick t (k - 1)
-    in
-    let shared =
-      match quick closure_env 8 with
-      | Some c -> c
-      | None ->
-          let lc = List.length closure_env and lk = List.length caller_env in
-          let rec shared_tail c k =
-            if c == k then c
-            else match (c, k) with _ :: ct, _ :: kt -> shared_tail ct kt | _ -> []
-          in
-          shared_tail (drop (lc - lk) closure_env) (drop (lk - lc) caller_env)
-    in
-    let has_name name env = List.exists (fun (n, _) -> n = name) env in
-    let rec extra l =
-      if l == shared then []
-      else
-        match l with
-        | [] -> []
-        | ((name, _) as b) :: t ->
-            if is_dict_binding_name name && not (has_name name closure_env) then b :: extra t
-            else extra t
-    in
-    match extra caller_env with [] -> closure_env | extra_dicts -> extra_dicts @ closure_env
+(** The registered dictionaries, most recent first (the order of an env). *)
+let global_dict_list : (string * value) list ref = ref []
+
+let reset_global_dicts () =
+  Hashtbl.reset global_dicts;
+  global_dict_list := []
+
+let is_instance_dict_name (name : string) : bool =
+  String.starts_with ~prefix:"__forge_dict_" name
+
+(** Record the instance dictionaries bound in [new_env] above [old_env]. *)
+let register_global_dicts (new_env : env) (old_env : env) : unit =
+  let rec go l =
+    if l != old_env then
+      match l with
+      | [] -> ()
+      | (name, v) :: rest ->
+          go rest;
+          if is_instance_dict_name name then (
+            Hashtbl.replace global_dicts name v;
+            global_dict_list := (name, v) :: !global_dict_list)
+  in
+  go new_env
+
+(** A dictionary by name: the environment's binding, else the registry. *)
+let lookup_dict (env : env) (name : string) : value option =
+  match List.assoc_opt name env with
+  | Some v -> Some v
+  | None -> Hashtbl.find_opt global_dicts name
 
 (** [eval_c_expr ce env] evaluates a condensed expression [ce] in the context of
     environment [env].
@@ -478,7 +461,10 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       | Some (VariantValue (cons_name, None)) ->
           VariantValue (cons_name, None) |> return
       | Some v -> v |> return
-      | None -> Error (UnboundVariable s))
+      | None -> (
+          match if is_instance_dict_name s then Hashtbl.find_opt global_dicts s else None with
+          | Some v -> v |> return
+          | None -> Error (UnboundVariable s)))
   | EBop (op, e1, e2) -> eval_bop op e1 e2 env
   | EFunction (p, _, e) -> FunctionClosure (env, p, None, e) |> return
   | EListEnumeration (e1, e2) -> eval_list_enumeration e1 e2 env
@@ -550,7 +536,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       match v1 with
       | BuiltInFunction f -> eval_builtin f v2
       | FunctionClosure (env', p, _, e) -> (
-          let env_for_body = merge_closure_env_with_caller_dicts env' env in
+          let env_for_body = env' in
           (* Check if this is a constructor function by checking the pattern *)
           (* Constructor functions have a special pattern name starting with "__constructor_" *)
           match p with
@@ -571,7 +557,7 @@ let rec eval_c_expr (ce : c_expr) (env : env) : value eval_result =
       (* recursive function *)
       | RecursiveFunctionClosure (env'_ref, p, _, e) -> (
           let env' : env = !env'_ref in
-          let env_for_body = merge_closure_env_with_caller_dicts env' env in
+          let env_for_body = env' in
           match bind_pat p v2 with
           | Some env'' -> eval_c_expr e (env'' @ env_for_body)
           | None -> Error (OtherError "eval_c_expr: EApp"))
@@ -706,7 +692,7 @@ and apply_function_value env v_fn v_arg : value eval_result =
   match v_fn with
   | BuiltInFunction f -> eval_builtin f v_arg
   | FunctionClosure (env', p, _, e) -> (
-      let env_for_body = merge_closure_env_with_caller_dicts env' env in
+      let env_for_body = env' in
       match p with
       | CIdPat pattern_name
         when String.length pattern_name > 14
@@ -721,7 +707,7 @@ and apply_function_value env v_fn v_arg : value eval_result =
           | None -> Error (OtherError "eval_c_expr: EApp")))
   | RecursiveFunctionClosure (env'_ref, p, _, e) -> (
       let env' : env = !env'_ref in
-      let env_for_body = merge_closure_env_with_caller_dicts env' env in
+      let env_for_body = env' in
       match bind_pat p v_arg with
       | Some env'' -> eval_c_expr e (env'' @ env_for_body)
       | None -> Error (OtherError "eval_c_expr: EApp"))
@@ -758,7 +744,7 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
     go method_fn args
   in
   let method_for_dict (dict_name : string) : value option =
-    match List.assoc_opt dict_name env with
+    match lookup_dict env dict_name with
     | Some (RecordValue fields) -> List.assoc_opt method_name fields
     | Some ((FunctionClosure _ | RecursiveFunctionClosure _) as dict_fn) -> (
         (* An instance with [requires] clauses is a function of the required
@@ -848,8 +834,8 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
     | Some method_fn -> (
         match try_apply_method method_fn with
         | Some result -> Some result
-        | None -> scan env)
-    | None -> scan env
+        | None -> ( match scan env with Some r -> Some r | None -> scan !global_dict_list))
+    | None -> ( match scan env with Some r -> Some r | None -> scan !global_dict_list)
   in
   let try_from_list_shape () : value eval_result option =
     let prefix = "__forge_dict_" ^ cls_name ^ "_list__" in
@@ -866,7 +852,7 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
             | None -> scan rest
           else scan rest
     in
-    scan env
+    match scan env with Some r -> Some r | None -> scan !global_dict_list
   in
   let try_any_dict_for_class () : value eval_result option =
     let prefix = "__forge_dict_" ^ cls_name ^ "_" in
@@ -883,7 +869,7 @@ and dispatch_typeclass_method_args env cls_name method_name (args : value list)
             | None -> scan rest)
           else scan rest
     in
-    scan env
+    match scan env with Some r -> Some r | None -> scan !global_dict_list
   in
   (* Prefer later arguments first: for curried methods like fold_left, the class
      key often appears near the end (the container argument). *)
@@ -1082,6 +1068,7 @@ and eval_c_empty_env (s : string) : value eval_result =
       eval_c_expr c_e []
 
 and initial_env () : (string * value) list eval_result =
+  reset_global_dicts ();
   let rec map_env acc = function
     | [] -> Ok (List.rev acc @ built_ins_values)
     | (id, code) :: rest -> (
@@ -1194,6 +1181,13 @@ and expr_of_pat : c_pat -> c_expr = function
     @param env The environment to evaluate in
     @return The new bindings introduced by the definition *)
 and eval_defn (d : c_defn) (env : env) : env eval_result =
+  match eval_defn_core d env with
+  | Ok env' ->
+      register_global_dicts env' env;
+      Ok env'
+  | Error e -> Error e
+
+and eval_defn_core (d : c_defn) (env : env) : env eval_result =
   let rec backpatch_recursive_closures (new_bindings : env) (v : value) : unit =
     match v with
     | RecursiveFunctionClosure (env_ref, _, _, _) ->
