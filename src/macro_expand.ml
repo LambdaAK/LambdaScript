@@ -422,6 +422,13 @@ and match_matcher_elem (macro_name : string) (elem : matcher_elem)
   | MatcherCapture (name, kind) ->
       capture_candidates kind input
       |> List.filter_map (fun (captured, rem) ->
+             (* As in Rust, an [expr] fragment is substituted as one
+                expression: [$e * 2] with [$e] = [1 + 2] is [(1 + 2) * 2]. *)
+             let captured =
+               if kind = MacroExpr && List.length captured > 1 then
+                 [ MacroTTGroup (MacroParen, captured) ]
+               else captured
+             in
              match bind_capture env name (CaptureOne captured) with
              | Some env' -> Some (env', rem)
              | None -> None)
