@@ -1,0 +1,244 @@
+// The register machine: eight general registers r0..r7, a zero and a
+// negative flag, a stack pointer and 256 words of data memory held in an AVL
+// map from address to word. Code lives in its own map from address to
+// instruction (a Harvard machine), so programs cannot overwrite themselves.
+import "fmt.forge"
+import "avl.forge"
+
+mod Cpu where
+  type Reg = | R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7
+
+  let all_regs = [R0, R1, R2, R3, R4, R5, R6, R7]
+
+  let reg_index r =
+    case r do
+    | R0 -> 0 | R1 -> 1 | R2 -> 2 | R3 -> 3
+    | R4 -> 4 | R5 -> 5 | R6 -> 6 | R7 -> 7
+
+  let reg_of_index i = case List.drop i all_regs do | r :: _ -> Some r | [] -> None
+
+  // The second operand of ALU and compare instructions.
+  type Operand = | Reg of Reg | Imm of Int
+
+  type AluOp = | Add | Sub | Mul | Div | Mod
+
+  // Jump conditions, read from the flags set by the last ALU or cmp.
+  type Cond = | Always | IfZero | IfNonZero | IfLess | IfGreater | IfLessEq | IfGreaterEq
+
+  type Instr =
+    | Mov of (Reg, Reg)                // rd := rs
+    | Ldi of (Reg, Int)                // rd := constant
+    | Load of (Reg, Reg, Int)          // rd := mem[rb + offset]
+    | Store of (Reg, Reg, Int)         // mem[rb + offset] := rs
+    | Alu of (AluOp, Reg, Operand)     // rd := rd op operand, sets flags
+    | Cmp of (Reg, Operand)            // flags from rd - operand
+    | Jump of (Cond, Int)
+    | Call of Int
+    | Ret
+    | Push of Reg
+    | Pop of Reg
+    | Out of Reg
+    | Halt
+
+  type Status = | Running | Halted | Fault of String
+
+  type Flags = { zero: Bool, neg: Bool }
+
+  type Machine = {
+    pc: Int,
+    sp: Int,
+    min_sp: Int,
+    regs: Avl.Map<Reg, Int>,
+    mem: Avl.Map<Int, Int>,
+    flags: Flags,
+    out: List<Int>,              // most recent first
+    steps: Int,
+    status: Status,
+    counts: Avl.Map<String, Int> // executed instructions per mnemonic
+  }
+
+  let mem_size = 256
+  let stack_limit = 192          // the stack may grow down to this address
+
+  let alu_name op = case op do | Add -> "add" | Sub -> "sub" | Mul -> "mul" | Div -> "div" | Mod -> "mod"
+
+  let cond_name c =
+    case c do
+    | Always -> "jmp" | IfZero -> "jz" | IfNonZero -> "jnz" | IfLess -> "jlt"
+    | IfGreater -> "jgt" | IfLessEq -> "jle" | IfGreaterEq -> "jge"
+
+  let mnemonic i =
+    case i do
+    | Mov _ -> "mov" | Ldi _ -> "ldi" | Load _ -> "load" | Store _ -> "store"
+    | Alu (op, _, _) -> alu_name op
+    | Cmp _ -> "cmp" | Jump (c, _) -> cond_name c | Call _ -> "call" | Ret -> "ret"
+    | Push _ -> "push" | Pop _ -> "pop" | Out _ -> "out" | Halt -> "halt"
+end
+
+use Cpu
+
+impl Show for Reg where
+  show r = "r" ^ int_to_str (reg_index r)
+end
+
+impl Eq for Reg where
+  (==) a b = reg_index a == reg_index b
+end
+
+impl Ord for Reg where
+  compare a b = compare (reg_index a) (reg_index b)
+end
+
+impl Show for Operand where
+  show o = case o do | Reg r -> show r | Imm n -> int_to_str n
+end
+
+// The disassembler: an instruction in assembler syntax.
+impl Show for Instr where
+  show i =
+    let addr b off = "[" ^ show b ^ (if off == 0 then "" else "+" ^ int_to_str off) ^ "]" in
+    let m = Fmt.left 6 (mnemonic i) in
+    case i do
+    | Mov (d, s) -> m ^ show d ^ ", " ^ show s
+    | Ldi (d, n) -> m ^ show d ^ ", " ^ int_to_str n
+    | Load (d, b, off) -> m ^ show d ^ ", " ^ addr b off
+    | Store (s, b, off) -> m ^ show s ^ ", " ^ addr b off
+    | Alu (_, d, o) -> m ^ show d ^ ", " ^ show o
+    | Cmp (d, o) -> m ^ show d ^ ", " ^ show o
+    | Jump (_, t) -> m ^ "@" ^ int_to_str t
+    | Call t -> m ^ "@" ^ int_to_str t
+    | Push r -> m ^ show r
+    | Pop r -> m ^ show r
+    | Out r -> m ^ show r
+    | Ret -> "ret"
+    | Halt -> "halt"
+end
+
+impl Show for Status where
+  show s = case s do | Running -> "running" | Halted -> "halted" | Fault msg -> "FAULT: " ^ msg
+end
+
+mod Exec where
+  // A fresh machine with the given initial memory contents.
+  let boot data =
+    { pc: 0, sp: mem_size, min_sp: mem_size,
+      regs: Avl.from_list [(r, 0) | r <- all_regs],
+      mem: Avl.from_list data,
+      flags: { zero: false, neg: false },
+      out: [], steps: 0, status: Running, counts: Avl.nil }
+
+  let get m r = Avl.find_or 0 r m.regs
+  let set m r v = { m with regs = Avl.insert r v m.regs }
+  let operand m o = case o do | Reg r -> get m r | Imm n -> n
+  let flags_of v = { zero: v == 0, neg: v < 0 }
+  let fault m msg = { m with status = Fault (msg ^ " at pc " ^ int_to_str m.pc) }
+  let next m = { m with pc = m.pc + 1 }
+
+  let valid a = a >= 0 && a < mem_size
+
+  let read m a = if valid a then Some (Avl.find_or 0 a m.mem) else None
+
+  let write m a v = if valid a then Some { m with mem = Avl.insert a v m.mem } else None
+
+  let push m v =
+    if m.sp - 1 < stack_limit then fault m "stack overflow"
+    else
+      let sp = m.sp - 1 in
+      { m with sp = sp, min_sp = (if sp < m.min_sp then sp else m.min_sp),
+               mem = Avl.insert sp v m.mem }
+
+  // The value on top of the stack and the machine with it popped.
+  let pop m =
+    if m.sp >= mem_size then None
+    else Some (Avl.find_or 0 m.sp m.mem, { m with sp = m.sp + 1 })
+
+  let taken c f =
+    case c do
+    | Always -> true
+    | IfZero -> f.zero
+    | IfNonZero -> not f.zero
+    | IfLess -> f.neg
+    | IfGreater -> not f.neg && not f.zero
+    | IfLessEq -> f.neg || f.zero
+    | IfGreaterEq -> not f.neg
+
+  let alu op a b =
+    case op do
+    | Add -> Some (a + b)
+    | Sub -> Some (a - b)
+    | Mul -> Some (a * b)
+    | Div -> if b == 0 then None else Some (a / b)
+    | Mod -> if b == 0 then None else Some (a % b)
+
+  // Execute one instruction.
+  let execute m i =
+    case i do
+    | Mov (d, s) -> next (set m d (get m s))
+    | Ldi (d, n) -> next (set m d n)
+    | Load (d, b, off) ->
+      (case read m (get m b + off) do
+       | Some v -> next (set m d v)
+       | None -> fault m ("load from bad address " ^ int_to_str (get m b + off)))
+    | Store (s, b, off) ->
+      (case write m (get m b + off) (get m s) do
+       | Some m2 -> next m2
+       | None -> fault m ("store to bad address " ^ int_to_str (get m b + off)))
+    | Alu (op, d, o) ->
+      (case alu op (get m d) (operand m o) do
+       | Some v -> next { (set m d v) with flags = flags_of v }
+       | None -> fault m "division by zero")
+    | Cmp (d, o) -> next { m with flags = flags_of (get m d - operand m o) }
+    | Jump (c, t) -> if taken c m.flags then { m with pc = t } else next m
+    | Call t ->
+      let m2 = push m (m.pc + 1) in
+      (case m2.status do | Running -> { m2 with pc = t } | _ -> m2)
+    | Ret ->
+      (case pop m do
+       | Some (a, m2) -> { m2 with pc = a }
+       | None -> fault m "return with empty stack")
+    | Push r ->
+      // The value gets its own `let`: see bugs/06-record-update-method-call-in-let.forge.
+      let v = get m r in
+      let m2 = push m v in
+      (case m2.status do | Running -> next m2 | _ -> m2)
+    | Pop r ->
+      (case pop m do
+       | Some (v, m2) -> next (set m2 r v)
+       | None -> fault m "pop from empty stack")
+    | Out r -> next { m with out = get m r :: m.out }
+    | Halt -> { m with status = Halted }
+
+  let count name counts = Avl.update name (fn c -> case c do | Some n -> n + 1 | None -> 1) counts
+
+  // Fetch, count and execute one instruction.
+  let step code m =
+    case Avl.find m.pc code do
+    | None -> fault m "pc outside the program"
+    | Some i ->
+      let m2 = execute { m with steps = m.steps + 1, counts = count (mnemonic i) m.counts } i in
+      m2
+
+  // Run until the machine halts or faults, or the fuel runs out. Tail
+  // recursive, so long programs run in constant stack.
+  let rec run fuel code m =
+    case m.status do
+    | Running -> if fuel == 0 then fault m "out of fuel" else run (fuel - 1) code (step code m)
+    | _ -> m
+
+  // ---- reports -----------------------------------------------------------
+
+  let reg_dump m =
+    Fmt.join " " [show r ^ "=" ^ int_to_str (get m r) | r <- all_regs]
+
+  let flag_dump m =
+    let bit b = if b then "1" else "0" in
+    cat!("Z=", (bit m.flags.zero), " N=", (bit m.flags.neg), "  pc=", (int_to_str m.pc),
+         "  sp=", (int_to_str m.sp), "  max stack depth=", (int_to_str (mem_size - m.min_sp)))
+
+  // The most executed mnemonics, most frequent first.
+  let top_counts k m =
+    let sorted = List.sort [(0 - n, name) | (name, n) <- Avl.to_list m.counts] in
+    Fmt.join ", " [name ^ " " ^ int_to_str (0 - n) | (n, name) <- List.take k sorted]
+
+  let mem_range m a n = [Avl.find_or 0 x m.mem | x <- [a...(a + n - 1)]]
+end

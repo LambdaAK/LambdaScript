@@ -1,0 +1,15 @@
+// Finding 01 (missing basic feature): no way to convert between Char and Int,
+// and no way to parse an Int from a String.
+//
+// The built-ins have char_to_str, int_to_str and string_to_list, but no
+// char_to_int / int_to_char (character codes) and no str_to_int. Character
+// classes, upper/lower case, digit values and tr ranges such as a-z all
+// had to be implemented with lookup tables (see textkit's strings.forge:
+// Chars.printable, Chars.translate, Chars.digit_value, Str.parse_int).
+// (Characters can at least be compared with < and >=.)
+//
+// Run:  ./_build/default/bin/interpreter.exe projects/textkit/bugs/01-no-char-code.forge
+// Expected: 65  (or some documented equivalent)
+// Actual:   error: type error: Unbound variable: char_to_int
+
+let () = println (char_to_int 'A')

@@ -1,0 +1,138 @@
+// A persistent AVL tree. Tree<a> is a height-balanced binary search tree of
+// elements; a map from k to v is a Tree<(k, v)> ordered by the key, and the
+// key type needs an Ord instance (`compare`). Every update returns a new tree
+// and shares the untouched subtrees with the old one.
+import "fmt.forge"
+
+mod Avl where
+  type rec Tree<a> = | Leaf | Node of (Tree<a>, a, Tree<a>, Int)
+
+  type Map<k, v> = Tree<(k, v)>
+
+  let nil = Leaf
+
+  let height t = case t do | Leaf -> 0 | Node (_, _, _, h) -> h
+
+  // A node with its height recomputed from the children.
+  let node l x r =
+    let hl = height l in
+    let hr = height r in
+    Node (l, x, r, 1 + (if hl > hr then hl else hr))
+
+  let balance_factor t = case t do | Leaf -> 0 | Node (l, _, r, _) -> height l - height r
+
+  let rotate_right t =
+    case t do
+    | Node (Node (a, x, b, _), y, c, _) -> node a x (node b y c)
+    | other -> other
+
+  let rotate_left t =
+    case t do
+    | Node (a, x, Node (b, y, c, _), _) -> node (node a x b) y c
+    | other -> other
+
+  // Restore the AVL invariant at the root after one insertion or deletion
+  // below it (the children differ in height by at most two).
+  let rebalance l x r =
+    let t = node l x r in
+    let bf = balance_factor t in
+    if bf > 1 then
+      (if balance_factor l < 0 then rotate_right (node (rotate_left l) x r) else rotate_right t)
+    else if bf < -1 then
+      (if balance_factor r > 0 then rotate_left (node l x (rotate_right r)) else rotate_left t)
+    else t
+
+  // Insert or replace the binding of k.
+  let rec insert k v t =
+    case t do
+    | Leaf -> node Leaf (k, v) Leaf
+    | Node (l, (k2, v2), r, _) ->
+      (case compare k k2 do
+       | LT -> rebalance (insert k v l) (k2, v2) r
+       | GT -> rebalance l (k2, v2) (insert k v r)
+       | EQ -> Node (l, (k, v), r, height t))
+
+  let rec find k t =
+    case t do
+    | Leaf -> None
+    | Node (l, (k2, v), r, _) ->
+      (case compare k k2 do
+       | LT -> find k l
+       | GT -> find k r
+       | EQ -> Some v)
+
+  let find_or d k t = case find k t do | Some v -> v | None -> d
+  let mem k t = case find k t do | Some _ -> true | None -> false
+
+  // Apply f to the current binding (or None) and store the result.
+  let update k f t = insert k (f (find k t)) t
+
+  // The smallest binding and the tree without it.
+  let rec pop_min t =
+    case t do
+    | Leaf -> None
+    | Node (Leaf, x, r, _) -> Some (x, r)
+    | Node (l, x, r, _) ->
+      (case pop_min l do
+       | Some (m, l2) -> Some (m, rebalance l2 x r)
+       | None -> None)
+
+  let rec remove k t =
+    case t do
+    | Leaf -> Leaf
+    | Node (l, (k2, v2), r, _) ->
+      (case compare k k2 do
+       | LT -> rebalance (remove k l) (k2, v2) r
+       | GT -> rebalance l (k2, v2) (remove k r)
+       | EQ ->
+         (case pop_min r do
+          | None -> l
+          | Some (m, r2) -> rebalance l m r2))
+
+  let rec size t = case t do | Leaf -> 0 | Node (l, _, r, _) -> size l + 1 + size r
+
+  // In-order list of elements (bindings, for a map).
+  let to_list t =
+    let rec go t acc = case t do | Leaf -> acc | Node (l, x, r, _) -> go l (x :: go r acc) in
+    go t []
+
+  let keys t = map (fn (k, _) -> k) (to_list t)
+  let values t = map (fn (_, v) -> v) (to_list t)
+  let from_list kvs = reduce_left (fn t -> fn (k, v) -> insert k v t) Leaf kvs
+
+  // Check the search-tree order and the balance of every node.
+  let rec is_balanced t =
+    case t do
+    | Leaf -> true
+    | Node (l, _, r, h) ->
+      let d = height l - height r in
+      d >= -1 && d <= 1 && h == 1 + (if height l > height r then height l else height r)
+        && is_balanced l && is_balanced r
+end
+
+use Avl
+
+// Tree is a Functor (it maps elements; for a map, use Avl.map_values below,
+// which leaves the keys and so the order alone) and a Foldable.
+impl Functor for Tree where
+  fmap f t =
+    case t do
+    | Leaf -> Leaf
+    | Node (l, x, r, h) -> Node (fmap f l, f x, fmap f r, h)
+end
+
+impl Foldable for Tree where
+  fold_left f z t =
+    case t do
+    | Leaf -> z
+    | Node (l, x, r, _) -> fold_left f (f (fold_left f z l) x) r,
+  fold_right f z t =
+    case t do
+    | Leaf -> z
+    | Node (l, x, r, _) -> fold_right f (f x (fold_right f z r)) l
+end
+
+mod MapOps where
+  let map_values f m = fmap (fn (k, v) -> (k, f v)) m
+  let sum_values m = fold_left (fn acc -> fn (_, v) -> acc + v) 0 m
+end

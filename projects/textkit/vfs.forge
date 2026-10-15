@@ -1,0 +1,106 @@
+// vfs.forge -- an in-memory filesystem: an immutable list of named files.
+// Writing a file (`cmd > name`) returns a new filesystem.
+
+import "result.forge"
+
+type File = { name: String, body: String }
+
+mod Vfs where
+  let people_csv = "name,dept,age,salary,city
+Ada Lovelace,Engineering,36,9200,London
+Alan Turing,Research,41,8800,Manchester
+Grace Hopper,Engineering,52,9900,Arlington
+Edsger Dijkstra,Research,46,8100,Eindhoven
+Barbara Liskov,Engineering,39,9500,Boston
+Donald Knuth,Research,58,8700,Stanford
+Margaret Hamilton,Operations,44,7600,Boston
+John McCarthy,Research,49,8300,Stanford
+Frances Allen,Engineering,47,9100,Peekskill
+Ken Thompson,Operations,51,7900,Murray Hill
+Dennis Ritchie,Engineering,42,9300,Murray Hill
+Radia Perlman,Operations,38,7200,Boston
+Leslie Lamport,Research,55,8900,Palo Alto
+Hedy Lamarr,Design,33,6800,Vienna
+Tim Berners-Lee,Design,35,7000,London
+Robin Milner,Research,50,8600,Edinburgh
+Xavier Leroy,Engineering,37,8800,Paris
+Katherine Johnson,Operations,45,7500,Hampton
+Niklaus Wirth,Research,53,8000,Zurich
+Sophie Wilson,Design,40,7300,Cambridge
+"
+
+  let server_log = "2026-10-01 08:00:01 INFO  server started on port 8080
+2026-10-01 08:00:02 INFO  loaded 12 routes
+2026-10-01 08:03:17 WARN  slow query took 812ms
+2026-10-01 08:05:44 ERROR database connection refused
+2026-10-01 08:05:45 INFO  retrying database connection
+2026-10-01 08:05:50 ERROR database connection refused
+2026-10-01 08:06:00 INFO  database connected
+2026-10-01 08:12:09 info  cache warmed
+2026-10-01 08:15:33 WARN  disk usage at 81%
+2026-10-01 08:20:12 Error user 42 not found
+2026-10-01 08:21:40 INFO  request GET /index 200
+2026-10-01 08:21:41 INFO  request GET /about 200
+2026-10-01 08:22:05 ERROR timeout calling payment service
+2026-10-01 08:22:06 WARN  circuit breaker opened
+2026-10-01 08:30:00 INFO  request GET /index 200
+2026-10-01 08:31:15 ERROR database connection refused
+2026-10-01 08:45:00 INFO  shutting down
+"
+
+  let poem_txt = "the river keeps no ledger of its stones
+it carries what it can and drops the rest
+the heron counts the minutes standing still
+the willow writes its name across the water
+and every evening light comes down to drink
+the river keeps no ledger of its stones
+"
+
+  let calc_src = "// calc: a tiny stack calculator
+let push x stack = x :: stack
+let pop stack = case stack do | x :: rest -> (x, rest)
+// TODO: report an empty stack instead of crashing
+let add stack =
+  let (a, s1) = pop stack in
+  let (b, s2) = pop s1 in
+  push (a + b) s2
+let mul stack =
+  let (a, s1) = pop stack in
+  let (b, s2) = pop s1 in
+  push (a * b) s2
+// TODO: division and subtraction
+let () = println (add (push 2 (push 3 [])))
+"
+
+  let words_txt = "apple
+banana
+apple
+cherry
+cherry
+cherry
+banana
+date
+"
+
+  let initial : List<File> = [
+    { name: "people.csv", body: people_csv },
+    { name: "server.log", body: server_log },
+    { name: "poem.txt", body: poem_txt },
+    { name: "calc.fl", body: calc_src },
+    { name: "words.txt", body: words_txt }
+  ]
+
+  let read fs name = Lists.list_find (fn f -> f.name == name) fs |> fmap (fn f -> f.body)
+
+  // Read a file on behalf of `tool`, as a list of lines.
+  let read_lines tool fs name =
+    Result.of_option (NoSuchFile (tool, name)) (read fs name) |> fmap Str.lines
+
+  // Replace the file if it exists, otherwise add it at the end.
+  let write name body fs =
+    let exists = Lists.list_any (fn f -> f.name == name) fs in
+    if exists then map (fn f -> if f.name == name then { f with body = body } else f) fs
+    else Lists.list_append fs ({ name: name, body: body } :: [])
+
+  let names fs = map (fn f -> f.name) fs
+end

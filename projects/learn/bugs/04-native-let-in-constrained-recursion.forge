@@ -1,0 +1,25 @@
+// Bug (native compiler only): a constrained recursive function over a
+// user-defined recursive type, with a local `let ... in` in one of its case
+// arms, makes the native compiler's specialisation pass produce a program
+// that does not type-check (the Show dictionary seems to be resolved at
+// Unit instead of Int). The interpreter runs it fine.
+//
+// Run:      ./_build/default/bin/interpreter.exe projects/learn/bugs/04-native-let-in-constrained-recursion.forge
+//           D=$(mktemp -d); cp projects/learn/bugs/04-native-let-in-constrained-recursion.forge $D/m.forge
+//           ./_build/default/bin/compile_forge.exe $D/m.forge $D/m.exe && $D/m.exe
+// Expected: x1 from both back ends
+// Actual:   interpreter prints x1; compile_forge.exe fails with
+//           error: the native compiler does not support this program yet:
+//           internal: the specialised program does not type-check: ...
+//           cannot match Int with Unit
+// Without the `let` (`| Node l -> "x" ^ render l`) both back ends work, and
+// the same shape over the built-in List type also works.
+// Workaround used in tree.forge: no local `let` in the Show instance's
+// printer (the line is built inline).
+type rec Tree<a> = | Leaf of a | Node of Tree<a>
+
+let rec render t = case t do
+  | Leaf a -> show a
+  | Node l -> let prefix = "x" in prefix ^ render l
+
+let () = print_string (render (Node (Leaf 1)))

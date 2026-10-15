@@ -1,0 +1,201 @@
+// The stack-machine bytecode, the code generator (AST to instructions with
+// symbolic labels), the assembler (labels to addresses) and the disassembler.
+import "util.forge"
+import "ast.forge"
+
+use Ast
+
+mod Code where
+  type Instr =
+    | Push of Int          // push a constant
+    | Load of Int          // push a local slot
+    | Store of Int         // pop into a local slot
+    | Pop
+    | Add | Sub | Mul | Div | Mod | Neg | Not
+    | Eq | Ne | Lt | Le | Gt | Ge
+    | Jump of Int          // unconditional jump
+    | JumpZ of Int         // pop; jump if zero (false)
+    | ICall of (Int, Int)  // target, number of arguments
+    | Ret                  // return the top of the stack
+    | RetV                 // return from a void function
+    | PrintI | PrintB      // pop and print as an int / a bool
+    | Halt
+    | Label of Int         // pseudo-instruction, removed by the assembler
+
+  let mnemonic i =
+    case i do
+    | Push n -> "push " ^ int_to_str n
+    | Load s -> "load " ^ int_to_str s
+    | Store s -> "store " ^ int_to_str s
+    | Pop -> "pop"
+    | Add -> "add" | Sub -> "sub" | Mul -> "mul" | Div -> "div" | Mod -> "mod"
+    | Neg -> "neg" | Not -> "not"
+    | Eq -> "eq" | Ne -> "ne" | Lt -> "lt" | Le -> "le" | Gt -> "gt" | Ge -> "ge"
+    | Jump a -> "jump " ^ int_to_str a
+    | JumpZ a -> "jumpz " ^ int_to_str a
+    | ICall (a, n) -> "call " ^ int_to_str a ^ " (" ^ int_to_str n ^ " args)"
+    | Ret -> "ret" | RetV -> "retv"
+    | PrintI -> "print.i" | PrintB -> "print.b"
+    | Halt -> "halt"
+    | Label l -> "L" ^ int_to_str l ^ ":"
+
+  let instr_of_op op =
+    case op do
+    | Plus -> Add | Minus -> Sub | Times -> Mul | Divide -> Div | Modulo -> Mod
+    | EqOp -> Eq | NeOp -> Ne | LtOp -> Lt | LeOp -> Le | GtOp -> Gt | GeOp -> Ge
+    | _ -> Halt   // && and || are compiled to jumps
+
+  // Code is emitted in reverse onto `code`; labels and slots are numbered.
+  type Gen = { code: List<Instr>, next_label: Int, next_slot: Int }
+  type Env = { vars: Map.T<String, (Int, Ty)>, funcs: Map.T<String, (Int, Ty)> }
+
+  let emit (g : Gen) i = { g with code = i :: g.code }
+  let emits g is = reduce_left emit g is
+  let fresh (g : Gen) = (g.next_label, { g with next_label = g.next_label + 1 })
+
+  // The type of a checked expression (needed to pick print.i or print.b).
+  let rec type_of (env : Env) e =
+    case e do
+    | Num _ -> TInt
+    | BoolLit _ -> TBool
+    | Var (x, _) -> tuple_snd (Map.find_or (0, TInt) x env.vars)
+    | Unary (Negate, _, _) -> TInt
+    | Unary (LogNot, _, _) -> TBool
+    | Bin (op, _, _, _) ->
+        if op == Plus || op == Minus || op == Times || op == Divide || op == Modulo then TInt else TBool
+    | Call (f, _, _) -> tuple_snd (Map.find_or (0, TVoid) f env.funcs)
+
+  let rec gen_expr env g e =
+    case e do
+    | Num n -> emit g (Push n)
+    | BoolLit b -> emit g (Push (if b then 1 else 0))
+    | Var (x, _) -> emit g (Load (tuple_fst (Map.find_or (0, TInt) x env.vars)))
+    | Unary (Negate, a, _) -> emit (gen_expr env g a) Neg
+    | Unary (LogNot, a, _) -> emit (gen_expr env g a) Not
+    // a && b:  a; jumpz F; b; jump E; F: push 0; E:
+    | Bin (AndOp, a, b, _) ->
+        let (lf, g1) = fresh g in
+        let (le, g2) = fresh g1 in
+        let g3 = emit (gen_expr env g2 a) (JumpZ lf) in
+        emits (gen_expr env g3 b) [Jump le, Label lf, Push 0, Label le]
+    // a || b:  a; jumpz R; push 1; jump E; R: b; E:
+    | Bin (OrOp, a, b, _) ->
+        let (lr, g1) = fresh g in
+        let (le, g2) = fresh g1 in
+        let g3 = emits (gen_expr env g2 a) [JumpZ lr, Push 1, Jump le, Label lr] in
+        emit (gen_expr env g3 b) (Label le)
+    | Bin (op, a, b, _) -> emit (gen_expr env (gen_expr env g a) b) (instr_of_op op)
+    | Call (f, args, _) ->
+        let g1 = reduce_left (gen_expr env) g args in
+        emit g1 (ICall (tuple_fst (Map.find_or (0, TVoid) f env.funcs), list_length args))
+
+  // A statement may extend the environment for the statements after it.
+  let rec gen_stmt (env, g) s =
+    case s do
+    | SVar (x, t, e, _) ->
+        let g1 = gen_expr env g e in
+        let slot = g1.next_slot in
+        ({ env with vars = Map.insert x (slot, t) env.vars },
+         emit { g1 with next_slot = slot + 1 } (Store slot))
+    | SAssign (x, e, _) ->
+        (env, emit (gen_expr env g e) (Store (tuple_fst (Map.find_or (0, TInt) x env.vars))))
+    | SIf (c, th, Blk [], _) ->
+        let (lend, g1) = fresh g in
+        let g2 = gen_block env (emit (gen_expr env g1 c) (JumpZ lend)) th in
+        (env, emit g2 (Label lend))
+    | SIf (c, th, el, _) ->
+        let (lelse, g1) = fresh g in
+        let (lend, g2) = fresh g1 in
+        let g3 = gen_block env (emit (gen_expr env g2 c) (JumpZ lelse)) th in
+        let g4 = gen_block env (emits g3 [Jump lend, Label lelse]) el in
+        (env, emit g4 (Label lend))
+    | SWhile (c, b, _) ->
+        let (ltop, g1) = fresh g in
+        let (lend, g2) = fresh g1 in
+        let g3 = emit (gen_expr env (emit g2 (Label ltop)) c) (JumpZ lend) in
+        (env, emits (gen_block env g3 b) [Jump ltop, Label lend])
+    | SReturn (None, _) -> (env, emit g RetV)
+    | SReturn (Some e, _) -> (env, emit (gen_expr env g e) Ret)
+    | SPrint (e, _) ->
+        (env, emit (gen_expr env g e) (if type_of env e == TBool then PrintB else PrintI))
+    | SExpr (e, _) ->
+        let g1 = gen_expr env g e in
+        (env, if type_of env e == TVoid then g1 else emit g1 Pop)
+    | SBlock b -> (env, gen_block env g b)
+
+  // Declarations inside a block are dropped when it ends; slots are not reused.
+  and gen_block env g b = tuple_snd (reduce_left gen_stmt (env, g) (stmts b))
+
+  let gen_body funcs label params body ret g =
+    let vars = Map.of_list [(x, (i, t)) | (i, (x, t)) <- Util.rev (tuple_snd (reduce_left (fn (i, acc) -> fn p -> (i + 1, (i, p) :: acc)) (0, []) params))] in
+    let env = { vars: vars, funcs: funcs } in
+    let g1 = gen_block env (emit { g with next_slot = list_length params } (Label label)) body in
+    if ret == TVoid then emit g1 RetV else g1
+
+  // Layout: call main; halt; main; the functions. Labels 0..n-1 are the
+  // functions, label n is main.
+  let gen_program (p : Program) =
+    let n = list_length p.funcs in
+    let indexed = Util.rev (tuple_snd (reduce_left (fn (i, acc) -> fn (f : Func) -> (i + 1, (i, f) :: acc)) (0, []) p.funcs)) in
+    let funcs = Map.of_list [(f.name, (i, f.ret)) | (i, f) <- indexed] in
+    let g0 = emits { code: [], next_label: n + 1, next_slot: 0 } [ICall (n, 0), Halt] in
+    let g1 = gen_body funcs n [] p.main TVoid g0 in
+    let g2 = reduce_left (fn g -> fn (i, f) -> gen_body funcs i f.params f.body f.ret g) g1 indexed in
+    (Util.rev g2.code, ("main", n) :: [(f.name, i) | (i, f) <- indexed])
+
+  // The assembler: first find each label's address, then rewrite targets.
+  let assemble code =
+    let place (addr, labels) i =
+      case i do
+      | Label l -> (addr, Map.insert l addr labels)
+      | _ -> (addr + 1, labels) in
+    let labels = tuple_snd (reduce_left place (0, Map.empty) code) in
+    let at l = Map.find_or (-1) l labels in
+    let resolve i =
+      case i do
+      | Jump l -> Jump (at l)
+      | JumpZ l -> JumpZ (at l)
+      | ICall (l, n) -> ICall (at l, n)
+      | _ -> i in
+    (map resolve (filter (fn i -> case i do | Label _ -> false | _ -> true) code), at)
+
+  // Peephole pass on labelled code: drop unreachable instructions after an
+  // unconditional transfer (up to the next label), and jumps to the very
+  // next instruction.
+  let rec peephole code =
+    case code do
+    | [] -> []
+    | Jump l :: Label m :: rest -> if l == m then Label m :: peephole rest else Jump l :: peephole (Label m :: rest)
+    | i :: rest ->
+        let stops = case i do | Ret -> true | RetV -> true | Jump _ -> true | Halt -> true | _ -> false in
+        if stops then i :: peephole (skip_dead rest) else i :: peephole rest
+  and skip_dead code =
+    case code do
+    | Label l :: _ -> code
+    | [] -> []
+    | _ :: rest -> skip_dead rest
+
+  // Compile a checked program to (instructions, entry points by name);
+  // `optimise` turns on the peephole pass.
+  let compile optimise p =
+    let (code0, entries) = gen_program p in
+    let code = if optimise then peephole code0 else code0 in
+    let (prog, at) = assemble code in
+    (prog, [(name, at l) | (name, l) <- entries])
+
+  // The disassembler: one numbered instruction per line, entry points labelled.
+  let disassemble prog entries =
+    let rec go addr is acc =
+      case is do
+      | [] -> Util.rev acc
+      | i :: rest ->
+          let heads = [name ^ ":" | (name, a) <- entries, a == addr] in
+          go (addr + 1) rest (("  " ^ Util.pad_left 4 (int_to_str addr) ^ "  " ^ mnemonic i) :: Util.rev heads ++ acc)
+    in go 0 prog []
+end
+
+use Code
+
+impl Show for Instr where
+  show i = mnemonic i
+end

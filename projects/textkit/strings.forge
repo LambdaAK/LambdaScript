@@ -1,0 +1,140 @@
+// strings.forge -- character and string utilities used by every tool.
+//
+// Forge has no char_to_int / int_to_char and no string-to-int conversion,
+// so character classes, case conversion and number parsing are done with
+// lookup tables (see bugs/01-no-char-code.forge).
+
+import "lists.forge"
+use Lists
+
+mod Chars where
+  let lower_letters = string_to_list "abcdefghijklmnopqrstuvwxyz"
+  let upper_letters = string_to_list "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  let digit_chars = string_to_list "0123456789"
+
+  // Every printable ASCII character, in code order (space .. tilde).
+  let printable = string_to_list " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+
+  // Position of c in xs, if any.
+  let index_of c xs =
+    let rec go i ys =
+      case ys do
+      | [] -> None
+      | y :: rest -> if y == c then Some i else go (i + 1) rest
+    in
+    go 0 xs
+
+  let is_digit c = c >= '0' && c <= '9'
+  let is_lower c = c >= 'a' && c <= 'z'
+  let is_upper c = c >= 'A' && c <= 'Z'
+  let is_alpha c = is_lower c || is_upper c
+  let is_alnum c = is_alpha c || is_digit c
+  let is_space c = c == ' ' || c == '\t' || c == '\n' || c == '\r'
+
+  // Translate c through two parallel tables (identity when absent).
+  let translate from to c =
+    case index_of c from do
+    | Some i -> list_nth to i
+    | None -> c
+
+  let to_upper c = translate lower_letters upper_letters c
+  let to_lower c = translate upper_letters lower_letters c
+
+  let digit_value c =
+    case index_of c digit_chars do
+    | Some d -> d
+    | None -> 0
+
+  // The printable characters from a to b inclusive ("a-z").
+  let range a b = [c | c <- printable, c >= a, c <= b]
+end
+
+mod Str where
+  use Chars
+
+  // Build a string from a list of characters.
+  let implode cs = reduce_left (fn acc -> fn c -> acc ^ char_to_str c) "" cs
+  let explode s = string_to_list s
+
+  let char_at s i = str_slice s i 1
+  let drop n s = str_slice s n (str_length s - n)
+  let take n s = str_slice s 0 n
+
+  let rec repeat n s = if n <= 0 then "" else s ^ repeat (n - 1) s
+  let spaces n = repeat n " "
+  let pad_right w s = s ^ spaces (w - str_length s)
+  let pad_left w s = spaces (w - str_length s) ^ s
+  let center w s =
+    let gap = w - str_length s in
+    spaces (gap / 2) ^ s ^ spaces (gap - gap / 2)
+
+  let upper s = implode (map to_upper (explode s))
+  let lower s = implode (map to_lower (explode s))
+  let reverse s = implode (reduce_left (fn acc -> fn c -> c :: acc) [] (explode s))
+
+  // Join with a separator.
+  let join sep xs =
+    case xs do
+    | [] -> ""
+    | x :: rest -> reduce_left (fn acc -> fn y -> acc ^ sep ^ y) x rest
+
+  // Split on a separator character; keeps empty fields ("a,,b" -> 3 fields).
+  let split_on sep s =
+    let step (cur, acc) c = if c == sep then ([], implode (list_rev cur) :: acc) else (c :: cur, acc) in
+    let (cur, acc) = reduce_left (fn st -> fn c -> step st c) ([], []) (explode s) in
+    list_rev (implode (list_rev cur) :: acc)
+
+  // Lines of a text; a trailing newline does not make an extra empty line.
+  let lines s =
+    if s == "" then []
+    else
+      let parts = split_on '\n' s in
+      if str_slice s (str_length s - 1) 1 == "\n" then list_init parts else parts
+
+  // Whitespace-separated words.
+  let words s =
+    let step (cur, acc) c =
+      if is_space c then (if cur == [] then ([], acc) else ([], implode (list_rev cur) :: acc))
+      else (c :: cur, acc)
+    in
+    let (cur, acc) = reduce_left (fn st -> fn c -> step st c) ([], []) (explode s) in
+    list_rev (if cur == [] then acc else implode (list_rev cur) :: acc)
+
+  let rec drop_while p cs = case cs do | c :: rest -> if p c then drop_while p rest else cs | [] -> []
+  let trim_left s = implode (drop_while is_space (explode s))
+  let trim s = reverse (trim_left (reverse (trim_left s)))
+
+  let starts_with prefix s = str_slice s 0 (str_length prefix) == prefix
+
+  // Index of the first occurrence of needle in s, at or after `from`.
+  let find_from from needle s =
+    let n = str_length needle in
+    let last = str_length s - n in
+    let rec go i = if i > last then None else if str_slice s i n == needle then Some i else go (i + 1) in
+    go from
+
+  let contains needle s = case find_from 0 needle s do | Some _ -> true | None -> false
+
+  // Replace the first (or every) occurrence of old by new.
+  let replace all old new s =
+    let n = str_length old in
+    let rec go from acc =
+      case find_from from old s do
+      | None -> acc ^ drop from s
+      | Some i ->
+        let acc2 = acc ^ str_slice s from (i - from) ^ new in
+        if all then go (i + n) acc2 else acc2 ^ drop (i + n) s
+    in
+    if n == 0 then s else go 0 ""
+
+  // Parse an optionally signed decimal integer; None if malformed.
+  let parse_int s =
+    let digits_value ds = reduce_left (fn acc -> fn d -> acc * 10 + digit_value d) 0 ds in
+    case explode s do
+    | [] -> None
+    | '-' :: [] -> None
+    | '-' :: ds -> if list_all is_digit ds then Some (0 - digits_value ds) else None
+    | ds -> if list_all is_digit ds then Some (digits_value ds) else None
+
+  let is_number s = case parse_int s do | Some _ -> true | None -> false
+end

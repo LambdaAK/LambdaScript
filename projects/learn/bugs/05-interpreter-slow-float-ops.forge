@@ -1,0 +1,22 @@
+// Performance: in the interpreter, float arithmetic is about 8x slower than
+// integer arithmetic. The two loops below do the same amount of work; on
+// an Apple M3 Max the Int loop takes ~0.18 s and the Float loop ~1.4 s
+// (the whole program ~1.6 s). Native code runs both in a few milliseconds.
+//
+// Run:      time ./_build/default/bin/interpreter.exe projects/learn/bugs/05-interpreter-slow-float-ops.forge
+//           (comment out one of the two lines to time each loop)
+// Expected: +. about as fast as +
+// Actual:   +. is ~8x slower. In src/ceval.ml, `+.` `-.` `*.` `/.` are
+//           evaluated as curried built-in functions: a FloatOpPartial
+//           closure is allocated for the first argument, then the operator
+//           *string* is matched ("+." / "-." / ...) for every operation,
+//           whereas the integer operators are evaluated directly. Calling a
+//           built-in such as int_eq by name is similarly slow (~1.5 s for
+//           1M calls). This dominates the run time of numeric programs: the
+//           ML project in this directory takes ~45 s interpreted against
+//           0.25 s native (180x).
+let rec int_loop k acc = if k == 0 then acc else int_loop (k - 1) (acc + 3)
+let rec float_loop k acc = if k == 0 then acc else float_loop (k - 1) (acc +. 1.5)
+
+let () = println (int_loop 1000000 0)
+let () = println (float_loop 1000000 0.0)

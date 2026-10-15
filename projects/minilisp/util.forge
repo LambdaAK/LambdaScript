@@ -1,0 +1,93 @@
+// Generic helpers shared by the Lisp interpreter and the type inferencer:
+// character classes, number parsing, string joining, a string-keyed binary
+// search tree, and monadic traversals that work for any Monad.
+
+mod Chars where
+  let is_space c = c == ' ' || c == '\n' || c == '\t' || c == '\r'
+  let is_digit c = c >= '0' && c <= '9'
+  let is_alpha c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+  let is_ident c = is_alpha c || is_digit c || c == '_' || c == '\''
+
+  // Forge has no char-to-int builtin: find the digit's position instead.
+  let digit_value c =
+    let rec go ds i =
+      case ds do
+      | [] -> 0
+      | d :: rest -> if d == c then i else go rest (i + 1)
+    in
+    go (string_to_list "0123456789") 0
+end
+
+mod Text where
+  // Rebuild a string from characters (there is no list_to_string builtin).
+  let of_chars cs = reduce_left (fn acc -> fn c -> acc ^ char_to_str c) "" cs
+
+  let join sep xs =
+    case xs do
+    | [] -> ""
+    | x :: rest -> reduce_left (fn acc -> fn y -> acc ^ sep ^ y) x rest
+
+  let rec repeat n s = if n <= 0 then "" else s ^ repeat (n - 1) s
+  let pad_right w s = s ^ repeat (w - str_length s) " "
+
+  // Parse an optionally negative decimal integer; None unless every
+  // character is a digit (and there is at least one).
+  let parse_int s =
+    let digits cs = reduce_left (fn acc -> fn c -> acc * 10 + Chars.digit_value c) 0 cs in
+    let all_digits cs = cs != [] && filter (fn c -> not (Chars.is_digit c)) cs == [] in
+    case string_to_list s do
+    | '-' :: rest -> if all_digits rest then Some (0 - digits rest) else None
+    | cs -> if all_digits cs then Some (digits cs) else None
+end
+
+// A persistent map from strings to values (an unbalanced binary search tree).
+mod Map where
+  type rec T<v> = | Leaf | Node of (T<v>, String, v, T<v>)
+
+  let empty = Leaf
+
+  let rec insert k v m =
+    case m do
+    | Leaf -> Node (Leaf, k, v, Leaf)
+    | Node (l, k2, v2, r) ->
+        if k < k2 then Node (insert k v l, k2, v2, r)
+        else if k > k2 then Node (l, k2, v2, insert k v r)
+        else Node (l, k, v, r)
+
+  let rec find k m =
+    case m do
+    | Leaf -> None
+    | Node (l, k2, v, r) -> if k == k2 then Some v else if k < k2 then find k l else find k r
+
+  let rec size m = case m do | Leaf -> 0 | Node (l, _, _, r) -> size l + 1 + size r
+
+  let rec depth m =
+    case m do
+    | Leaf -> 0
+    | Node (l, _, _, r) -> 1 + (let dl = depth l in let dr = depth r in if dl > dr then dl else dr)
+
+  let rec keys m = case m do | Leaf -> [] | Node (l, k, _, r) -> keys l ++ (k :: keys r)
+end
+
+// Traversals for every Monad (used with the evaluator's Res and Option).
+let rec mapM f xs =
+  case xs do
+  | [] -> pure []
+  | x :: rest -> f x >>= (fn y -> mapM f rest >>= (fn ys -> pure (y :: ys)))
+
+let rec foldM f acc xs =
+  case xs do
+  | [] -> pure acc
+  | x :: rest -> f acc x >>= (fn a -> foldM f a rest)
+
+let rec zip xs ys =
+  case (xs, ys) do
+  | (x :: xr, y :: yr) -> (x, y) :: zip xr yr
+  | _ -> []
+
+let rec reverse_onto xs acc = case xs do | [] -> acc | x :: rest -> reverse_onto rest (x :: acc)
+let reverse xs = reverse_onto xs []
+
+let rec nub xs = case xs do | [] -> [] | x :: rest -> x :: nub (filter (fn y -> y != x) rest)
+
+let rec lookup k xs = case xs do | [] -> None | (k2, v) :: rest -> if k == k2 then Some v else lookup k rest

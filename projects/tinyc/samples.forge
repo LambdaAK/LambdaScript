@@ -1,0 +1,216 @@
+// Sample Tiny programs: (name, source). The first group must compile and
+// run; the second group must be rejected with an error message.
+
+mod Samples where
+  let factorial = "// factorial, recursively and with a loop
+fn fact(n: int): int {
+  if (n <= 1) { return 1; }
+  return n * fact(n - 1);
+}
+fn fact_loop(n: int): int {
+  var acc: int = 1;
+  while (n > 1) { acc = acc * n; n = n - 1; }
+  return acc;
+}
+var i: int = 0;
+while (i <= 10) {
+  print fact(i);
+  i = i + 1;
+}
+print fact(20) == fact_loop(20);
+"
+
+  let fibonacci = "// fibonacci: iterative and recursive must agree
+fn fib_rec(n: int): int {
+  if (n < 2) { return n; } else { return fib_rec(n - 1) + fib_rec(n - 2); }
+}
+fn fib_iter(n: int): int {
+  var a: int = 0;
+  var b: int = 1;
+  var k: int = 0;
+  while (k < n) {
+    var t: int = a + b;
+    a = b;
+    b = t;
+    k = k + 1;
+  }
+  return a;
+}
+var n: int = 0;
+var same: bool = true;
+while (n <= 15) {
+  print fib_iter(n);
+  same = same && fib_iter(n) == fib_rec(n);
+  n = n + 1;
+}
+print same;
+print fib_iter(60);
+"
+
+  let gcd = "// greatest common divisor: Euclid by remainder and by subtraction
+fn gcd(a: int, b: int): int {
+  if (b == 0) { return a; }
+  return gcd(b, a % b);
+}
+fn gcd_sub(a: int, b: int): int {
+  while (a != b) {
+    if (a > b) { a = a - b; } else { b = b - a; }
+  }
+  return a;
+}
+fn lcm(a: int, b: int): int { return a / gcd(a, b) * b; }
+print gcd(1071, 462);
+print gcd_sub(1071, 462);
+print gcd(17, 5);
+print gcd(270, 192) == gcd_sub(270, 192);
+print lcm(4, 6) + lcm(21, 6) * 1 + 0;
+"
+
+  let primes = "// primes below 100 by trial division
+fn is_prime(n: int): bool {
+  if (n < 2) { return false; }
+  var d: int = 2;
+  while (d * d <= n) {
+    if (n % d == 0) { return false; }
+    d = d + 1;
+  }
+  return true;
+}
+var count: int = 0;
+var p: int = 2;
+while (p < 100) {
+  if (is_prime(p)) { print p; count = count + 1; }
+  p = p + 1;
+}
+print count;
+"
+
+  let collatz = "// collatz: the number of steps from n down to 1
+fn steps(n: int): int {
+  var k: int = 0;
+  while (n != 1) {
+    if (n % 2 == 0) { n = n / 2; } else { n = 3 * n + 1; }
+    k = k + 1;
+  }
+  return k;
+}
+var best: int = 1;
+var best_len: int = 0;
+var n: int = 1;
+while (n <= 30) {
+  var len: int = steps(n);
+  print len;
+  if (len > best_len) { best = n; best_len = len; }
+  n = n + 1;
+}
+print best;
+print best_len;
+"
+
+  let nested = "// nested loops, operator precedence and short-circuit evaluation
+fn noisy(tag: int, result: bool): bool {
+  print tag;
+  return result;
+}
+fn report(): void {
+  // short-circuit: noisy(2) and noisy(4) must never run
+  if (noisy(1, false) && noisy(2, true)) { print 0; }
+  if (noisy(3, true) || noisy(4, true)) { print 100; }
+  print noisy(5, true) && !noisy(6, false) || noisy(7, true);
+}
+var i: int = 1;
+var total: int = 0;
+while (i <= 4) {
+  var j: int = 1;
+  while (j <= i) {
+    if (i % 2 == 0 && j % 2 == 0 || i == j && !(i == 1)) { total = total + i * j; }
+    j = j + 1;
+  }
+  i = i + 1;
+}
+print total;
+print 2 + 3 * 4 - 10 / 3 % 2;
+print -2 * -3 + -(4 - 6);
+print 1 < 2 == 3 < 4;
+print !(1 > 2) && 7 >= 7 || false;
+report();
+"
+
+  let constants = "// constant folding, algebraic identities, dead branches, dead code
+fn square(x: int): int {
+  return x * x * 1 + 0;
+  print 999;
+  return 0;
+}
+fn pick(flag: bool): int {
+  if (!flag) { return 10 - 0; } else { return 0 + 20; }
+}
+var x: int = (2 + 3) * (10 - 4) / 3;
+if (2 * 3 > 5 && !false) { print x; } else { print 0; }
+while (1 > 2) { print 12345; }
+if (false || 1 == 2) { print 1; }
+print square(7) - x * 0;
+print pick(true) + pick(!true);
+print x - x;
+print --x;
+print !!(x > 3);
+"
+
+  let digits = "// a longer run: digit sums of 1..2000 and a checksum
+fn digit_sum(n: int): int {
+  var s: int = 0;
+  while (n > 0) { s = s + n % 10; n = n / 10; }
+  return s;
+}
+var i: int = 1;
+var total: int = 0;
+var check: int = 7;
+var sevens: int = 0;
+while (i <= 2000) {
+  var d: int = digit_sum(i);
+  total = total + d;
+  check = (check * 31 + d) % 1000003;
+  if (d == 7) { sevens = sevens + 1; }
+  i = i + 1;
+}
+print total;
+print sevens;
+print check;
+"
+
+  let crash = "// a division by zero after some output
+fn inverse(n: int): int { return 100 / n; }
+var k: int = 3;
+while (k >= 0) {
+  print inverse(k);
+  k = k - 1;
+}
+print 0;
+"
+
+  let good = [
+    ("factorial", factorial), ("fibonacci", fibonacci), ("gcd", gcd), ("primes", primes),
+    ("collatz", collatz), ("nested loops and short-circuit", nested), ("optimiser showcase", constants),
+    ("digit sums", digits),
+    ("run-time error", crash)
+  ]
+
+  let bad = [
+    ("type error in a declaration", "var x: int = 1;\nvar flag: bool = x + 2;\n"),
+    ("type error in an operator", "var n: int = 4;\nprint n + (n > 2);\n"),
+    ("non-bool condition", "var n: int = 3;\nwhile (n) { n = n - 1; }\n"),
+    ("undeclared variable", "var total: int = 0;\nwhile (total < 3) {\n  total = total + step;\n}\n"),
+    ("variable out of scope", "if (true) { var inner: int = 1; }\nprint inner;\n"),
+    ("undeclared function", "print square(3);\n"),
+    ("wrong arity", "fn add(a: int, b: int): int { return a + b; }\n\nprint add(1);\n"),
+    ("wrong argument type", "fn neg(b: bool): bool { return !b; }\nprint neg(0);\n"),
+    ("wrong return type", "fn half(n: int): bool {\n  return n / 2;\n}\n"),
+    ("missing return", "fn sign(n: int): int {\n  if (n > 0) { return 1; } else { if (n < 0) { return -1; } }\n}\n"),
+    ("value from a void function", "fn hello(): void { print 1; }\nvar x: int = hello();\n"),
+    ("redeclared variable", "var a: int = 1;\nvar a: bool = true;\n"),
+    ("syntax error: missing semicolon", "var a: int = 1\nprint a;\n"),
+    ("syntax error: unbalanced parenthesis", "var a: int = (1 + 2;\n"),
+    ("syntax error: missing expression", "print 1 + * 2;\n"),
+    ("lexical error", "var a: int = 3;\nprint a # 2;\n")
+  ]
+end

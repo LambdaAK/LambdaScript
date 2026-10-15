@@ -1,0 +1,202 @@
+// A lexer and a combinator parser for the ML of Part 2. Parser<a> is a
+// user-defined monad (and Alternative, for backtracking choice).
+import "types.forge"
+
+mod MLLex where
+  type Tok =
+    | TkInt of Int
+    | TkId of String
+    | TkKw of String     // fun let rec in if then else true false
+    | TkOp of String     // -> = + - * < == :: , ( ) [ ]
+
+  let keywords = ["fun", "let", "rec", "in", "if", "then", "else", "true", "false"]
+
+  let rec span p cs =
+    case cs do
+    | c :: rest -> if p c then (let (a, b) = span p rest in (c :: a, b)) else ([], cs)
+    | [] -> ([], [])
+
+  // Lexing cannot fail softly here: an unknown character becomes an
+  // operator token that no rule accepts, so the parser reports it.
+  let rec lex cs =
+    case cs do
+    | [] -> []
+    | '-' :: '>' :: rest -> TkOp "->" :: lex rest
+    | '=' :: '=' :: rest -> TkOp "==" :: lex rest
+    | ':' :: ':' :: rest -> TkOp "::" :: lex rest
+    | c :: rest ->
+        if Chars.is_space c then lex rest
+        else if Chars.is_digit c then
+          (let (ds, left) = span Chars.is_digit cs in
+           TkInt (reduce_left (fn n -> fn d -> n * 10 + Chars.digit_value d) 0 ds) :: lex left)
+        else if Chars.is_alpha c then
+          (let (w, left) = span Chars.is_ident cs in
+           let word = Text.of_chars w in
+           (if filter (fn k -> k == word) keywords != [] then TkKw word else TkId word) :: lex left)
+        else TkOp (char_to_str c) :: lex rest
+
+  let describe t =
+    case t do
+    | TkInt n -> "number " ^ int_to_str n
+    | TkId x -> "identifier " ^ x
+    | TkKw k -> "keyword " ^ k
+    | TkOp o -> "'" ^ o ^ "'"
+end
+
+// A parser consumes tokens and either succeeds with the rest of the input
+// or fails with a message and the number of tokens that were left where it
+// failed (choice keeps the failure that got furthest).
+type Reply<a> = | Parsed of (a, List<MLLex.Tok>) | Failed of (String, Int)
+type Parser<a> = | Parser of (List<MLLex.Tok> -> Reply<a>)
+
+let run_parser p toks = case p do | Parser f -> f toks
+
+impl Functor for Parser where
+  fmap f p = Parser (fn toks -> case run_parser p toks do | Parsed (x, rest) -> Parsed (f x, rest) | Failed m -> Failed m)
+end
+
+impl Applicative for Parser where
+  pure x = Parser (fn toks -> Parsed (x, toks))
+  ,
+  ap pf px = Parser (fn toks ->
+    case run_parser pf toks do
+    | Failed m -> Failed m
+    | Parsed (f, rest) -> run_parser (fmap f px) rest)
+end
+
+impl Monad for Parser where
+  bind p f = Parser (fn toks ->
+    case run_parser p toks do
+    | Failed m -> Failed m
+    | Parsed (x, rest) -> run_parser (f x) rest)
+end
+
+impl Alternative for Parser where
+  aempty = Parser (fn toks -> Failed ("no alternative", list_length toks))
+  ,
+  (<|>) p q = Parser (fn toks ->
+    case run_parser p toks do
+    | Failed (m1, left1) ->
+        (case run_parser q toks do
+         | Failed (m2, left2) -> if left1 < left2 then Failed (m1, left1) else Failed (m2, left2)
+         | ok -> ok)
+    | ok -> ok)
+end
+
+mod MLParse where
+  use ML
+  use MLLex
+
+  let found toks = case toks do | [] -> "end of input" | t :: _ -> describe t
+
+  // The next token, if the test accepts it.
+  let token what test = Parser (fn toks ->
+    case toks do
+    | t :: rest ->
+        (case test t do
+         | Some x -> Parsed (x, rest)
+         | None -> Failed ("expected " ^ what ^ ", found " ^ found toks, list_length toks))
+    | [] -> Failed ("expected " ^ what ^ ", found end of input", 0))
+
+  let op o = token ("'" ^ o ^ "'") (fn t -> if t == TkOp o then Some () else None)
+  let kw k = token ("keyword " ^ k) (fn t -> if t == TkKw k then Some () else None)
+  let ident = token "an identifier" (fn t -> case t do | TkId x -> Some x | _ -> None)
+  let number = token "a number" (fn t -> case t do | TkInt n -> Some n | _ -> None)
+
+  let rec many p = (p >>= (fn x -> many p >>= (fn xs -> pure (x :: xs)))) <|> pure []
+  let many1 p = p >>= (fn x -> many p >>= (fn xs -> pure (x :: xs)))
+
+  // Defer building a parser until it runs, so recursive grammars terminate.
+  let lazy mk = Parser (fn toks -> run_parser (mk ()) toks)
+
+  // When p fails without consuming anything, say what was expected instead.
+  let expected what p = Parser (fn toks ->
+    case run_parser p toks do
+    | Failed (m, left) ->
+        if left == list_length toks then Failed ("expected " ^ what ^ ", found " ^ found toks, left)
+        else Failed (m, left)
+    | ok -> ok)
+
+  let binop name l r = EApp (EApp (EVar name, l), r)
+
+  // Left-associative chains: term (op term)*
+  let chain_left term ops =
+    let rec rest acc =
+      (reduce_left (fn p -> fn o -> p <|> (op o >>= (fn _ -> term >>= (fn r -> rest (binop o acc r))))) aempty ops)
+        <|> pure acc
+    in
+    term >>= rest
+
+  // expr  ::= fun x+ -> expr | let [rec] x y* = expr in expr | if expr then expr else expr | cmp
+  // cmp   ::= cons [(< | ==) cons]       cons ::= add [:: cons]
+  // add   ::= mul ((+ | -) mul)*         mul  ::= app (* app)*
+  // app   ::= atom atom*
+  // atom  ::= int | true | false | x | ( ) | (expr) | (expr, expr) | [expr, ...]
+  let rec expr () =
+    expected "an expression" (lazy fun_expr <|> lazy let_expr <|> lazy if_expr <|> lazy cmp_expr)
+
+  and fun_expr () =
+    kw "fun" >>= (fn _ -> many1 ident >>= (fn xs -> op "->" >>= (fn _ -> expr () >>= (fn body ->
+      pure (reduce_right (fn x -> fn b -> ELam (x, b)) xs body)))))
+
+  and let_expr () =
+    kw "let" >>= (fn _ ->
+      ((kw "rec" >>= (fn _ -> pure true)) <|> pure false) >>= (fn is_rec ->
+        ident >>= (fn name -> many ident >>= (fn params -> op "=" >>= (fn _ ->
+          expr () >>= (fn rhs -> kw "in" >>= (fn _ -> expr () >>= (fn body ->
+            let fn_rhs = reduce_right (fn x -> fn b -> ELam (x, b)) params rhs in
+            pure (if is_rec then ELetRec (name, fn_rhs, body) else ELet (name, fn_rhs, body))))))))))
+
+  and if_expr () =
+    kw "if" >>= (fn _ -> expr () >>= (fn c -> kw "then" >>= (fn _ -> expr () >>= (fn a ->
+      kw "else" >>= (fn _ -> expr () >>= (fn b -> pure (EIf (c, a, b))))))))
+
+  and cmp_expr () =
+    cons_expr () >>= (fn l ->
+      (op "<" >>= (fn _ -> fmap (binop "<" l) (cons_expr ())))
+        <|> (op "==" >>= (fn _ -> fmap (binop "==" l) (cons_expr ())))
+        <|> pure l)
+
+  and cons_expr () =
+    chain_left (lazy mul_expr) ["+", "-"] >>= (fn l ->
+      (op "::" >>= (fn _ -> fmap (binop "::" l) (lazy cons_expr))) <|> pure l)
+
+  and mul_expr () = chain_left (lazy app_expr) ["*"]
+
+  and app_expr () =
+    many1 (lazy atom) >>= (fn fs ->
+      pure (reduce_left (fn f -> fn a -> EApp (f, a)) (list_head fs) (list_tail fs)))
+
+  and atom () =
+    fmap EInt number
+      <|> (kw "true" >>= (fn _ -> pure (EBool true)))
+      <|> (kw "false" >>= (fn _ -> pure (EBool false)))
+      <|> fmap EVar ident
+      <|> (op "(" >>= (fn _ -> lazy paren_rest))
+      <|> (op "[" >>= (fn _ -> lazy list_rest))
+
+  // After "(": a parenthesised expression or a pair.
+  and paren_rest () =
+    expr () >>= (fn e ->
+      (op ")" >>= (fn _ -> pure e))
+        <|> (op "," >>= (fn _ -> expr () >>= (fn e2 -> op ")" >>= (fn _ -> pure (EPair (e, e2)))))))
+
+  // After "[": a list literal, sugar for a chain of ::.
+  and list_rest () =
+    (op "]" >>= (fn _ -> pure ENil))
+      <|> (expr () >>= (fn first ->
+            many (op "," >>= (fn _ -> expr ())) >>= (fn more ->
+              op "]" >>= (fn _ -> pure (reduce_right (fn x -> fn l -> binop "::" x l) (first :: more) ENil)))))
+
+  // The whole input must be one expression.
+  let parse src =
+    case run_parser (expr ()) (lex (string_to_list src)) do
+    | Parsed (e, []) -> Some e
+    | _ -> None
+
+  let parse_error src =
+    let toks = lex (string_to_list src) in
+    case run_parser (expr ()) toks do
+    | Parsed (_, rest) -> "unexpected " ^ found rest
+    | Failed (m, _) -> m
+end

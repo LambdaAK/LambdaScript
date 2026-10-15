@@ -1,0 +1,107 @@
+// textkit -- a command-line text toolkit, simulated in Forge.
+//
+// Forge programs cannot read files or arguments, so the "disk" is an
+// in-memory filesystem (vfs.forge) and the "terminal" is the script below:
+// every command line is tokenized, parsed into a pipeline, run, and
+// printed together with its output.
+//
+//   interpreter:  ./_build/default/bin/interpreter.exe projects/textkit/main.forge
+//   native:       ./_build/default/bin/compile_forge.exe <copy>/main.forge <copy>/main.exe
+
+import "shell.forge"
+
+let script = [
+  // Looking around.
+  "help",
+  "ls -l",
+  "cat -n poem.txt",
+  "wc poem.txt calc.fl",
+  "cat poem.txt | wc -lw",
+  // grep, with flags and regular expressions.
+  "grep -n TODO calc.fl",
+  "grep -c -i error server.log",
+  "cat server.log | grep -i error | cut -d ' ' -f 4- | sort | uniq -c",
+  "grep -v 'INFO' server.log | grep -v -i error",
+  "grep '[0-9]+ms' server.log",
+  "grep -in '^the .* stones$' poem.txt",
+  // Sorting, counting and fields.
+  "sort words.txt | uniq -c | sort -rn",
+  "sort -u words.txt",
+  "uniq -d words.txt",
+  "tail -n +2 people.csv | cut -d , -f 2 | sort | uniq -c",
+  "tail -n 20 people.csv | sort -t , -k 4 -n -r | head -n 5 | cut -d , -f 1,4",
+  "cut -d, -f1,3-4 people.csv | head -4",
+  "grep Boston people.csv | cut -d , -f 1 | sort -k 2",
+  // Tables and statistics.
+  "head -n 7 people.csv | table",
+  "grep -i research people.csv | column -t -s ,",
+  "stats -f 4 people.csv",
+  "tail -n 20 people.csv | grep ',Design,' | stats -s , -f 3",
+  // Character-level tools.
+  "head -2 poem.txt | tr a-z A-Z",
+  "echo 'Hello, World!' | tr -d aeiouAEIOU",
+  "echo \"tabs and   spaces\" | tr ' ' _",
+  "head -n 3 poem.txt | rev",
+  "freq -n 5 poem.txt",
+  "ll",
+  "grep -v '^$' poem.txt | count",
+  "echo shout | upper",
+  "sed 's/river/stream/g' poem.txt | nl",
+  "grep TODO calc.fl | sed 's|// TODO: |[ ] |'",
+  "echo 2026-10-15 | sed 's/[0-9]+/<&>/g'",
+  "echo hello | sed 's/l*/_/g'",
+  // Redirection into the virtual filesystem.
+  "grep ERROR server.log | cut -d ' ' -f 2 > errors.txt",
+  "echo 08:59:59 >> errors.txt",
+  "ls",
+  "cat errors.txt | sort -r | head -n 2",
+  // Errors are values: every one of these fails cleanly.
+  "grpe error server.log",
+  "frobnicate",
+  "grep -x error server.log",
+  "head -n ten poem.txt",
+  "cat missing.txt",
+  "cut -f 2 -d ::: people.csv",
+  "sort -k",
+  "echo 'unterminated | wc",
+  "cat poem.txt | | wc",
+  "sed 's/a/b' poem.txt",
+  "grep '[abc' poem.txt",
+  "echo hi >"
+]
+
+// Run each line against the filesystem left by the previous one.
+let run_line fs line =
+  {
+    print_string ("$ " ^ line);
+    let next = case Shell.execute fs line do
+      | Ok (fs2, out) -> { map print_string out; fs2 }
+      | Err e -> { print_string (report e); fs }
+    ;
+    print_string "";
+    next
+  }
+
+let final_fs = reduce_left run_line Vfs.initial script
+
+// Under the hood: the tokens and the parsed pipeline of one tricky line.
+let describe [Show a] label (x : a) = print_string ("  " ^ Str.pad_right 8 label ^ show x)
+let tricky = "grep -i 'two words' \"say \\\"hi\\\"\" calc.fl | wc -l >> out.txt"
+let () = print_string ("tokens of: " ^ tricky)
+let () =
+  case Lexer.tokenize tricky do
+  | Ok toks ->
+    {
+      describe "tokens" toks;
+      case Parser.parse toks do
+      | Ok line ->
+        {
+          describe "stages" (map (fn c -> (c.name, c.args)) line.stages);
+          describe "output" line.redirect
+        }
+      | Err e -> print_string (report e)
+    }
+  | Err e -> print_string (report e)
+let () = print_string ""
+
+let () = print_string ("ran " ^ int_to_str (list_length script) ^ " command lines; " ^ int_to_str (list_length final_fs) ^ " files at the end")

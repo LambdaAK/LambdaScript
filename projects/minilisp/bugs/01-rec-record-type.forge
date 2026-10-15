@@ -1,0 +1,18 @@
+// BUG: a record type cannot take part in a `type rec ... and ...` group,
+// and a record type cannot refer to itself with `type rec`.
+//
+// Run:   ./_build/default/bin/interpreter.exe projects/minilisp/bugs/01-rec-record-type.forge
+// Expected: the program type-checks and prints 2 (types.tex says types that refer
+//           to each other are declared with `type rec ... and ...`, and record
+//           types can be named with `type`).
+// Actual:   error: 01-rec-record-type.forge:15: syntax error near `{`
+//           (same for `type rec Tree = { label: Int, kids: List<Tree> }`).
+// Workaround used in minilisp: an anonymous record as a constructor payload,
+//           `| Closure of { params: ..., env: ... }`, which does parse.
+type rec Value =
+  | Num of Int
+  | Clo of Lam
+and Lam = { params: List<String>, env: List<(String, Value)> }
+
+let v = Clo { params: ["x"], env: [("y", Num 1)] }
+let () = println (case v do | Clo r -> list_length r.params + list_length r.env | _ -> 0)

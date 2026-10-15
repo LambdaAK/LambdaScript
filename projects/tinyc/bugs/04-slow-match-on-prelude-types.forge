@@ -1,0 +1,25 @@
+// PERFORMANCE BUG (interpreter): building and matching values of the
+// prelude's sum types (Option, Ordering) is about 4x slower than the very
+// same code on an identical user-defined type.
+//
+// Each loop below runs a million iterations of "construct, then case".
+// Expected: similar times for the two loops.
+// Actual (interpreter, Apple Silicon):
+//   loop_prelude (Option)  ~1.05 s       loop_user (Opt) ~0.30 s
+//   (the same holds for Ordering: `case GT do | LT -> ...` ~1.1 s against
+//    ~0.25 s for a user `type O = | A | B`)
+// Time each half separately by commenting out the other `let ()`.
+//
+// Run: time ./_build/default/bin/interpreter.exe projects/tinyc/bugs/04-slow-match-on-prelude-types.forge
+// Effect on tinyc: the VM's hot path (code fetch, locals) went through
+// Map.find (Option) and a comparison returning Ordering, costing ~30 us per
+// VM instruction. Workaround in util.forge: Map orders keys with a local
+// `Cmp` type and has `get_or`, which returns a default instead of an Option;
+// the VM uses only those.
+type Opt = | N | S of Int
+
+let rec loop_prelude i acc = if i == 0 then acc else loop_prelude (i - 1) (case Some i do | None -> acc + 1 | Some _ -> acc)
+let rec loop_user i acc = if i == 0 then acc else loop_user (i - 1) (case S i do | N -> acc + 1 | S _ -> acc)
+
+let () = println (loop_prelude 1000000 0)
+let () = println (loop_user 1000000 0)

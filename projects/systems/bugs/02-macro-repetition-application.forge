@@ -1,0 +1,20 @@
+// Bug: inside a macro repetition `$($x:expr),*`, an argument that is a
+// function application is split into several fragments: `sum!(inc 1, 10)`
+// expands to `[inc, 1, 10]` instead of `[(inc 1), 10]`. A single `$x:expr`
+// outside a repetition (`one!(inc 1)`) works.
+// Expected: prints [2] then 12.
+// Actual (interpreter and native compiler):
+//   [2]
+//   error: type error: ... cannot match (Int -> Int) with Int
+//     in: let () = (println) ((((reduce_left) (+)) (0)) ((inc) :: ((1) :: ((10) :: ([])))))
+// Run: ./_build/default/bin/interpreter.exe projects/systems/bugs/02-macro-repetition-application.forge
+// Workaround used in fmt.forge: parenthesise each argument, cat!((f x), "y").
+macro_rules! sum where
+  ($($x:expr),*) => reduce_left (+) 0 [$($x),*]
+end
+macro_rules! one where
+  ($x:expr) => [$x]
+end
+let inc x = x + 1
+let () = println (one!(inc 1))
+let () = println (sum!(inc 1, 10))

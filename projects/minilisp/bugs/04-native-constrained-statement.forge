@@ -1,0 +1,22 @@
+// NATIVE COMPILER BUG: a constrained polymorphic function whose constrained
+// call sits in statement position (`{ e; ... }` or `let _ = e in ...`) is
+// rejected by the native back end after specialisation. The interpreter runs
+// it fine. Without the block (`let run xs = report xs`) both back ends work.
+//
+// Run:
+//   ./_build/default/bin/interpreter.exe projects/minilisp/bugs/04-native-constrained-statement.forge
+//   T=$(mktemp -d); cp projects/minilisp/bugs/04-native-constrained-statement.forge $T/b.forge
+//   ./_build/default/bin/compile_forge.exe $T/b.forge $T/b.exe && $T/b.exe
+// Expected (both): prints 1 then done
+// Actual (interpreter): 1 / done
+// Actual (native):  error: the native compiler does not support this program yet:
+//   internal: the specialised program does not type-check: Other error: Type
+//   inference failed while checking definition: cannot match Unit with Int
+//     in: let () = (run) (1)
+// Workaround used in minilisp: give the function a concrete parameter type
+//   (annotations in lisp.forge: `print_outcome (form : Value) (r : Res<Value>)`).
+let report x = print_string (show x)
+
+let run xs = { report xs; print_string "done" }
+
+let () = run 1

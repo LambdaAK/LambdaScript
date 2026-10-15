@@ -1,0 +1,75 @@
+// minilisp: a Scheme-like Lisp interpreter (Part 1) and a Hindley-Milner
+// type inferencer for a small ML (Part 2), both written in Forge.
+//
+//   interpreter: ./_build/default/bin/interpreter.exe projects/minilisp/main.forge
+//   native:      copy projects/minilisp/*.forge to a temporary directory T, then
+//                ./_build/default/bin/compile_forge.exe T/main.forge T/main.exe && T/main.exe
+import "lisp.forge"
+import "infer.forge"
+
+let say s = print_string s
+
+// ---------------------------------------------------------------- Part 1
+let () = say "==================== Part 1: a Lisp interpreter ===================="
+let () = say ("global environment: " ^ int_to_str (Map.size Lisp.base_globals) ^ " bindings, tree depth "
+              ^ int_to_str (Map.depth Lisp.base_globals))
+let () = say ("prelude procedures: " ^ Text.join " " (filter (fn k -> case Map.find k Lisp.base_globals do | Some (Closure _) -> true | _ -> false) (Map.keys Lisp.base_globals)))
+let programs_run = Lisp.run_all () - 1
+
+// ---------------------------------------------------------------- Part 2
+let examples = [
+  ("identity", "fun x -> x"),
+  ("K combinator", "fun x y -> x"),
+  ("S combinator", "fun x y z -> x z (y z)"),
+  ("compose", "fun f g x -> f (g x)"),
+  ("flip", "fun f x y -> f y x"),
+  ("twice", "fun f x -> f (f x)"),
+  ("let-polymorphism", "let id = fun x -> x in (id 1, id true)"),
+  ("nested pairs", "let pair = fun x -> (x, x) in pair (pair 1)"),
+  ("swap", "fun p -> (snd p, fst p)"),
+  ("factorial", "let rec fact n = if n == 0 then 1 else n * fact (n - 1) in fact"),
+  ("map", "let rec map f xs = if null xs then [] else f (head xs) :: map f (tail xs) in map"),
+  ("fold", "let rec fold f acc xs = if null xs then acc else fold f (f acc (head xs)) (tail xs) in fold"),
+  ("sum with fold", "let rec fold f acc xs = if null xs then acc else fold f (f acc (head xs)) (tail xs) in fold (fun a b -> a + b) 0 [1, 2, 3]"),
+  ("list literal", "[(1, true), (2, false)]"),
+  ("polymorphic length", "let rec len xs = if null xs then 0 else 1 + len (tail xs) in (len [1, 2], len [true])"),
+  ("error: int plus bool", "1 + true"),
+  ("error: self-application", "fun x -> x x"),
+  ("error: if condition", "if 1 then 2 else 3"),
+  ("error: branches differ", "fun b -> if b then 1 else false"),
+  ("error: unbound variable", "foo 1"),
+  ("error: lambda-bound is monomorphic", "fun f -> (f 1, f true)"),
+  ("error: heterogeneous list", "[1, true]"),
+  ("error: applying a number", "let x = 3 in x 4"),
+  ("parse error: missing body", "fun x ->"),
+  ("parse error: missing in", "let x = 1 x"),
+  ("parse error: stray paren", "(1, 2))")
+]
+
+let report_type (title, src) =
+  {
+    say "";
+    say ("[" ^ title ^ "]  " ^ src);
+    case MLParse.parse src do
+    | None -> say ("  parse error: " ^ MLParse.parse_error src)
+    | Some e ->
+        {
+          say ("  parsed: " ^ show e);
+          case HM.check e do
+          | Typed (ty, vars) -> say ("  type:   " ^ show ty ^ "   (" ^ int_to_str vars ^ " type variables)")
+          | Ill msg -> say ("  error:  " ^ msg)
+        }
+  }
+
+let () = say ""
+let () = say "============== Part 2: Hindley-Milner type inference =============="
+let () = say "built-ins:"
+let () =
+  reduce_left (fn _ -> fn (name, Forall (_, t)) -> say ("  " ^ Text.pad_right 5 name ^ " : " ^ show t)) () HM.initial
+let () = reduce_left (fn _ -> fn ex -> report_type ex) () examples
+
+let verdicts = [(case MLParse.parse src do | Some e -> HM.check e | None -> Ill "parse") | (_, src) <- examples]
+let typed = list_length [t | Typed t <- verdicts]
+let () = say ""
+let () = say ("summary: " ^ int_to_str programs_run ^ " Lisp programs run; "
+              ^ int_to_str typed ^ " of " ^ int_to_str (list_length examples) ^ " ML expressions well typed")

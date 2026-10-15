@@ -1,0 +1,166 @@
+// Text formatting and small string utilities shared by every part.
+//
+// Forge has no char-to-int or string-to-int builtin, so Fmt.digit_value and
+// Fmt.parse_int are written here by hand (see bugs/04-no-char-code.forge).
+
+// cat!(a, b, c) concatenates any number of string expressions. Arguments
+// that are applications must be parenthesised, cat!((f x), "y"): see
+// bugs/02-macro-repetition-application.forge.
+macro_rules! cat where
+  ($($x:expr),*) => reduce_left (fn acc -> fn s -> acc ^ s) "" [$($x),*]
+end
+
+// General list helpers (the builtins cover map/filter/folds only).
+mod List where
+  let rev xs = reduce_left (fn acc -> fn x -> x :: acc) [] xs
+  let append xs ys = reduce_right (fn x -> fn acc -> x :: acc) xs ys
+  let sum xs = reduce_left (+) 0 xs
+  let rec take n xs = if n <= 0 then [] else (case xs do | [] -> [] | x :: t -> x :: take (n - 1) t)
+  let rec drop n xs = if n <= 0 then xs else (case xs do | [] -> [] | _ :: t -> drop (n - 1) t)
+  let rec mem x xs = case xs do | [] -> false | y :: t -> y == x || mem x t
+  let rec zip xs ys = case (xs, ys) do | (x :: a, y :: b) -> (x, y) :: zip a b | _ -> []
+  let rec range_step a b step = if a > b then [] else a :: range_step (a + step) b step
+  let max_of z xs = reduce_left (fn m -> fn x -> if x > m then x else m) z xs
+  let indexed xs = zip [0...(list_length xs - 1)] xs
+
+  // The first element minimising a key (structural order on the key).
+  let min_by key xs =
+    case xs do
+    | [] -> None
+    | x :: rest -> Some (reduce_left (fn best -> fn y -> if key y < key best then y else best) x rest)
+
+  // Remove the first element equal to x.
+  let rec remove x xs = case xs do | [] -> [] | y :: t -> if y == x then t else y :: remove x t
+
+  // Stable insertion sort with an Ord instance (goes through `compare`, so a
+  // user `impl Ord` decides the order).
+  let rec insert_ord x xs =
+    case xs do
+    | [] -> x :: []
+    | y :: t -> (case compare x y do | LT -> x :: y :: t | _ -> y :: insert_ord x t)
+  let sort_ord xs = reduce_left (fn acc -> fn x -> insert_ord x acc) [] xs
+
+  // Merge sort with an explicit "less or equal" function (stable).
+  let rec merge le xs ys =
+    case (xs, ys) do
+    | ([], _) -> ys
+    | (_, []) -> xs
+    | (x :: a, y :: b) -> if le x y then x :: merge le a ys else y :: merge le xs b
+  let rec sort_by le xs =
+    let n = list_length xs in
+    if n < 2 then xs else merge le (sort_by le (take (n / 2) xs)) (sort_by le (drop (n / 2) xs))
+  let sort xs = sort_by (fn a -> fn b -> a <= b) xs
+end
+
+// Things with a human-readable name. `tag` has a default; lists of named
+// things are named too (an instance with `requires`).
+trait Named<a> where
+  val name_of : a -> String
+  val tag : a -> String
+  let tag x = "[" ^ name_of x ^ "]"
+end
+
+impl Named for List<a> requires Named<a> where
+  name_of xs = case xs do
+    | [] -> "nothing"
+    | x :: [] -> name_of x
+    | x :: rest -> name_of x ^ ", " ^ name_of rest
+end
+
+mod Fmt where
+  let rec repeat_str k s = if k <= 0 then "" else s ^ repeat_str (k - 1) s
+  let spaces k = repeat_str k " "
+
+  // s padded with spaces to width w (left- or right-aligned).
+  let left w s = s ^ spaces (w - str_length s)
+  let right w s = spaces (w - str_length s) ^ s
+  let center w s =
+    let pad = w - str_length s in
+    spaces (pad / 2) ^ s ^ spaces (pad - pad / 2)
+
+  let int_r w n = right w (int_to_str n)
+  let int_l w n = left w (int_to_str n)
+
+  // xs joined with a separator.
+  let join sep xs =
+    case xs do
+    | [] -> ""
+    | x :: rest -> reduce_left (fn acc -> fn s -> acc ^ sep ^ s) x rest
+
+  let rec pow10 d = if d == 0 then 1 else 10 * pow10 (d - 1)
+
+  // A float with d digits after the point, rounded half away from zero.
+  let fixed d x =
+    let p = pow10 d in
+    let a = if x < 0.0 then 0.0 -. x else x in
+    let n = float_to_int (a *. int_to_float p +. 0.5) in
+    let frac = int_to_str (n % p) in
+    let sign = if x < 0.0 && n > 0 then "-" else "" in
+    if d == 0 then sign ^ int_to_str n
+    else sign ^ int_to_str (n / p) ^ "." ^ repeat_str (d - str_length frac) "0" ^ frac
+
+  // num / den as a float with two decimals; "-" when den is zero.
+  let ratio num den = if den == 0 then "-" else fixed 2 (int_to_float num /. int_to_float den)
+  let percent num den = if den == 0 then "-" else fixed 1 (100.0 *. int_to_float num /. int_to_float den) ^ "%"
+
+  // ---- characters --------------------------------------------------------
+
+  let rec index_of_char c xs i =
+    case xs do
+    | [] -> -1
+    | y :: rest -> if y == c then i else index_of_char c rest (i + 1)
+
+  let digits = string_to_list "0123456789"
+  let digit_value c = index_of_char c digits 0
+  let is_digit c = '0' <= c && c <= '9'
+  let is_alpha c = ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_'
+  let is_space c = c == ' ' || c == '\t'
+
+  // The letter for a small index: 0 -> 'A', 1 -> 'B', ...
+  let letter i = str_slice "ABCDEFGHIJKLMNOPQRSTUVWXYZ" (i % 26) 1
+
+  // A decimal integer, optionally negative; None if s is not one.
+  let parse_int s =
+    let rec go cs acc =
+      case cs do
+      | [] -> Some acc
+      | c :: rest -> if is_digit c then go rest (acc * 10 + digit_value c) else None
+    in
+    case string_to_list s do
+    | [] -> None
+    | '-' :: [] -> None
+    | '-' :: rest -> (case go rest 0 do | Some n -> Some (0 - n) | None -> None)
+    | cs -> go cs 0
+
+  let chars_to_str cs = reduce_left (fn acc -> fn c -> acc ^ char_to_str c) "" cs
+
+  // Remove leading and trailing blanks.
+  let trim s =
+    let rec drop cs = case cs do | c :: rest -> if is_space c then drop rest else cs | [] -> [] in
+    let rec rev acc cs = case cs do | [] -> acc | c :: rest -> rev (c :: acc) rest in
+    chars_to_str (rev [] (drop (rev [] (drop (string_to_list s)))))
+
+  // Split on any character satisfying the predicate, dropping empty pieces.
+  let split_on is_sep s =
+    let flush cur acc = if cur == [] then acc else chars_to_str (List.rev cur) :: acc in
+    let rec go cs cur acc =
+      case cs do
+      | [] -> List.rev (flush cur acc)
+      | c :: rest -> if is_sep c then go rest [] (flush cur acc) else go rest (c :: cur) acc
+    in
+    go (string_to_list s) [] []
+
+  // Split on newlines, keeping empty lines (line numbers must stay right).
+  let lines s =
+    let rec go cs cur acc =
+      case cs do
+      | [] -> List.rev (chars_to_str (List.rev cur) :: acc)
+      | '\n' :: rest -> go rest [] (chars_to_str (List.rev cur) :: acc)
+      | c :: rest -> go rest (c :: cur) acc
+    in
+    go (string_to_list s) [] []
+
+  // A horizontal rule and a section title.
+  let rule = repeat_str 72 "="
+  let title s = { print_string ""; print_string rule; print_string ("  " ^ s); print_string rule }
+end

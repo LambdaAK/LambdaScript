@@ -1,0 +1,396 @@
+// tools.forge -- the commands: flag parsing and one function per tool.
+//
+// Every tool has the type  List<File> -> Args -> List<String> -> Res<List<String>>:
+// it gets the filesystem, its parsed arguments and its standard input (the
+// lines produced by the previous stage of the pipeline) and returns its
+// output lines or an error.
+
+import "vfs.forge"
+import "regex.forge"
+
+// flags!(bool "a", "b"; value "n") builds a flag specification.
+macro_rules! flags where
+  () => [];
+  (bool $($b:literal),*) => [$(($b, false)),*];
+  (value $($v:literal),*) => [$(($v, true)),*];
+  (bool $($b:literal),* ; value $($v:literal),*) => Lists.list_append [$(($b, false)),*] [$(($v, true)),*]
+end
+
+type Args = { flags: List<(String, String)>, operands: List<String> }
+
+mod Flags where
+  use Lists
+
+  // Split "-in5" into flags, given which flags take a value: a value flag
+  // takes the rest of the word, or else the next word.
+  let rec explode_word tool spec cs next =
+    case cs do
+    | [] -> Ok ([], next)
+    | c :: rest ->
+      let f = char_to_str c in
+      case list_assoc f spec do
+      | None -> Err (UnknownFlag (tool, "-" ^ f, map (fn (g, _) -> "-" ^ g) spec))
+      | Some false -> fmap (fn (fs, left) -> ((f, "") :: fs, left)) (explode_word tool spec rest next)
+      | Some true ->
+        if rest != [] then Ok ((f, Str.implode rest) :: [], next)
+        else
+          case next do
+          | v :: left -> Ok ((f, v) :: [], left)
+          | [] -> Err (MissingValue (tool, "-" ^ f))
+
+  // "-5" is short for "-n 5" in tools that have an -n flag.
+  let is_count_shortcut spec w =
+    list_assoc "n" spec == Some true && str_length w > 1 && Str.is_number (Str.drop 1 w)
+
+  let parse tool spec words : Res<Args> =
+    let rec go ws flags ops =
+      case ws do
+      | [] -> Ok { flags: list_rev flags, operands: list_rev ops }
+      | "--" :: rest -> Ok { flags: list_rev flags, operands: list_append (list_rev ops) rest }
+      | w :: rest ->
+        if is_count_shortcut spec w then go rest (("n", Str.drop 1 w) :: flags) ops
+        else if str_length w > 1 && Str.starts_with "-" w then
+          explode_word tool spec (Str.explode (Str.drop 1 w)) rest
+            >>= (fn (fs, left) -> go left (list_append (list_rev fs) flags) ops)
+        else go rest flags (w :: ops)
+    in
+    go words [] []
+
+  let has f args = list_any (fn (g, _) -> g == f) args.flags
+
+  // The last value given for a flag (later flags win, as in most tools).
+  let value f args =
+    reduce_left (fn acc -> fn (g, v) -> if g == f then Some v else acc) None args.flags
+
+  let int_value tool f default args : Res<Int> =
+    case value f args do
+    | None -> Ok default
+    | Some v -> Result.of_option (BadNumber (tool, v)) (Str.parse_int v)
+end
+
+// A binary search tree of word counts, for `freq`. Its Foldable instance
+// visits the entries in key order.
+type rec Tree<a> =
+  | Leaf
+  | Node of (Tree<a>, a, Tree<a>)
+
+impl Foldable for Tree where
+  fold_left f z t = case t do | Leaf -> z | Node (l, x, r) -> fold_left f (f (fold_left f z l) x) r,
+  fold_right f z t = case t do | Leaf -> z | Node (l, x, r) -> fold_right f (f x (fold_right f z r)) l
+end
+
+mod Bag where
+  // Count one more occurrence of a word.
+  let rec add w t =
+    case t do
+    | Leaf -> Node (Leaf, (w, 1), Leaf)
+    | Node (l, (k, n), r) ->
+      case compare w k do
+      | LT -> Node (add w l, (k, n), r)
+      | GT -> Node (l, (k, n), add w r)
+      | EQ -> Node (l, (k, n + 1), r)
+
+  let of_list ws = reduce_left (fn t -> fn w -> add w t) Leaf ws
+  let to_list t = fold_right (fn x -> fn acc -> x :: acc) [] t
+  let size t = fold_left (fn n -> fn _ -> n + 1) 0 t
+end
+
+mod Tools where
+  use Lists
+  use Str
+
+  // Standard input, or the concatenation of the named files.
+  let input tool fs args stdin =
+    case args.operands do
+    | [] -> Ok stdin
+    | names -> fmap list_concat (Result.traverse (Vfs.read_lines tool fs) names)
+
+  let no_operands tool args =
+    ensure!(args.operands == [], Usage (tool, "unexpected argument '" ^ list_head args.operands ^ "'"))
+
+  let num w n = pad_left w (int_to_str n)
+
+  // ---- simple tools -------------------------------------------------
+
+  let echo _fs args _stdin = Ok (join " " args.operands :: [])
+
+  let cat fs args stdin =
+    input "cat" fs args stdin
+      |> fmap (fn ls -> if Flags.has "n" args then map (fn (i, l) -> num 6 i ^ "  " ^ l) (list_enumerate ls) else ls)
+
+  let ls fs args _stdin =
+    let long = Flags.has "l" args in
+    let line f = if long then num 6 (str_length f.body) ^ "  " ^ f.name else f.name in
+    no_operands "ls" args >>= (fn _ -> Ok (map line fs))
+
+  let rev fs args stdin = input "rev" fs args stdin |> fmap (map reverse)
+
+  // nl numbers the non-empty lines.
+  let nl fs args stdin =
+    let step (n, acc) l = if trim l == "" then (n, l :: acc) else (n + 1, (num 6 n ^ "  " ^ l) :: acc) in
+    input "nl" fs args stdin |> fmap (fn ls -> list_rev (tuple_snd (reduce_left (fn st -> fn l -> step st l) (1, []) ls)))
+
+  let head fs args stdin =
+    Flags.int_value "head" "n" 10 args >>= (fn n ->
+      // head -n -k: everything but the last k lines.
+      input "head" fs args stdin |> fmap (fn ls -> if n < 0 then list_take (list_length ls + n) ls else list_take n ls))
+
+  // tail -n +k starts at line k; tail -n k keeps the last k lines.
+  let tail fs args stdin =
+    case Flags.value "n" args do
+    | Some v ->
+      if starts_with "+" v then
+        Result.of_option (BadNumber ("tail", v)) (parse_int (drop 1 v)) >>= (fn k ->
+          input "tail" fs args stdin |> fmap (list_drop (k - 1)))
+      else
+        Flags.int_value "tail" "n" 10 args >>= (fn n -> input "tail" fs args stdin |> fmap (list_last_n n))
+    | None -> input "tail" fs args stdin |> fmap (list_last_n 10)
+
+  // ---- wc ----------------------------------------------------------
+
+  let counts ls = (list_length ls, list_sum (map (fn l -> list_length (words l)) ls), list_sum (map (fn l -> str_length l + 1) ls))
+
+  let wc fs args stdin =
+    let (l, w, c) = (Flags.has "l" args, Flags.has "w" args, Flags.has "c" args) in
+    let all = not (l || w || c) in
+    let fmt (nl, nw, nc) label =
+      let cols = list_filter_map (fn (on, n) -> if on || all then Some (num 7 n) else None) [(l, nl), (w, nw), (c, nc)] in
+      join "" cols ^ (if label == "" then "" else " " ^ label)
+    in
+    case args.operands do
+    | [] -> Ok (fmt (counts stdin) "" :: [])
+    | names ->
+      Result.traverse (fn n -> fmap (fn ls -> (n, counts ls)) (Vfs.read_lines "wc" fs n)) names >>= (fn per ->
+        let total = reduce_left (fn (a, b, c) -> fn (_, (x, y, z)) -> (a + x, b + y, c + z)) (0, 0, 0) per in
+        let rows = map (fn (n, cs) -> fmt cs n) per in
+        Ok (if list_length per > 1 then list_append rows (fmt total "total" :: []) else rows))
+
+  // ---- grep --------------------------------------------------------
+
+  let grep fs args stdin =
+    let ci = Flags.has "i" args in
+    let fold s = if ci then lower s else s in
+    case args.operands do
+    | [] -> Err (Usage ("grep", "missing pattern"))
+    | pattern :: files ->
+      Regex.compile (fold pattern) >>= (fn re ->
+        input "grep" fs { args with operands = files } stdin >>= (fn ls ->
+          let keep l = Regex.matches re (fold l) != Flags.has "v" args in
+          let hits = [(i, l) | (i, l) <- list_enumerate ls, keep l] in
+          if Flags.has "c" args then Ok (int_to_str (list_length hits) :: [])
+          else if Flags.has "n" args then Ok (map (fn (i, l) -> int_to_str i ^ ":" ^ l) hits)
+          else Ok (map tuple_snd hits)))
+
+  // ---- sort and uniq -----------------------------------------------
+
+  // The sort key of a line: field k (1-based) split on sep or on blanks.
+  let key_of sep k line =
+    if k <= 0 then line
+    else
+      let fields = case sep do | Some c -> split_on c line | None -> words line in
+      case list_get (k - 1) fields do | Some f -> f | None -> ""
+
+  // Like sort -n: the number at the start of the key (0 if there is none).
+  let numeric s =
+    let cs = explode (trim s) in
+    let (sign, body) = case cs do | '-' :: rest -> (0 - 1, rest) | _ -> (1, cs) in
+    let rec digits ds = case ds do | d :: rest -> if Chars.is_digit d then d :: digits rest else [] | [] -> [] in
+    case parse_int (implode (digits body)) do | Some n -> sign * n | None -> 0
+
+  let sort fs args stdin =
+    Flags.int_value "sort" "k" 0 args >>= (fn k ->
+      let sep_ok = case Flags.value "t" args do
+        | Some s -> (case explode s do | c :: [] -> Ok (Some c) | _ -> Err (Usage ("sort", "the separator must be a single character")))
+        | None -> Ok None
+      in
+      sep_ok >>= (fn sep ->
+      let by_key a b =
+        let (ka, kb) = (key_of sep k a, key_of sep k b) in
+        let primary = if Flags.has "n" args then compare (numeric ka) (numeric kb) else compare ka kb in
+        // Equal keys fall back to the whole line, as in GNU sort.
+        case primary do | EQ -> compare a b | other -> other
+      in
+      let cmp a b = if Flags.has "r" args then by_key b a else by_key a b in
+      input "sort" fs args stdin |> fmap (fn ls ->
+        let sorted = list_sort_by cmp ls in
+        if Flags.has "u" args then map tuple_snd (list_runs sorted) else sorted)))
+
+  let uniq fs args stdin =
+    input "uniq" fs args stdin |> fmap (fn ls ->
+      let runs = list_runs ls in
+      let runs2 = if Flags.has "d" args then filter (fn (n, _) -> n > 1) runs else runs in
+      if Flags.has "c" args then map (fn (n, l) -> num 7 n ^ " " ^ l) runs2 else map tuple_snd runs2)
+
+  // ---- cut ---------------------------------------------------------
+
+  // A field list: "2", "1,3", "2-4", "3-" -> predicate on 1-based positions.
+  let parse_fields text =
+    let range part =
+      case split_on '-' part do
+      | a :: [] -> fmap (fn n -> fn i -> i == n) (parse_int a)
+      | a :: "" :: [] -> fmap (fn n -> fn i -> i >= n) (parse_int a)
+      | "" :: b :: [] -> fmap (fn n -> fn i -> i <= n) (parse_int b)
+      // Option's Applicative: both ends must parse.
+      | a :: b :: [] -> ap (fmap (fn x -> fn y -> fn i -> i >= x && i <= y) (parse_int a)) (parse_int b)
+      | _ -> None
+    in
+    // traverse in the Option monad: one bad range spoils the list.
+    case Result.traverse range (split_on ',' text) do
+    | Some preds -> Ok (fn i -> list_any (fn p -> p i) preds)
+    | None -> Err (Usage ("cut", "bad field list '" ^ text ^ "'"))
+
+  let cut fs args stdin =
+    let delim = case Flags.value "d" args do | Some d -> d | None -> "\t" in
+    case (Flags.value "f" args, explode delim) do
+    | (None, _) -> Err (Usage ("cut", "you must give a field list with -f"))
+    | (_, c :: []) ->
+      parse_fields (case Flags.value "f" args do | Some f -> f | None -> "") >>= (fn wanted ->
+        input "cut" fs args stdin |> fmap (map (fn l ->
+          join delim [f | (i, f) <- list_enumerate (split_on c l), wanted i])))
+    | _ -> Err (Usage ("cut", "the delimiter must be a single character"))
+
+  // ---- tr ----------------------------------------------------------
+
+  // Expand a tr set: ranges "a-z" and escapes "\n", "\t", "\\".
+  let rec expand_set cs =
+    case cs do
+    | [] -> []
+    | '\\' :: 'n' :: rest -> '\n' :: expand_set rest
+    | '\\' :: 't' :: rest -> '\t' :: expand_set rest
+    | '\\' :: c :: rest -> c :: expand_set rest
+    | a :: '-' :: b :: rest -> list_append (Chars.range a b) (expand_set rest)
+    | c :: rest -> c :: expand_set rest
+
+  let tr fs args stdin =
+    let delete = Flags.has "d" args in
+    case args.operands do
+    | s1 :: [] ->
+      if delete then
+        let set = expand_set (explode s1) in
+        input "tr" fs { args with operands = [] } stdin
+          |> fmap (map (fn l -> implode (filter (fn c -> Chars.index_of c set == None) (explode l))))
+      else Err (Usage ("tr", "needs two sets (or -d and one set)"))
+    | s1 :: s2 :: [] ->
+      if delete then Err (Usage ("tr", "-d takes only one set"))
+      else
+        let (from, to) = (expand_set (explode s1), expand_set (explode s2)) in
+        (case list_rev to do
+         | [] -> Err (Usage ("tr", "the second set is empty"))
+         | last :: _ ->
+           // Pad the second set with its last character, as tr does.
+           let padded = list_append to (map (fn _ -> last) [1...list_length from - list_length to]) in
+           input "tr" fs { args with operands = [] } stdin
+             |> fmap (map (fn l -> implode (map (Chars.translate from padded) (explode l)))))
+    | _ -> Err (Usage ("tr", "needs one or two character sets"))
+
+  // ---- sed ---------------------------------------------------------
+
+  // Parse s/old/new/flags with any delimiter after the s.
+  let parse_subst script =
+    case explode script do
+    | 's' :: d :: rest ->
+      (case split_on d (implode rest) do
+       | old :: new :: flags :: [] -> Ok (old, new, flags == "g")
+       | _ -> Err (Usage ("sed", "expected s" ^ char_to_str d ^ "old" ^ char_to_str d ^ "new" ^ char_to_str d ^ "[g]")))
+    | _ -> Err (Usage ("sed", "only s/old/new/ commands are supported"))
+
+  let sed fs args stdin =
+    case args.operands do
+    | [] -> Err (Usage ("sed", "missing script"))
+    | script :: files ->
+      parse_subst script >>= (fn (old, new, all) ->
+        Regex.compile old >>= (fn re ->
+          input "sed" fs { args with operands = files } stdin |> fmap (map (Regex.substitute re all new))))
+
+  // ---- tables ------------------------------------------------------
+
+  let sep_char tool args =
+    case explode (case Flags.value "s" args do | Some s -> s | None -> ",") do
+    | c :: [] -> Ok c
+    | _ -> Err (Usage (tool, "the separator must be a single character"))
+
+  // Width of every column of a table (rows may be ragged).
+  let widths rows =
+    let ncols = list_max 0 (map list_length rows) in
+    map (fn i -> list_max 0 (map (fn r -> case list_get i r do | Some c -> str_length c | None -> 0) rows)) [0...ncols - 1]
+
+  // Columns whose cells (below the header) are all numbers are right-aligned.
+  let numeric_columns rows =
+    case rows do
+    | [] -> []
+    | _ :: body ->
+      let ncols = list_max 0 (map list_length rows) in
+      map (fn i -> body != [] && list_all (fn r -> case list_get i r do | Some c -> is_number c | None -> true) body) [0...ncols - 1]
+
+  let render_row ws nums row =
+    let cells = list_zip (list_zip ws nums) (list_append row (map (fn _ -> "") [1...list_length ws - list_length row])) in
+    map (fn ((w, isnum), c) -> if isnum then pad_left w c else pad_right w c) cells
+
+  let column fs args stdin =
+    sep_char "column" args >>= (fn c ->
+      input "column" fs args stdin |> fmap (fn ls ->
+        let rows = map (split_on c) ls in
+        let ws = widths rows in
+        map (fn r -> trim (join "  " (render_row ws (map (fn _ -> false) ws) r))) rows))
+
+  // A boxed table; the first row is a header unless -H is given.
+  let table fs args stdin =
+    sep_char "table" args >>= (fn c ->
+      input "table" fs args stdin |> fmap (fn ls ->
+        let rows = map (split_on c) ls in
+        let headed = not (Flags.has "H" args) in
+        let ws = widths rows in
+        let nums = if headed then numeric_columns rows else map (fn _ -> false) ws in
+        let rule = "+" ^ join "+" (map (fn w -> repeat (w + 2) "-") ws) ^ "+" in
+        let line r = "| " ^ join " | " (render_row ws nums r) ^ " |" in
+        case rows do
+        | [] -> []
+        | h :: body ->
+          if headed then list_concat [rule :: line h :: rule :: [], map line body, rule :: []]
+          else list_concat [rule :: [], map line rows, rule :: []]))
+
+  // ---- freq --------------------------------------------------------
+
+  // Word frequencies: letters only, case-folded, most frequent first.
+  let freq fs args stdin =
+    Flags.int_value "freq" "n" 10 args >>= (fn n ->
+      input "freq" fs args stdin |> fmap (fn ls ->
+        let clean l = implode (map (fn c -> if Chars.is_alpha c then Chars.to_lower c else ' ') (explode l)) in
+        let bag = Bag.of_list (list_concat_map (fn l -> words (clean l)) ls) in
+        let ranked = list_sort_by (fn (w1, c1) -> fn (w2, c2) -> if c1 == c2 then compare w1 w2 else compare c2 c1) (Bag.to_list bag) in
+        let shown = list_take n ranked in
+        list_append (map (fn (w, c) -> num 4 c ^ "  " ^ w) shown)
+          (("(" ^ int_to_str (Bag.size bag) ^ " distinct words)") :: [])))
+
+  // ---- stats -------------------------------------------------------
+
+  // Two decimals, rounded half up (Forge has no printf).
+  let fixed2 x =
+    let n = float_to_int (x *. 100.0 +. 0.5) in
+    let cents = n % 100 in
+    int_to_str (n / 100) ^ "." ^ (if cents < 10 then "0" else "") ^ int_to_str cents
+
+  let stats fs args stdin =
+    sep_char "stats" args >>= (fn c ->
+      Flags.int_value "stats" "f" 1 args >>= (fn f ->
+        input "stats" fs args stdin >>= (fn ls ->
+          let cells = map (fn l -> case list_get (f - 1) (split_on c l) do | Some x -> trim x | None -> "") ls in
+          let values = list_filter_map parse_int cells in
+          case values do
+          | [] -> Err (Usage ("stats", "no numbers in field " ^ int_to_str f))
+          | v :: vs ->
+            let total = list_sum values in
+            let n = list_length values in
+            let lo = reduce_left (fn a -> fn b -> if b < a then b else a) v vs in
+            let hi = list_max v vs in
+            let mean = int_to_float total /. int_to_float n in
+            let var = reduce_left (fn acc -> fn x -> acc +. (int_to_float x -. mean) *. (int_to_float x -. mean)) 0.0 values /. int_to_float n in
+            Ok [
+              "count  " ^ int_to_str n ^ " (skipped " ^ int_to_str (list_length ls - n) ^ ")",
+              "sum    " ^ int_to_str total,
+              "min    " ^ int_to_str lo,
+              "max    " ^ int_to_str hi,
+              "mean   " ^ fixed2 mean,
+              "stddev " ^ fixed2 (sqrt var)
+            ])))
+end

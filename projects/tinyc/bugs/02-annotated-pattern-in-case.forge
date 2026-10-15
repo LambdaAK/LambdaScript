@@ -1,0 +1,14 @@
+// BUG: a type-annotated pattern is rejected inside a `case` arm.
+//
+// types.tex ("Annotations") says "A pattern, a parameter or a result can be
+// annotated: (x : Int)", and `let (x : Int) = ...` / `fn (y : Int) -> ...`
+// do work, but the same pattern in a case arm is a syntax error.
+//
+// Expected: prints 42.
+// Actual:   error: ...02-annotated-pattern-in-case.forge:13: syntax error near `:`
+//
+// Run: ./_build/default/bin/interpreter.exe projects/tinyc/bugs/02-annotated-pattern-in-case.forge
+// Workaround in tinyc (interp.forge, eval/Call): bind without the annotation
+// and annotate a helper function's parameter instead (call_body).
+let f o = case o do | Some (x : Int) -> x + 1 | None -> 0
+let () = println (f (Some 41))

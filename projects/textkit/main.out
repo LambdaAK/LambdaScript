@@ -1,0 +1,259 @@
+$ help
+cat     print files (-n numbers lines)
+echo    print the arguments
+ls      list files (-l with sizes)
+wc      count lines, words, bytes
+grep    lines matching a regex
+head    first n lines
+tail    last n lines
+sort    sort lines (-k key, -t sep)
+uniq    collapse adjacent duplicates
+cut     select fields
+tr      translate or delete characters
+rev     reverse each line
+nl      number non-empty lines
+sed     substitute: s/regex/text/[g]
+column  align separated columns
+table   draw a boxed table
+stats   statistics of a numeric field
+freq    most frequent words
+
+aliases: ll = ls -l, count = wc -l, upper = tr a-z A-Z
+pipes: a | b,  redirection: > file, >> file,  quotes: '...' "..."
+
+$ ls -l
+   847  people.csv
+   828  server.log
+   254  poem.txt
+   425  calc.fl
+    52  words.txt
+
+$ cat -n poem.txt
+     1  the river keeps no ledger of its stones
+     2  it carries what it can and drops the rest
+     3  the heron counts the minutes standing still
+     4  the willow writes its name across the water
+     5  and every evening light comes down to drink
+     6  the river keeps no ledger of its stones
+
+$ wc poem.txt calc.fl
+      6     48    254 poem.txt
+     14     98    425 calc.fl
+     20    146    679 total
+
+$ cat poem.txt | wc -lw
+      6     48
+
+$ grep -n TODO calc.fl
+4:// TODO: report an empty stack instead of crashing
+13:// TODO: division and subtraction
+
+$ grep -c -i error server.log
+5
+
+$ cat server.log | grep -i error | cut -d ' ' -f 4- | sort | uniq -c
+      3 database connection refused
+      1 timeout calling payment service
+      1 user 42 not found
+
+$ grep -v 'INFO' server.log | grep -v -i error
+2026-10-01 08:03:17 WARN  slow query took 812ms
+2026-10-01 08:12:09 info  cache warmed
+2026-10-01 08:15:33 WARN  disk usage at 81%
+2026-10-01 08:22:06 WARN  circuit breaker opened
+
+$ grep '[0-9]+ms' server.log
+2026-10-01 08:03:17 WARN  slow query took 812ms
+
+$ grep -in '^the .* stones$' poem.txt
+1:the river keeps no ledger of its stones
+6:the river keeps no ledger of its stones
+
+$ sort words.txt | uniq -c | sort -rn
+      3 cherry
+      2 banana
+      2 apple
+      1 date
+
+$ sort -u words.txt
+apple
+banana
+cherry
+date
+
+$ uniq -d words.txt
+cherry
+
+$ tail -n +2 people.csv | cut -d , -f 2 | sort | uniq -c
+      3 Design
+      6 Engineering
+      4 Operations
+      7 Research
+
+$ tail -n 20 people.csv | sort -t , -k 4 -n -r | head -n 5 | cut -d , -f 1,4
+Grace Hopper,9900
+Barbara Liskov,9500
+Dennis Ritchie,9300
+Ada Lovelace,9200
+Frances Allen,9100
+
+$ cut -d, -f1,3-4 people.csv | head -4
+name,age,salary
+Ada Lovelace,36,9200
+Alan Turing,41,8800
+Grace Hopper,52,9900
+
+$ grep Boston people.csv | cut -d , -f 1 | sort -k 2
+Margaret Hamilton
+Barbara Liskov
+Radia Perlman
+
+$ head -n 7 people.csv | table
++-----------------+-------------+-----+--------+------------+
+| name            | dept        | age | salary | city       |
++-----------------+-------------+-----+--------+------------+
+| Ada Lovelace    | Engineering |  36 |   9200 | London     |
+| Alan Turing     | Research    |  41 |   8800 | Manchester |
+| Grace Hopper    | Engineering |  52 |   9900 | Arlington  |
+| Edsger Dijkstra | Research    |  46 |   8100 | Eindhoven  |
+| Barbara Liskov  | Engineering |  39 |   9500 | Boston     |
+| Donald Knuth    | Research    |  58 |   8700 | Stanford   |
++-----------------+-------------+-----+--------+------------+
+
+$ grep -i research people.csv | column -t -s ,
+Alan Turing      Research  41  8800  Manchester
+Edsger Dijkstra  Research  46  8100  Eindhoven
+Donald Knuth     Research  58  8700  Stanford
+John McCarthy    Research  49  8300  Stanford
+Leslie Lamport   Research  55  8900  Palo Alto
+Robin Milner     Research  50  8600  Edinburgh
+Niklaus Wirth    Research  53  8000  Zurich
+
+$ stats -f 4 people.csv
+count  20 (skipped 1)
+sum    166500
+min    6800
+max    9900
+mean   8325.00
+stddev 869.41
+
+$ tail -n 20 people.csv | grep ',Design,' | stats -s , -f 3
+count  3 (skipped 0)
+sum    108
+min    33
+max    40
+mean   36.00
+stddev 2.94
+
+$ head -2 poem.txt | tr a-z A-Z
+THE RIVER KEEPS NO LEDGER OF ITS STONES
+IT CARRIES WHAT IT CAN AND DROPS THE REST
+
+$ echo 'Hello, World!' | tr -d aeiouAEIOU
+Hll, Wrld!
+
+$ echo "tabs and   spaces" | tr ' ' _
+tabs_and___spaces
+
+$ head -n 3 poem.txt | rev
+senots sti fo regdel on speek revir eht
+tser eht spord dna nac ti tahw seirrac ti
+llits gnidnats setunim eht stnuoc noreh eht
+
+$ freq -n 5 poem.txt
+   7  the
+   3  its
+   2  and
+   2  it
+   2  keeps
+(32 distinct words)
+
+$ ll
+   847  people.csv
+   828  server.log
+   254  poem.txt
+   425  calc.fl
+    52  words.txt
+
+$ grep -v '^$' poem.txt | count
+      6
+
+$ echo shout | upper
+SHOUT
+
+$ sed 's/river/stream/g' poem.txt | nl
+     1  the stream keeps no ledger of its stones
+     2  it carries what it can and drops the rest
+     3  the heron counts the minutes standing still
+     4  the willow writes its name across the water
+     5  and every evening light comes down to drink
+     6  the stream keeps no ledger of its stones
+
+$ grep TODO calc.fl | sed 's|// TODO: |[ ] |'
+[ ] report an empty stack instead of crashing
+[ ] division and subtraction
+
+$ echo 2026-10-15 | sed 's/[0-9]+/<&>/g'
+<2026>-<10>-<15>
+
+$ echo hello | sed 's/l*/_/g'
+_h_e_o_
+
+$ grep ERROR server.log | cut -d ' ' -f 2 > errors.txt
+
+$ echo 08:59:59 >> errors.txt
+
+$ ls
+people.csv
+server.log
+poem.txt
+calc.fl
+words.txt
+errors.txt
+
+$ cat errors.txt | sort -r | head -n 2
+08:59:59
+08:31:15
+
+$ grpe error server.log
+error: grpe: command not found (did you mean 'grep'?)
+
+$ frobnicate
+error: frobnicate: command not found
+
+$ grep -x error server.log
+error: grep: unknown flag '-x' (valid: -i -v -n -c)
+
+$ head -n ten poem.txt
+error: head: 'ten' is not a number
+
+$ cat missing.txt
+error: cat: missing.txt: no such file
+
+$ cut -f 2 -d ::: people.csv
+error: cut: the delimiter must be a single character
+
+$ sort -k
+error: sort: flag '-k' needs a value
+
+$ echo 'unterminated | wc
+parse: syntax error: unterminated ' quote
+
+$ cat poem.txt | | wc
+parse: syntax error: empty command in pipeline
+
+$ sed 's/a/b' poem.txt
+error: sed: expected s/old/new/[g]
+
+$ grep '[abc' poem.txt
+parse: syntax error: unterminated [ in pattern
+
+$ echo hi >
+parse: syntax error: redirection without a file name
+
+tokens of: grep -i 'two words' "say \"hi\"" calc.fl | wc -l >> out.txt
+  tokens  [Word(grep), Word(-i), Word(two words), Word(say "hi"), Word(calc.fl), Pipe, Word(wc), Word(-l), Append, Word(out.txt)]
+  stages  [(grep, [-i, two words, say "hi", calc.fl]), (wc, [-l])]
+  output  Some (true, out.txt)
+
+ran 50 command lines; 6 files at the end

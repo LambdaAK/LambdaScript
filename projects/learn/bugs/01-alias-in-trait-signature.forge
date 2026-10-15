@@ -1,0 +1,21 @@
+// Bug: a named record type (alias) in a trait method's signature is not
+// expanded, so a record literal of exactly that type is rejected.
+//
+// Run:      ./_build/default/bin/interpreter.exe projects/learn/bugs/01-alias-in-trait-signature.forge
+// Expected: 3   (P is an alias for { x: Int }, record types are structural,
+//               and the same alias works fine in ordinary `let` annotations)
+// Actual:   error: type error: ... cannot match P with {x: Int}
+//           (both back ends; compile_forge.exe reports the same error)
+// Workaround used in metrics.forge: write the record type out structurally
+// in the trait signature instead of using the alias.
+type P = { x: Int }
+
+trait Get<m> where
+  val get : m -> P -> Int
+end
+
+impl Get for Int where
+  get n p = n + p.x
+end
+
+let () = println (get 1 { x: 2 })

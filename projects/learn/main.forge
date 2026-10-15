@@ -1,0 +1,208 @@
+// Machine learning from scratch in Forge: a multi-layer perceptron, k-means
+// and a CART decision tree, on synthetic rings, spirals and blobs.
+//
+//   interpreter:  ./_build/default/bin/interpreter.exe projects/learn/main.forge
+//   native:       compile a copy of the directory (see README.md)
+import "rng.forge"
+import "util.forge"
+import "matrix.forge"
+import "data.forge"
+import "metrics.forge"
+import "mlp.forge"
+import "kmeans.forge"
+import "tree.forge"
+
+use Fmt
+
+// A table row: cells padded on the left to their widths.
+macro_rules! row where
+  ($($w:expr => $cell:expr),*) => print_string (join "" [$(right $w $cell),*])
+end
+
+// A section heading, underlined.
+macro_rules! section where
+  ($title:expr) => {
+    print_string "";
+    print_string $title;
+    print_string (repeat (str_length $title) "=")
+  }
+end
+
+let say s = print_string s
+let item label value = say ("  " ^ left 34 label ^ value)
+let point (p : List<Float>) = "(" ^ join ", " (map (fixed 3) p) ^ ")"
+
+// ---------------------------------------------------------------------
+// 0. The building blocks.
+
+let () = section!("0. Random numbers and Taylor-series trigonometry")
+let () = item "first LCG states from seed 1" (join " " (map int_to_str (
+  R.eval (Gen.replicate 5 (Rand (fn s -> let s1 = Rng.next s in (s1, s1)))) 1)))
+let () = item "uniform draws" (join " " (map (fixed 4) (R.eval (Gen.replicate 5 Gen.uniform) 2024)))
+let normals = R.eval (Gen.replicate 2000 (Gen.normal 0.0 1.0)) 99
+let () = item "2000 normals: mean, std" (fixed 4 (Vec.mean normals) ^ ", " ^
+  fixed 4 (sqrt (Vec.mean (map Math.square normals) -. Math.square (Vec.mean normals))))
+let () = item "sin(pi/6), cos(pi/3)" (fixed 12 (Math.sin (Math.pi /. 6.0)) ^ ", " ^ fixed 12 (Math.cos (Math.pi /. 3.0)))
+let () = item "sin(100), cos(-7.5)" (fixed 9 (Math.sin 100.0) ^ ", " ^ fixed 9 (Math.cos (0.0 -. 7.5)))
+let angles = [int_to_float i /. 7.0 -. 30.0 | i <- [0...420]]
+let worst = reduce_left Math.max 0.0
+              (map (fn t -> Math.abs (Math.square (Math.sin t) +. Math.square (Math.cos t) -. 1.0)) angles)
+let () = item "max |sin^2 + cos^2 - 1| (421 pts)" (if worst < 0.000000000001 then "< 1e-12" else fixed 15 worst)
+
+// ---------------------------------------------------------------------
+// 1. The datasets.
+
+let rings = R.eval (Data.rings 100) 7
+let spirals = R.eval (Data.spirals 100) 8
+let blobs = R.eval (Data.blobs 80) 9
+let (rings_train, rings_test) = Data.split 160 rings
+let (spirals_train, spirals_test) = Data.split 150 spirals
+let (blobs_train, blobs_test) = Data.split 180 blobs
+
+let describe_data (d : Dataset) (train : Dataset) (test : Dataset) =
+  item d.name (int_to_str (list_length d.samples) ^ " points, " ^ int_to_str d.classes ^ " classes "
+               ^ show (Data.class_counts d) ^ "; train " ^ int_to_str (list_length train.samples)
+               ^ ", test " ^ int_to_str (list_length test.samples))
+
+let () = section!("1. Datasets")
+let () = describe_data rings rings_train rings_test
+let () = describe_data spirals spirals_train spirals_test
+let () = describe_data blobs blobs_train blobs_test
+let () = item "first ring points" (join " " (map (fn (s : Sample) -> point s.x ^ ":" ^ int_to_str s.y)
+                                                 (Lists.take 3 rings.samples)))
+
+// ---------------------------------------------------------------------
+// 2. Multi-layer perceptrons.
+
+// Print the training history as a loss curve.
+let print_history hist =
+  {
+    row!(10 => "epoch", 10 => "loss", 12 => "train acc");
+    reduce_left (fn _ -> fn (c : Checkpoint) ->
+                   row!(10 => int_to_str c.epoch, 10 => fixed 4 c.loss, 12 => percent c.train_acc,
+                        3 => "", 0 => bar 0.025 c.loss))
+                () hist
+  }
+
+// Train a network and report on it; returns the trained network.
+let experiment title (train : Dataset) (test : Dataset) hidden cfg seed =
+  {
+    let net0 = R.eval (Mlp.init 2 hidden train.classes) seed;
+    let (net, hist) = Mlp.train cfg net0 train.samples (seed + 1);
+    say "";
+    say (title ^ ": " ^ describe net ^ ", " ^ int_to_str (Mlp.param_count net) ^ " parameters");
+    say ("  lr " ^ fixed 2 cfg.lr ^ ", momentum " ^ fixed 2 cfg.momentum ^ ", batch "
+         ^ int_to_str cfg.batch ^ ", " ^ int_to_str cfg.epochs ^ " epochs");
+    print_history hist;
+    item "train accuracy" (percent (accuracy net train.samples));
+    item "test accuracy" (percent (accuracy net test.samples));
+    say "  test confusion matrix:";
+    println (confusion net train.classes test.samples);
+    net
+  }
+
+let () = section!("2. Multi-layer perceptrons (softmax + cross-entropy, momentum SGD)")
+
+let ring_cfg = { lr: 0.1, momentum: 0.9, batch: 16, epochs: 40, every: 5 }
+// Without a hidden layer the network is a linear classifier: it cannot
+// separate the rings.
+let ring_linear = experiment "rings, no hidden layer" rings_train rings_test [] ring_cfg 100
+let ring_net = experiment "rings, one hidden layer" rings_train rings_test [(8, Tanh)] ring_cfg 200
+
+let spiral_cfg = { lr: 0.05, momentum: 0.9, batch: 10, epochs: 60, every: 5 }
+// One hidden layer has a hard time with the spirals; two do better.
+let spiral_shallow = experiment "spirals, one hidden layer" spirals_train spirals_test [(16, Tanh)] spiral_cfg 300
+let spiral_net = experiment "spirals, two hidden layers" spirals_train spirals_test [(12, Relu), (8, Tanh)] spiral_cfg 300
+
+let blob_cfg = { ring_cfg with epochs = 30 }
+let blob_net = experiment "blobs, three classes" blobs_train blobs_test [(6, Sigmoid)] blob_cfg 400
+
+// ---------------------------------------------------------------------
+// 3. k-means on the blobs, ignoring the labels.
+
+let () = section!("3. k-means clustering (k-means++ seeding) on the blobs")
+let blob_points = map (fn (s : Sample) -> s.x) blobs.samples
+let km = R.eval (KMeans.fit 3 30 blob_points) 31
+let () = say "  iteration   inertia"
+let () = reduce_left (fn i -> fn v -> { row!(11 => int_to_str i, 10 => fixed 3 v); i + 1 }) 1 km.inertia |> (fn _ -> ())
+let () = item "converged" (show km.converged ^ " after " ^ int_to_str (list_length km.inertia) ^ " iterations")
+let () = item "cluster sizes" (show (KMeans.sizes 3 km))
+let () = item "centres" (join " " (map point km.centres))
+let () = item "true centres" (join " " (map (fn (a, b) -> point [a, b]) Data.centres))
+
+// Clusters against the true classes; purity is the share of points in the
+// majority class of their cluster.
+let contingency =
+  Confusion [[Lists.count (fn (a, y) -> a == c && y == t)
+                (Lists.zip km.assignment (map (fn (s : Sample) -> s.y) blobs.samples))
+              | t <- [0...2]] | c <- [0...2]]
+let () = say "  clusters (rows) against true classes (columns):"
+let () = say (case contingency do | Confusion rows -> count_table "cluster" rows)
+let purity = case contingency do
+  | Confusion rows ->
+      int_to_float (Lists.sum_int (map (fn r -> reduce_left (fn a -> fn b -> if a > b then a else b) 0 r) rows))
+      /. int_to_float (list_length blob_points)
+let () = item "purity" (percent purity)
+// The clusters as a classifier (fitted on all points, so this is only a
+// measure of how well the clusters match the classes).
+let centroid_model = Centroids.label_clusters 3 3 km (map (fn (s : Sample) -> s.y) blobs.samples)
+let () = item ("as " ^ describe centroid_model) ("accuracy " ^ percent (accuracy centroid_model blobs.samples)
+                                                ^ " (nearest centre, majority vote)")
+
+let () = say "  elbow: final inertia for k = 1 .. 6"
+let () = reduce_left (fn _ -> fn k ->
+           {
+             let m = R.eval (KMeans.fit k 30 blob_points) (50 + k);
+             let final = list_nth m.inertia (list_length m.inertia - 1);
+             row!(8 => "k = " ^ int_to_str k, 12 => fixed 2 final, 3 => "", 0 => bar 25.0 final)
+           }) () [1...6]
+
+// ---------------------------------------------------------------------
+// 4. Decision trees.
+
+let () = section!("4. CART decision trees (Gini impurity)")
+
+let grow_tree (train : Dataset) depth =
+  Tree.fit { max_depth: depth, min_split: 4, classes: train.classes } train.samples
+
+let blob_tree = grow_tree blobs_train 3
+let () = say "  blobs, max depth 3 (x0, x1 are the coordinates; leaves show the training counts):"
+let () = say (join "\n" (map (fn l -> "    " ^ l) (Lines.split (show (fmap Tree.label blob_tree)))))
+let blob_cart = Cart (fmap Lists.argmax blob_tree)
+let () = item (describe blob_cart) ("train " ^ percent (accuracy blob_cart blobs_train.samples)
+                                    ^ ", test " ^ percent (accuracy blob_cart blobs_test.samples))
+let () = say "  test confusion matrix:"
+let () = println (confusion blob_cart 3 blobs_test.samples)
+
+let ring_tree = grow_tree rings_train 4
+let () = say ""
+let () = say "  rings, max depth 4:"
+let () = say (join "\n" (map (fn l -> "    " ^ l) (Lines.split (show (fmap Tree.label ring_tree)))))
+
+// Accuracy as the depth grows.
+let () = say ""
+let () = say "  test accuracy by maximum depth:"
+let () = row!(10 => "depth", 10 => "rings", 10 => "spirals", 10 => "blobs")
+let tree_acc (train : Dataset) (test : Dataset) depth =
+  percent (accuracy (Cart (fmap Lists.argmax (grow_tree train depth))) test.samples)
+let () = reduce_left (fn _ -> fn depth ->
+           row!(10 => int_to_str depth, 10 => tree_acc rings_train rings_test depth,
+                10 => tree_acc spirals_train spirals_test depth, 10 => tree_acc blobs_train blobs_test depth))
+         () [1, 2, 3, 4, 6, 8, 10]
+
+// ---------------------------------------------------------------------
+// 5. The comparison.
+
+let () = section!("5. MLP against decision tree (depth 6)")
+let () = row!(10 => "dataset", 34 => "model", 10 => "train", 10 => "test")
+let compare_on [Classifier m] (name : String) (model : m) (train : Dataset) (test : Dataset) =
+  row!(10 => name, 34 => describe model, 10 => percent (accuracy model train.samples),
+       10 => percent (accuracy model test.samples))
+let () = compare_on "rings" ring_linear rings_train rings_test
+let () = compare_on "" ring_net rings_train rings_test
+let () = compare_on "" (Cart (fmap Lists.argmax (grow_tree rings_train 6))) rings_train rings_test
+let () = compare_on "spirals" spiral_shallow spirals_train spirals_test
+let () = compare_on "" spiral_net spirals_train spirals_test
+let () = compare_on "" (Cart (fmap Lists.argmax (grow_tree spirals_train 6))) spirals_train spirals_test
+let () = compare_on "blobs" blob_net blobs_train blobs_test
+let () = compare_on "" (Cart (fmap Lists.argmax (grow_tree blobs_train 6))) blobs_train blobs_test

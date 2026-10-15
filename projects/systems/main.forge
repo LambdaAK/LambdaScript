@@ -1,0 +1,186 @@
+// Systems in Forge: a register machine with an assembler, CPU scheduling,
+// heap allocation and page replacement.
+//
+//   interpreter:  ./_build/default/bin/interpreter.exe projects/systems/main.forge
+//   native:       copy projects/systems/*.forge to a temp dir, then
+//                 ./_build/default/bin/compile_forge.exe <tmp>/main.forge <tmp>/main.exe
+import "fmt.forge"
+import "avl.forge"
+import "cpu.forge"
+import "asm.forge"
+import "programs.forge"
+import "sched.forge"
+import "alloc.forge"
+import "paging.forge"
+
+use Cpu
+use Asm
+
+let say s = print_string s
+let field label value = say ("  " ^ Fmt.left 11 label ^ ": " ^ value)
+let ints xs = Fmt.join " " (map int_to_str xs)
+
+// ===========================================================================
+// Part 0: the persistent AVL map everything else is built on
+// ===========================================================================
+
+let () = Fmt.title "Part 0. A persistent AVL map"
+
+let squares = Avl.from_list [(k, k * k) | k <- [1...255]]
+let evens_gone = reduce_left (fn t -> fn k -> Avl.remove k t) squares [2 * k | k <- [1...127]]
+
+let () = field "inserted" (cat!("keys 1..255: size ", (int_to_str (Avl.size squares)), ", height ",
+                               (int_to_str (Avl.height squares)), ", balanced ", (show (Avl.is_balanced squares))))
+let () = field "removed" (cat!("the even keys: size ", (int_to_str (Avl.size evens_gone)), ", height ",
+                              (int_to_str (Avl.height evens_gone)), ", balanced ", (show (Avl.is_balanced evens_gone))))
+let () = field "persistent" (cat!("old version still maps 64 to ", (show (Avl.find 64 squares)),
+                                 ", new version has ", (show (Avl.find 64 evens_gone))))
+let () = field "folds" (cat!("sum of values ", (int_to_str (MapOps.sum_values evens_gone)),
+                            ", first keys ", (show (List.take 6 (Avl.keys evens_gone)))))
+let () = field "fmap" (show (List.take 5 (Avl.values (MapOps.map_values (fn v -> v % 10) evens_gone))))
+
+// ===========================================================================
+// Part 1: the register machine
+// ===========================================================================
+
+let () = Fmt.title "Part 1. A register machine and its assembler"
+
+let fuel = 1000000
+
+// Assemble, run and report one program; returns the final machine.
+let run_program title src show_listing =
+  case assemble src do
+  | Failed es ->
+    {
+      say "";
+      say ("--- " ^ title ^ ": assembly failed");
+      map (fn e -> say ("  line " ^ Fmt.int_r 2 e.line ^ ": " ^ e.msg)) es;
+      None
+    }
+  | Assembled p ->
+    {
+      let m = Exec.run fuel p.code (Exec.boot p.data);
+      say "";
+      say ("--- " ^ title);
+      field "program" (cat!((int_to_str p.size), " instructions, ", (int_to_str (list_length p.data)),
+                           " data words, labels: ",
+                           (if Avl.size p.labels == 0 then "none" else Fmt.join " " (Avl.keys p.labels))));
+      (if show_listing then { map say (map (fn l -> "    " ^ l) (listing p)); () } else ());
+      field "output" (ints (List.rev m.out));
+      field "status" (show m.status ^ " after " ^ int_to_str m.steps ^ " instructions");
+      field "registers" (Exec.reg_dump m);
+      field "flags" (Exec.flag_dump m);
+      field "most used" (Exec.top_counts 5 m);
+      Some m
+    }
+
+let r1 = run_program "Sum of 1..100" Programs.sum_to_100 true
+let r2 = run_program "Fibonacci, iterative" Programs.fib_iterative false
+let r3 = run_program "Fibonacci, recursive with call/ret" Programs.fib_recursive true
+let r4 = run_program "Bubble sort in memory" Programs.bubble_sort false
+let () =
+  case r4 do
+  | Some m -> field "memory" ("[100..111] = " ^ ints (Exec.mem_range m 100 12))
+  | None -> ()
+let r5 = run_program "Greatest common divisors" Programs.gcd false
+let r6 = run_program "Factorials, recursive" Programs.factorial false
+
+let () = say ""
+let () = say "  Run-time faults:"
+let r7 = run_program "Division by zero" Programs.divide_by_zero false
+let r8 = run_program "Unbounded recursion" Programs.runaway false
+let r9 = run_program "Missing halt" Programs.no_halt false
+
+let () = say ""
+let () = say "  Assembly errors:"
+let r10 = run_program "A broken program" Programs.broken false
+
+let total_steps = List.sum [m.steps | Some m <- [r1, r2, r3, r4, r5, r6, r7, r8, r9]]
+let () = say ""
+let () = field "total" (int_to_str total_steps ^ " instructions executed by the machine")
+
+// ===========================================================================
+// Part 2: CPU scheduling
+// ===========================================================================
+
+let () = Fmt.title "Part 2. Process scheduling"
+
+let jobs = [Sched.job "A" 0 7 3, Sched.job "B" 2 4 1, Sched.job "C" 4 1 4,
+            Sched.job "D" 5 4 2, Sched.job "E" 6 6 5, Sched.job "F" 24 3 1]
+
+let () = say "  job  arrival  burst  priority"
+let () = { map (fn j -> say (cat!("  ", (Fmt.left 3 j.name), (Fmt.int_r 8 j.arrival), (Fmt.int_r 7 j.burst),
+                                 (Fmt.int_r 10 j.priority)))) jobs; () }
+
+let policies = [Sched.Fcfs, Sched.Sjf, Sched.Srtf, Sched.RoundRobin 3, Sched.Priority]
+let () = say ("  policies: " ^ Fmt.join " " (map tag policies))
+let results = map (fn p -> Sched.report p jobs) policies
+
+// Rank the policies by total waiting time (ties: total turnaround).
+let () = say ""
+let () = say "  Ranking by average waiting time:"
+let ranked = List.sort_by (fn (_, w1, t1) -> fn (_, w2, t2) -> (w1, t1) <= (w2, t2)) results
+let () =
+  {
+    map (fn (k, (p, w, t)) ->
+           say (cat!("    ", (int_to_str (k + 1)), ". ", (Fmt.left 6 (tag p)), (Fmt.left 46 (name_of p)),
+                     "waiting ", (Fmt.ratio w (list_length jobs)), ", turnaround ", (Fmt.ratio t (list_length jobs)))))
+        (List.indexed ranked);
+    ()
+  }
+
+// ===========================================================================
+// Part 3: memory management
+// ===========================================================================
+
+let () = Fmt.title "Part 3a. Heap allocation with a free list"
+
+use Alloc
+
+let requests =
+  [Malloc (0, 12), Malloc (1, 6), Malloc (2, 10), Malloc (3, 4), Malloc (4, 14), Malloc (5, 8),
+   Free 1, Free 3, Malloc (6, 3), Free 4, Malloc (7, 16), Free 0, Malloc (8, 9), Free 2,
+   Malloc (9, 20), Free 6, Free 2, Free 5, Free 7, Free 8, Free 9]
+
+let heaps = map (fn s -> (s, simulate s requests)) [FirstFit, BestFit, WorstFit]
+
+let () = say ""
+let () = say "  Summary:"
+let () =
+  {
+    map (fn (s, h) -> say (cat!("    ", (Fmt.left 10 (name_of s)), (int_to_str h.failures), " failed allocation",
+                               (if h.failures == 1 then "" else "s"), ", final free list ",
+                               (show [(b.start, b.size) | b <- h.free]))))
+        heaps;
+    ()
+  }
+
+let () = Fmt.title "Part 3b. Page replacement"
+
+use Paging
+
+let refs = [7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1]
+let () = say ("  reference string: " ^ ints refs ^ "; policies: " ^ name_of [Fifo, Lru, Opt])
+let () = { map (fn p -> print_trace p 3 refs) [Fifo, Lru, Opt]; () }
+
+let () = say ""
+let () = say "  Faults by number of frames:"
+let () = say ("    frames" ^ reduce_left (fn acc -> fn n -> acc ^ Fmt.int_r 5 n) "" [1...7])
+let () =
+  { map (fn p -> say ("    " ^ Fmt.left 6 (name_of p) ^
+                       reduce_left (fn acc -> fn n -> acc ^ Fmt.int_r 5 (faults p n refs)) "" [1...7]))
+        [Fifo, Lru, Opt];
+    () }
+
+// Belady's anomaly: with FIFO, more frames can mean more faults.
+let belady = [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5]
+let () = say ""
+let () = say ("  Belady's anomaly, reference string " ^ ints belady)
+let () = { map (fn p -> print_trace p 3 belady) [Fifo]; map (fn p -> print_trace p 4 belady) [Fifo]; () }
+let f3 = faults Fifo 3 belady
+let f4 = faults Fifo 4 belady
+let () = say (cat!("    FIFO: ", (int_to_str f3), " faults with 3 frames, ", (int_to_str f4), " with 4 -- ",
+                   (if f4 > f3 then "the anomaly appears" else "no anomaly")))
+let () = say (cat!("    LRU:  ", (int_to_str (faults Lru 3 belady)), " faults with 3 frames, ",
+                   (int_to_str (faults Lru 4 belady)), " with 4 (a stack algorithm never gets worse)"))
+let () = say ""

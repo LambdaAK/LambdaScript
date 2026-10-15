@@ -1,0 +1,169 @@
+// The abstract syntax of Tiny, a pretty printer (as `impl Show`) and a trait
+// with a default method that measures syntax trees.
+import "util.forge"
+
+mod Ast where
+  type Ty = | TInt | TBool | TVoid
+
+  type BinOp =
+    | Plus | Minus | Times | Divide | Modulo
+    | EqOp | NeOp | LtOp | LeOp | GtOp | GeOp
+    | AndOp | OrOp
+
+  type UnOp = | Negate | LogNot
+
+  // Expressions carry the line they start on where an error can be reported.
+  type rec Expr =
+    | Num of Int
+    | BoolLit of Bool
+    | Var of (String, Int)
+    | Unary of (UnOp, Expr, Int)
+    | Bin of (BinOp, Expr, Expr, Int)
+    | Call of (String, List<Expr>, Int)
+
+  // Statements and blocks are mutually recursive.
+  type rec Stmt =
+    | SVar of (String, Ty, Expr, Int)
+    | SAssign of (String, Expr, Int)
+    | SIf of (Expr, Block, Block, Int)
+    | SWhile of (Expr, Block, Int)
+    | SReturn of (Option<Expr>, Int)
+    | SPrint of (Expr, Int)
+    | SExpr of (Expr, Int)
+    | SBlock of Block
+  and Block = | Blk of List<Stmt>
+
+  type Func = { name: String, params: List<(String, Ty)>, ret: Ty, body: Block, line: Int }
+  type Program = { funcs: List<Func>, main: Block }
+
+  let stmts b = case b do | Blk ss -> ss
+
+  let ty_name t = case t do | TInt -> "int" | TBool -> "bool" | TVoid -> "void"
+
+  let op_name op =
+    case op do
+    | Plus -> "+" | Minus -> "-" | Times -> "*" | Divide -> "/" | Modulo -> "%"
+    | EqOp -> "==" | NeOp -> "!=" | LtOp -> "<" | LeOp -> "<=" | GtOp -> ">" | GeOp -> ">="
+    | AndOp -> "&&" | OrOp -> "||"
+
+  // Binding strength, loosest first; shared by the parser and the printer.
+  let prec op =
+    case op do
+    | OrOp -> 1
+    | AndOp -> 2
+    | EqOp -> 3 | NeOp -> 3
+    | LtOp -> 4 | LeOp -> 4 | GtOp -> 4 | GeOp -> 4
+    | Plus -> 5 | Minus -> 5
+    | Times -> 6 | Divide -> 6 | Modulo -> 6
+
+  let line_of e =
+    case e do
+    | Var (_, l) -> l | Unary (_, _, l) -> l | Bin (_, _, _, l) -> l | Call (_, _, l) -> l
+    | _ -> 0
+
+  // Does evaluating e have no effect (no calls, which may print)?
+  let rec pure_expr e =
+    case e do
+    | Num _ -> true
+    | BoolLit _ -> true
+    | Var _ -> true
+    | Unary (_, a, _) -> pure_expr a
+    | Bin (Divide, _, _, _) -> false   // may trap on division by zero
+    | Bin (Modulo, _, _, _) -> false
+    | Bin (_, a, b, _) -> pure_expr a && pure_expr b
+    | Call _ -> false
+
+  // Print with the fewest parentheses that keep the meaning: an operand is
+  // parenthesised when it binds more loosely than its context needs.
+  let rec expr_at ctx e =
+    case e do
+    | Num n -> if n < 0 then "(" ^ int_to_str n ^ ")" else int_to_str n
+    | BoolLit b -> if b then "true" else "false"
+    | Var (x, _) -> x
+    | Unary (Negate, a, _) -> "-" ^ expr_at 7 a
+    | Unary (LogNot, a, _) -> "!" ^ expr_at 7 a
+    | Bin (op, a, b, _) ->
+        let p = prec op in
+        let s = expr_at p a ^ " " ^ op_name op ^ " " ^ expr_at (p + 1) b in
+        if p < ctx then "(" ^ s ^ ")" else s
+    | Call (f, args, _) -> f ^ "(" ^ Util.join ", " (map (expr_at 0) args) ^ ")"
+end
+
+use Ast
+
+impl Show for Ty where
+  show t = ty_name t
+end
+
+impl Show for Expr where
+  show e = expr_at 0 e
+end
+
+// Statements print as indented source text.
+let rec show_stmt ind s =
+  let pad = Util.repeat_str ind "  " in
+  case s do
+  | SVar (x, t, e, _) -> pad ^ "var " ^ x ^ ": " ^ show t ^ " = " ^ show e ^ ";"
+  | SAssign (x, e, _) -> pad ^ x ^ " = " ^ show e ^ ";"
+  | SIf (c, th, Blk [], _) -> pad ^ "if (" ^ show c ^ ") " ^ show_block ind th
+  | SIf (c, th, el, _) -> pad ^ "if (" ^ show c ^ ") " ^ show_block ind th ^ " else " ^ show_block ind el
+  | SWhile (c, b, _) -> pad ^ "while (" ^ show c ^ ") " ^ show_block ind b
+  | SReturn (None, _) -> pad ^ "return;"
+  | SReturn (Some e, _) -> pad ^ "return " ^ show e ^ ";"
+  | SPrint (e, _) -> pad ^ "print " ^ show e ^ ";"
+  | SExpr (e, _) -> pad ^ show e ^ ";"
+  | SBlock b -> pad ^ show_block ind b
+and show_block ind b =
+  case b do
+  | Blk [] -> "{ }"
+  | Blk ss -> "{\n" ^ Util.join "\n" (map (show_stmt (ind + 1)) ss) ^ "\n" ^ Util.repeat_str ind "  " ^ "}"
+
+impl Show for Stmt where
+  show s = show_stmt 0 s
+end
+
+// Func is a record type; an `impl Show for Func` is accepted but never found
+// (bugs/01-impl-for-record-alias.forge), so it is a plain function.
+let show_func (f : Func) =
+    "fn " ^ f.name ^ "(" ^ Util.join ", " [x ^ ": " ^ show t | (x, t) <- f.params] ^ "): "
+    ^ show f.ret ^ " " ^ show_block 0 f.body
+
+// ---------------------------------------------------------------------------
+// Measuring trees: `nodes` is required, `describe` has a default.
+trait Measure<a> where
+  val nodes : a -> Int
+  val describe : a -> String
+  let describe x = int_to_str (nodes x) ^ " nodes"
+end
+
+let rec expr_nodes e =
+  case e do
+  | Unary (_, a, _) -> 1 + expr_nodes a
+  | Bin (_, a, b, _) -> 1 + expr_nodes a + expr_nodes b
+  | Call (_, args, _) -> 1 + Util.sum (map expr_nodes args)
+  | _ -> 1
+
+let rec stmt_nodes s =
+  case s do
+  | SVar (_, _, e, _) -> 1 + expr_nodes e
+  | SAssign (_, e, _) -> 1 + expr_nodes e
+  | SIf (c, a, b, _) -> 1 + expr_nodes c + block_nodes a + block_nodes b
+  | SWhile (c, b, _) -> 1 + expr_nodes c + block_nodes b
+  | SReturn (Some e, _) -> 1 + expr_nodes e
+  | SReturn (None, _) -> 1
+  | SPrint (e, _) -> 1 + expr_nodes e
+  | SExpr (e, _) -> 1 + expr_nodes e
+  | SBlock b -> block_nodes b
+and block_nodes b = Util.sum (map stmt_nodes (stmts b))
+
+impl Measure for Expr where
+  nodes e = expr_nodes e
+end
+
+// Blocks override the default description.
+impl Measure for Block where
+  nodes b = block_nodes b,
+  describe b = int_to_str (block_nodes b) ^ " nodes in " ^ int_to_str (list_length (stmts b)) ^ " statements"
+end
+
+let program_nodes (p : Program) = nodes p.main + Util.sum [1 + nodes f.body | f <- p.funcs]

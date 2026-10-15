@@ -1,0 +1,37 @@
+// Bug (both back ends): a record update whose new field value calls an
+// Ord-constrained function on a parameter, bound by a local `let`, breaks
+// dictionary passing. The types are all concrete here (K has an Ord
+// instance). Binding the value first (`let v = lookup r m.env in
+// let m2 = { m with n = v } in ...`) works, and so does a constant key
+// (`lookup B m.env`) instead of the parameter r.
+// Expected: prints 2.
+// Actual:
+//   interpreter: error: runtime error: eval_c_expr: EApp
+//   native:      error: the native compiler does not support this program yet:
+//                internal: the specialised program does not type-check:
+//                Unbound variable: __forge_method_Ord_compare
+//   (in the full project the native message was instead "a type-class
+//    dictionary used as a value (`__forge_dict_Ord_Cpu.Reg`)")
+// Run: ./_build/default/bin/interpreter.exe projects/systems/bugs/06-record-update-method-call-in-let.forge
+// Workaround in cpu.forge (Exec.execute, the Push arm): bind the pushed
+// value with its own `let` before building the new machine.
+type K = | A | B
+
+impl Eq for K where
+  (==) x y = case (x, y) do | (A, A) -> true | (B, B) -> true | _ -> false
+end
+
+impl Ord for K where
+  compare x y = case (x, y) do | (A, B) -> LT | (B, A) -> GT | _ -> EQ
+end
+
+let rec lookup k kvs =
+  case kvs do
+  | [] -> 0
+  | (k2, v) :: rest -> (case compare k k2 do | EQ -> v | _ -> lookup k rest)
+
+type M = { env: List<(K, Int)>, n: Int }
+
+let f (m : M) (r : K) = let m2 = { m with n = lookup r m.env } in m2.n
+
+let () = println (f { env: [(A, 1), (B, 2)], n: 0 } B)

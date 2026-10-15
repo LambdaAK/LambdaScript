@@ -1,0 +1,76 @@
+// The lexer: source text to a list of tokens, each tagged with its line.
+import "util.forge"
+
+mod Lexer where
+  type Tok =
+    | TNum of Int
+    | TId of String
+    | TKw of String      // var fn if else while return print true false int bool void
+    | TSym of String     // ( ) { } , ; : = + - * / % ! < <= > >= == != && ||
+    | TEof
+
+  type Token = { tok: Tok, line: Int }
+
+  let keywords = ["var", "fn", "if", "else", "while", "return", "print", "true", "false", "int", "bool", "void"]
+
+  let is_keyword w = (keywords |> filter (fn k -> k == w) |> list_length) > 0
+
+  // Two-character symbols are tried before one-character ones.
+  let two_char = ["<=", ">=", "==", "!=", "&&", "||"]
+  let one_char = string_to_list "(){},;:=+-*/%!<>"
+
+  // Take the longest prefix whose characters satisfy p.
+  let rec span p cs =
+    case cs do
+    | c :: rest ->
+        if p c then (let (taken, left) = span p rest in (c :: taken, left))
+        else ([], cs)
+    | [] -> ([], [])
+
+  let number_of digits = reduce_left (fn acc -> fn d -> acc * 10 + Util.digit_value d) 0 digits
+
+  // Skip a `//` comment up to (not including) the end of the line.
+  let rec skip_line cs = case cs do | [] -> [] | '\n' :: _ -> cs | _ :: rest -> skip_line rest
+
+  let tokenize src =
+    let rec go cs line acc =
+      case cs do
+      | [] -> Ok (Util.rev ({ tok: TEof, line: line } :: acc))
+      | '\n' :: rest -> go rest (line + 1) acc
+      | '/' :: '/' :: rest -> go (skip_line rest) line acc
+      | c :: rest ->
+          if Util.is_space c then go rest line acc
+          else if Util.is_digit c then
+            (let (ds, left) = span Util.is_digit cs in
+             go left line ({ tok: TNum (number_of ds), line: line } :: acc))
+          else if Util.is_alpha c then
+            (let (w, left) = span (fn ch -> Util.is_alpha ch || Util.is_digit ch) cs in
+             let word = Util.string_of_chars w in
+             let t = if is_keyword word then TKw word else TId word in
+             go left line ({ tok: t, line: line } :: acc))
+          else
+            (case rest do
+             | d :: rest2 ->
+                 let pair = char_to_str c ^ char_to_str d in
+                 if list_length (filter (fn s -> s == pair) two_char) > 0
+                 then go rest2 line ({ tok: TSym pair, line: line } :: acc)
+                 else single c rest line acc
+             | [] -> single c rest line acc)
+    and single c rest line acc =
+      if list_length (filter (fn o -> o == c) one_char) > 0
+      then go rest line ({ tok: TSym (char_to_str c), line: line } :: acc)
+      else Err ("line " ^ int_to_str line ^ ": unexpected character '" ^ char_to_str c ^ "'")
+    in go (string_to_list src) 1 []
+end
+
+use Lexer
+
+impl Show for Tok where
+  show t =
+    case t do
+    | TNum n -> int_to_str n
+    | TId x -> x
+    | TKw k -> k
+    | TSym s -> s
+    | TEof -> "end of input"
+end

@@ -1,0 +1,179 @@
+// A multi-layer perceptron: dense layers, softmax and cross-entropy,
+// backpropagation, and mini-batch gradient descent with momentum.
+import "rng.forge"
+import "util.forge"
+import "matrix.forge"
+import "data.forge"
+import "metrics.forge"
+
+type Act = | Tanh | Relu | Sigmoid | Linear
+
+impl Show for Act where
+  show a = case a do | Tanh -> "tanh" | Relu -> "relu" | Sigmoid -> "sigmoid" | Linear -> "linear"
+end
+
+// A dense layer computes act (W x + b); W has one row per output unit.
+type Layer = { w: List<List<Float>>, b: List<Float>, act: Act }
+
+// The gradient of the loss with respect to one layer's parameters; also
+// used for the momentum ("velocity") of each layer.
+type Grad = { gw: List<List<Float>>, gb: List<Float> }
+
+// A network is its layers, input first. The last layer is Linear and is
+// followed by a softmax.
+type Net = | Net of List<Layer>
+
+type TrainConfig = {
+  lr: Float, momentum: Float, batch: Int, epochs: Int, every: Int
+}
+
+// One line of the training history.
+type Checkpoint = { epoch: Int, loss: Float, train_acc: Float }
+
+mod Act where
+  let apply act z = case act do
+    | Tanh -> Math.tanh z
+    | Relu -> Math.max 0.0 z
+    | Sigmoid -> Math.sigmoid z
+    | Linear -> z
+
+  // The derivative, written in terms of the unit's output a = act z.
+  let deriv act a = case act do
+    | Tanh -> 1.0 -. a *. a
+    | Relu -> if a > 0.0 then 1.0 else 0.0
+    | Sigmoid -> a *. (1.0 -. a)
+    | Linear -> 1.0
+end
+
+mod Mlp where
+  // softmax, shifted by the maximum so exp never overflows.
+  let softmax z =
+    let m = reduce_left Math.max (list_head z) z in
+    let e = map (fn zi -> exp (zi -. m)) z in
+    let total = Vec.sum e in
+    map (fn ei -> ei /. total) e
+
+  let pre_activation (l : Layer) x = Vec.add (Mat.mul_vec l.w x) l.b
+
+  // Glorot-uniform weights in [-r, r], r = sqrt (6 / (fan_in + fan_out));
+  // zero biases.
+  let layer n_in n_out act =
+    let r = sqrt (6.0 /. int_to_float (n_in + n_out)) in
+    let row = Gen.replicate n_in (Gen.between (Math.neg r) r) in
+    fmap (fn w -> { w: w, b: Vec.zeros n_out, act: act }) (Gen.replicate n_out row)
+
+  // `hidden` lists (width, activation) for each hidden layer.
+  let init n_in hidden n_out =
+    let rec build n_prev hs = case hs do
+      | [] -> fmap (fn l -> l :: []) (layer n_prev n_out Linear)
+      | (width, act) :: rest ->
+          layer n_prev width act >>= (fn l -> fmap (fn ls -> l :: ls) (build width rest))
+    in
+    fmap Net (build n_in hidden)
+
+  let layers net = case net do | Net ls -> ls
+
+  // The class probabilities for x.
+  let forward net x =
+    let rec go ls a = case ls do
+      | [] -> a
+      | l :: [] -> softmax (pre_activation l a)
+      | l :: rest -> go rest (map (Act.apply l.act) (pre_activation l a))
+    in
+    go (layers net) x
+
+  // Backpropagation for one example. Returns the gradient of every layer,
+  // the gradient with respect to the layer's input, the cross-entropy loss
+  // and whether the prediction was right. The recursion goes down the
+  // layers on the forward pass and builds the gradients on the way back,
+  // so each layer's input and output are simply local variables.
+  let rec backprop ls x y = case ls do
+    | [] -> ([], x, 0.0, false)
+    | l :: [] ->
+        let p = softmax (pre_activation l x) in
+        let loss = Math.neg (log (Math.max (list_nth p y) 0.000000000001)) in
+        let delta = Vec.sub p (Vec.one_hot y (list_length p)) in
+        ({ gw: Mat.outer delta x, gb: delta } :: [], Mat.tmul_vec l.w delta, loss,
+         Lists.argmax p == y)
+    | l :: rest ->
+        let a = map (Act.apply l.act) (pre_activation l x) in
+        let (grads, da, loss, ok) = backprop rest a y in
+        let delta = Vec.zip_with (fn d -> fn ai -> d *. Act.deriv l.act ai) da a in
+        ({ gw: Mat.outer delta x, gb: delta } :: grads, Mat.tmul_vec l.w delta, loss, ok)
+
+  let add_grads gs hs =
+    Vec.zip_with (fn (g : Grad) -> fn (h : Grad) -> { gw: Mat.add g.gw h.gw, gb: Vec.add g.gb h.gb }) gs hs
+
+  let zero_like net =
+    map (fn (l : Layer) -> { gw: Mat.zeros (list_length l.w) (list_length (list_head l.w)),
+                             gb: Vec.zeros (list_length l.b) }) (layers net)
+
+  // Summed gradient, loss and hits over a mini-batch.
+  let batch_gradient net batch =
+    let ls = layers net in
+    let step (acc, loss, hits) (s : Sample) =
+      let (g, _, l, ok) = backprop ls s.x s.y in
+      (case acc do | None -> Some g | Some a -> Some (add_grads a g),
+       loss +. l, if ok then hits + 1 else hits)
+    in
+    reduce_left step (None, 0.0, 0) batch
+
+  // Momentum: v <- mu v - (lr / n) g, then theta <- theta + v.
+  let update (cfg : TrainConfig) n net vel grads =
+    let c = Math.neg (cfg.lr /. int_to_float n) in
+    let vel1 = Vec.zip_with (fn (v : Grad) -> fn (g : Grad) ->
+                 { gw: Mat.axpy c g.gw (Mat.scale cfg.momentum v.gw),
+                   gb: Vec.axpy c g.gb (Vec.scale cfg.momentum v.gb) }) vel grads in
+    let ls1 = Vec.zip_with (fn (l : Layer) -> fn (v : Grad) ->
+                { l with w = Mat.add l.w v.gw, b = Vec.add l.b v.gb }) (layers net) vel1 in
+    (Net ls1, vel1)
+
+  // One pass over the shuffled data. Returns the new network and velocity,
+  // the mean loss and the training accuracy seen during the pass.
+  let epoch cfg net vel samples =
+    let rec go net vel batches loss hits = case batches do
+      | [] -> (net, vel, loss, hits)
+      | b :: rest ->
+          case batch_gradient net b do
+          | (Some g, l, h) ->
+              let n = list_length b in
+              let (net1, vel1) = update cfg n net vel g in
+              go net1 vel1 rest (loss +. l) (hits + h)
+          | (None, _, _) -> go net vel rest loss hits
+    in
+    let (net1, vel1, loss, hits) = go net vel (Lists.chunks cfg.batch samples) 0.0 0 in
+    let n = int_to_float (list_length samples) in
+    (net1, vel1, loss /. n, int_to_float hits /. n)
+
+  // Train for cfg.epochs epochs, reshuffling every epoch with the seed s.
+  // Every cfg.every epochs (and after the last) a checkpoint is kept.
+  let train cfg net samples s =
+    let rec go e net vel s history =
+      if e > cfg.epochs then (net, reverse_list history)
+      else
+        let (shuffled, s1) = R.run (Data.shuffle samples) s in
+        let (net1, vel1, loss, acc) = epoch cfg net vel shuffled in
+        let keep = e == 1 || e % cfg.every == 0 || e == cfg.epochs in
+        let history1 = if keep then { epoch: e, loss: loss, train_acc: acc } :: history else history in
+        go (e + 1) net1 vel1 s1 history1
+    and reverse_list xs = reduce_left (fn acc -> fn x -> x :: acc) [] xs
+    in
+    go 1 net (zero_like net) s []
+
+  let shape net =
+    let ls = layers net in
+    let ins = int_to_str (list_length (list_head (list_head ls).w)) in
+    ins ^ "-" ^ Fmt.join "-" (map (fn (l : Layer) -> int_to_str (list_length l.b)) ls)
+
+  let param_count net =
+    Lists.sum_int (map (fn (l : Layer) -> list_length l.b * (1 + list_length (list_head l.w))) (layers net))
+end
+
+impl Classifier for Net where
+  predict net x = Lists.argmax (Mlp.forward net x),
+  describe net =
+    let acts = map (fn (l : Layer) -> show l.act) (Lists.take (list_length (Mlp.layers net) - 1) (Mlp.layers net)) in
+    case acts do
+    | [] -> "softmax regression " ^ Mlp.shape net
+    | _ -> "MLP " ^ Mlp.shape net ^ " (" ^ Fmt.join ", " acts ^ ")"
+end

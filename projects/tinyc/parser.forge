@@ -1,0 +1,142 @@
+// A recursive-descent parser with precedence climbing for binary operators,
+// written in monadic style over a parser type that is a Monad instance.
+import "util.forge"
+import "lexer.forge"
+import "ast.forge"
+
+use Lexer
+use Ast
+
+// A parser consumes a prefix of the tokens and yields a value, or fails.
+type Parser<a> = | P of (List<Token> -> Res<(a, List<Token>)>)
+
+let run_parser p toks = case p do | P f -> f toks
+
+impl Functor for Parser where
+  fmap f p = P (fn ts -> case run_parser p ts do | Ok (x, rest) -> Ok (f x, rest) | Err e -> Err e)
+end
+
+impl Applicative for Parser where
+  pure x = P (fn ts -> Ok (x, ts)),
+  ap pf px = P (fn ts -> case run_parser pf ts do | Ok (f, rest) -> run_parser (fmap f px) rest | Err e -> Err e)
+end
+
+impl Monad for Parser where
+  bind p f = P (fn ts -> case run_parser p ts do | Ok (x, rest) -> run_parser (f x) rest | Err e -> Err e)
+end
+
+mod Parse where
+  let eof_token = { tok: TEof, line: 0 }
+
+  let peek : Parser<Token> = P (fn ts -> case ts do | t :: _ -> Ok (t, ts) | [] -> Ok (eof_token, ts))
+
+  // The token after the next one (for `x = ...` versus an expression statement).
+  let peek2 : Parser<Tok> = P (fn ts -> case ts do | _ :: t :: _ -> Ok (t.tok, ts) | _ -> Ok (TEof, ts))
+
+  let advance : Parser<Token> = P (fn ts -> case ts do | t :: rest -> Ok (t, rest) | [] -> Ok (eof_token, []))
+
+  let fail_at (t : Token) msg : Parser<a> =
+    P (fn _ -> Err ("line " ^ int_to_str t.line ^ ": syntax error: " ^ msg ^ ", found '" ^ show t.tok ^ "'"))
+
+  let is_sym s tok = case tok do | TSym s2 -> s == s2 | TKw k -> s == k | _ -> false
+
+  // Consume a given symbol or keyword.
+  let expect s = mdo!(t <- peek; if is_sym s t.tok then fmap (fn _ -> ()) advance else fail_at t ("expected '" ^ s ^ "'"))
+
+  let ident = mdo!(t <- peek; case t.tok do | TId x -> fmap (fn _ -> x) advance | _ -> fail_at t "expected a name")
+
+  let ty = mdo!(t <- peek;
+    case t.tok do
+    | TKw "int" -> fmap (fn _ -> TInt) advance
+    | TKw "bool" -> fmap (fn _ -> TBool) advance
+    | TKw "void" -> fmap (fn _ -> TVoid) advance
+    | _ -> fail_at t "expected a type")
+
+  // p, repeated until `stop` holds for the next token.
+  let rec many_until stop p =
+    mdo!(t <- peek; if stop t.tok then pure [] else mdo!(x <- p; xs <- many_until stop p; pure (x :: xs)))
+
+  // p separated by commas, possibly empty, up to the token `close`.
+  let comma_list close p =
+    let rec more acc = mdo!(t <- peek;
+      if is_sym "," t.tok then mdo!(_ <- advance; x <- p; more (x :: acc)) else pure (Util.rev acc)) in
+    mdo!(t <- peek; if is_sym close t.tok then pure [] else mdo!(x <- p; more [x]))
+
+  let binop_of tok =
+    case tok do
+    | TSym "+" -> Some Plus | TSym "-" -> Some Minus
+    | TSym "*" -> Some Times | TSym "/" -> Some Divide | TSym "%" -> Some Modulo
+    | TSym "==" -> Some EqOp | TSym "!=" -> Some NeOp
+    | TSym "<" -> Some LtOp | TSym "<=" -> Some LeOp | TSym ">" -> Some GtOp | TSym ">=" -> Some GeOp
+    | TSym "&&" -> Some AndOp | TSym "||" -> Some OrOp
+    | _ -> None
+
+  // Precedence climbing: parse operands binding at least as tightly as `min`.
+  let rec expr_prec min = mdo!(lhs <- unary (); climb min lhs)
+  and climb min lhs = mdo!(t <- peek;
+    case binop_of t.tok do
+    | Some op ->
+        if prec op >= min
+        then mdo!(_ <- advance; rhs <- expr_prec (prec op + 1); climb min (Bin (op, lhs, rhs, t.line)))
+        else pure lhs
+    | None -> pure lhs)
+  and unary u = mdo!(t <- peek;
+    case t.tok do
+    | TSym "-" -> mdo!(_ <- advance; e <- unary (); pure (Unary (Negate, e, t.line)))
+    | TSym "!" -> mdo!(_ <- advance; e <- unary (); pure (Unary (LogNot, e, t.line)))
+    | _ -> primary ())
+  and primary u = mdo!(t <- advance;
+    case t.tok do
+    | TNum n -> pure (Num n)
+    | TKw "true" -> pure (BoolLit true)
+    | TKw "false" -> pure (BoolLit false)
+    | TSym "(" -> mdo!(e <- expr_prec 1; _ <- expect ")"; pure e)
+    | TId x -> mdo!(n <- peek;
+        if is_sym "(" n.tok
+        then mdo!(_ <- advance; args <- comma_list ")" (expr_prec 1); _ <- expect ")"; pure (Call (x, args, t.line)))
+        else pure (Var (x, t.line)))
+    | _ -> fail_at t "expected an expression")
+
+  let expr = expr_prec 1
+
+  let rec stmt u = mdo!(t <- peek;
+    case t.tok do
+    | TKw "var" -> mdo!(_ <- advance; x <- ident; _ <- expect ":"; tp <- ty; _ <- expect "=";
+                        e <- expr; _ <- expect ";"; pure (SVar (x, tp, e, t.line)))
+    | TKw "if" -> if_stmt ()
+    | TKw "while" -> mdo!(_ <- advance; _ <- expect "("; c <- expr; _ <- expect ")";
+                          b <- block (); pure (SWhile (c, b, t.line)))
+    | TKw "return" -> mdo!(_ <- advance; n <- peek;
+        if is_sym ";" n.tok then mdo!(_ <- advance; pure (SReturn (None, t.line)))
+        else mdo!(e <- expr; _ <- expect ";"; pure (SReturn (Some e, t.line))))
+    | TKw "print" -> mdo!(_ <- advance; e <- expr; _ <- expect ";"; pure (SPrint (e, t.line)))
+    | TSym "{" -> fmap SBlock (block ())
+    | TId x -> mdo!(t2 <- peek2;
+        if is_sym "=" t2
+        then mdo!(_ <- advance; _ <- advance; e <- expr; _ <- expect ";"; pure (SAssign (x, e, t.line)))
+        else mdo!(e <- expr; _ <- expect ";"; pure (SExpr (e, t.line))))
+    | _ -> mdo!(e <- expr; _ <- expect ";"; pure (SExpr (e, t.line))))
+  // `else if` chains nest an if statement in the else block.
+  and if_stmt u = mdo!(t <- advance; _ <- expect "("; c <- expr; _ <- expect ")"; th <- block (); n <- peek;
+    if is_sym "else" n.tok
+    then mdo!(_ <- advance; n2 <- peek;
+      if is_sym "if" n2.tok then mdo!(s <- if_stmt (); pure (SIf (c, th, Blk [s], t.line)))
+      else mdo!(el <- block (); pure (SIf (c, th, el, t.line))))
+    else pure (SIf (c, th, Blk [], t.line)))
+  and block u = mdo!(_ <- expect "{"; ss <- many_until (is_sym "}") (stmt ()); _ <- expect "}"; pure (Blk ss))
+
+  let param = mdo!(x <- ident; _ <- expect ":"; tp <- ty; pure (x, tp))
+
+  let func = mdo!(t <- advance; name <- ident; _ <- expect "("; ps <- comma_list ")" param; _ <- expect ")";
+    _ <- expect ":"; r <- ty; b <- block ();
+    pure { name: name, params: ps, ret: r, body: b, line: t.line })
+
+  let is_eof tok = case tok do | TEof -> true | _ -> false
+
+  let program = mdo!(
+    fs <- many_until (fn tok -> not (is_sym "fn" tok)) func;
+    ss <- many_until is_eof (stmt ());
+    pure { funcs: fs, main: Blk ss })
+
+  let parse toks = case run_parser program toks do | Ok (p, _) -> Ok p | Err e -> Err e
+end

@@ -1,0 +1,13 @@
+// Bug: a module-qualified constructor cannot be used in a pattern.
+//   M.B 3 is accepted as an expression, but `case t do | M.A -> ...` is a
+//   syntax error, so code outside a module must `use M` to match on its types.
+// Expected: prints 3.
+// Actual (both back ends): error: 01-qualified-ctor-pattern.forge:12: syntax error near `.`
+// Run: ./_build/default/bin/interpreter.exe projects/systems/bugs/01-qualified-ctor-pattern.forge
+mod M where
+  type T = | A | B of Int
+end
+
+let x = M.B 3
+let f t = case t do | M.A -> 0 | M.B n -> n
+let () = println (f x)

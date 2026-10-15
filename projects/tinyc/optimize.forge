@@ -1,0 +1,128 @@
+// The optimiser: constant folding, algebraic simplification, dead branches
+// for constant conditions, and dead code after a return. It rewrites the AST
+// of a checked program and keeps its meaning (including every call, since a
+// call may print, and every division, since it may trap).
+import "util.forge"
+import "ast.forge"
+import "typecheck.forge"
+
+use Ast
+
+mod Opt where
+  let arith op a b =
+    case op do
+    | Plus -> Some (Num (a + b))
+    | Minus -> Some (Num (a - b))
+    | Times -> Some (Num (a * b))
+    | Divide -> if b == 0 then None else Some (Num (a / b))
+    | Modulo -> if b == 0 then None else Some (Num (a % b))
+    | EqOp -> Some (BoolLit (a == b))
+    | NeOp -> Some (BoolLit (a != b))
+    | LtOp -> Some (BoolLit (a < b))
+    | LeOp -> Some (BoolLit (a <= b))
+    | GtOp -> Some (BoolLit (a > b))
+    | GeOp -> Some (BoolLit (a >= b))
+    | _ -> None
+
+  // The comparison that holds exactly when `op` does not.
+  let negate_cmp op =
+    case op do
+    | LtOp -> Some GeOp | GeOp -> Some LtOp
+    | GtOp -> Some LeOp | LeOp -> Some GtOp
+    | EqOp -> Some NeOp | NeOp -> Some EqOp
+    | _ -> None
+
+  let same_var a b = case (a, b) do | (Var (x, _), Var (y, _)) -> x == y | _ -> false
+
+  // One rewrite at the root of a binary node whose operands are already folded.
+  let simplify_bin op a b l =
+    case (op, a, b) do
+    | (_, Num x, Num y) -> (case arith op x y do | Some r -> r | None -> Bin (op, a, b, l))
+    | (AndOp, BoolLit x, BoolLit y) -> BoolLit (x && y)
+    | (OrOp, BoolLit x, BoolLit y) -> BoolLit (x || y)
+    | (EqOp, BoolLit x, BoolLit y) -> BoolLit (x == y)
+    | (NeOp, BoolLit x, BoolLit y) -> BoolLit (x != y)
+    // Short-circuit operators with a constant left operand.
+    | (AndOp, BoolLit true, e) -> e
+    | (AndOp, BoolLit false, _) -> BoolLit false
+    | (OrOp, BoolLit true, _) -> BoolLit true
+    | (OrOp, BoolLit false, e) -> e
+    // A constant right operand: the left one still runs unless it is pure.
+    | (AndOp, e, BoolLit true) -> e
+    | (OrOp, e, BoolLit false) -> e
+    | (AndOp, e, BoolLit false) -> if pure_expr e then BoolLit false else Bin (op, a, b, l)
+    | (OrOp, e, BoolLit true) -> if pure_expr e then BoolLit true else Bin (op, a, b, l)
+    // Algebraic identities.
+    | (Plus, e, Num 0) -> e
+    | (Plus, Num 0, e) -> e
+    | (Minus, e, Num 0) -> e
+    | (Minus, Num 0, e) -> Unary (Negate, e, l)
+    | (Times, e, Num 1) -> e
+    | (Times, Num 1, e) -> e
+    | (Divide, e, Num 1) -> e
+    | (Times, e, Num 0) -> if pure_expr e then Num 0 else Bin (op, a, b, l)
+    | (Times, Num 0, e) -> if pure_expr e then Num 0 else Bin (op, a, b, l)
+    | (Minus, x, y) -> if same_var x y then Num 0 else Bin (op, a, b, l)
+    | (EqOp, x, y) -> if same_var x y then BoolLit true else Bin (op, a, b, l)
+    | _ -> Bin (op, a, b, l)
+
+  let simplify_unary op a l =
+    case (op, a) do
+    | (Negate, Num n) -> Num (0 - n)
+    | (Negate, Unary (Negate, e, _)) -> e
+    | (LogNot, BoolLit b) -> BoolLit (not b)
+    | (LogNot, Unary (LogNot, e, _)) -> e
+    | (LogNot, Bin (cmp, x, y, l2)) ->
+        (case negate_cmp cmp do | Some inv -> Bin (inv, x, y, l2) | None -> Unary (op, a, l))
+    | _ -> Unary (op, a, l)
+
+  let rec fold e =
+    case e do
+    | Unary (op, a, l) -> simplify_unary op (fold a) l
+    | Bin (op, a, b, l) -> simplify_bin op (fold a) (fold b) l
+    | Call (f, args, l) -> Call (f, map fold args, l)
+    | _ -> e
+
+  let declares ss = list_length [x | SVar (x, _, _, _) <- ss] > 0
+
+  // A statement becomes zero or more statements.
+  let rec opt_stmt s =
+    case s do
+    | SVar (x, t, e, l) -> [SVar (x, t, fold e, l)]
+    | SAssign (x, e, l) -> [SAssign (x, fold e, l)]
+    | SIf (c, a, b, l) ->
+        (case fold c do
+         | BoolLit true -> as_block (opt_block a)
+         | BoolLit false -> as_block (opt_block b)
+         | Unary (LogNot, c2, _) -> [SIf (c2, opt_block b, opt_block a, l)]
+         | c2 -> [SIf (c2, opt_block a, opt_block b, l)])
+    | SWhile (c, b, l) ->
+        (case fold c do
+         | BoolLit false -> []
+         | c2 -> [SWhile (c2, opt_block b, l)])
+    | SReturn (Some e, l) -> [SReturn (Some (fold e), l)]
+    | SReturn (None, l) -> [s]
+    | SPrint (e, l) -> [SPrint (fold e, l)]
+    | SExpr (e, l) -> let e2 = fold e in if pure_expr e2 then [] else [SExpr (e2, l)]
+    | SBlock b -> as_block (opt_block b)
+
+  // A block that declares nothing can be spliced into its parent.
+  and as_block b =
+    case b do
+    | Blk [] -> []
+    | Blk ss -> if declares ss then [SBlock b] else ss
+
+  // Statements after one that always returns can never run.
+  and opt_stmts ss =
+    case ss do
+    | [] -> []
+    | s :: rest ->
+        let now = opt_stmt s in
+        if Check.returns now then now else now ++ opt_stmts rest
+
+  and opt_block b = Blk (opt_stmts (stmts b))
+
+  let opt_func (f : Func) = { f with body = opt_block f.body }
+
+  let program (p : Program) = { funcs: map opt_func p.funcs, main: opt_block p.main }
+end

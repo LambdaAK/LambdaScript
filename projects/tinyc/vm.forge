@@ -1,0 +1,80 @@
+// The stack machine. Code is held in an AVL map from addresses (O(log n)
+// fetch, instead of list_nth's O(n)); the operand stack is a list; locals are
+// a map from slots. The main loop is tail recursive and counts instructions.
+import "util.forge"
+import "codegen.forge"
+
+use Code
+
+mod Vm where
+  type Frame = { ret: Int, saved: Map.T<Int, Int> }
+
+  type State = {
+    pc: Int, stack: List<Int>, locals: Map.T<Int, Int>,
+    frames: List<Frame>, out: List<String>, steps: Int
+  }
+
+  // What a run produced: the printed lines, the instruction count and,
+  // if the program trapped, why.
+  type Outcome = { lines: List<String>, count: Int, error: Option<String> }
+
+  let fuel = 5000000
+
+  let finish (st : State) err = { lines: Util.rev st.out, count: st.steps, error: err }
+
+  let bool_int b = if b then 1 else 0
+
+  // Pop n values; the last argument is on top of the stack.
+  let rec pop_args n stack acc =
+    if n == 0 then (acc, stack)
+    else case stack do
+         | v :: rest -> pop_args (n - 1) rest (v :: acc)
+         | [] -> (acc, [])
+
+  // Only binary instructions reach this (every other one is matched first).
+  let binary i a b =
+    case i do
+    | Add -> a + b | Sub -> a - b | Mul -> a * b
+    | Div -> a / b | Mod -> a % b
+    | Eq -> bool_int (a == b) | Ne -> bool_int (a != b)
+    | Lt -> bool_int (a < b) | Le -> bool_int (a <= b)
+    | Gt -> bool_int (a > b) | Ge -> bool_int (a >= b)
+    | _ -> 0
+
+  let rec run code (st : State) =
+    if st.steps >= fuel then finish st (Some "out of fuel")
+    else
+      let next = { st with pc = st.pc + 1, steps = st.steps + 1 } in
+      case (Map.get_or (Label (-1)) st.pc code, st.stack) do
+      | (Label _, _) -> finish st (Some ("jump outside the code: " ^ int_to_str st.pc))
+      | (Halt, _) -> finish next None
+      | (Push n, s) -> run code { next with stack = n :: s }
+      | (Load k, s) -> run code { next with stack = Map.get_or 0 k st.locals :: s }
+      | (Store k, v :: s) -> run code { next with stack = s, locals = Map.insert k v st.locals }
+      | (Pop, _ :: s) -> run code { next with stack = s }
+      | (Neg, v :: s) -> run code { next with stack = (0 - v) :: s }
+      | (Not, v :: s) -> run code { next with stack = (1 - v) :: s }
+      | (Jump a, _) -> run code { next with pc = a }
+      | (JumpZ a, v :: s) -> run code { next with pc = if v == 0 then a else st.pc + 1, stack = s }
+      | (ICall (a, n), s) ->
+          let (args, s2) = pop_args n s [] in
+          let frame = { ret: st.pc + 1, saved: st.locals } in
+          run code { next with pc = a, stack = s2, locals = Map.of_array args, frames = frame :: st.frames }
+      | (Ret, v :: s) ->
+          (case st.frames do
+           | f :: fs -> run code { next with pc = f.ret, stack = v :: s, locals = f.saved, frames = fs }
+           | [] -> finish next (Some "return with no caller"))
+      | (RetV, s) ->
+          (case st.frames do
+           | f :: fs -> run code { next with pc = f.ret, locals = f.saved, frames = fs }
+           | [] -> finish next (Some "return with no caller"))
+      | (PrintI, v :: s) -> run code { next with stack = s, out = int_to_str v :: st.out }
+      | (PrintB, v :: s) -> run code { next with stack = s, out = (if v == 0 then "false" else "true") :: st.out }
+      | (i, b :: a :: s) ->
+          if (i == Div || i == Mod) && b == 0 then finish next (Some "division by zero")
+          else run code { next with stack = binary i a b :: s }
+      | (i, _) -> finish st (Some ("stack underflow at " ^ show i))
+
+  let execute prog =
+    run (Map.of_array prog) { pc: 0, stack: [], locals: Map.empty, frames: [], out: [], steps: 0 }
+end

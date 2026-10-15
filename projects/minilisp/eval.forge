@@ -1,0 +1,143 @@
+// The evaluator, written in the Res monad. Globals live in a persistent map
+// that is threaded from one top-level form to the next; local scopes are
+// chains of frames captured by closures.
+import "reader.forge"
+import "builtins.forge"
+
+mod Eval where
+  type Globals = Map.T<Value>
+
+  let lookup (g : Globals) env name =
+    case Sexpr.env_find name env do
+    | Some v -> Ok v
+    | None -> (case Map.find name g do | Some v -> Ok v | None -> Err (Unbound name))
+
+  let symbol_name what form v = case v do | Sym s -> Ok s | _ -> Err (BadSyntax (what, form))
+
+  // A parameter list is (a b c) or a single symbol that takes every argument.
+  let make_closure name params body env form =
+    case (params, body) do
+    | (_, []) -> Err (BadSyntax ("lambda (empty body)", form))
+    | (Sym all, _) -> Ok (Closure { name: name, params: [], rest: Some all, body: body, env: env })
+    | (List ps, _) ->
+        mapM (symbol_name "lambda parameters" form) ps >>= (fn names ->
+          // (a b . rest): the symbol after the dot takes the extra arguments.
+          case reverse names do
+          | r :: "." :: fixed -> Ok (Closure { name: name, params: reverse fixed, rest: Some r, body: body, env: env })
+          | _ -> Ok (Closure { name: name, params: names, rest: None, body: body, env: env }))
+    | _ -> Err (BadSyntax ("lambda", form))
+
+  // Pair parameters with arguments, checking the count.
+  let bind_args fname params rest args =
+    let want = list_length params in
+    let got = list_length args in
+    case rest do
+    | None -> if want == got then Ok (zip params args) else Err (Arity (fname, int_to_str want, got))
+    | Some r ->
+        if got < want then Err (Arity (fname, "at least " ^ int_to_str want, got))
+        else
+          let rec split n xs = if n == 0 then ([], xs) else (case xs do | x :: t -> (let (a, b) = split (n - 1) t in (x :: a, b)) | [] -> ([], [])) in
+          let (fixed, extra) = split want args in
+          Ok ((r, List extra) :: zip params fixed)
+
+  let rec eval (g : Globals) env e =
+    case e do
+    | Num _ -> Ok e
+    | Str _ -> Ok e
+    | Boolean _ -> Ok e
+    | Sym s -> lookup g env s
+    | List [] -> Err (BadSyntax ("application", e))
+    | List (Sym "quote" :: x :: []) -> Ok x
+    | List (Sym "quote" :: _) -> Err (BadSyntax ("quote", e))
+    | List (Sym "if" :: c :: t :: rest) ->
+        (case rest do
+         | [] -> eval g env c >>= (fn cv -> if Sexpr.truthy cv then eval g env t else Ok Sexpr.nil)
+         | f :: [] -> eval g env c >>= (fn cv -> if Sexpr.truthy cv then eval g env t else eval g env f)
+         | _ -> Err (BadSyntax ("if", e)))
+    | List (Sym "if" :: _) -> Err (BadSyntax ("if", e))
+    | List (Sym "lambda" :: params :: body) -> make_closure None params body env e
+    | List (Sym "let" :: List bindings :: body) ->
+        mapM (eval_binding g env e) bindings >>= (fn frame -> eval_body g (Frame (frame, env)) body)
+    | List (Sym "let*" :: List bindings :: body) ->
+        // Each binding sees the ones before it: one frame per binding.
+        foldM (fn env2 -> fn b -> fmap (fn kv -> Frame (kv :: [], env2)) (eval_binding g env2 e b)) env bindings
+          >>= (fn env3 -> eval_body g env3 body)
+    | List (Sym "cond" :: clauses) -> eval_cond g env e clauses
+    | List (Sym "and" :: args) -> eval_and g env args
+    | List (Sym "or" :: args) -> eval_or g env args
+    | List (Sym "begin" :: body) -> eval_body g env body
+    | List (Sym "define" :: _) -> Err (BadSyntax ("define (only allowed at the start of a body)", e))
+    | List (f :: args) ->
+        eval g env f >>= (fn fv -> mapM (eval g env) args >>= (fn avs -> apply g fv avs))
+    | _ -> Ok e
+
+  and eval_binding g env form b =
+    case b do
+    | List (Sym x :: rhs :: []) -> fmap (fn v -> (x, v)) (eval g env rhs)
+    | _ -> Err (BadSyntax ("let binding", form))
+
+  and eval_cond g env form clauses =
+    case clauses do
+    | [] -> Ok Sexpr.nil
+    | List (Sym "else" :: body) :: _ -> eval_body g env body
+    | List (test :: body) :: rest ->
+        eval g env test >>= (fn tv ->
+          if not (Sexpr.truthy tv) then eval_cond g env form rest
+          else (case body do | [] -> Ok tv | _ -> eval_body g env body))
+    | _ -> Err (BadSyntax ("cond", form))
+
+  and eval_and g env args =
+    case args do
+    | [] -> Ok (Boolean true)
+    | x :: [] -> eval g env x
+    | x :: rest -> eval g env x >>= (fn v -> if Sexpr.truthy v then eval_and g env rest else Ok v)
+
+  and eval_or g env args =
+    case args do
+    | [] -> Ok (Boolean false)
+    | x :: [] -> eval g env x
+    | x :: rest -> eval g env x >>= (fn v -> if Sexpr.truthy v then Ok v else eval_or g env rest)
+
+  // A body is a sequence of internal definitions followed by expressions.
+  // An internal (define (f ...) ...) names its closure, so f can recurse.
+  and eval_body g env body =
+    case body do
+    | [] -> Ok Sexpr.nil
+    | List (Sym "define" :: List (Sym f :: params) :: fbody) :: rest ->
+        make_closure (Some f) (List params) fbody env (list_head body) >>= (fn clo ->
+          eval_body g (Frame ((f, clo) :: [], env)) rest)
+    | List (Sym "define" :: Sym x :: rhs :: []) :: rest ->
+        eval g env rhs >>= (fn v -> eval_body g (Frame ((x, v) :: [], env)) rest)
+    | e :: [] -> eval g env e
+    | e :: rest -> eval g env e >>= (fn _ -> eval_body g env rest)
+
+  and apply g f args =
+    case f do
+    | Prim "apply" ->
+        (case args do
+         | proc :: List xs :: [] -> apply g proc xs
+         | proc :: other :: [] -> Err (TypeError ("apply", "list", other))
+         | _ -> Err (Arity ("apply", "2", list_length args)))
+    | Prim name -> Builtins.call name args
+    | Closure c ->
+        let fname = case c.name do | Some n -> n | None -> "lambda" in
+        bind_args fname c.params c.rest args >>= (fn frame ->
+          let self = case c.name do | Some n -> (n, f) :: [] | None -> [] in
+          eval_body g (Frame (frame ++ self, c.env)) c.body)
+    | other -> Err (NotProcedure other)
+
+  // Top-level forms may define globals; the result pairs the new globals
+  // with the value to print.
+  let eval_top (g : Globals) form =
+    case form do
+    | List (Sym "define" :: List (Sym f :: params) :: body) ->
+        make_closure (Some f) (List params) body Empty form >>= (fn clo -> Ok (Map.insert f clo g, Sym f))
+    | List (Sym "define" :: Sym x :: rhs :: []) ->
+        eval g Empty rhs >>= (fn v ->
+          let named = case v do | Closure c -> Closure { c with name = Some x } | _ -> v in
+          Ok (Map.insert x named g, Sym x))
+    | List (Sym "define" :: _) -> Err (BadSyntax ("define", form))
+    | _ -> fmap (fn v -> (g, v)) (eval g Empty form)
+
+  let primitives : Globals = reduce_left (fn g -> fn n -> Map.insert n (Prim n) g) Map.empty Builtins.names
+end

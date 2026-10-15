@@ -1,0 +1,54 @@
+// Evaluation: accuracy, confusion matrices, and a trait for classifiers.
+import "util.forge"
+import "data.forge"
+
+// counts[t][p] = number of samples of true class t predicted as p.
+type Confusion = | Confusion of List<List<Int>>
+
+// (The samples are written as a record type rather than `Sample`: a type
+// alias in a trait signature is not expanded, see bugs/01.)
+// Anything that can label a feature vector. `accuracy` and `confusion`
+// have default definitions in terms of `predict`; `describe` is overridden
+// by some instances only.
+trait Classifier<m> where
+  val predict : m -> List<Float> -> Int
+  val describe : m -> String
+  val accuracy : m -> List<{ x: List<Float>, y: Int }> -> Float
+  val confusion : m -> Int -> List<{ x: List<Float>, y: Int }> -> Confusion
+  let describe _ = "a classifier"
+  let accuracy model samples =
+    let hits = Lists.count (fn s -> predict model s.x == s.y) samples in
+    int_to_float hits /. int_to_float (list_length samples)
+  let confusion model k samples =
+    let empty = [[0 | _ <- [1...k]] | _ <- [1...k]] in
+    let record counts s =
+      Lists.update_at s.y (Lists.update_at (predict model s.x) (fn c -> c + 1)) counts
+    in
+    Confusion (reduce_left record empty samples)
+end
+
+// A table of counts with numbered rows and columns.
+let count_table corner rows =
+  let k = list_length (list_head rows) in
+  let header = "    " ^ Fmt.left 10 corner ^ Fmt.join "" [Fmt.right 6 (int_to_str p) | p <- [0...k - 1]] in
+  let line t row = "    " ^ Fmt.left 10 (int_to_str t) ^ Fmt.join "" (map (fn n -> Fmt.right 6 (int_to_str n)) row) in
+  let rec lines t rs = case rs do | [] -> [] | r :: rest -> line t r :: lines (t + 1) rest in
+  Fmt.join "\n" (header :: lines 0 rows)
+
+// Printed as a table, one row per true class.
+impl Show for Confusion where
+  show c = case c do | Confusion rows -> count_table "true\\pred" rows
+end
+
+mod Metrics where
+  // Per-class recall: the diagonal over the row sums.
+  let recalls c = case c do
+    | Confusion rows ->
+        let rec go t rs = case rs do
+          | [] -> []
+          | r :: rest ->
+              let total = Lists.sum_int r in
+              int_to_float (list_nth r t) /. int_to_float (if total == 0 then 1 else total) :: go (t + 1) rest
+        in
+        go 0 rows
+end

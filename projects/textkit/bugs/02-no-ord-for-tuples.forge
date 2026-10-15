@@ -1,0 +1,16 @@
+// Bug 02: `compare` has no Ord instance for tuples, and the error has no location.
+//
+// The operators == and < are structural and work on tuples, and Show has
+// instances for pairs and triples, but the prelude's Ord (and Eq) traits
+// have none, so `compare` -- the function a sort-by-comparator wants --
+// cannot be used on a pair. The diagnostic also names no line or
+// definition, which made it hard to find in a 1000-line program.
+//
+// Run:  ./_build/default/bin/interpreter.exe projects/textkit/bugs/02-no-ord-for-tuples.forge
+// Expected: prints LT  (or, at least, an error pointing at line 15)
+// Actual:   error: type error: No instance `Ord` for type (Int, String)   (exit 1, no location)
+//           The native compiler prints the same message.
+// Workaround in textkit: shell.forge (Shell.suggest) compares the Int component by hand.
+
+let b = compare (1, "x") (2, "y")
+let () = println b

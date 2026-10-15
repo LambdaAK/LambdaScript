@@ -1,0 +1,18 @@
+// Bug: an `impl` for a named record type is accepted, but no use of it ever
+// resolves. The instance declaration gives no error; the call site says
+// there is no instance for the (expanded) record type.
+// Expected: prints b@2 (or the impl itself is rejected with a clear message
+//   such as "instances cannot be declared for record types").
+// Actual (interpreter and native compiler):
+//   error: type error: No instance `Show` for type {name: String, arrival: Int}
+// Run: ./_build/default/bin/interpreter.exe projects/systems/bugs/03-impl-for-record-alias.forge
+// Workaround in sched.forge: jobs stay plain records and are ordered with
+// key functions and the structural operators instead of `impl Ord`.
+type Job = { name: String, arrival: Int }
+
+impl Show for Job where
+  show j = j.name ^ "@" ^ int_to_str j.arrival
+end
+
+let j : Job = { name: "b", arrival: 2 }
+let () = print_string (show j)

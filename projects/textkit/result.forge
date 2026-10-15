@@ -1,0 +1,85 @@
+// result.forge -- errors are values: a Result type with Functor,
+// Applicative and Monad instances, so tools can chain fallible steps
+// with >>= and fmap instead of crashing.
+
+import "strings.forge"
+
+// Everything that can go wrong while running a command line.
+type Error =
+  | UnknownCommand of (String, Option<String>)   // name, suggestion
+  | UnknownFlag of (String, String, List<String>) // tool, flag, valid flags
+  | MissingValue of (String, String)             // tool, flag
+  | BadNumber of (String, String)                // tool, text
+  | NoSuchFile of (String, String)               // tool, file
+  | Usage of (String, String)                    // tool, message
+  | Syntax of String                             // the command line is malformed
+
+// A Result with a fixed error type, so that it has kind * -> * and can be
+// an instance of the prelude's higher-kinded traits.
+type Res<a> =
+  | Ok of a
+  | Err of Error
+
+impl Functor for Res where
+  fmap f r = case r do | Ok x -> Ok (f x) | Err e -> Err e
+end
+
+impl Applicative for Res where
+  pure x = Ok x,
+  ap rf rx = case rf do | Ok f -> fmap f rx | Err e -> Err e
+end
+
+impl Monad for Res where
+  bind r f = case r do | Ok x -> f x | Err e -> Err e
+end
+
+// A trait with a superclass and a default method: anything that can be
+// shown and has a severity tag can be reported.
+trait Report<a> requires Show<a> where
+  val tag : a -> String
+  val report : a -> String
+  let report x = tag x ^ ": " ^ show x
+end
+
+impl Show for Error where
+  show e =
+    case e do
+    | UnknownCommand (name, None) -> name ^ ": command not found"
+    | UnknownCommand (name, Some s) -> name ^ ": command not found (did you mean '" ^ s ^ "'?)"
+    | UnknownFlag (tool, flag, []) -> tool ^ ": unknown flag '" ^ flag ^ "' (it takes no flags)"
+    | UnknownFlag (tool, flag, valid) -> tool ^ ": unknown flag '" ^ flag ^ "' (valid: " ^ Str.join " " valid ^ ")"
+    | MissingValue (tool, flag) -> tool ^ ": flag '" ^ flag ^ "' needs a value"
+    | BadNumber (tool, text) -> tool ^ ": '" ^ text ^ "' is not a number"
+    | NoSuchFile (tool, file) -> tool ^ ": " ^ file ^ ": no such file"
+    | Usage (tool, msg) -> tool ^ ": " ^ msg
+    | Syntax msg -> "syntax error: " ^ msg
+end
+
+impl Report for Error where
+  tag e = case e do | Syntax _ -> "parse" | _ -> "error"
+end
+
+impl Show for Res<a> requires Show<a> where
+  show r = case r do | Ok x -> "Ok " ^ show x | Err e -> "Err (" ^ show e ^ ")"
+end
+
+mod Result where
+  let ok x : Res<a> = Ok x
+  let fail e : Res<a> = Err e
+
+  // Run f over every element, stopping at the first failure. Generic over
+  // any Monad: textkit uses it with both Res and Option.
+  let rec traverse f xs =
+    case xs do
+    | [] -> pure []
+    | x :: rest -> f x >>= (fn y -> traverse f rest >>= (fn ys -> pure (y :: ys)))
+
+  let of_option e o = case o do | Some x -> Ok x | None -> Err e
+
+  let is_ok r = case r do | Ok _ -> true | Err _ -> false
+end
+
+// ensure!(cond, err) is Ok () when cond holds, the error otherwise.
+macro_rules! ensure where
+  ($c:expr, $e:expr) => if $c then Ok () else Err $e
+end

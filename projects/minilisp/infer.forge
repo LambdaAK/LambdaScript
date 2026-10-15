@@ -1,0 +1,136 @@
+// Hindley-Milner type inference (algorithm J style): a state-and-error monad
+// carries the fresh-variable counter and the current substitution.
+import "mlparse.forge"
+
+type St = { next: Int, subst: List<(Int, Ty)> }
+type Outcome<a> = | Done of (a, St) | Failure of String
+type Infer<a> = | Infer of (St -> Outcome<a>)
+
+// The verdict on one expression; declared outside HM so that it can be
+// matched on (bugs/05-qualified-constructor-pattern.forge).
+type Verdict = | Typed of (Ty, Int) | Ill of String
+
+let run_infer m st = case m do | Infer f -> f st
+
+impl Functor for Infer where
+  fmap f m = Infer (fn st -> case run_infer m st do | Done (x, st2) -> Done (f x, st2) | Failure e -> Failure e)
+end
+
+impl Applicative for Infer where
+  pure x = Infer (fn st -> Done (x, st))
+  ,
+  ap mf mx = Infer (fn st ->
+    case run_infer mf st do
+    | Failure e -> Failure e
+    | Done (f, st2) -> run_infer (fmap f mx) st2)
+end
+
+impl Monad for Infer where
+  bind m f = Infer (fn st ->
+    case run_infer m st do
+    | Failure e -> Failure e
+    | Done (x, st2) -> run_infer (f x) st2)
+end
+
+mod HM where
+  type Env = List<(String, Scheme)>
+
+  let fail msg = Infer (fn _ -> Failure msg)
+  let fresh = Infer (fn st -> Done (TVar st.next, { st with next = st.next + 1 }))
+  let current = Infer (fn st -> Done (st.subst, st))
+  let extend n t = Infer (fn st -> Done ((), { st with subst = (n, t) :: st.subst }))
+  let zonk t = fmap (fn s -> Types.apply s t) current
+
+  let mismatch a b =
+    case Types.pretty_many [a, b] do
+    | sa :: sb :: [] -> fail ("type mismatch: " ^ sa ^ " vs " ^ sb)
+    | _ -> fail "type mismatch"
+
+  // Unify two types under the current substitution, extending it.
+  let rec unify a b =
+    current >>= (fn s -> unify_now (Types.apply s a) (Types.apply s b))
+  and unify_now a b =
+    case (a, b) do
+    | (TInt, TInt) -> pure ()
+    | (TBool, TBool) -> pure ()
+    | (TVar n, TVar m) -> if n == m then pure () else extend n b
+    | (TVar n, t) -> bind_var n t
+    | (t, TVar n) -> bind_var n t
+    | (TFun (a1, r1), TFun (a2, r2)) -> unify a1 a2 >>= (fn _ -> unify r1 r2)
+    | (TPair (a1, b1), TPair (a2, b2)) -> unify a1 a2 >>= (fn _ -> unify b1 b2)
+    | (TList x, TList y) -> unify x y
+    | _ -> mismatch a b
+  and bind_var n t =
+    if Types.occurs n t then
+      (case Types.pretty_many [TVar n, t] do
+       | sv :: st :: [] -> fail ("infinite type: " ^ sv ^ " occurs in " ^ st)
+       | _ -> fail "infinite type")
+    else extend n t
+
+  // Unify, and on failure say which expression was being checked.
+  let unify_in place a b = Infer (fn st ->
+    case run_infer (unify a b) st do
+    | Failure m -> Failure (m ^ "\n          in " ^ place)
+    | ok -> ok)
+
+  // Replace a scheme's quantified variables with fresh ones.
+  let instantiate sc =
+    case sc do
+    | Forall (vs, t) ->
+        mapM (fn v -> fmap (fn tv -> (v, tv)) fresh) vs >>= (fn s -> pure (Types.apply s t))
+
+  // Quantify the variables free in t but not in the environment.
+  let generalize (env : Env) t =
+    current >>= (fn s ->
+      let t2 = Types.apply s t in
+      let env_vars = reduce_left (fn acc -> fn (_, Forall (vs, et)) -> acc ++ Types.ftv_scheme (Forall (vs, Types.apply s et))) [] env in
+      pure (Forall (filter (fn v -> filter (fn w -> w == v) env_vars == []) (Types.ftv t2), t2)))
+
+  let mono t = Forall ([], t)
+
+  // The built-in functions; every binary operator is curried.
+  let a = TVar 0
+  let initial : Env = [
+    ("+", mono (TFun (TInt, TFun (TInt, TInt)))),
+    ("-", mono (TFun (TInt, TFun (TInt, TInt)))),
+    ("*", mono (TFun (TInt, TFun (TInt, TInt)))),
+    ("<", mono (TFun (TInt, TFun (TInt, TBool)))),
+    ("==", Forall ([0], TFun (a, TFun (a, TBool)))),
+    ("::", Forall ([0], TFun (a, TFun (TList a, TList a)))),
+    ("head", Forall ([0], TFun (TList a, a))),
+    ("tail", Forall ([0], TFun (TList a, TList a))),
+    ("null", Forall ([0], TFun (TList a, TBool))),
+    ("fst", Forall ([0, 1], TFun (TPair (a, TVar 1), a))),
+    ("snd", Forall ([0, 1], TFun (TPair (a, TVar 1), TVar 1)))
+  ]
+
+  let rec infer (env : Env) e =
+    case e do
+    | EInt _ -> pure TInt
+    | EBool _ -> pure TBool
+    | ENil -> fmap TList fresh
+    | EVar x -> (case lookup x env do | Some sc -> instantiate sc | None -> fail ("unbound variable: " ^ x))
+    | ELam (x, body) ->
+        fresh >>= (fn tx -> infer ((x, mono tx) :: env) body >>= (fn tb -> pure (TFun (tx, tb))))
+    | EApp (f, arg) ->
+        infer env f >>= (fn tf -> infer env arg >>= (fn ta -> fresh >>= (fn tr ->
+          unify_in (show e) tf (TFun (ta, tr)) >>= (fn _ -> pure tr))))
+    | ELet (x, rhs, body) ->
+        infer env rhs >>= (fn tr -> generalize env tr >>= (fn sc -> infer ((x, sc) :: env) body))
+    | ELetRec (x, rhs, body) ->
+        // The name is monomorphic inside its own definition.
+        fresh >>= (fn tx ->
+          infer ((x, mono tx) :: env) rhs >>= (fn tr ->
+            unify tx tr >>= (fn _ -> generalize env tr >>= (fn sc -> infer ((x, sc) :: env) body))))
+    | EIf (c, a, b) ->
+        infer env c >>= (fn tc -> unify_in ("the condition " ^ show c) tc TBool >>= (fn _ ->
+          infer env a >>= (fn ta -> infer env b >>= (fn tb -> unify_in ("the branches of " ^ show e) ta tb >>= (fn _ -> pure ta)))))
+    | EPair (a, b) -> infer env a >>= (fn ta -> infer env b >>= (fn tb -> pure (TPair (ta, tb))))
+
+  // The principal type of a closed expression, with the number of type
+  // variables the inference created; or the first type error.
+  let check e =
+    case run_infer (infer initial e >>= zonk) { next: 2, subst: [] } do
+    | Done (t, st) -> Typed (t, st.next - 2)
+    | Failure msg -> Ill msg
+end

@@ -1,0 +1,18 @@
+// MISSING FEATURE: a constructor of a type declared inside a module can be
+// used qualified in an expression (`Shapes.Square 4`) but not in a pattern
+// (`| Shapes.Square w -> ...` is a syntax error). The only way to match on it
+// outside the module is `use Shapes`, which brings every item into scope.
+//
+// Run:   ./_build/default/bin/interpreter.exe projects/minilisp/bugs/05-qualified-constructor-pattern.forge
+// Expected: 16 (modules-macros.tex: "Outside the module, its items are
+//           written with a qualified name, Name.item").
+// Actual:   error: 05-qualified-constructor-pattern.forge:17: syntax error near `.`
+// Workaround used in minilisp: `use ML` / `use Types` before the impls that
+//           match on those constructors (types.forge, infer.forge).
+mod Shapes where
+  type Shape = | Square of Int | Circle of Int
+end
+
+let s = Shapes.Square 4
+let area x = case x do | Shapes.Square w -> w * w | Shapes.Circle r -> 3 * r * r
+let () = println (area s)

@@ -1,0 +1,16 @@
+// Bug 04: the interpreter runs top-level effects before the whole program
+// has been type checked.
+//
+// documentation/chapters/types.tex says "a program is only run once all its
+// types check". The interpreter, however, checks and runs items one at a
+// time, so the effect on line 15 happens and only then is the type error on
+// line 16 reported. The native compiler rejects the program up front, so
+// the two back ends behave differently on an ill-typed program (one prints
+// to stdout, the other does not).
+//
+// Run:  ./_build/default/bin/interpreter.exe projects/textkit/bugs/04-interpreter-runs-before-typecheck.forge
+// Expected: only the type error (stderr), nothing on stdout, exit 1
+// Actual:   stdout "side effect before the type error", then the error, exit 1
+
+let () = println "side effect before the type error"
+let bad = 1 + "two"

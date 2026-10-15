@@ -1,0 +1,30 @@
+// Bug (native only): segmentation fault. A local `let rec go` captures the
+// parameter `key` and passes it to min_by, whose fold closure calls `key`;
+// the selected record (4+ fields) is then read. The interpreter prints [0].
+// The same code with `go` at top level taking `key` as a parameter works;
+// so does a record with 2 or 3 fields, or `t :: acc` instead of `j.a :: acc`.
+// Expected: [0]   (interpreter: [0])
+// Actual (native): no output, exit status 139 (SIGSEGV)
+// Run: cp to a temp dir, then
+//   ./_build/default/bin/compile_forge.exe <tmp>/07-native-segfault-local-rec-closure.forge <tmp>/a.exe && <tmp>/a.exe
+// Workaround in sched.forge: Sched.nonpreemptive's loop is a top-level
+// function (np_loop) that receives the key function as an argument.
+let rec fold f z xs = case xs do | [] -> z | x :: t -> fold f (f z x) t
+
+let min_by key xs =
+  case xs do
+  | [] -> None
+  | x :: rest -> Some (fold (fn best -> fn y -> if key y < key best then y else best) x rest)
+
+let np key jobs =
+  let rec go t pending acc =
+    case pending do
+    | [] -> acc
+    | _ ->
+      (case min_by key pending do
+       | Some j -> go (t + j.b) [] (j.a :: acc)
+       | None -> acc)
+  in
+  go 0 jobs []
+
+let () = println (np (fn j -> j.a) [{ n: 1, a: 0, b: 7, c: 3 }])

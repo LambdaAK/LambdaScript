@@ -1,0 +1,119 @@
+// Part 2: the object language of the type inferencer -- a small ML with
+// integers, booleans, functions, let-polymorphism, if, pairs and lists --
+// its types, substitutions and the type printer.
+import "util.forge"
+
+mod ML where
+  type rec Expr =
+    | EInt of Int
+    | EBool of Bool
+    | EVar of String
+    | ELam of (String, Expr)
+    | EApp of (Expr, Expr)
+    | ELet of (String, Expr, Expr)
+    | ELetRec of (String, Expr, Expr)
+    | EIf of (Expr, Expr, Expr)
+    | EPair of (Expr, Expr)
+    | ENil
+end
+
+mod Types where
+  type rec Ty =
+    | TInt
+    | TBool
+    | TVar of Int
+    | TFun of (Ty, Ty)
+    | TPair of (Ty, Ty)
+    | TList of Ty
+
+  // forall vars. ty
+  type Scheme = | Forall of (List<Int>, Ty)
+
+  // A substitution maps type variables to types. It is kept "triangular":
+  // a binding's type may mention variables bound elsewhere, so applying it
+  // walks until it reaches an unbound variable (the occurs check makes
+  // this terminate).
+  type Subst = List<(Int, Ty)>
+
+  let rec apply (s : Subst) t =
+    case t do
+    | TVar n -> (case lookup n s do | Some t2 -> apply s t2 | None -> t)
+    | TFun (a, b) -> TFun (apply s a, apply s b)
+    | TPair (a, b) -> TPair (apply s a, apply s b)
+    | TList a -> TList (apply s a)
+    | _ -> t
+
+  // Free type variables, in order of first appearance, without repeats.
+  let ftv t =
+    let rec go t acc =
+      case t do
+      | TVar n -> if filter (fn m -> m == n) acc == [] then n :: acc else acc
+      | TFun (a, b) -> go b (go a acc)
+      | TPair (a, b) -> go b (go a acc)
+      | TList a -> go a acc
+      | _ -> acc
+    in
+    reverse (go t [])
+
+  let ftv_scheme sc = case sc do | Forall (vs, t) -> filter (fn v -> filter (fn w -> w == v) vs == []) (ftv t)
+
+  let occurs n t = filter (fn m -> m == n) (ftv t) != []
+
+  // Names for type variables: a, b, ..., z, a1, b1, ...
+  let letter i =
+    let base = char_to_str (list_nth (string_to_list "abcdefghijklmnopqrstuvwxyz") (i % 26)) in
+    if i < 26 then base else base ^ int_to_str (i / 26)
+
+  // Print types with variables renamed a, b, c in order of appearance.
+  // Several types printed together (an error message) share one naming.
+  let render_with names t =
+    let rec go prec t =
+      case t do
+      | TInt -> "Int"
+      | TBool -> "Bool"
+      | TVar n -> (case lookup n names do | Some s -> s | None -> "?" ^ int_to_str n)
+      | TList a -> "List<" ^ go 0 a ^ ">"
+      | TPair (a, b) -> "(" ^ go 0 a ^ ", " ^ go 0 b ^ ")"
+      | TFun (a, b) ->
+          let s = go 1 a ^ " -> " ^ go 0 b in
+          if prec > 0 then "(" ^ s ^ ")" else s
+    in
+    go 0 t
+
+  let naming ts =
+    let vars = nub (reduce_left (fn acc -> fn t -> acc ++ ftv t) [] ts) in
+    zip vars (map letter [0...list_length vars])
+
+  let pretty t = render_with (naming [t]) t
+
+  let pretty_many ts = let names = naming ts in map (render_with names) ts
+end
+
+// Constructors cannot be matched with a qualified name (`ML.EInt n`), see
+// bugs/05-qualified-constructor-pattern.forge, so the modules are opened.
+use ML
+use Types
+
+// Types shown on their own are normalised: show (TFun (TVar 7, TVar 7)) is
+// "a -> a".
+impl Show for Ty where
+  show t = pretty t
+end
+
+impl Show for Expr where
+  show e =
+    case e do
+    | EInt n -> int_to_str n
+    | EBool b -> if b then "true" else "false"
+    | EVar x -> x
+    | ELam (x, body) -> "(fun " ^ x ^ " -> " ^ show body ^ ")"
+    | EApp (EApp (EVar op, l), r) ->
+        if filter (fn o -> o == op) ["+", "-", "*", "<", "==", "::"] != [] then "(" ^ show l ^ " " ^ op ^ " " ^ show r ^ ")"
+        else "(" ^ op ^ " " ^ show l ^ " " ^ show r ^ ")"
+    | EApp (f, a) -> "(" ^ show f ^ " " ^ show a ^ ")"
+    | ELet (x, a, b) -> "(let " ^ x ^ " = " ^ show a ^ " in " ^ show b ^ ")"
+    | ELetRec (x, a, b) -> "(let rec " ^ x ^ " = " ^ show a ^ " in " ^ show b ^ ")"
+    | EIf (c, a, b) -> "(if " ^ show c ^ " then " ^ show a ^ " else " ^ show b ^ ")"
+    | EPair (a, b) -> "(" ^ show a ^ ", " ^ show b ^ ")"
+    | ENil -> "[]"
+end
