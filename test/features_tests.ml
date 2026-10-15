@@ -119,6 +119,8 @@ let trait_errors =
       (size_trait ^ "impl Size for Int where\n  size n = n\nend\nlet () = println (size true)");
     bad ~mentions:[ "String"; "Int" ] "an annotated pattern is checked"
       "let f o = case o do | Some (x : Int) -> x | None -> 0\nlet () = println (f (Some \"s\"))";
+    bad ~mentions:[ "refers to itself" ] "a record type in a type rec group cannot refer to itself"
+      "type rec Tree = { label: Int, kids: List<Tree> }";
     bad "impl of unknown trait" "impl Nope for Int where\n  f x = x\nend";
     bad "impl missing method"
       "trait T<a> where\n  val f : a -> Int\n  val g : a -> Int\nend\nimpl T for Int where\n  f x = x\nend";
@@ -204,6 +206,9 @@ let module_tests =
     ok "shadowed globals across many definitions"
       "let x = 1\nlet f () = x\nlet d0 = 0\nlet d1 = 1\nlet d2 = 2\nlet d3 = 3\nlet d4 = 4\nlet d5 = 5\nlet d6 = 6\nlet d7 = 7\nlet d8 = 8\nlet d9 = 9\nlet d10 = 10\nlet d11 = 11\nlet d12 = 12\nlet d13 = 13\nlet d14 = 14\nlet d15 = 15\nlet d16 = 16\nlet d17 = 17\nlet d18 = 18\nlet d19 = 19\nlet d20 = 20\nlet d21 = 21\nlet d22 = 22\nlet d23 = 23\nlet d24 = 24\nlet d25 = 25\nlet d26 = 26\nlet d27 = 27\nlet d28 = 28\nlet d29 = 29\nlet d30 = 30\nlet d31 = 31\nlet d32 = 32\nlet d33 = 33\nlet d34 = 34\nlet d35 = 35\nlet d36 = 36\nlet d37 = 37\nlet d38 = 38\nlet d39 = 39\nlet x = 2\nlet g () = x\nlet d0 = 0\nlet d1 = 1\nlet d2 = 2\nlet d3 = 3\nlet d4 = 4\nlet d5 = 5\nlet d6 = 6\nlet d7 = 7\nlet d8 = 8\nlet d9 = 9\nlet d10 = 10\nlet d11 = 11\nlet d12 = 12\nlet d13 = 13\nlet d14 = 14\nlet d15 = 15\nlet d16 = 16\nlet d17 = 17\nlet d18 = 18\nlet d19 = 19\nlet d20 = 20\nlet d21 = 21\nlet d22 = 22\nlet d23 = 23\nlet d24 = 24\nlet d25 = 25\nlet d26 = 26\nlet d27 = 27\nlet d28 = 28\nlet d29 = 29\nlet d30 = 30\nlet d31 = 31\nlet d32 = 32\nlet d33 = 33\nlet d34 = 34\nlet d35 = 35\nlet d36 = 36\nlet d37 = 37\nlet d38 = 38\nlet d39 = 39\nlet some = Some\nlet () = println (f (), g (), x, some 3, d39)"
       "(1, 2, 2, Some 3, 39)\n";
+    ok "record types in a type rec group"
+      "type rec Value = | Num of Int | Clo of Lam\nand Lam = { params: List<String>, env: List<(String, Value)> }\ntype rec Tree<a> = | Leaf | Node of Info<a>\nand Info<a> = { v: a, kids: List<Tree<a>> }\nlet v = Clo { params: [\"x\"], env: [(\"y\", Num 1)] }\nlet l : Lam = { params: [], env: [] }\nlet rec sum t = case t do | Leaf -> 0 | Node i -> i.v + reduce_left (fn a -> fn k -> a + sum k) 0 i.kids\nlet () = println (case v do | Clo r -> list_length r.params + list_length r.env | _ -> 0, list_length l.env, sum (Node { v: 1, kids: [Leaf, Node { v: 2, kids: [] }] }))"
+      "(2, 0, 3)\n";
     ok "impl for a named record type"
       "type P = { x: Int, y: Int }\nimpl Show for P where\n  show p = \"P(\" ^ int_to_str p.x ^ \")\"\nend\nlet p : P = { x: 1, y: 2 }\nlet () = print_string (show p)"
       "P(1)\n";
