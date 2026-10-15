@@ -157,6 +157,13 @@ let unwrap_type_check_result (x : 'a type_check_result) : 'a =
 
 exception TypeFailure
 
+(** An ill-formed pattern (unknown constructor, wrong constructor arity). *)
+exception Pattern_error of string
+
+(** The last pair of types the unifier could not reconcile (for error
+    messages). *)
+let last_type_clash : (mono_type * mono_type) option ref = ref None
+
 let assert_distinct_record_field_names (names : string list) : unit =
   let sorted = List.sort String.compare names in
   let rec nodups = function
@@ -1196,11 +1203,7 @@ and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
   | CVariantPat (cons_name, payload_pat_opt) -> (
       (* Look up the constructor in the static environment *)
       match List.assoc_opt cons_name env with
-      | None ->
-          (* Constructor not found - this should be a type error but for now
-             return fresh var *)
-          let sum_type = fresh_type_var () in
-          (sum_type, [], [])
+      | None -> raise (Pattern_error ("Unknown constructor in pattern: " ^ cons_name))
       | Some cons_type -> (
           (* Instantiate the constructor type *)
           match instantiate cons_type with
@@ -1208,9 +1211,11 @@ and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
               (* Constructor with payload *)
               match payload_pat_opt with
               | None ->
-                  (* Pattern has no payload but constructor expects one - type error *)
-                  (* For now, return the sum type *)
-                  (sum_type, [], [])
+                  raise
+                    (Pattern_error
+                       ("Constructor " ^ cons_name
+                      ^ " expects an argument in this pattern (write `" ^ cons_name
+                      ^ " _` to ignore it)"))
               | Some payload_pat ->
                   let payload_pat_type, payload_env, payload_constraints =
                     type_of_pat env type_env payload_pat
@@ -1225,9 +1230,9 @@ and type_of_pat (env : static_env) (type_env : type_env) (pat : c_pat) :
               match payload_pat_opt with
               | None -> (sum_type, [], [])
               | Some _ ->
-                  (* Pattern has payload but constructor is nullary - type error *)
-                  (* For now, just ignore the payload *)
-                  (sum_type, [], []))))
+                  raise
+                    (Pattern_error
+                       ("Constructor " ^ cons_name ^ " takes no argument, but the pattern gives it one")))))
 
 and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
   (* Optimized version: instead of substituting through all accumulated
@@ -1321,12 +1326,12 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
             ->
               if List.length as1 = 1 then
                 reduce_eq_acc acc ((List.hd as1, et2) :: c')
-              else raise TypeFailure
+              else (last_type_clash := Some (t1, t2); raise TypeFailure)
           | CTypeApp (name1, args1), CTypeApp (name2, args2) ->
               if name1 = name2 && List.length args1 = List.length args2 then
                 let arg_equations = List.combine args1 args2 in
                 reduce_eq_acc acc (arg_equations @ c')
-              else raise TypeFailure
+              else (last_type_clash := Some (t1, t2); raise TypeFailure)
           | TCtorApp (w1, as1), TCtorApp (w2, as2) ->
               if List.length as1 = List.length as2 then
                 let arg_equations = List.combine as1 as2 in
@@ -1336,15 +1341,15 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
                 then
                   reduce_eq_acc acc
                     (((TypeVar w1, TypeVar w2) :: arg_equations) @ c')
-                else raise TypeFailure
-              else raise TypeFailure
+                else (last_type_clash := Some (t1, t2); raise TypeFailure)
+              else (last_type_clash := Some (t1, t2); raise TypeFailure)
           | TCtorApp (w, as1), CTypeApp (n, as2)
           | CTypeApp (n, as2), TCtorApp (w, as1) ->
               if List.length as1 = List.length as2 then
                 let arg_equations = List.combine as1 as2 in
                 reduce_eq_acc acc
                   (((TypeVar w, TypeName n) :: arg_equations) @ c')
-              else raise TypeFailure
+              else (last_type_clash := Some (t1, t2); raise TypeFailure)
           (* Recursive sum types like [type rec List<a> = ...] are μ-types
              (FixedPoint) in the environment, while class method signatures use
              TCtorApp for the type-class parameter applied to [a]. Unify the
@@ -1363,22 +1368,22 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
                     ((type1, type2)
                     :: (VectorType tail1, VectorType tail2)
                     :: c')
-              | _ -> raise TypeFailure)
+              | _ -> (last_type_clash := Some (t1, t2); raise TypeFailure))
           | FixedPoint (name1, body1), FixedPoint (name2, body2) ->
               if name1 = name2 then reduce_eq_acc acc ((body1, body2) :: c')
-              else raise TypeFailure
+              else (last_type_clash := Some (t1, t2); raise TypeFailure)
           | FixedPoint (name, body), CTypeApp (app_name, args) ->
               if name = app_name then
                 reduce_eq_acc acc ((body, CTypeApp (app_name, args)) :: c')
-              else raise TypeFailure
+              else (last_type_clash := Some (t1, t2); raise TypeFailure)
           | CTypeApp (app_name, args), FixedPoint (name, body) ->
               if name = app_name then
                 reduce_eq_acc acc ((CTypeApp (app_name, args), body) :: c')
-              else raise TypeFailure
+              else (last_type_clash := Some (t1, t2); raise TypeFailure)
           | TypeName name1, CTypeApp (name2, _) ->
-              if name1 = name2 then reduce_eq_acc acc c' else raise TypeFailure
+              if name1 = name2 then reduce_eq_acc acc c' else (last_type_clash := Some (t1, t2); raise TypeFailure)
           | CTypeApp (name1, _), TypeName name2 ->
-              if name1 = name2 then reduce_eq_acc acc c' else raise TypeFailure
+              if name1 = name2 then reduce_eq_acc acc c' else (last_type_clash := Some (t1, t2); raise TypeFailure)
           | RecordType fields1, RecordType fields2 ->
               let rec unify_common_fields acc_fields remaining1 remaining2 =
                 match remaining1 with
@@ -1400,7 +1405,7 @@ and reduce_eq (c : type_equations) (_type_env : type_env) : type_equations =
               in
               let common_eqs, _, _ = unify_common_fields [] fields1 fields2 in
               reduce_eq_acc acc (common_eqs @ c')
-          | _ -> raise TypeFailure)
+          | _ -> (last_type_clash := Some (t1, t2); raise TypeFailure))
   in
   reduce_eq_acc [] c
 
@@ -1852,7 +1857,9 @@ and type_of_c_expr (env : static_env) (type_env : type_env) (e : c_expr) :
             the_mono_type
         in
         return (fix_c_type the_c_type)
-  with TypeFailure -> Error (OtherError "Type inference failed")
+  with
+  | TypeFailure -> Error (OtherError "Type inference failed")
+  | Pattern_error msg -> Error (OtherError msg)
 
 (** Solved monomorphic type of [e1] (the function position) in the binary
     application [EApp (e1, e2)], after constraint solving. Used for
@@ -2657,11 +2664,25 @@ and generate_defn (env : static_env) (type_env : type_env) (defn : c_defn) :
           types
       in
         return (all_constructor_bindings, type_env_entries, types)
-  with TypeFailure ->
-    Error
-      (OtherError
-         ("Type inference failed while checking definition:\n"
-        ^ C_to_string.string_of_defn defn))
+  with
+  | TypeFailure ->
+      let clash = !last_type_clash in
+      last_type_clash := None;
+      let detail =
+        match clash with
+        | Some (t1, t2) -> (
+            match Typefixer.fix_type (VectorType [ t1; t2 ]) with
+            | VectorType [ a; b ] ->
+                "cannot match " ^ string_of_mono_type a ^ " with " ^ string_of_mono_type b
+                ^ "\n  in: "
+            | _ -> "")
+        | None -> ""
+      in
+      Error
+        (OtherError
+           ("Type inference failed while checking definition: " ^ detail
+           ^ C_to_string.string_of_defn defn))
+  | Pattern_error msg -> Error (OtherError msg)
 
 (* Given a type with type names, simplify it by replacing the type names with
    the actual types
