@@ -143,7 +143,9 @@ and mono_to_min (m : mono_type) : ty =
   | UnitType -> Unit
   | FunctionType _ ->
       let ps, rt = peel_function_chain_to_min [] m in
-      if List.length ps >= 2 then Clos (ps, rt) else Fun (ps, rt)
+      (* Every first-class function value is a closure, whatever its arity
+         (a raw function pointer could not carry captured variables). *)
+      Clos (ps, rt)
   | TypeVar _ ->
       unsupported
         "Polymorphic type in native compile (e.g. a -> a): add monomorphic \
@@ -967,8 +969,9 @@ let rec capture_operand_for_var (env : env) (ctx : fn_ctx) (v : string) :
 and materialize_clos_lower _env ctx (c : callable) : operand * ty =
   let k = List.length c.fixed in
   let n = List.length c.param_tys in
-  if n = 1 && c.cap_tys = [] && k = 0 then
-    (FnAddr (c.multi_direct, c.param_tys, c.ret_ty), Fun (c.param_tys, c.ret_ty))
+  if c.step_codes = [] then
+    unsupported
+      ("`" ^ c.multi_direct ^ "` cannot be used as a function value in native code yet")
   else if n = 1 && k <> 0 then
     unsupported "Internal: partial one-arg function without captures"
   else
@@ -1870,11 +1873,7 @@ let callable_stub ~(scheme_key : string) ~(instance_key : string)
       (List.length param_tys) static_env type_env
   in
   let n = List.length param_tys in
-  let step_codes =
-    if n >= 2 then
-      List.init n (fun k -> emit_direct ^ "__ls_s" ^ string_of_int k)
-    else []
-  in
+  let step_codes = List.init n (fun k -> emit_direct ^ "__ls_s" ^ string_of_int k) in
   {
     multi_direct = emit_direct;
     step_codes;
@@ -2267,6 +2266,32 @@ let globals_to_loads (ctx : fn_ctx) (body : c_expr) (env : env) : env =
           | _ -> (name, b)))
       env
 
+(** Step function [env -> a -> r] calling the builtin [name] ([print],
+    [print_string], [int_to_str]), so the builtin can be a closure value. *)
+let builtin_steps : (string, string) Hashtbl.t = Hashtbl.create 4
+
+let generated_steps : func_def list ref = ref []
+
+let builtin_value_step (name : string) (p : ty) (r : ty) : string =
+  match Hashtbl.find_opt builtin_steps name with
+  | Some f -> f
+  | None ->
+      let f = "__ls_builtin_" ^ sanitize_llvm_ident name ^ "__ls_s0" in
+      Hashtbl.add builtin_steps name f;
+      let ctx = create_fn_ctx () in
+      let env_p = fresh_param () and x = fresh_param () in
+      (if r = Unit then (
+         emit_instr ctx (VoidCall (name, [ Local x ]));
+         close_block ctx (Ret None))
+       else
+         let t = fresh () in
+         emit_instr ctx (Assign (t, Call (name, [ Local x ])));
+         close_block ctx (Ret (Some (Local t))));
+      generated_steps :=
+        { name = f; params = [ (env_p, RawPtr); (x, p) ]; ret = r; entry = "entry"; blocks = blocks_assoc ctx }
+        :: !generated_steps;
+      f
+
 (* -------------------------------------------------------------------------- *)
 (* Structural comparison                                                       *)
 (* -------------------------------------------------------------------------- *)
@@ -2551,6 +2576,9 @@ and lower_expr_val_as_call_arg ?(callee_fn_expr : c_expr option) (arg : c_expr)
       if ty_equal got expect then (o, got)
       else
         match (callee_fn_expr, expect, got) with
+        | _, List _, List _ when arg = ENil ->
+            (* [[]] has every list type (all lists are pointers). *)
+            (o, expect)
         | Some _, RawPtr, List _ when is_likely_dict_expr arg ->
             (* Class-method stubs sometimes leave a [RawPtr] parameter slot
                where the type-checked spine is a list ([++] / [mappend] on
@@ -3996,6 +4024,12 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
                    ^ "` is not a saturated call (compiler bug)")
               | None -> (
                   match native_builtin_as_fun_ptr x with
+                  | Some (_, Fun ([ p ], r)) ->
+                      let code = builtin_value_step x p r in
+                      let t = fresh () in
+                      emit_instr ctx
+                        (Assign (t, MkClos { code; env_ptr = RawNull; clo_ty = Clos ([ p ], r) }));
+                      LVal (Local t, Clos ([ p ], r))
                   | Some (op, t) -> LVal (op, t)
                   | None ->
                       if is_poly_static x static_env then
@@ -4218,6 +4252,11 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
             "Discarded let binding cannot be a partially applied function")
   | EBind _ -> unsupported "let: pattern not supported for native compilation"
   | EBlock parts -> lower_block parts env ctx static_env type_env shadows
+  | EApp (EFunction (p, ann, body), arg) ->
+      (* [(fn p -> body) arg] is [let p = arg in body] (same evaluation
+         order); lowering it as a binding types [p] from [arg] instead of
+         defaulting an unannotated lambda's type variables. *)
+      lower_expr (EBind (p, ann, arg, body, None)) env ctx static_env type_env shadows
   | EApp (e1, e2) -> (
       let e_app =
         reduce_poly_identity_apps static_env ~shadows (EApp (e1, e2))
@@ -4422,12 +4461,7 @@ and lower_expr (e : c_expr) (env : env) (ctx : fn_ctx) (static_env : static_env)
           let n_fn = List.length param_tys in
           let cap_tys = List.map (fun (_, t, _) -> t) cap_entries in
           let cap_ops = List.map (fun (_, _, o) -> o) cap_entries in
-          let step_codes =
-            if n_fn >= 2 then
-              List.init n_fn (fun k -> mangled ^ "__ls_s" ^ string_of_int k)
-            else if cap_tys <> [] then [ mangled ^ "__ls_s0" ]
-            else []
-          in
+          let step_codes = List.init n_fn (fun k -> mangled ^ "__ls_s" ^ string_of_int k) in
           let c =
             {
               multi_direct = mangled;
@@ -4821,12 +4855,7 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
             (List.length param_tys) static_env type_env
         in
         let n = List.length param_tys in
-        let step_codes_self =
-          if n >= 2 then
-            List.init n (fun k -> emit ^ "__ls_s" ^ string_of_int k)
-          else if m_cap > 0 then [ emit ^ "__ls_s0" ]
-          else []
-        in
+        let step_codes_self = List.init n (fun k -> emit ^ "__ls_s" ^ string_of_int k) in
         let rec_callable =
           {
             multi_direct = emit;
@@ -4990,10 +5019,11 @@ and lower_user_function ?(captures : (string * ty * operand) list = [])
       @ [
           emit_curried_step_final ~emit (n - 1) cap_tys param_tys params ret_ty;
         ]
-    else if m_cap > 0 then
+    else if n = 1 then
       [ emit_curried_step_final ~emit 0 cap_tys param_tys params ret_ty ]
     else []
   in
+  ignore m_cap;
   (direct_fn, nested_from_body @ aux_steps)
 
 let lower_c_expr_to_main (e : c_expr) : (func_def, string) result =
@@ -5114,6 +5144,8 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
     reset_fresh ();
     Hashtbl.reset cmp_cache;
     generated_funcs := [];
+    Hashtbl.reset builtin_steps;
+    generated_steps := [];
     lowering_type_env := type_env;
     lowering_ctor_env := ctor_env;
     let static_env = native_prim_types @ static_env in
@@ -5495,7 +5527,9 @@ let lower_c_program (defs : c_defn list) (static_env : static_env)
     in
     Ok
       {
-        funcs = !user_funs @ ctx_main.nested_funcs @ List.rev !generated_funcs @ [ main_fn ];
+        funcs =
+          !user_funs @ ctx_main.nested_funcs @ List.rev !generated_funcs
+          @ List.rev !generated_steps @ [ main_fn ];
         entry = Some "main";
       }
   with Unsupported msg -> Error msg

@@ -148,6 +148,15 @@ let comparisons =
 
 let functions =
   [
+    ok "capturing lambda passed to map"
+      "let n = 10\nlet () = println (map (fn x -> x + n) [1, 2])" "[11, 12]\n";
+    ok "capturing lambda built from a parameter"
+      "let scale k = map (fn x -> x * k) [1, 2, 3]\nlet () = println (scale 3)" "[3, 6, 9]\n";
+    ok "list of one-argument functions"
+      "let fs = [fn x -> x + 1, fn x -> x * 2]\nlet () = println (map (fn f -> f 10) fs)" "[11, 20]\n";
+    ok "builtin passed as a function value"
+      "let () = println (map int_to_str [1, 2])\nlet () = { map print_string [\"a\", \"b\"]; () }" "[1, 2]\na\nb\n";
+    ok "immediately applied lambda" "let () = println ((fn (a, b) -> a + b) (1, 2))" "3\n";
     ok "closure captures" "let make_adder n = fn x -> x + n\nlet add5 = make_adder 5\nlet () = println (add5 10)"
       "15\n";
     ok "closure captures at creation time"

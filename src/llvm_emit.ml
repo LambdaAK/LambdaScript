@@ -442,7 +442,20 @@ let emit_operand (ctx : emit_ctx) (h : (string, ty) H.t) (op : operand) :
   | ConstI64 n -> ("i64", string_of_int n)
   | ConstI1 b -> ("i1", if b then "true" else "false")
   | ConstF64 f -> ("double", llvm_double_literal f)
-  | ConstStr _ -> failwith "llvm_emit: ConstStr must use Copy/global"
+  | ConstStr s ->
+      (* A string literal in operand position: a constant [getelementptr]
+         into a fresh global. *)
+      let idx = ctx.str_counter in
+      ctx.str_counter <- idx + 1;
+      let n = String.length s + 1 in
+      let gname = Printf.sprintf ".str.%d" idx in
+      ctx.prelude <-
+        Printf.sprintf "@%s = private unnamed_addr constant [%d x i8] c\"%s\\00\"" gname n
+          (llvm_c_escape s)
+        :: ctx.prelude;
+      ( "i8*",
+        Printf.sprintf "getelementptr inbounds ([%d x i8], [%d x i8]* @%s, i64 0, i64 0)" n n
+          gname )
   | ConstUnit -> ("i8", "0")
   | FnAddr (name, ps, r) ->
       let fpty = llvm_fun_ptr_ty_ctx ctx ps r in
@@ -1569,9 +1582,17 @@ let emit_instr ctx (fn_sigs : (string, func_def) H.t)
               ls_clos_ty ls_clos_ptr p;
             Printf.sprintf "  %%%s = load i8*, i8** %%%s" v_env g_env;
             Printf.sprintf "  %%%s = bitcast i8* %%%s to %s" fnp v_code fpty;
-            Printf.sprintf "  %%%s = call %s %%%s(i8* %%%s, %s %s)" dst ret_ll fnp
-              v_env aty av;
-          ];
+          ]
+        @ (if result_ty = Unit then
+             [
+               Printf.sprintf "  call void %%%s(i8* %%%s, %s %s)" fnp v_env aty av;
+               Printf.sprintf "  %%%s = add i8 0, 0" dst;
+             ]
+           else
+             [
+               Printf.sprintf "  %%%s = call %s %%%s(i8* %%%s, %s %s)" dst ret_ll fnp
+                 v_env aty av;
+             ]);
       H.replace h dst result_ty)
 
 let emit_term (ctx : emit_ctx) (h : (string, ty) H.t)
