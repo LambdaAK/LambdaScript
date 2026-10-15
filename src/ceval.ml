@@ -394,6 +394,16 @@ let is_dict_binding_name (name : string) : bool =
   String.starts_with ~prefix:"__forge_dict_" name
   || String.starts_with ~prefix:"__dict_" name
 
+(** Make the garbage collector suit the evaluator. Evaluation recurses on
+    the OCaml stack, and every minor collection scans the whole stack, so with
+    the default minor heap (256k words) a recursion a million calls deep
+    spends most of its time collecting, and the cost grows with the square of
+    the depth. A 64 MB minor heap makes collections rare. Left alone when
+    [OCAMLRUNPARAM] is set. *)
+let tune_gc () : unit =
+  if Sys.getenv_opt "OCAMLRUNPARAM" = None then
+    Gc.set { (Gc.get ()) with minor_heap_size = 8 * 1024 * 1024 }
+
 (** The dictionary bindings of [caller_env] that [closure_env] lacks, put in
     front of [closure_env].
 

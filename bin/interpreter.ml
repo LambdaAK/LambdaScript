@@ -58,6 +58,7 @@ let () =
     exit 2)
   else
     let filename = Sys.argv.(1) in
+    Ceval.tune_gc ();
     try
       interpret filename;
       flush stdout

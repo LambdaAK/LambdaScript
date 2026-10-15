@@ -85,6 +85,14 @@ let interpreter_tests =
          let () = println (loop 2000000 0)"
       in
       assert_runs ~expected:"2000000\n" "loop" src (interp ~timeout:15.0 src) );
+    (* Every minor collection scans the evaluator's (deep) stack: with the
+       default minor heap this recursion took about 20 s; now about 2 s. *)
+    ( "interpreter: recursion five million calls deep" >:: fun _ ->
+      let src =
+        "let rec sum n = if n == 0 then 0 else n + sum (n - 1)\n\
+         let () = println (sum 5000000)"
+      in
+      assert_runs ~expected:"12500002500000\n" "deep" src (interp ~timeout:10.0 src) );
   ]
 
 let ambiguity_tests =

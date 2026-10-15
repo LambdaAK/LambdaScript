@@ -297,6 +297,7 @@ let run_repl ?preload_file () =
   run_repl_loop static_env dynamic_env type_env history
 
 let () =
+  Language.Ceval.tune_gc ();
   match Array.length Sys.argv with
   | 1 ->
       (* No arguments - start REPL normally *)
