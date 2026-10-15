@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import CodeBlock from '../components/CodeBlock';
 import DocsLayout from '../components/DocsLayout';
 
@@ -15,10 +14,6 @@ function HowItWorksPage() {
   return (
     <DocsLayout>
       <div className="page-intro">
-        <div className="breadcrumb">
-          <Link to="/">Home</Link> / <Link to="/docs/">Docs</Link> /
-          How It Works
-        </div>
         <h1 className="page-title">How Forge Works</h1>
         <p className="lead">
           Intermediate-depth explanation of the language implementation
@@ -119,29 +114,31 @@ function HowItWorksPage() {
       </ul>
 
       <h2>Why Two Execution Paths?</h2>
-      <table className="info-table">
-        <thead>
-          <tr>
-            <th>Path</th>
-            <th>Strength</th>
-            <th>Best Use</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Interpreter</td>
-            <td>Fast feedback during language development</td>
-            <td>Trying new syntax/features and validating semantics</td>
-          </tr>
-          <tr>
-            <td>Compiler</td>
-            <td>End-to-end native code generation</td>
-            <td>
-              Demonstrating systems/compiler depth and runnable binaries
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div className="table-scroll">
+        <table className="info-table">
+          <thead>
+            <tr>
+              <th>Path</th>
+              <th>Strength</th>
+              <th>Best Use</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Interpreter</td>
+              <td>Fast feedback during language development</td>
+              <td>Trying new syntax/features and validating semantics</td>
+            </tr>
+            <tr>
+              <td>Compiler</td>
+              <td>End-to-end native code generation</td>
+              <td>
+                Demonstrating systems/compiler depth and runnable binaries
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <div className="callout">
         <strong>Design tradeoff:</strong> keeping both evaluator and compiler

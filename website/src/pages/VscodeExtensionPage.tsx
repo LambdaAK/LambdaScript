@@ -19,10 +19,6 @@ function VscodeExtensionPage() {
   return (
     <DocsLayout>
       <div className="page-intro">
-        <div className="breadcrumb">
-          <Link to="/">Home</Link> / <Link to="/docs/">Docs</Link> /
-          VS Code extension
-        </div>
         <h1 className="page-title">VS Code &amp; Cursor extension</h1>
         <p className="lead">
           The Forge editor support lives in the{' '}
@@ -167,27 +163,29 @@ function VscodeExtensionPage() {
       </ul>
 
       <h2>5. Settings reference</h2>
-      <table className="info-table">
-        <thead>
-          <tr>
-            <th>Setting</th>
-            <th>Meaning</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>
-              <code className="inline-code">forge.forgeHoverPath</code>
-            </td>
-            <td>
-              Absolute path to <code className="inline-code">forge_hover</code>.
-              Leave empty to auto-discover from the workspace.
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div className="table-scroll">
+        <table className="info-table">
+          <thead>
+            <tr>
+              <th>Setting</th>
+              <th>Meaning</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <code className="inline-code">forge.forgeHoverPath</code>
+              </td>
+              <td>
+                Absolute path to <code className="inline-code">forge_hover</code>.
+                Leave empty to auto-discover from the workspace.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-      <p className="section-lead vscode-ext-footer">
+      <p className="t-desc">
         Back to <Link to="/docs/">documentation overview</Link> or the{' '}
         <Link to="/docs/quickstart/">Quickstart</Link>.
       </p>
